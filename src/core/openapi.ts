@@ -108,10 +108,12 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
 
   /**
    * Sets up the OpenAPI documentation endpoints.
+   * @param path - The path to serve the OpenAPI JSON at
+   * @param config - OpenAPI configuration
    */
-  setupDocs(config: OpenAPIConfig): void {
+  setupDocs(path: string, config: OpenAPIConfig): void {
     // OpenAPI JSON endpoint
-    this.app.doc(this.options.openapi_url!, {
+    this.app.doc(path, {
       openapi: config.openapi || '3.1.0',
       info: config.info,
       servers: config.servers,
@@ -181,7 +183,7 @@ export function fromHono<E extends Env = Env>(
 
       if (prop === 'doc') {
         return (path: string, config: OpenAPIConfig) => {
-          handler.setupDocs(config);
+          handler.setupDocs(path, config);
         };
       }
 
