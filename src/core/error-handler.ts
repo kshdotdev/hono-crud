@@ -1,4 +1,5 @@
 import type { Context, Env, ErrorHandler } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { ZodError } from 'zod';
 import { ApiException, InputValidationException } from './exceptions.js';
 import { getRequestId } from '../logging/middleware.js';
@@ -107,9 +108,18 @@ export function createErrorHandler<E extends Env = Env>(
     let apiException: ApiException;
     let wasMapped = false;
 
-    // Step 1: Check if error is already ApiException
+    // Step 1: Check if error is already ApiException (extends HTTPException)
     if (err instanceof ApiException) {
       apiException = err;
+      wasMapped = true;
+    }
+    // Step 1b: Handle plain HTTPException (from Hono's built-in handlers)
+    else if (err instanceof HTTPException) {
+      apiException = new ApiException(
+        err.message,
+        err.status,
+        'HTTP_ERROR'
+      );
       wasMapped = true;
     } else {
       // Step 2: Try custom mappers in order

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Env } from 'hono';
+import { stream } from 'hono/streaming';
 import { ListEndpoint } from './list.js';
 import type { MetaInput, OpenAPIRouteSchema, ListFilters, PaginatedResult } from '../core/types.js';
 import type { ModelObject } from './types.js';
@@ -235,18 +236,93 @@ export abstract class ExportEndpoint<
   }
 
   /**
-   * Exports records as CSV format with streaming.
+   * Exports records as CSV format with streaming using Hono's stream helper.
+   * Provides better memory efficiency for large exports.
    */
   protected exportAsCsvStream(
     records: Record<string, unknown>[],
     format: ExportFormat
   ): Response {
-    const stream = createCsvStream(records, {
+    const ctx = this.getContext();
+    const filename = this.getExportFilename(format);
+    const csvOptions = {
+      ...this.csvOptions,
+      excludeFields: this.excludedExportFields,
+    };
+
+    // Use Hono's stream helper for better integration
+    return stream(ctx, async (streamWriter) => {
+      // Set headers before writing
+      ctx.header('Content-Type', 'text/csv; charset=utf-8');
+      ctx.header('Content-Disposition', `attachment; filename="${filename}"`);
+
+      // Generate CSV header
+      if (records.length > 0) {
+        const firstRecord = records[0];
+        const fields = Object.keys(firstRecord).filter(
+          (key) => !csvOptions.excludeFields?.includes(key)
+        );
+
+        // Write header row
+        const headerRow = fields.map((field) => this.escapeCsvField(String(field))).join(',') + '\n';
+        await streamWriter.write(headerRow);
+
+        // Write data rows in batches for memory efficiency
+        const batchSize = 100;
+        for (let i = 0; i < records.length; i += batchSize) {
+          const batch = records.slice(i, i + batchSize);
+          for (const record of batch) {
+            const row = fields.map((field) => {
+              const value = record[field];
+              return this.escapeCsvField(this.formatCsvValue(value));
+            }).join(',') + '\n';
+            await streamWriter.write(row);
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Escapes a CSV field value for safe output.
+   */
+  private escapeCsvField(value: string): string {
+    if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+  }
+
+  /**
+   * Formats a value for CSV output.
+   */
+  private formatCsvValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    if (typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+    return String(value);
+  }
+
+  /**
+   * Legacy streaming method using Web ReadableStream.
+   * Kept for backwards compatibility.
+   */
+  protected exportAsCsvStreamLegacy(
+    records: Record<string, unknown>[],
+    format: ExportFormat
+  ): Response {
+    const csvStream = createCsvStream(records, {
       ...this.csvOptions,
       excludeFields: this.excludedExportFields,
     });
 
-    return new Response(stream, {
+    return new Response(csvStream, {
       status: 200,
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',

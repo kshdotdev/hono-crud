@@ -1,191 +1,34 @@
 import type { Context, MiddlewareHandler } from 'hono';
+import { verify, decode } from 'hono/jwt';
+import type { JWTPayload } from 'hono/utils/jwt/types';
 import type { AuthEnv, JWTConfig, JWTClaims, JWTAlgorithm, AuthUser } from '../types.js';
 import { UnauthorizedException } from '../../core/exceptions.js';
 import { validateJWTClaims } from '../validators/jwt-claims.js';
 
 // ============================================================================
-// JWT Utilities
+// Algorithm Mapping
 // ============================================================================
 
 /**
- * Base64url decode a string.
+ * Map custom JWTAlgorithm to Hono's supported algorithm types.
+ * Hono's JWT supports: HS256, HS384, HS512, RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512
  */
-function base64urlDecode(str: string): Uint8Array {
-  // Add padding if needed
-  const padded = str + '==='.slice(0, (4 - (str.length % 4)) % 4);
-  // Replace base64url chars with base64 chars
-  const base64 = padded.replace(/-/g, '+').replace(/_/g, '/');
-  // Decode
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-// ============================================================================
-// Algorithm Configuration
-// ============================================================================
+type HonoAlgorithm = 'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512' | 'ES256' | 'ES384' | 'ES512';
 
 /**
- * Algorithm configuration for Web Crypto API.
+ * Validates that the algorithm is supported by Hono's JWT.
  */
-interface AlgorithmConfig {
-  name: string;
-  hash: string;
-  namedCurve?: string;
-}
-
-/**
- * Map of JWT algorithms to their Web Crypto configurations.
- * O(1) lookup instead of switch statement.
- */
-const JWT_ALGORITHM_CONFIG: ReadonlyMap<JWTAlgorithm, AlgorithmConfig> = new Map([
-  ['HS256', { name: 'HMAC', hash: 'SHA-256' }],
-  ['HS384', { name: 'HMAC', hash: 'SHA-384' }],
-  ['HS512', { name: 'HMAC', hash: 'SHA-512' }],
-  ['RS256', { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }],
-  ['RS384', { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-384' }],
-  ['RS512', { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-512' }],
-  ['ES256', { name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' }],
-  ['ES384', { name: 'ECDSA', hash: 'SHA-384', namedCurve: 'P-384' }],
-  ['ES512', { name: 'ECDSA', hash: 'SHA-512', namedCurve: 'P-521' }],
-]);
-
-/**
- * Get the Web Crypto algorithm configuration for a JWT algorithm.
- */
-function getAlgorithmConfig(algorithm: JWTAlgorithm): AlgorithmConfig {
-  const config = JWT_ALGORITHM_CONFIG.get(algorithm);
-  if (!config) {
+function validateAlgorithm(algorithm: JWTAlgorithm): HonoAlgorithm {
+  const supported: HonoAlgorithm[] = ['HS256', 'HS384', 'HS512', 'RS256', 'RS384', 'RS512', 'ES256', 'ES384', 'ES512'];
+  if (!supported.includes(algorithm as HonoAlgorithm)) {
     throw new Error(`Unsupported algorithm: ${algorithm}`);
   }
-  return config;
+  return algorithm as HonoAlgorithm;
 }
 
-/**
- * Import a key for JWT verification.
- */
-async function importKey(
-  secret: string | CryptoKey,
-  algorithm: JWTAlgorithm
-): Promise<CryptoKey> {
-  if (secret instanceof CryptoKey) {
-    return secret;
-  }
-
-  const config = getAlgorithmConfig(algorithm);
-
-  if (config.name === 'HMAC') {
-    // For HMAC, import the secret as a symmetric key
-    const encoder = new TextEncoder();
-    return crypto.subtle.importKey(
-      'raw',
-      encoder.encode(secret),
-      { name: 'HMAC', hash: config.hash! },
-      false,
-      ['verify']
-    );
-  }
-
-  // For RSA/ECDSA, the secret should be a PEM-encoded public key
-  // Parse PEM and import as SPKI
-  const pemHeader = '-----BEGIN PUBLIC KEY-----';
-  const pemFooter = '-----END PUBLIC KEY-----';
-
-  if (!secret.includes(pemHeader)) {
-    throw new Error('RSA/ECDSA algorithms require a PEM-encoded public key');
-  }
-
-  const pemContents = secret
-    .replace(pemHeader, '')
-    .replace(pemFooter, '')
-    .replace(/\s/g, '');
-
-  const binaryKey = base64urlDecode(
-    pemContents.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-  );
-
-  const importConfig: AlgorithmIdentifier | RsaHashedImportParams | EcKeyImportParams =
-    config.namedCurve
-      ? { name: config.name, namedCurve: config.namedCurve }
-      : { name: config.name, hash: config.hash! };
-
-  return crypto.subtle.importKey('spki', binaryKey.buffer as ArrayBuffer, importConfig, false, ['verify']);
-}
-
-/**
- * Verify a JWT signature.
- */
-async function verifySignature(
-  token: string,
-  key: CryptoKey,
-  algorithm: JWTAlgorithm
-): Promise<boolean> {
-  const parts = token.split('.');
-  if (parts.length !== 3) {
-    return false;
-  }
-
-  const [header, payload, signature] = parts;
-  const signedContent = `${header}.${payload}`;
-
-  const encoder = new TextEncoder();
-  const data = encoder.encode(signedContent);
-  const sig = base64urlDecode(signature);
-
-  const config = getAlgorithmConfig(algorithm);
-
-  let verifyConfig: AlgorithmIdentifier | RsaPssParams | EcdsaParams;
-  if (config.name === 'ECDSA') {
-    verifyConfig = { name: 'ECDSA', hash: config.hash! };
-  } else {
-    verifyConfig = { name: config.name };
-  }
-
-  try {
-    return await crypto.subtle.verify(verifyConfig, key, sig.buffer as ArrayBuffer, data.buffer as ArrayBuffer);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Decode JWT payload without verification.
- */
-function decodePayload(token: string): JWTClaims | null {
-  const parts = token.split('.');
-  if (parts.length !== 3) {
-    return null;
-  }
-
-  try {
-    const payload = base64urlDecode(parts[1]);
-    const decoder = new TextDecoder();
-    return JSON.parse(decoder.decode(payload));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Decode JWT header.
- */
-function decodeHeader(token: string): { alg?: string; typ?: string } | null {
-  const parts = token.split('.');
-  if (parts.length !== 3) {
-    return null;
-  }
-
-  try {
-    const header = base64urlDecode(parts[0]);
-    const decoder = new TextDecoder();
-    return JSON.parse(decoder.decode(header));
-  } catch {
-    return null;
-  }
-}
+// ============================================================================
+// Token Extraction
+// ============================================================================
 
 /**
  * Default function to extract the token from the request.
@@ -222,7 +65,7 @@ function defaultExtractUser(claims: JWTClaims): AuthUser {
 // ============================================================================
 
 /**
- * Creates JWT authentication middleware.
+ * Creates JWT authentication middleware using Hono's built-in JWT helpers.
  *
  * @example
  * ```ts
@@ -241,13 +84,10 @@ function defaultExtractUser(claims: JWTClaims): AuthUser {
 export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
   config: JWTConfig
 ): MiddlewareHandler<E> {
-  const algorithm = config.algorithm || 'HS256';
+  const algorithm = validateAlgorithm(config.algorithm || 'HS256');
   const clockTolerance = config.clockTolerance || 0;
   const extractToken = config.extractToken || defaultExtractToken;
   const extractUser = config.extractUser || defaultExtractUser;
-
-  // Cache the imported key
-  let cachedKey: CryptoKey | null = null;
 
   return async (ctx, next) => {
     // Extract token
@@ -256,30 +96,42 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
       throw new UnauthorizedException('Missing authentication token');
     }
 
+    // Decode header to verify algorithm before verification
+    const decoded = decode(token);
+    if (!decoded || !decoded.header) {
+      throw new UnauthorizedException('Invalid token format');
+    }
+
     // Verify header algorithm matches expected
-    const header = decodeHeader(token);
-    if (!header || header.alg !== algorithm) {
+    if (decoded.header.alg !== algorithm) {
       throw new UnauthorizedException('Invalid token algorithm');
     }
 
-    // Import key if not cached
-    if (!cachedKey) {
-      cachedKey = await importKey(config.secret, algorithm);
+    // Verify signature using Hono's verify function
+    let payload: JWTPayload;
+    try {
+      payload = await verify(token, config.secret as string, algorithm);
+    } catch (error) {
+      // Handle specific JWT errors
+      if (error instanceof Error) {
+        if (error.message.includes('expired') || error.name === 'JwtTokenExpired') {
+          throw new UnauthorizedException('Token has expired');
+        }
+        if (error.message.includes('signature') || error.name === 'JwtTokenSignatureMismatched') {
+          throw new UnauthorizedException('Invalid token signature');
+        }
+        if (error.message.includes('not valid yet') || error.name === 'JwtTokenNotYetValid') {
+          throw new UnauthorizedException('Token not yet valid');
+        }
+      }
+      throw new UnauthorizedException('Invalid token');
     }
 
-    // Verify signature
-    const isValid = await verifySignature(token, cachedKey, algorithm);
-    if (!isValid) {
-      throw new UnauthorizedException('Invalid token signature');
-    }
+    // Convert payload to JWTClaims
+    const claims: JWTClaims = payload as unknown as JWTClaims;
 
-    // Decode and validate claims
-    const claims = decodePayload(token);
-    if (!claims) {
-      throw new UnauthorizedException('Invalid token payload');
-    }
-
-    // Validate claims using shared validator
+    // Validate additional claims (issuer, audience) using shared validator
+    // Note: Hono's verify already validates exp, nbf, iat
     validateJWTClaims(claims, {
       clockTolerance,
       issuer: config.issuer,
@@ -313,31 +165,43 @@ export async function verifyJWT(
   token: string,
   config: JWTConfig
 ): Promise<JWTClaims> {
-  const algorithm = config.algorithm || 'HS256';
+  const algorithm = validateAlgorithm(config.algorithm || 'HS256');
   const clockTolerance = config.clockTolerance || 0;
 
+  // Decode header to verify algorithm
+  const decoded = decode(token);
+  if (!decoded || !decoded.header) {
+    throw new UnauthorizedException('Invalid token format');
+  }
+
   // Verify header algorithm matches expected
-  const header = decodeHeader(token);
-  if (!header || header.alg !== algorithm) {
+  if (decoded.header.alg !== algorithm) {
     throw new UnauthorizedException('Invalid token algorithm');
   }
 
-  // Import key
-  const key = await importKey(config.secret, algorithm);
-
-  // Verify signature
-  const isValid = await verifySignature(token, key, algorithm);
-  if (!isValid) {
-    throw new UnauthorizedException('Invalid token signature');
+  // Verify signature using Hono's verify function
+  let payload: JWTPayload;
+  try {
+    payload = await verify(token, config.secret as string, algorithm);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('expired') || error.name === 'JwtTokenExpired') {
+        throw new UnauthorizedException('Token has expired');
+      }
+      if (error.message.includes('signature') || error.name === 'JwtTokenSignatureMismatched') {
+        throw new UnauthorizedException('Invalid token signature');
+      }
+      if (error.message.includes('not valid yet') || error.name === 'JwtTokenNotYetValid') {
+        throw new UnauthorizedException('Token not yet valid');
+      }
+    }
+    throw new UnauthorizedException('Invalid token');
   }
 
-  // Decode and validate claims
-  const claims = decodePayload(token);
-  if (!claims) {
-    throw new UnauthorizedException('Invalid token payload');
-  }
+  // Convert payload to JWTClaims
+  const claims: JWTClaims = payload as unknown as JWTClaims;
 
-  // Validate claims using shared validator
+  // Validate additional claims using shared validator
   validateJWTClaims(claims, {
     clockTolerance,
     issuer: config.issuer,
@@ -353,12 +217,16 @@ export async function verifyJWT(
  * when you know the token has already been verified.
  */
 export function decodeJWT(token: string): { header: unknown; payload: JWTClaims } | null {
-  const header = decodeHeader(token);
-  const payload = decodePayload(token);
-
-  if (!header || !payload) {
+  try {
+    const decoded = decode(token);
+    if (!decoded || !decoded.header || !decoded.payload) {
+      return null;
+    }
+    return {
+      header: decoded.header,
+      payload: decoded.payload as unknown as JWTClaims,
+    };
+  } catch {
     return null;
   }
-
-  return { header, payload };
 }

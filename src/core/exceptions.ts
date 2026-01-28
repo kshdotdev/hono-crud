@@ -1,23 +1,43 @@
+import { HTTPException } from 'hono/http-exception';
 import type { ZodError } from 'zod';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 
-export class ApiException extends Error {
-  public readonly status: number;
+/**
+ * Valid HTTP status codes for API exceptions.
+ * Uses Hono's ContentfulStatusCode which excludes informational codes (1xx).
+ */
+export type ApiStatusCode = ContentfulStatusCode;
+
+/**
+ * Base API exception that extends Hono's HTTPException.
+ * Provides structured error responses with code, message, and optional details.
+ *
+ * @example
+ * ```ts
+ * throw new ApiException('Something went wrong', 500, 'INTERNAL_ERROR');
+ * throw new ApiException('Invalid input', 400, 'VALIDATION_ERROR', { field: 'email' });
+ * ```
+ */
+export class ApiException extends HTTPException {
   public readonly code: string;
   public readonly details?: unknown;
 
   constructor(
     message: string,
-    status: number = 500,
+    status: ApiStatusCode = 500,
     code: string = 'INTERNAL_ERROR',
     details?: unknown
   ) {
-    super(message);
+    super(status, { message });
     this.name = 'ApiException';
-    this.status = status;
     this.code = code;
     this.details = details;
   }
 
+  /**
+   * Converts the exception to a JSON response object.
+   * Maintains backwards compatibility with existing error handling.
+   */
   toJSON() {
     const errorObj: { code: string; message: string; details?: unknown } = {
       code: this.code,
@@ -30,6 +50,14 @@ export class ApiException extends Error {
       success: false as const,
       error: errorObj,
     };
+  }
+
+  /**
+   * Gets the HTTP status code.
+   * Alias for compatibility with code expecting 'status' property.
+   */
+  get statusCode(): ApiStatusCode {
+    return this.status;
   }
 }
 
