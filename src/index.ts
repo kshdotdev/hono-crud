@@ -1,3 +1,12 @@
+// Combined environment type
+import type { AuthEnv } from './auth/types.js';
+import type { LoggingEnv } from './logging/types.js';
+import type { RateLimitEnv } from './rate-limit/types.js';
+import type { StorageEnv } from './storage/types.js';
+
+/** Combined environment type with all hono-crud context variables */
+export type HonoCrudEnv = AuthEnv & LoggingEnv & RateLimitEnv & StorageEnv;
+
 // Core exports
 export { OpenAPIRoute, isRouteClass } from './core/route.js';
 export { fromHono, HonoOpenAPIHandler } from './core/openapi.js';
@@ -227,6 +236,7 @@ export {
 // Context helper exports
 export {
   getContextVar,
+  setContextVar,
   getUserId,
   getUser,
   getUserRoles,

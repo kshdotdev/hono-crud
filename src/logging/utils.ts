@@ -1,5 +1,6 @@
 import type { Context, Env } from 'hono';
 import type { PathPattern, RedactField } from './types.js';
+import { getContextVar } from '../core/context-helpers.js';
 
 // ============================================================================
 // Redaction Utilities
@@ -333,23 +334,14 @@ export function isAllowedContentType(
 // ============================================================================
 
 /**
- * Interface for context with auth variables.
- */
-interface AuthContext extends Env {
-  Variables: {
-    userId?: string;
-  };
-}
-
-/**
  * Extract authenticated user ID from context.
  * Requires auth middleware to be applied first.
  *
  * @param ctx - Hono context
  * @returns The user ID or undefined if not authenticated
  */
-export function extractUserId<E extends AuthContext>(ctx: Context<E>): string | undefined {
-  return ctx.get('userId') || undefined;
+export function extractUserId<E extends Env>(ctx: Context<E>): string | undefined {
+  return getContextVar<string>(ctx, 'userId') || undefined;
 }
 
 // ============================================================================

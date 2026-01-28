@@ -11,6 +11,7 @@ import type {
 import { RateLimitExceededException } from './exceptions.js';
 import { extractIP, extractUserId, extractAPIKey, shouldSkipPath, generateKey } from './utils.js';
 import { resolveRateLimitStorage } from '../storage/helpers.js';
+import { setContextVar } from '../core/context-helpers.js';
 
 // ============================================================================
 // Global Storage
@@ -59,7 +60,6 @@ function createKeyExtractorFactories<E extends Env>(): Record<KeyStrategy, KeyEx
     ip: (config) => (ctx) => extractIP(ctx, config.ipHeader, config.trustProxy),
 
     user: (config) => (ctx) => {
-      // @ts-expect-error - userId may not be in the Env type
       const userId = extractUserId(ctx);
       if (!userId) {
         // Fall back to IP if user not authenticated
@@ -80,7 +80,6 @@ function createKeyExtractorFactories<E extends Env>(): Record<KeyStrategy, KeyEx
 
     combined: (config) => (ctx) => {
       const ip = extractIP(ctx, config.ipHeader, config.trustProxy);
-      // @ts-expect-error - userId may not be in the Env type
       const userId = extractUserId(ctx);
       if (userId) {
         return `${ip}:user:${userId}`;
@@ -296,10 +295,8 @@ export function createRateLimitMiddleware<E extends Env = Env>(
     }
 
     // Store result in context for access by handlers
-    // @ts-expect-error - RateLimitEnv variables may not be in E
-    ctx.set('rateLimit', result);
-    // @ts-expect-error - RateLimitEnv variables may not be in E
-    ctx.set('rateLimitKey', fullKey);
+    setContextVar(ctx, 'rateLimit', result);
+    setContextVar(ctx, 'rateLimitKey', fullKey);
 
     // Add headers if enabled
     if (includeHeaders) {

@@ -1,5 +1,6 @@
 import type { Context, Env } from 'hono';
 import type { PathPattern } from './types.js';
+import { getContextVar } from '../core/context-helpers.js';
 
 // ============================================================================
 // IP Extraction
@@ -67,23 +68,14 @@ export function extractIP<E extends Env>(
 // ============================================================================
 
 /**
- * Interface for context with auth variables.
- */
-interface AuthContext extends Env {
-  Variables: {
-    userId?: string;
-  };
-}
-
-/**
  * Extract authenticated user ID from context.
  * Requires auth middleware to be applied first.
  *
  * @param ctx - Hono context
  * @returns The user ID or null if not authenticated
  */
-export function extractUserId<E extends AuthContext>(ctx: Context<E>): string | null {
-  return ctx.get('userId') || null;
+export function extractUserId<E extends Env>(ctx: Context<E>): string | null {
+  return getContextVar<string>(ctx, 'userId') || null;
 }
 
 // ============================================================================

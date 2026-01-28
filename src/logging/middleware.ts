@@ -21,6 +21,7 @@ import {
 } from './utils.js';
 import { resolveLoggingStorage } from '../storage/helpers.js';
 import { toError } from '../utils/errors.js';
+import { getContextVar, setContextVar } from '../core/context-helpers.js';
 
 // ============================================================================
 // Global Storage
@@ -99,8 +100,7 @@ const DEFAULT_EXCLUDE_PATHS: PathPattern[] = [
  * @returns The request ID or undefined
  */
 export function getRequestId<E extends Env>(ctx: Context<E>): string | undefined {
-  // @ts-expect-error - LoggingEnv variables may not be in E
-  return ctx.get('requestId');
+  return getContextVar<string>(ctx, 'requestId');
 }
 
 /**
@@ -111,8 +111,7 @@ export function getRequestId<E extends Env>(ctx: Context<E>): string | undefined
  * @returns The start time in milliseconds or undefined
  */
 export function getRequestStartTime<E extends Env>(ctx: Context<E>): number | undefined {
-  // @ts-expect-error - LoggingEnv variables may not be in E
-  return ctx.get('requestStartTime');
+  return getContextVar<number>(ctx, 'requestStartTime');
 }
 
 // ============================================================================
@@ -204,10 +203,8 @@ export function createLoggingMiddleware<E extends Env = Env>(
     const startTime = Date.now();
 
     // Store in context for access by handlers
-    // @ts-expect-error - LoggingEnv variables may not be in E
-    ctx.set('requestId', requestId);
-    // @ts-expect-error - LoggingEnv variables may not be in E
-    ctx.set('requestStartTime', startTime);
+    setContextVar(ctx, 'requestId', requestId);
+    setContextVar(ctx, 'requestStartTime', startTime);
 
     // Set X-Request-ID header in response
     ctx.header('X-Request-ID', requestId);
@@ -236,7 +233,6 @@ export function createLoggingMiddleware<E extends Env = Env>(
     }
 
     // Extract user ID (may be set by auth middleware)
-    // @ts-expect-error - userId may not be in the Env type
     const userId = extractUserId(ctx);
 
     // Capture request body if enabled

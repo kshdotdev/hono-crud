@@ -28,6 +28,25 @@ export function getContextVar<T>(ctx: unknown, key: string): T | undefined {
 }
 
 /**
+ * Type-safe setter for context variables in middleware.
+ * Used internally to set variables when the generic Env type
+ * may not include the specific variable keys.
+ *
+ * @param ctx - Hono context (can be any Env type)
+ * @param key - The variable key to set
+ * @param value - The value to set
+ *
+ * @example
+ * ```ts
+ * // In middleware where E may not include 'requestId'
+ * setContextVar(ctx, 'requestId', generateRequestId());
+ * ```
+ */
+export function setContextVar<E extends Env>(ctx: Context<E>, key: string, value: unknown): void {
+  (ctx as unknown as { set: (key: string, value: unknown) => void }).set(key, value);
+}
+
+/**
  * Retrieves the authenticated user ID from context.
  * Set by JWT or API key authentication middleware.
  *
