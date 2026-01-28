@@ -25,8 +25,8 @@ export interface RouterOptions {
 
 type RouteMethod = 'get' | 'post' | 'put' | 'patch' | 'delete' | 'options' | 'head';
 
-// Type for OpenAPIRoute constructor
-type OpenAPIRouteConstructor = new () => OpenAPIRoute<any, any>;
+// Type for OpenAPIRoute constructor - uses base types since we instantiate dynamically
+type OpenAPIRouteConstructor = new () => OpenAPIRoute<Env>;
 
 /**
  * Handler for OpenAPI routes with Hono.
@@ -83,7 +83,9 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
     // Register with OpenAPIHono
     this.app.openapi(routeConfig, async (c) => {
       const routeInstance = new RouteConstructor();
-      routeInstance.setContext(c as unknown as Context<any>);
+      // Cast through unknown required: route instances are dynamically created
+      // and their Env type may differ from the handler's generic E parameter
+      routeInstance.setContext(c as unknown as Context<Env>);
 
       try {
         const response = await routeInstance.handle();

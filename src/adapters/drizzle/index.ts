@@ -347,7 +347,7 @@ export abstract class DrizzleCreateEndpoint<
     return (relationConfig as RelationConfig<Table>).table;
   }
 
-  async create(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
+  override async create(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
     const primaryKey = this._meta.model.primaryKeys[0];
 
@@ -368,7 +368,7 @@ export abstract class DrizzleCreateEndpoint<
   /**
    * Creates nested related records.
    */
-  protected async createNested(
+  protected override async createNested(
     parentId: string | number,
     relationName: string,
     relationConfig: RelationConfig,
@@ -432,7 +432,7 @@ export abstract class DrizzleReadEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async read(
+  override async read(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
     includeOptions?: IncludeOptions
@@ -511,7 +511,7 @@ export abstract class DrizzleUpdateEndpoint<
   /**
    * Finds an existing record for audit logging.
    */
-  protected async findExisting(
+  protected override async findExisting(
     lookupValue: string,
     additionalFilters?: Record<string, string>
   ): Promise<ModelObject<M['model']> | null> {
@@ -542,7 +542,7 @@ export abstract class DrizzleUpdateEndpoint<
     return (result[0] as ModelObject<M['model']>) || null;
   }
 
-  async update(
+  override async update(
     lookupValue: string,
     data: Partial<ModelObject<M['model']>>,
     additionalFilters?: Record<string, string>
@@ -577,7 +577,7 @@ export abstract class DrizzleUpdateEndpoint<
   /**
    * Processes nested write operations.
    */
-  protected async processNestedWrites(
+  protected override async processNestedWrites(
     parentId: string | number,
     relationName: string,
     relationConfig: RelationConfig,
@@ -743,7 +743,7 @@ export abstract class DrizzleDeleteEndpoint<
   /**
    * Finds a record without deleting it (for constraint checks).
    */
-  async findForDelete(
+  override async findForDelete(
     lookupValue: string,
     additionalFilters?: Record<string, string>
   ): Promise<ModelObject<M['model']> | null> {
@@ -774,7 +774,7 @@ export abstract class DrizzleDeleteEndpoint<
     return (result[0] as ModelObject<M['model']>) || null;
   }
 
-  async delete(
+  override async delete(
     lookupValue: string,
     additionalFilters?: Record<string, string>
   ): Promise<ModelObject<M['model']> | null> {
@@ -819,7 +819,7 @@ export abstract class DrizzleDeleteEndpoint<
   /**
    * Counts related records for restrict check.
    */
-  protected async countRelated(
+  protected override async countRelated(
     parentId: string | number,
     relationName: string,
     relationConfig: RelationConfig
@@ -840,7 +840,7 @@ export abstract class DrizzleDeleteEndpoint<
   /**
    * Deletes related records for cascade delete.
    */
-  protected async deleteRelated(
+  protected override async deleteRelated(
     parentId: string | number,
     relationName: string,
     relationConfig: RelationConfig
@@ -861,7 +861,7 @@ export abstract class DrizzleDeleteEndpoint<
   /**
    * Sets foreign key to null for related records.
    */
-  protected async nullifyRelated(
+  protected override async nullifyRelated(
     parentId: string | number,
     relationName: string,
     relationConfig: RelationConfig
@@ -905,7 +905,7 @@ export abstract class DrizzleListEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
+  override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
     const table = this.getTable();
     const conditions: SQL[] = [];
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -1019,7 +1019,7 @@ export abstract class DrizzleRestoreEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async restore(
+  override async restore(
     lookupValue: string,
     additionalFilters?: Record<string, string>
   ): Promise<ModelObject<M['model']> | null> {
@@ -1065,7 +1065,7 @@ export abstract class DrizzleBatchCreateEndpoint<
     return getTable(this._meta);
   }
 
-  async batchCreate(
+  override async batchCreate(
     items: Partial<ModelObject<M['model']>>[]
   ): Promise<ModelObject<M['model']>[]> {
     const table = this.getTable();
@@ -1107,7 +1107,7 @@ export abstract class DrizzleBatchUpdateEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async batchUpdate(
+  override async batchUpdate(
     items: BatchUpdateItem<ModelObject<M['model']>>[]
   ): Promise<{ updated: ModelObject<M['model']>[]; notFound: string[] }> {
     const table = this.getTable();
@@ -1163,7 +1163,7 @@ export abstract class DrizzleBatchDeleteEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async batchDelete(
+  override async batchDelete(
     ids: string[]
   ): Promise<{ deleted: ModelObject<M['model']>[]; notFound: string[] }> {
     const table = this.getTable();
@@ -1224,7 +1224,7 @@ export abstract class DrizzleBatchRestoreEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async batchRestore(
+  override async batchRestore(
     ids: string[]
   ): Promise<{ restored: ModelObject<M['model']>[]; notFound: string[] }> {
     const table = this.getTable();
@@ -1271,7 +1271,7 @@ export abstract class DrizzleUpsertEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async findExisting(
+  override async findExisting(
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']> | null> {
     const table = this.getTable();
@@ -1305,7 +1305,7 @@ export abstract class DrizzleUpsertEndpoint<
     return (result[0] as ModelObject<M['model']>) || null;
   }
 
-  async create(
+  override async create(
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
@@ -1325,7 +1325,7 @@ export abstract class DrizzleUpsertEndpoint<
     return result[0] as ModelObject<M['model']>;
   }
 
-  async update(
+  override async update(
     existing: ModelObject<M['model']>,
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
@@ -1350,7 +1350,7 @@ export abstract class DrizzleUpsertEndpoint<
    * The `created` flag is set to `false` by default. If you need accurate create/update
    * tracking, use the standard upsert pattern (useNativeUpsert = false).
    */
-  protected async nativeUpsert(
+  protected override async nativeUpsert(
     data: Partial<ModelObject<M['model']>>,
     tx?: unknown
   ): Promise<{ data: ModelObject<M['model']>; created: boolean }> {
@@ -1445,7 +1445,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async findExisting(
+  override async findExisting(
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']> | null> {
     const table = this.getTable();
@@ -1472,7 +1472,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
     return (result[0] as ModelObject<M['model']>) || null;
   }
 
-  async create(
+  override async create(
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
@@ -1491,7 +1491,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
     return result[0] as ModelObject<M['model']>;
   }
 
-  async update(
+  override async update(
     existing: ModelObject<M['model']>,
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
@@ -1516,7 +1516,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
    * All records are marked as `created: false`. If you need accurate tracking,
    * use the standard batch upsert pattern (useNativeUpsert = false).
    */
-  protected async nativeBatchUpsert(
+  protected override async nativeBatchUpsert(
     items: Partial<ModelObject<M['model']>>[],
     tx?: unknown
   ): Promise<{
@@ -1633,7 +1633,7 @@ export abstract class DrizzleVersionHistoryEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  protected async recordExists(lookupValue: string): Promise<boolean> {
+  protected override async recordExists(lookupValue: string): Promise<boolean> {
     const table = this.getTable();
 
     const result = await this.db
@@ -1682,7 +1682,7 @@ export abstract class DrizzleVersionRollbackEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async rollback(
+  override async rollback(
     lookupValue: string,
     versionData: Record<string, unknown>,
     newVersion: number
@@ -1722,7 +1722,7 @@ export abstract class DrizzleAggregateEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async aggregate(options: AggregateOptions): Promise<AggregateResult> {
+  override async aggregate(options: AggregateOptions): Promise<AggregateResult> {
     const table = this.getTable();
     const conditions: SQL[] = [];
 
@@ -1834,7 +1834,7 @@ export abstract class DrizzleSearchEndpoint<
   /**
    * Performs search on database.
    */
-  async search(
+  override async search(
     options: SearchOptions,
     filters: ListFilters
   ): Promise<SearchResult<ModelObject<M['model']>>> {
@@ -1971,7 +1971,7 @@ export abstract class DrizzleExportEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
+  override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
     const table = this.getTable();
     const conditions: SQL[] = [];
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -2078,7 +2078,7 @@ export abstract class DrizzleImportEndpoint<
   /**
    * Finds an existing record by upsert keys.
    */
-  async findExisting(
+  override async findExisting(
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']> | null> {
     const table = this.getTable();
@@ -2115,7 +2115,7 @@ export abstract class DrizzleImportEndpoint<
   /**
    * Creates a new record.
    */
-  async create(
+  override async create(
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
@@ -2138,7 +2138,7 @@ export abstract class DrizzleImportEndpoint<
   /**
    * Updates an existing record.
    */
-  async update(
+  override async update(
     existing: ModelObject<M['model']>,
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
