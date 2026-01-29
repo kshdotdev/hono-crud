@@ -169,7 +169,7 @@ export function parseJWTClaims(claims: unknown): ValidatedJWTClaims {
  * }
  * ```
  */
-export function safeParseJWTClaims(claims: unknown): z.SafeParseReturnType<unknown, ValidatedJWTClaims> {
+export function safeParseJWTClaims(claims: unknown): z.ZodSafeParseResult<ValidatedJWTClaims> {
   return JWTClaimsSchema.safeParse(claims);
 }
 

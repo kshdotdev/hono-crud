@@ -123,7 +123,8 @@ export abstract class ListEndpoint<
    * Returns the query parameter schema for filtering and pagination.
    */
   protected getQuerySchema(): ZodObject<ZodRawShape> {
-    const shape: ZodRawShape = {
+    // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4)
+    const shape: Record<string, z.ZodTypeAny> = {
       page: z.string().optional(),
       per_page: z.string().optional(),
     };
@@ -227,6 +228,8 @@ export abstract class ListEndpoint<
                   per_page: z.number(),
                   total_count: z.number().optional(),
                   total_pages: z.number().optional(),
+                  has_next_page: z.boolean(),
+                  has_prev_page: z.boolean(),
                 }),
               }),
             },
@@ -277,6 +280,25 @@ export abstract class ListEndpoint<
   }
 
   /**
+   * Optional transform function applied to each item before response.
+   * Override to customize serialization of individual items.
+   *
+   * @example
+   * ```ts
+   * protected transform(item: User): unknown {
+   *   return {
+   *     ...item,
+   *     fullName: `${item.firstName} ${item.lastName}`,
+   *     createdAt: item.createdAt.toISOString()
+   *   };
+   * }
+   * ```
+   */
+  protected transform(item: ModelObject<M['model']>): unknown {
+    return item;
+  }
+
+  /**
    * Lists resources from the database with filtering, sorting, and pagination.
    * Must be implemented by ORM-specific subclasses.
    */
@@ -319,14 +341,16 @@ export abstract class ListEndpoint<
       items = items.map((item) => this._meta.model.serializer!(item) as ModelObject<M['model']>);
     }
 
+    // Apply transform to each item
+    const transformedItems = items.map((item) => this.transform(item));
+
     // Apply field selection if enabled and fields were specified
-    let result: unknown[] = items;
-    if (this.fieldSelectionEnabled && filters.options.fields && filters.options.fields.length > 0) {
-      result = applyFieldSelectionToArray(
-        items as Record<string, unknown>[],
-        { fields: filters.options.fields, isActive: true }
-      );
-    }
+    const result = (this.fieldSelectionEnabled && filters.options.fields && filters.options.fields.length > 0)
+      ? applyFieldSelectionToArray(
+          transformedItems as Record<string, unknown>[],
+          { fields: filters.options.fields, isActive: true }
+        )
+      : transformedItems;
 
     return this.json({
       success: true,

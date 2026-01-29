@@ -221,8 +221,8 @@ export abstract class DeleteEndpoint<
           deleted: z.literal(true),
           cascade: z
             .object({
-              deleted: z.record(z.number()),
-              nullified: z.record(z.number()),
+              deleted: z.record(z.string(), z.number()),
+              nullified: z.record(z.string(), z.number()),
             })
             .optional(),
         })

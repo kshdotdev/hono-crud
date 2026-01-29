@@ -18,21 +18,21 @@ import {
 // ============================================================================
 
 const UserSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string(),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 const ProfileSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
+  id: z.uuid(),
+  userId: z.uuid(),
   bio: z.string(),
   avatar: z.string().optional(),
 });
 
 const PostSchema = z.object({
-  id: z.string().uuid(),
-  authorId: z.string().uuid().nullable(),
+  id: z.uuid(),
+  authorId: z.uuid().nullable(),
   title: z.string(),
   content: z.string(),
 });

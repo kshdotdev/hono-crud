@@ -9,12 +9,12 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from '../src/index.js';
+import { fromHono, defineModel, defineMeta } from '../../src/index.js';
 import {
   MemoryBatchUpsertEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
+} from '../../src/adapters/memory/index.js';
 
 // Clear storage
 clearStorage();
@@ -24,7 +24,7 @@ clearStorage();
 // ============================================================================
 
 const InventorySchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   sku: z.string(),
   warehouseId: z.string(),
   quantity: z.number(),
@@ -32,7 +32,7 @@ const InventorySchema = z.object({
 });
 
 const PriceSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   productId: z.string(),
   region: z.string(),
   price: z.number(),

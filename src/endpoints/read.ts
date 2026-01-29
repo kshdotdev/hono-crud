@@ -112,7 +112,8 @@ export abstract class ReadEndpoint<
    * Returns the query parameter schema for includes and additional filters.
    */
   protected getQuerySchema(): ZodObject<ZodRawShape> | undefined {
-    const shape: ZodRawShape = {};
+    // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4)
+    const shape: Record<string, z.ZodTypeAny> = {};
 
     // Add additional filter fields
     if (this.additionalFilters?.length) {
@@ -307,6 +308,25 @@ export abstract class ReadEndpoint<
   }
 
   /**
+   * Optional transform function applied to the item before response.
+   * Override to customize serialization.
+   *
+   * @example
+   * ```ts
+   * protected transform(item: User): unknown {
+   *   return {
+   *     ...item,
+   *     fullName: `${item.firstName} ${item.lastName}`,
+   *     createdAt: item.createdAt.toISOString()
+   *   };
+   * }
+   * ```
+   */
+  protected transform(item: ModelObject<M['model']>): unknown {
+    return item;
+  }
+
+  /**
    * Reads the resource from the database.
    * Must be implemented by ORM-specific subclasses.
    *
@@ -356,14 +376,17 @@ export abstract class ReadEndpoint<
     }
 
     // Apply serializer if defined
-    let result: unknown = this._meta.model.serializer
+    const serialized = this._meta.model.serializer
       ? this._meta.model.serializer(obj)
       : obj;
 
+    // Apply transform
+    const transformed = this.transform(serialized as ModelObject<M['model']>);
+
     // Apply field selection if enabled and fields were specified
-    if (fieldSelection.isActive && fieldSelection.fields.length > 0) {
-      result = applyFieldSelection(result as Record<string, unknown>, fieldSelection);
-    }
+    const result = (fieldSelection.isActive && fieldSelection.fields.length > 0)
+      ? applyFieldSelection(transformed as Record<string, unknown>, fieldSelection)
+      : transformed;
 
     return this.success(result);
   }

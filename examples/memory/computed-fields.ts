@@ -22,7 +22,7 @@ import {
   defineModel,
   defineMeta,
   type ComputedFieldsConfig,
-} from '../src/index.js';
+} from '../../src/index.js';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -31,7 +31,7 @@ import {
   MemoryDeleteEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '../../src/adapters/memory/index.js';
 
 // Clear storage on start
 clearStorage();
@@ -41,10 +41,10 @@ clearStorage();
 // ============================================================================
 
 const UserSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  email: z.string().email(),
+  email: z.email(),
   birthDate: z.string(), // ISO date string
   status: z.enum(['active', 'inactive', 'pending']),
   emailVerified: z.boolean(),

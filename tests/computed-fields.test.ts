@@ -16,7 +16,7 @@ import {
 // ============================================================================
 
 const UserSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   firstName: z.string(),
   lastName: z.string(),
   birthDate: z.string(),

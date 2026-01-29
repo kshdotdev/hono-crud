@@ -26,7 +26,7 @@ import {
 
 // Define test schema with versioning
 const DocumentSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   title: z.string(),
   content: z.string(),
   version: z.number().default(1),

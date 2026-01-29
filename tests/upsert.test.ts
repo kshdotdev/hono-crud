@@ -18,8 +18,8 @@ import {
 // ============================================================================
 
 const UserSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
+  id: z.uuid(),
+  email: z.email(),
   name: z.string(),
   role: z.enum(['admin', 'user']).default('user'),
   createdAt: z.string().optional(),
@@ -27,8 +27,8 @@ const UserSchema = z.object({
 });
 
 const SubscriptionSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
+  id: z.uuid(),
+  userId: z.uuid(),
   planId: z.string(),
   status: z.enum(['active', 'inactive', 'cancelled']),
   startDate: z.string(),

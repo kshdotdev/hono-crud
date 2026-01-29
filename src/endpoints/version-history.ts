@@ -20,7 +20,7 @@ const VersionEntrySchema = z.object({
   id: z.string(),
   recordId: z.union([z.string(), z.number()]),
   version: z.number(),
-  data: z.record(z.unknown()),
+  data: z.record(z.string(), z.unknown()),
   createdAt: z.date(),
   changedBy: z.string().optional(),
   changeReason: z.string().optional(),

@@ -17,7 +17,7 @@ import {
 // ============================================================================
 
 const ProductSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   sku: z.string(),
   name: z.string(),
   price: z.number(),
@@ -27,7 +27,7 @@ const ProductSchema = z.object({
 });
 
 const SettingsSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   userId: z.string(),
   key: z.string(),
   value: z.string(),

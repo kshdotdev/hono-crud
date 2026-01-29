@@ -29,3 +29,6 @@ npm-debug.log*
 
 # Test coverage
 coverage/
+
+# API test responses
+tests/api-responses/

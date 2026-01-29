@@ -736,7 +736,7 @@ describe('withAuth Mixin', () => {
 
   // Define test schema
   const ItemSchema = z.object({
-    id: z.string().uuid(),
+    id: z.uuid(),
     name: z.string(),
     createdBy: z.string().optional(),
   });

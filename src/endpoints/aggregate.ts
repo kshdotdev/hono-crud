@@ -113,8 +113,8 @@ export abstract class AggregateEndpoint<
    */
   getSchema(): OpenAPIRouteSchema {
     const groupResultSchema = z.object({
-      key: z.record(z.unknown()),
-      values: z.record(z.number().nullable()),
+      key: z.record(z.string(), z.unknown()),
+      values: z.record(z.string(), z.number().nullable()),
     });
 
     return {
@@ -130,7 +130,7 @@ export abstract class AggregateEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.object({
-                  values: z.record(z.number().nullable()).optional(),
+                  values: z.record(z.string(), z.number().nullable()).optional(),
                   groups: z.array(groupResultSchema).optional(),
                   totalGroups: z.number().optional(),
                 }),

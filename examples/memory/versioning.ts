@@ -15,7 +15,7 @@ import {
   getVersioningStorage,
   type VersioningStorage,
   type VersionHistoryEntry,
-} from 'hono-crud';
+} from '../../src/index.js';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -25,14 +25,14 @@ import {
   MemoryVersionReadEndpoint,
   MemoryVersionCompareEndpoint,
   MemoryVersionRollbackEndpoint,
-} from 'hono-crud/adapters/memory';
+} from '../../src/adapters/memory/index.js';
 
 // ============================================================
 // 1. Define your schema with a version field
 // ============================================================
 
 const DocumentSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   title: z.string().min(1),
   content: z.string(),
   author: z.string(),

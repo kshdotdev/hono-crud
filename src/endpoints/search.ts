@@ -220,7 +220,8 @@ export abstract class SearchEndpoint<
    * Returns the query parameter schema for search and filtering.
    */
   protected getQuerySchema(): ZodObject<ZodRawShape> {
-    const shape: ZodRawShape = {
+    // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4)
+    const shape: Record<string, z.ZodTypeAny> = {
       // Search parameters
       q: z.string().min(this.minQueryLength).describe('Search query'),
       fields: z.string().optional().describe(
@@ -319,7 +320,7 @@ export abstract class SearchEndpoint<
     const searchResultItemSchema = z.object({
       item: this._meta.model.schema,
       score: z.number().min(0).max(1),
-      highlights: z.record(z.array(z.string())).optional(),
+      highlights: z.record(z.string(), z.array(z.string())).optional(),
       matchedFields: z.array(z.string()),
     });
 

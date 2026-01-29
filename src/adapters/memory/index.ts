@@ -703,13 +703,17 @@ export abstract class MemoryListEndpoint<
       loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<M['model']>
     );
 
+    const totalPages = Math.ceil(totalCount / perPage);
+
     return {
       result: itemsWithRelations,
       result_info: {
         page,
         per_page: perPage,
         total_count: totalCount,
-        total_pages: Math.ceil(totalCount / perPage),
+        total_pages: totalPages,
+        has_next_page: page < totalPages,
+        has_prev_page: page > 1,
       },
     };
   }
@@ -1758,13 +1762,17 @@ export abstract class MemoryExportEndpoint<
       loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<M['model']>
     );
 
+    const totalPages = Math.ceil(totalCount / perPage);
+
     return {
       result: itemsWithRelations,
       result_info: {
         page,
         per_page: perPage,
         total_count: totalCount,
-        total_pages: Math.ceil(totalCount / perPage),
+        total_pages: totalPages,
+        has_next_page: page < totalPages,
+        has_prev_page: page > 1,
       },
     };
   }

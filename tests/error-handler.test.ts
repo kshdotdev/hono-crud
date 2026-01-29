@@ -24,7 +24,7 @@ describe('zodErrorMapper', () => {
   it('should map ZodError to InputValidationException', () => {
     const schema = z.object({
       name: z.string(),
-      email: z.string().email(),
+      email: z.email(),
     });
 
     let zodError: ZodError | undefined;

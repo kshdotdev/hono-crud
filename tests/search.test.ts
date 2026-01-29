@@ -21,7 +21,7 @@ import {
 
 // Define test schema
 const ArticleSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   title: z.string(),
   content: z.string(),
   author: z.string(),

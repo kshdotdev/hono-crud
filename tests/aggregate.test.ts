@@ -18,7 +18,7 @@ import {
 
 // Define test schema
 const ProductSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string(),
   category: z.string(),
   price: z.number(),

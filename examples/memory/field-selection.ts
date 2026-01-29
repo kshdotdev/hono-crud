@@ -21,7 +21,7 @@ import {
   defineModel,
   defineMeta,
   type ComputedFieldsConfig,
-} from '../src/index.js';
+} from '../../src/index.js';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -30,7 +30,7 @@ import {
   MemoryDeleteEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '../../src/adapters/memory/index.js';
 
 // Clear storage on start
 clearStorage();
@@ -40,8 +40,8 @@ clearStorage();
 // ============================================================================
 
 const UserSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
+  id: z.uuid(),
+  email: z.email(),
   name: z.string().min(1),
   password: z.string().min(8), // Sensitive field - should be blocked
   role: z.enum(['admin', 'user', 'guest']),

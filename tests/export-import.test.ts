@@ -22,9 +22,9 @@ import type { MetaInput, Model } from '../src/index.js';
 
 // Define test schema
 const UserSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string().min(1),
-  email: z.string().email(),
+  email: z.email(),
   role: z.enum(['admin', 'user', 'moderator']),
   age: z.number().optional(),
   active: z.boolean().default(true),
@@ -676,8 +676,8 @@ Bob,bob@example.com,user`;
       const originalId = (await createRes.json()).result.results[0].data.id;
 
       // Now upsert with different id (should be ignored because id is immutable)
-      // Note: We use a valid UUID since validation runs before immutable filtering
-      const differentValidUuid = '00000000-0000-0000-0000-000000000001';
+      // Note: We use a valid UUID v4 since validation runs before immutable filtering
+      const differentValidUuid = crypto.randomUUID();
       const res = await app.request('/users/import?mode=upsert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -696,7 +696,7 @@ Bob,bob@example.com,user`;
       expect(res.status).toBe(200);
       const data = await res.json();
 
-      // ID should remain unchanged because it's in immutableFields
+      // ID should remain unchanged because id is in immutableFields
       expect(data.result.summary.updated).toBe(1);
       expect(data.result.results[0].status).toBe('updated');
       expect(data.result.results[0].data.id).toBe(originalId);

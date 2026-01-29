@@ -14,9 +14,9 @@ import type { MetaInput, Model } from '../src/index.js';
 
 // Define test schema
 const TestSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string().min(1),
-  email: z.string().email(),
+  email: z.email(),
   role: z.enum(['admin', 'user']),
   age: z.number().optional(),
 });

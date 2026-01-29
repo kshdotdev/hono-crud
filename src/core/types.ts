@@ -78,6 +78,10 @@ export interface PaginatedResult<T> {
     per_page: number;
     total_count?: number;
     total_pages?: number;
+    /** Whether there is a next page available */
+    has_next_page: boolean;
+    /** Whether there is a previous page available */
+    has_prev_page: boolean;
   };
 }
 
@@ -1156,7 +1160,7 @@ export interface MetaInput<
  * @example
  * ```ts
  * const UserSchema = z.object({
- *   id: z.string().uuid(),
+ *   id: z.uuid(),
  *   name: z.string(),
  * });
  *

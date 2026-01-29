@@ -23,9 +23,9 @@ import {
 
 // Define test schema
 const UserSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string(),
-  email: z.string().email(),
+  email: z.email(),
   role: z.enum(['admin', 'user']),
   createdAt: z.date().optional(),
   updatedAt: z.date().optional(),

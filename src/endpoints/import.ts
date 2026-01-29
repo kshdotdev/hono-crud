@@ -473,7 +473,7 @@ export abstract class ImportEndpoint<
       return { valid: true };
     } catch (err) {
       if (err instanceof z.ZodError) {
-        const errors = err.errors.map((e) => ({
+        const errors = err.issues.map((e) => ({
           path: e.path.join('.'),
           message: e.message,
         }));

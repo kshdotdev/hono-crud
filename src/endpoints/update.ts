@@ -435,6 +435,25 @@ export abstract class UpdateEndpoint<
   }
 
   /**
+   * Optional transform function applied to the updated item before response.
+   * Override to customize serialization.
+   *
+   * @example
+   * ```ts
+   * protected transform(item: User): unknown {
+   *   return {
+   *     ...item,
+   *     fullName: `${item.firstName} ${item.lastName}`,
+   *     updatedAt: item.updatedAt.toISOString()
+   *   };
+   * }
+   * ```
+   */
+  protected transform(item: ModelObject<M['model']>): unknown {
+    return item;
+  }
+
+  /**
    * Updates the resource in the database.
    * Must be implemented by ORM-specific subclasses.
    */
@@ -630,9 +649,12 @@ export abstract class UpdateEndpoint<
     }
 
     // Apply serializer if defined
-    const result = this._meta.model.serializer
+    const serialized = this._meta.model.serializer
       ? this._meta.model.serializer(obj)
       : obj;
+
+    // Apply transform
+    const result = this.transform(serialized as ModelObject<M['model']>);
 
     return this.success(result);
   }

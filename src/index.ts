@@ -251,9 +251,27 @@ export {
   hasAllPermissions,
 } from './core/context-helpers.js';
 
-// UI exports (Swagger UI, ReDoc)
+// UI exports (Swagger UI, ReDoc, Scalar)
 export { setupSwaggerUI, setupReDoc, setupDocs, setupDocsIndex } from './ui.js';
 export type { UIOptions } from './ui.js';
+export { scalarUI, setupScalar } from './ui/scalar.js';
+export type { ScalarConfig, ScalarTheme } from './ui/scalar.js';
+
+// OpenAPI utilities
+export {
+  jsonContent,
+  jsonContentRequired,
+  createErrorSchema,
+  createOneOfErrorSchema,
+  openApiValidationHook,
+  createValidationHook,
+  httpErrorContent,
+  commonResponses,
+  ZodIssueSchema,
+  ZodErrorSchema,
+  HttpErrorSchema,
+} from './openapi/utils.js';
+export type { ValidationHookResult, InferZodSchema } from './openapi/utils.js';
 
 // Auth exports
 export {

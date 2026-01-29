@@ -201,6 +201,25 @@ export abstract class BatchCreateEndpoint<
   }
 
   /**
+   * Optional transform function applied to each created item before response.
+   * Override to customize serialization.
+   *
+   * @example
+   * ```ts
+   * protected transform(item: User): unknown {
+   *   return {
+   *     ...item,
+   *     fullName: `${item.firstName} ${item.lastName}`,
+   *     createdAt: item.createdAt.toISOString()
+   *   };
+   * }
+   * ```
+   */
+  protected transform(item: ModelObject<M['model']>): unknown {
+    return item;
+  }
+
+  /**
    * Creates multiple resources in the database.
    * Must be implemented by ORM-specific subclasses.
    *
@@ -282,15 +301,18 @@ export abstract class BatchCreateEndpoint<
     }
 
     // Apply serializer if defined
-    const serialized = this._meta.model.serializer
+    const serializedItems = this._meta.model.serializer
       ? results.map((item) => this._meta.model.serializer!(item) as ModelObject<M['model']>)
       : results;
+
+    // Apply transform to each item
+    const transformed = serializedItems.map((item) => this.transform(item as ModelObject<M['model']>));
 
     const response = {
       success: true as const,
       result: {
-        created: serialized,
-        count: serialized.length,
+        created: transformed,
+        count: transformed.length,
         ...(errors.length > 0 && { errors }),
       },
     };

@@ -1,7 +1,20 @@
+/**
+ * Example: Basic CRUD Operations with Memory Adapter
+ *
+ * Demonstrates the fundamental CRUD operations:
+ * - POST /users - Create a new user
+ * - GET /users - List all users
+ * - GET /users/:id - Get a user by ID
+ * - PATCH /users/:id - Update a user
+ * - DELETE /users/:id - Delete a user
+ *
+ * Run with: npx tsx examples/memory/basic-crud.ts
+ */
+
 import { Hono, type Env } from 'hono';
 import { serve } from '@hono/node-server';
 import { z } from 'zod';
-import { fromHono, registerCrud, setupSwaggerUI, setupReDoc, defineModel, defineMeta } from '../src/index.js';
+import { fromHono, registerCrud, setupSwaggerUI, setupReDoc, setupScalar, defineModel, defineMeta } from '../../src/index.js';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -9,15 +22,15 @@ import {
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
+} from '../../src/adapters/memory/index.js';
 
 // Clear storage on start
 clearStorage();
 
 // Define the User schema
 const UserSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
+  id: z.uuid(),
+  email: z.email(),
   name: z.string().min(1),
   role: z.enum(['admin', 'user']),
   createdAt: z.string().datetime().optional(),
@@ -29,7 +42,7 @@ type User = z.infer<typeof UserSchema>;
 const UserModel = defineModel({
   tableName: 'users',
   schema: UserSchema,
-  primaryKeys: ['id'],  // Type-checked: must be keys of UserSchema
+  primaryKeys: ['id'],
   serializer: (user) => {
     // Remove sensitive fields if needed
     return user;
@@ -108,7 +121,7 @@ class UserDelete extends MemoryDeleteEndpoint {
 // Create the app
 const app = fromHono(new Hono());
 
-// Register CRUD endpoints - no more `as any` needed!
+// Register CRUD endpoints
 registerCrud(app, '/users', {
   create: UserCreate,
   list: UserList,
@@ -121,25 +134,45 @@ registerCrud(app, '/users', {
 app.doc('/openapi.json', {
   openapi: '3.1.0',
   info: {
-    title: 'User API',
+    title: 'Basic CRUD Example - Memory Adapter',
     version: '1.0.0',
-    description: 'A simple user management API',
+    description: 'A simple user management API using in-memory storage',
   },
 });
 
-// Swagger UI and ReDoc
+// API Documentation UIs
 setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
 setupReDoc(app, { redocPath: '/redoc', specPath: '/openapi.json', title: 'User API' });
+setupScalar(app, '/reference', { specUrl: '/openapi.json', theme: 'default' });
 
 // Health check
-app.get('/health', (c) => c.json({ status: 'ok' }));
+app.get('/health', (c) => c.json({ status: 'ok', adapter: 'memory' }));
 
 // Start server
 const port = Number(process.env.PORT) || 3456;
-console.log(`Server running at http://localhost:${port}`);
-console.log(`Swagger UI at http://localhost:${port}/docs`);
-console.log(`ReDoc at http://localhost:${port}/redoc`);
-console.log(`OpenAPI JSON at http://localhost:${port}/openapi.json`);
+console.log(`
+=== Basic CRUD Example (Memory Adapter) ===
+
+Server running at http://localhost:${port}
+
+Documentation:
+  Swagger UI:     http://localhost:${port}/docs
+  ReDoc:          http://localhost:${port}/redoc
+  Scalar:         http://localhost:${port}/reference
+  OpenAPI JSON:   http://localhost:${port}/openapi.json
+
+Available endpoints:
+  POST   /users          - Create a user
+  GET    /users          - List users
+  GET    /users/:id      - Get a user by ID
+  PATCH  /users/:id      - Update a user
+  DELETE /users/:id      - Delete a user
+
+Try:
+  curl -X POST http://localhost:${port}/users \\
+    -H "Content-Type: application/json" \\
+    -d '{"email":"alice@example.com","name":"Alice","role":"admin"}'
+`);
 
 serve({
   fetch: app.fetch,

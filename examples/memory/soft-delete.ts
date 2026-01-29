@@ -13,7 +13,7 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { z } from 'zod';
-import { fromHono, registerCrud, setupSwaggerUI, defineModel, defineMeta } from '../src/index.js';
+import { fromHono, registerCrud, setupSwaggerUI, defineModel, defineMeta } from '../../src/index.js';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -22,15 +22,15 @@ import {
   MemoryListEndpoint,
   MemoryRestoreEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
+} from '../../src/adapters/memory/index.js';
 
 // Clear storage on start
 clearStorage();
 
 // Define the User schema with deletedAt field for soft delete
 const UserSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
+  id: z.uuid(),
+  email: z.email(),
   name: z.string().min(1),
   role: z.enum(['admin', 'user']),
   createdAt: z.string().datetime().optional(),

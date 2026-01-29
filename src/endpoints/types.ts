@@ -270,11 +270,12 @@ export function getSchemaFields<T extends ZodObject<ZodRawShape>>(
   exclude: string[] = []
 ): ZodObject<ZodRawShape> {
   const shape = schema.shape;
-  const filteredShape: ZodRawShape = {};
+  // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4)
+  const filteredShape: Record<string, z.ZodTypeAny> = {};
 
   for (const [key, value] of Object.entries(shape)) {
     if (!exclude.includes(key)) {
-      filteredShape[key] = value;
+      filteredShape[key] = value as z.ZodTypeAny;
     }
   }
 

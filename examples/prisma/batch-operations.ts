@@ -1,50 +1,41 @@
 /**
- * Example: Batch Operations functionality
+ * Example: Batch Operations with Prisma + PostgreSQL
  *
- * Demonstrates batch operations:
+ * Demonstrates batch CRUD operations:
  * - POST /users/batch - Create multiple users at once
  * - PATCH /users/batch - Update multiple users at once
  * - DELETE /users/batch - Delete multiple users at once
  * - POST /users/batch/restore - Restore multiple soft-deleted users
  *
- * Run with: npx tsx examples/batch-operations.ts
+ * Run with:
+ * 1. cd examples && docker compose up -d
+ * 2. npx prisma generate --schema=examples/prisma/schema.prisma
+ * 3. npx prisma db push --schema=examples/prisma/schema.prisma
+ * 4. npx tsx examples/prisma/batch-operations.ts
  */
 
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import { fromHono, registerCrud, setupSwaggerUI, defineModel, defineMeta } from '../src/index.js';
+import { fromHono, registerCrud, setupSwaggerUI, defineModel, defineMeta } from '../../src/index.js';
 import {
-  MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryUpdateEndpoint,
-  MemoryDeleteEndpoint,
-  MemoryListEndpoint,
-  MemoryRestoreEndpoint,
-  MemoryBatchCreateEndpoint,
-  MemoryBatchUpdateEndpoint,
-  MemoryBatchDeleteEndpoint,
-  MemoryBatchRestoreEndpoint,
-  clearStorage,
-} from '../src/adapters/memory/index.js';
+  PrismaCreateEndpoint,
+  PrismaReadEndpoint,
+  PrismaUpdateEndpoint,
+  PrismaDeleteEndpoint,
+  PrismaListEndpoint,
+  PrismaRestoreEndpoint,
+  PrismaBatchCreateEndpoint,
+  PrismaBatchUpdateEndpoint,
+  PrismaBatchDeleteEndpoint,
+  PrismaBatchRestoreEndpoint,
+} from '../../src/adapters/prisma/index.js';
+import { UserSchema, type User } from '../shared/schemas.js';
+import { prisma, initDb } from './db.js';
 
-// Clear storage on start
-clearStorage();
+// ============================================================================
+// User Model with Soft Delete for Batch Restore
+// ============================================================================
 
-// Define the User schema with soft delete support
-const UserSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
-  name: z.string().min(1),
-  role: z.enum(['admin', 'user', 'guest']),
-  status: z.enum(['active', 'inactive']).default('active'),
-  createdAt: z.string().datetime().optional(),
-  deletedAt: z.date().nullable().optional(),
-});
-
-type User = z.infer<typeof UserSchema>;
-
-// Define the User model with soft delete enabled
 const UserModel = defineModel({
   tableName: 'users',
   schema: UserSchema,
@@ -58,40 +49,44 @@ const userMeta = defineMeta({ model: UserModel });
 // Standard CRUD Endpoints
 // ============================================================================
 
-class UserCreate extends MemoryCreateEndpoint {
+class UserCreate extends PrismaCreateEndpoint {
   _meta = userMeta;
+  prisma = prisma;
   schema = { tags: ['Users'], summary: 'Create a user' };
-
-  async before(data: Partial<User>) {
-    return { ...data, createdAt: new Date().toISOString(), deletedAt: null };
-  }
 }
 
-class UserList extends MemoryListEndpoint {
+class UserList extends PrismaListEndpoint {
   _meta = userMeta;
+  prisma = prisma;
+
   schema = { tags: ['Users'], summary: 'List users' };
   filterFields = ['role', 'status'];
   searchFields = ['name', 'email'];
 }
 
-class UserRead extends MemoryReadEndpoint {
+class UserRead extends PrismaReadEndpoint {
   _meta = userMeta;
+  prisma = prisma;
   schema = { tags: ['Users'], summary: 'Get a user' };
 }
 
-class UserUpdate extends MemoryUpdateEndpoint {
+class UserUpdate extends PrismaUpdateEndpoint {
   _meta = userMeta;
+  prisma = prisma;
+
   schema = { tags: ['Users'], summary: 'Update a user' };
   allowedUpdateFields = ['name', 'role', 'status'];
 }
 
-class UserDelete extends MemoryDeleteEndpoint {
+class UserDelete extends PrismaDeleteEndpoint {
   _meta = userMeta;
+  prisma = prisma;
   schema = { tags: ['Users'], summary: 'Delete a user (soft delete)' };
 }
 
-class UserRestore extends MemoryRestoreEndpoint {
+class UserRestore extends PrismaRestoreEndpoint {
   _meta = userMeta;
+  prisma = prisma;
   schema = { tags: ['Users'], summary: 'Restore a deleted user' };
 }
 
@@ -99,8 +94,9 @@ class UserRestore extends MemoryRestoreEndpoint {
 // Batch Endpoints
 // ============================================================================
 
-class UserBatchCreate extends MemoryBatchCreateEndpoint {
+class UserBatchCreate extends PrismaBatchCreateEndpoint {
   _meta = userMeta;
+  prisma = prisma;
 
   schema = {
     tags: ['Users - Batch'],
@@ -108,20 +104,12 @@ class UserBatchCreate extends MemoryBatchCreateEndpoint {
     description: 'Creates up to 100 users in a single request.',
   };
 
-  // Maximum 100 items per request (default)
   maxBatchSize = 100;
-
-  async before(data: Partial<User>, index: number) {
-    return {
-      ...data,
-      createdAt: new Date().toISOString(),
-      deletedAt: null,
-    };
-  }
 }
 
-class UserBatchUpdate extends MemoryBatchUpdateEndpoint {
+class UserBatchUpdate extends PrismaBatchUpdateEndpoint {
   _meta = userMeta;
+  prisma = prisma;
 
   schema = {
     tags: ['Users - Batch'],
@@ -132,12 +120,13 @@ class UserBatchUpdate extends MemoryBatchUpdateEndpoint {
   maxBatchSize = 100;
   allowedUpdateFields = ['name', 'role', 'status'];
 
-  // Continue updating remaining items if one fails
+  // Continue processing if one item fails
   stopOnError = false;
 }
 
-class UserBatchDelete extends MemoryBatchDeleteEndpoint {
+class UserBatchDelete extends PrismaBatchDeleteEndpoint {
   _meta = userMeta;
+  prisma = prisma;
 
   schema = {
     tags: ['Users - Batch'],
@@ -149,8 +138,9 @@ class UserBatchDelete extends MemoryBatchDeleteEndpoint {
   stopOnError = false;
 }
 
-class UserBatchRestore extends MemoryBatchRestoreEndpoint {
+class UserBatchRestore extends PrismaBatchRestoreEndpoint {
   _meta = userMeta;
+  prisma = prisma;
 
   schema = {
     tags: ['Users - Batch'],
@@ -168,7 +158,6 @@ class UserBatchRestore extends MemoryBatchRestoreEndpoint {
 
 const app = fromHono(new Hono());
 
-// Register all CRUD endpoints including batch operations
 registerCrud(app, '/users', {
   create: UserCreate,
   list: UserList,
@@ -182,31 +171,44 @@ registerCrud(app, '/users', {
   batchRestore: UserBatchRestore,
 });
 
+// Clear data endpoint
+app.get('/clear', async (c) => {
+  await prisma.comment.deleteMany();
+  await prisma.post.deleteMany();
+  await prisma.profile.deleteMany();
+  await prisma.user.deleteMany();
+  return c.json({ success: true, message: 'Data cleared' });
+});
+
 // OpenAPI documentation
 app.doc('/openapi.json', {
   openapi: '3.1.0',
   info: {
-    title: 'Batch Operations Example API',
+    title: 'Batch Operations Example - Prisma + PostgreSQL',
     version: '1.0.0',
-    description: 'Demonstrates batch create, update, delete, and restore operations',
+    description: 'Demonstrates batch create, update, delete, and restore operations.',
   },
 });
 
-// Swagger UI
 setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
-
-// Health check
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
-// Start server
+// ============================================================================
+// Start Server
+// ============================================================================
+
 const port = Number(process.env.PORT) || 3456;
-console.log(`
-=== Batch Operations Example ===
+
+initDb()
+  .then(() => {
+    console.log(`
+=== Batch Operations Example (Prisma + PostgreSQL) ===
 
 Server running at http://localhost:${port}
 Swagger UI at http://localhost:${port}/docs
 
-Try these commands:
+First, clear any existing data:
+  curl http://localhost:${port}/clear
 
 1. BATCH CREATE - Create multiple users at once:
    curl -X POST http://localhost:${port}/users/batch \\
@@ -223,7 +225,7 @@ Try these commands:
 2. List users to see the created records:
    curl http://localhost:${port}/users
 
-3. BATCH UPDATE - Update multiple users (replace <id1>, <id2> with actual IDs):
+3. BATCH UPDATE - Update multiple users (replace IDs with actual ones):
    curl -X PATCH http://localhost:${port}/users/batch \\
      -H "Content-Type: application/json" \\
      -d '{
@@ -254,22 +256,13 @@ Try these commands:
 
 Response Codes:
 - 200/201: All operations succeeded
-- 207: Partial success (some items succeeded, some failed or not found)
-- 400: Validation error
-
-Partial Success Example (207 response):
-{
-  "success": true,
-  "result": {
-    "updated": [...],  // Successfully updated items
-    "count": 2,
-    "notFound": ["non-existent-id"],  // IDs that weren't found
-    "errors": [...]  // Any errors during processing
-  }
-}
+- 207: Partial success (some items succeeded, some failed)
+- 400: Validation error (e.g., too many items)
 `);
 
-serve({
-  fetch: app.fetch,
-  port,
-});
+    serve({ fetch: app.fetch, port });
+  })
+  .catch((err) => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  });

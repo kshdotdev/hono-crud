@@ -11,14 +11,14 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from '../src/index.js';
+import { fromHono, defineModel, defineMeta } from '../../src/index.js';
 import {
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '../../src/adapters/memory/index.js';
 
 // Clear storage
 clearStorage();
@@ -28,21 +28,21 @@ clearStorage();
 // ============================================================================
 
 const AuthorSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string(),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 const BookSchema = z.object({
-  id: z.string().uuid(),
-  authorId: z.string().uuid().nullable(),
+  id: z.uuid(),
+  authorId: z.uuid().nullable(),
   title: z.string(),
   isbn: z.string(),
 });
 
 const ReviewSchema = z.object({
-  id: z.string().uuid(),
-  bookId: z.string().uuid(),
+  id: z.uuid(),
+  bookId: z.uuid(),
   rating: z.number().min(1).max(5),
   comment: z.string(),
 });

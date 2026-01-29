@@ -8,12 +8,12 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from '../src/index.js';
+import { fromHono, defineModel, defineMeta } from '../../src/index.js';
 import {
   MemoryUpsertEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
+} from '../../src/adapters/memory/index.js';
 
 // Clear storage
 clearStorage();
@@ -23,7 +23,7 @@ clearStorage();
 // ============================================================================
 
 const ProductSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   sku: z.string(),
   name: z.string(),
   price: z.number(),
@@ -33,7 +33,7 @@ const ProductSchema = z.object({
 });
 
 const UserSettingsSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   userId: z.string(),
   theme: z.enum(['light', 'dark', 'system']).default('system'),
   language: z.string().default('en'),

@@ -15,23 +15,23 @@ import {
   getAuditStorage,
   type AuditLogStorage,
   type AuditLogEntry,
-} from 'hono-crud';
+} from '../../src/index.js';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
   MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
-} from 'hono-crud/adapters/memory';
+} from '../../src/adapters/memory/index.js';
 
 // ============================================================
 // 1. Define your schema
 // ============================================================
 
 const UserSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string().min(1),
-  email: z.string().email(),
+  email: z.email(),
   role: z.enum(['admin', 'user', 'moderator']),
   status: z.enum(['active', 'inactive', 'suspended']),
   createdAt: z.date().optional(),

@@ -20,8 +20,8 @@ import {
 // ============================================================================
 
 const DocumentSchema = z.object({
-  id: z.string().uuid(),
-  tenantId: z.string().uuid(),
+  id: z.uuid(),
+  tenantId: z.uuid(),
   title: z.string(),
   content: z.string().optional(),
   createdAt: z.string().optional(),

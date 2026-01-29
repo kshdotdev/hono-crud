@@ -323,6 +323,25 @@ export abstract class CreateEndpoint<
   }
 
   /**
+   * Optional transform function applied to the created item before response.
+   * Override to customize serialization.
+   *
+   * @example
+   * ```ts
+   * protected transform(item: User): unknown {
+   *   return {
+   *     ...item,
+   *     fullName: `${item.firstName} ${item.lastName}`,
+   *     createdAt: item.createdAt.toISOString()
+   *   };
+   * }
+   * ```
+   */
+  protected transform(item: ModelObject<M['model']>): unknown {
+    return item;
+  }
+
+  /**
    * Creates the resource in the database.
    * Must be implemented by ORM-specific subclasses.
    */
@@ -447,9 +466,12 @@ export abstract class CreateEndpoint<
     }
 
     // Apply serializer if defined
-    const result = this._meta.model.serializer
+    const serialized = this._meta.model.serializer
       ? this._meta.model.serializer(obj)
       : obj;
+
+    // Apply transform
+    const result = this.transform(serialized as ModelObject<M['model']>);
 
     return this.success(result, 201);
   }

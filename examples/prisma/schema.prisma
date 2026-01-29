@@ -1,0 +1,126 @@
+// Prisma schema for hono-crud examples
+// Run: npx prisma generate --schema=examples/prisma/schema.prisma
+// Run: npx prisma db push --schema=examples/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+enum UserRole {
+  admin
+  user
+  guest
+}
+
+enum UserStatus {
+  active
+  inactive
+  pending
+}
+
+enum PostStatus {
+  draft
+  published
+  archived
+}
+
+// ============================================================================
+// Users Table
+// ============================================================================
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  name      String
+  role      UserRole   @default(user)
+  age       Int?
+  status    UserStatus @default(active)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  deletedAt DateTime?  @map("deleted_at")
+
+  // Relations
+  posts    Post[]
+  profile  Profile?
+  comments Comment[]
+
+  @@map("users")
+}
+
+// ============================================================================
+// Posts Table
+// ============================================================================
+
+model Post {
+  id        String     @id @default(uuid())
+  title     String
+  content   String
+  authorId  String     @map("author_id")
+  status    PostStatus @default(draft)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  deletedAt DateTime?  @map("deleted_at")
+
+  // Relations
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments Comment[]
+
+  @@map("posts")
+}
+
+// ============================================================================
+// Profiles Table (hasOne from Users)
+// ============================================================================
+
+model Profile {
+  id      String  @id @default(uuid())
+  userId  String  @unique @map("user_id")
+  bio     String?
+  avatar  String?
+  website String?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+// ============================================================================
+// Comments Table (hasMany from Posts, belongsTo Users)
+// ============================================================================
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  postId    String   @map("post_id")
+  authorId  String   @map("author_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+// ============================================================================
+// Categories Table (standalone for filtering tests)
+// ============================================================================
+
+model Category {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  @@map("categories")
+}

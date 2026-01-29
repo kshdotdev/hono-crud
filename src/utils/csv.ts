@@ -568,7 +568,7 @@ export function parseCsv<T = Record<string, unknown>>(
  * const UserSchema = z.object({
  *   id: z.string(),
  *   name: z.string(),
- *   email: z.string().email(),
+ *   email: z.email(),
  *   age: z.number().optional(),
  * });
  *

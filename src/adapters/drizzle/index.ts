@@ -1,5 +1,16 @@
 import type { Env } from 'hono';
-import { eq, and, or, ne, gt, gte, lt, lte, like, ilike, inArray, notInArray, isNull, isNotNull, between, asc, desc, sql } from 'drizzle-orm';
+
+// Re-export drizzle-zod schema utilities
+export {
+  createSelectSchema,
+  createInsertSchema,
+  createUpdateSchema,
+  createDrizzleSchemas,
+  createDrizzleSchemasAsync,
+  isDrizzleZodAvailable,
+} from './schema-utils.js';
+export type { DrizzleSchemas } from './schema-utils.js';
+import { eq, and, or, ne, gt, gte, lt, lte, like, ilike, inArray, notInArray, isNull, isNotNull, between, asc, desc, sql, getTableColumns } from 'drizzle-orm';
 import type { SQL, Table, Column, InferSelectModel, InferInsertModel } from 'drizzle-orm';
 import { CreateEndpoint } from '../../endpoints/create.js';
 import { ReadEndpoint } from '../../endpoints/read.js';
@@ -175,15 +186,24 @@ function getTable<M extends MetaInput>(meta: M): Table {
 }
 
 /**
- * Gets a column from the table.
+ * Gets a column from the table with proper type safety.
+ * Uses drizzle-orm's getTableColumns for type-safe column access.
+ *
+ * @param table - The Drizzle table
+ * @param field - The field/column name
+ * @returns The column
+ * @throws Error if the column is not found in the table
  */
 function getColumn(table: Table, field: string): Column {
-  const columns = table as unknown as { [key: string]: Column };
+  const columns = getTableColumns(table);
   const column = columns[field];
   if (!column) {
-    throw new Error(`Column ${field} not found in table`);
+    throw new Error(
+      `Column '${field}' not found in table. ` +
+      `Available columns: ${Object.keys(columns).join(', ')}`
+    );
   }
-  return column;
+  return column as Column;
 }
 
 /**
@@ -251,6 +271,7 @@ async function loadDrizzleRelation<T extends Record<string, unknown>>(
 
 /**
  * Loads all requested relations for an item.
+ * Note: For multiple items, use `batchLoadDrizzleRelations` to avoid N+1 queries.
  */
 async function loadDrizzleRelations<T extends Record<string, unknown>, M extends MetaInput>(
   db: DrizzleDatabase,
@@ -272,6 +293,131 @@ async function loadDrizzleRelations<T extends Record<string, unknown>, M extends
   }
 
   return result;
+}
+
+/**
+ * Batch loads relations for multiple items to avoid N+1 queries.
+ * Instead of N queries per relation, this uses 1 query per relation using inArray().
+ */
+async function batchLoadDrizzleRelations<T extends Record<string, unknown>, M extends MetaInput>(
+  db: DrizzleDatabase,
+  items: T[],
+  meta: M,
+  includeOptions?: IncludeOptions
+): Promise<T[]> {
+  if (!items.length || !includeOptions?.relations?.length || !meta.model.relations) {
+    return items;
+  }
+
+  // Clone all items to avoid mutation
+  let results = items.map(item => ({ ...item })) as T[];
+
+  for (const relationName of includeOptions.relations) {
+    const relationConfig = meta.model.relations[relationName] as RelationConfig<Table> | undefined;
+    if (!relationConfig || !relationConfig.table) {
+      continue;
+    }
+
+    const relatedTable = relationConfig.table;
+
+    switch (relationConfig.type) {
+      case 'hasOne':
+      case 'hasMany': {
+        const localKey = relationConfig.localKey || 'id';
+
+        // Collect all unique local values
+        const localValues = [...new Set(
+          results
+            .map(item => item[localKey])
+            .filter(val => val !== undefined && val !== null)
+        )];
+
+        if (localValues.length === 0) {
+          // Set empty results for all items
+          results = results.map(item => ({
+            ...item,
+            [relationName]: relationConfig.type === 'hasMany' ? [] : null,
+          }));
+          continue;
+        }
+
+        // Batch query: Load all related records in a single query
+        const foreignKeyColumn = getColumn(relatedTable, relationConfig.foreignKey);
+        const relatedRecords = await db
+          .select()
+          .from(relatedTable)
+          .where(inArray(foreignKeyColumn, localValues));
+
+        // Group related records by foreign key
+        const recordsByForeignKey = new Map<unknown, Record<string, unknown>[]>();
+        for (const record of relatedRecords) {
+          const foreignVal = (record as Record<string, unknown>)[relationConfig.foreignKey];
+          if (!recordsByForeignKey.has(foreignVal)) {
+            recordsByForeignKey.set(foreignVal, []);
+          }
+          recordsByForeignKey.get(foreignVal)!.push(record as Record<string, unknown>);
+        }
+
+        // Map results back to items
+        results = results.map(item => {
+          const localValue = item[localKey];
+          const related = recordsByForeignKey.get(localValue) || [];
+          return {
+            ...item,
+            [relationName]: relationConfig.type === 'hasMany' ? related : (related[0] || null),
+          };
+        });
+        break;
+      }
+
+      case 'belongsTo': {
+        // For belongsTo, the foreign key is on the current item
+        const refLocalKey = relationConfig.localKey || 'id';
+
+        // Collect all unique foreign key values
+        const foreignValues = [...new Set(
+          results
+            .map(item => item[relationConfig.foreignKey])
+            .filter(val => val !== undefined && val !== null)
+        )];
+
+        if (foreignValues.length === 0) {
+          // Set null for all items
+          results = results.map(item => ({
+            ...item,
+            [relationName]: null,
+          }));
+          continue;
+        }
+
+        // Batch query: Load all parent records in a single query
+        const localKeyColumn = getColumn(relatedTable, refLocalKey);
+        const relatedRecords = await db
+          .select()
+          .from(relatedTable)
+          .where(inArray(localKeyColumn, foreignValues));
+
+        // Create a map for quick lookup
+        const recordsByLocalKey = new Map<unknown, Record<string, unknown>>();
+        for (const record of relatedRecords) {
+          const localVal = (record as Record<string, unknown>)[refLocalKey];
+          recordsByLocalKey.set(localVal, record as Record<string, unknown>);
+        }
+
+        // Map results back to items
+        results = results.map(item => {
+          const foreignValue = item[relationConfig.foreignKey];
+          return {
+            ...item,
+            [relationName]: recordsByLocalKey.get(foreignValue) || null,
+          };
+        });
+        break;
+      }
+    }
+  }
+
+  return results;
 }
 
 /**
@@ -333,8 +479,23 @@ export abstract class DrizzleCreateEndpoint<
 > extends CreateEndpoint<E, M> {
   /** Drizzle database instance */
   abstract db: DrizzleDatabase;
-  /** Whether to wrap operations in a transaction */
+
+  /**
+   * Whether to wrap create and nested operations in a transaction.
+   * When true, the entire create operation (including nested writes) will be atomic.
+   * @default false
+   */
   protected useTransaction: boolean = false;
+
+  /** Current transaction context (set during transaction execution) */
+  private _tx?: DrizzleDatabase;
+
+  /**
+   * Gets the database instance to use (transaction or main db).
+   */
+  protected getDb(): DrizzleDatabase {
+    return this._tx ?? this.db;
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -347,7 +508,8 @@ export abstract class DrizzleCreateEndpoint<
     return (relationConfig as RelationConfig<Table>).table;
   }
 
-  override async create(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
+  override async create(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
     const primaryKey = this._meta.model.primaryKeys[0];
 
@@ -357,7 +519,7 @@ export abstract class DrizzleCreateEndpoint<
       [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
     };
 
-    const result = await this.db
+    const result = await db
       .insert(table)
       .values(record)
       .returning();
@@ -372,8 +534,10 @@ export abstract class DrizzleCreateEndpoint<
     parentId: string | number,
     relationName: string,
     relationConfig: RelationConfig,
-    data: unknown
+    data: unknown,
+    tx?: unknown
   ): Promise<unknown[]> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) {
       console.warn(
@@ -394,7 +558,7 @@ export abstract class DrizzleCreateEndpoint<
         [relationConfig.foreignKey]: parentId,
       };
 
-      const result = await this.db
+      const result = await db
         .insert(relatedTable)
         .values(record as Record<string, unknown>)
         .returning();
@@ -405,6 +569,25 @@ export abstract class DrizzleCreateEndpoint<
     }
 
     return created;
+  }
+
+  /**
+   * Override handle to wrap in transaction when useTransaction is true.
+   */
+  override async handle(): Promise<Response> {
+    if (!this.useTransaction) {
+      return super.handle();
+    }
+
+    // Execute the entire operation within a transaction
+    return this.db.transaction(async (tx) => {
+      this._tx = tx;
+      try {
+        return await super.handle();
+      } finally {
+        this._tx = undefined;
+      }
+    });
   }
 }
 
@@ -490,8 +673,23 @@ export abstract class DrizzleUpdateEndpoint<
 > extends UpdateEndpoint<E, M> {
   /** Drizzle database instance */
   abstract db: DrizzleDatabase;
-  /** Whether to wrap operations in a transaction */
+
+  /**
+   * Whether to wrap update and nested operations in a transaction.
+   * When true, the entire update operation (including nested writes) will be atomic.
+   * @default false
+   */
   protected useTransaction: boolean = false;
+
+  /** Current transaction context (set during transaction execution) */
+  private _tx?: DrizzleDatabase;
+
+  /**
+   * Gets the database instance to use (transaction or main db).
+   */
+  protected getDb(): DrizzleDatabase {
+    return this._tx ?? this.db;
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -513,8 +711,10 @@ export abstract class DrizzleUpdateEndpoint<
    */
   protected override async findExisting(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
+    tx?: unknown
   ): Promise<ModelObject<M['model']> | null> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -533,7 +733,7 @@ export abstract class DrizzleUpdateEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await this.db
+    const result = await db
       .select()
       .from(table)
       .where(and(...conditions))
@@ -545,8 +745,10 @@ export abstract class DrizzleUpdateEndpoint<
   override async update(
     lookupValue: string,
     data: Partial<ModelObject<M['model']>>,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
+    tx?: unknown
   ): Promise<ModelObject<M['model']> | null> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -565,7 +767,7 @@ export abstract class DrizzleUpdateEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await this.db
+    const result = await db
       .update(table)
       .set(data as Record<string, unknown>)
       .where(and(...conditions))
@@ -581,8 +783,10 @@ export abstract class DrizzleUpdateEndpoint<
     parentId: string | number,
     relationName: string,
     relationConfig: RelationConfig,
-    operations: NestedUpdateInput
+    operations: NestedUpdateInput,
+    tx?: unknown
   ): Promise<NestedWriteResult> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) {
       console.warn(
@@ -622,7 +826,7 @@ export abstract class DrizzleUpdateEndpoint<
           [relationConfig.foreignKey]: parentId,
         };
 
-        const created = await this.db
+        const created = await db
           .insert(relatedTable)
           .values(record as Record<string, unknown>)
           .returning();
@@ -639,7 +843,7 @@ export abstract class DrizzleUpdateEndpoint<
         if (!item.id) continue;
 
         // Verify the record belongs to this parent
-        const existing = await this.db
+        const existing = await db
           .select()
           .from(relatedTable)
           .where(and(eq(pkColumn, item.id), eq(fkColumn, parentId)))
@@ -648,7 +852,7 @@ export abstract class DrizzleUpdateEndpoint<
         if (!existing[0]) continue;
 
         const { id, ...updateData } = item;
-        const updated = await this.db
+        const updated = await db
           .update(relatedTable)
           .set(updateData as Record<string, unknown>)
           .where(eq(pkColumn, id))
@@ -664,7 +868,7 @@ export abstract class DrizzleUpdateEndpoint<
     if (operations.delete) {
       for (const id of operations.delete) {
         // Verify the record belongs to this parent before deleting
-        const deleted = await this.db
+        const deleted = await db
           .delete(relatedTable)
           .where(and(eq(pkColumn, id), eq(fkColumn, parentId)))
           .returning();
@@ -678,7 +882,7 @@ export abstract class DrizzleUpdateEndpoint<
     // Handle connect operations
     if (operations.connect) {
       for (const id of operations.connect) {
-        const updated = await this.db
+        const updated = await db
           .update(relatedTable)
           .set({ [relationConfig.foreignKey]: parentId } as Record<string, unknown>)
           .where(eq(pkColumn, id))
@@ -693,7 +897,7 @@ export abstract class DrizzleUpdateEndpoint<
     // Handle disconnect operations
     if (operations.disconnect) {
       for (const id of operations.disconnect) {
-        const updated = await this.db
+        const updated = await db
           .update(relatedTable)
           .set({ [relationConfig.foreignKey]: null } as Record<string, unknown>)
           .where(and(eq(pkColumn, id), eq(fkColumn, parentId)))
@@ -706,6 +910,25 @@ export abstract class DrizzleUpdateEndpoint<
     }
 
     return result;
+  }
+
+  /**
+   * Override handle to wrap in transaction when useTransaction is true.
+   */
+  override async handle(): Promise<Response> {
+    if (!this.useTransaction) {
+      return super.handle();
+    }
+
+    // Execute the entire operation within a transaction
+    return this.db.transaction(async (tx) => {
+      this._tx = tx;
+      try {
+        return await super.handle();
+      } finally {
+        this._tx = undefined;
+      }
+    });
   }
 }
 
@@ -722,8 +945,23 @@ export abstract class DrizzleDeleteEndpoint<
 > extends DeleteEndpoint<E, M> {
   /** Drizzle database instance */
   abstract db: DrizzleDatabase;
-  /** Whether to wrap operations in a transaction */
+
+  /**
+   * Whether to wrap delete and cascade operations in a transaction.
+   * When true, the entire delete operation (including cascade deletes) will be atomic.
+   * @default false
+   */
   protected useTransaction: boolean = false;
+
+  /** Current transaction context (set during transaction execution) */
+  private _tx?: DrizzleDatabase;
+
+  /**
+   * Gets the database instance to use (transaction or main db).
+   */
+  protected getDb(): DrizzleDatabase {
+    return this._tx ?? this.db;
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -745,8 +983,10 @@ export abstract class DrizzleDeleteEndpoint<
    */
   override async findForDelete(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
+    tx?: unknown
   ): Promise<ModelObject<M['model']> | null> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -765,7 +1005,7 @@ export abstract class DrizzleDeleteEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await this.db
+    const result = await db
       .select()
       .from(table)
       .where(and(...conditions))
@@ -776,8 +1016,10 @@ export abstract class DrizzleDeleteEndpoint<
 
   override async delete(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
+    tx?: unknown
   ): Promise<ModelObject<M['model']> | null> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -798,7 +1040,7 @@ export abstract class DrizzleDeleteEndpoint<
 
     if (softDeleteConfig.enabled) {
       // Soft delete: set the deletion timestamp
-      const result = await this.db
+      const result = await db
         .update(table)
         .set({ [softDeleteConfig.field]: new Date() } as Record<string, unknown>)
         .where(and(...conditions))
@@ -807,7 +1049,7 @@ export abstract class DrizzleDeleteEndpoint<
       return (result[0] as ModelObject<M['model']>) || null;
     } else {
       // Hard delete: actually remove the record
-      const result = await this.db
+      const result = await db
         .delete(table)
         .where(and(...conditions))
         .returning();
@@ -822,14 +1064,16 @@ export abstract class DrizzleDeleteEndpoint<
   protected override async countRelated(
     parentId: string | number,
     relationName: string,
-    relationConfig: RelationConfig
+    relationConfig: RelationConfig,
+    tx?: unknown
   ): Promise<number> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) return 0;
 
     const fkColumn = getColumn(relatedTable, relationConfig.foreignKey);
 
-    const result = await this.db
+    const result = await db
       .select({ count: sql<number>`count(*)` })
       .from(relatedTable)
       .where(eq(fkColumn, parentId));
@@ -843,14 +1087,16 @@ export abstract class DrizzleDeleteEndpoint<
   protected override async deleteRelated(
     parentId: string | number,
     relationName: string,
-    relationConfig: RelationConfig
+    relationConfig: RelationConfig,
+    tx?: unknown
   ): Promise<number> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) return 0;
 
     const fkColumn = getColumn(relatedTable, relationConfig.foreignKey);
 
-    const result = await this.db
+    const result = await db
       .delete(relatedTable)
       .where(eq(fkColumn, parentId))
       .returning();
@@ -864,20 +1110,41 @@ export abstract class DrizzleDeleteEndpoint<
   protected override async nullifyRelated(
     parentId: string | number,
     relationName: string,
-    relationConfig: RelationConfig
+    relationConfig: RelationConfig,
+    tx?: unknown
   ): Promise<number> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) return 0;
 
     const fkColumn = getColumn(relatedTable, relationConfig.foreignKey);
 
-    const result = await this.db
+    const result = await db
       .update(relatedTable)
       .set({ [relationConfig.foreignKey]: null } as Record<string, unknown>)
       .where(eq(fkColumn, parentId))
       .returning();
 
     return result.length;
+  }
+
+  /**
+   * Override handle to wrap in transaction when useTransaction is true.
+   */
+  override async handle(): Promise<Response> {
+    if (!this.useTransaction) {
+      return super.handle();
+    }
+
+    // Execute the entire operation within a transaction
+    return this.db.transaction(async (tx) => {
+      this._tx = tx;
+      try {
+        return await super.handle();
+      } finally {
+        this._tx = undefined;
+      }
+    });
   }
 }
 
@@ -970,18 +1237,16 @@ export abstract class DrizzleListEndpoint<
 
     const result = await query;
 
-    // Load relations if requested
+    // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
-    const itemsWithRelations = await Promise.all(
-      result.map((item) =>
-        loadDrizzleRelations(
-          this.db,
-          item as Record<string, unknown>,
-          this._meta,
-          includeOptions
-        )
-      )
+    const itemsWithRelations = await batchLoadDrizzleRelations(
+      this.db,
+      result as Record<string, unknown>[],
+      this._meta,
+      includeOptions
     );
+
+    const totalPages = Math.ceil(totalCount / perPage);
 
     return {
       result: itemsWithRelations as ModelObject<M['model']>[],
@@ -989,7 +1254,9 @@ export abstract class DrizzleListEndpoint<
         page,
         per_page: perPage,
         total_count: totalCount,
-        total_pages: Math.ceil(totalCount / perPage),
+        total_pages: totalPages,
+        has_next_page: page < totalPages,
+        has_prev_page: page > 1,
       },
     };
   }
@@ -1008,8 +1275,23 @@ export abstract class DrizzleRestoreEndpoint<
 > extends RestoreEndpoint<E, M> {
   /** Drizzle database instance */
   abstract db: DrizzleDatabase;
-  /** Whether to wrap operations in a transaction */
+
+  /**
+   * Whether to wrap restore operation in a transaction.
+   * Useful when combined with hooks that perform additional operations.
+   * @default false
+   */
   protected useTransaction: boolean = false;
+
+  /** Current transaction context (set during transaction execution) */
+  private _tx?: DrizzleDatabase;
+
+  /**
+   * Gets the database instance to use (transaction or main db).
+   */
+  protected getDb(): DrizzleDatabase {
+    return this._tx ?? this.db;
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -1021,8 +1303,10 @@ export abstract class DrizzleRestoreEndpoint<
 
   override async restore(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
+    tx?: unknown
   ): Promise<ModelObject<M['model']> | null> {
+    const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -1040,13 +1324,32 @@ export abstract class DrizzleRestoreEndpoint<
     conditions.push(isNotNull(this.getColumn(softDeleteConfig.field)));
 
     // Set deletedAt to null to restore the record
-    const result = await this.db
+    const result = await db
       .update(table)
       .set({ [softDeleteConfig.field]: null } as Record<string, unknown>)
       .where(and(...conditions))
       .returning();
 
     return (result[0] as ModelObject<M['model']>) || null;
+  }
+
+  /**
+   * Override handle to wrap in transaction when useTransaction is true.
+   */
+  override async handle(): Promise<Response> {
+    if (!this.useTransaction) {
+      return super.handle();
+    }
+
+    // Execute the entire operation within a transaction
+    return this.db.transaction(async (tx) => {
+      this._tx = tx;
+      try {
+        return await super.handle();
+      } finally {
+        this._tx = undefined;
+      }
+    });
   }
 }
 
@@ -1931,19 +2234,23 @@ export abstract class DrizzleSearchEndpoint<
       searchableFields
     );
 
-    // Load relations if requested
+    // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
-    const resultsWithRelations = await Promise.all(
-      searchResults.map(async (result) => ({
-        ...result,
-        item: await loadDrizzleRelations(
-          this.db,
-          result.item as Record<string, unknown>,
-          this._meta,
-          includeOptions
-        ) as ModelObject<M['model']>,
-      }))
+
+    // Extract items for batch relation loading
+    const items = searchResults.map(r => r.item as Record<string, unknown>);
+    const itemsWithRelations = await batchLoadDrizzleRelations(
+      this.db,
+      items,
+      this._meta,
+      includeOptions
     );
+
+    // Map back the relations to the search results
+    const resultsWithRelations = searchResults.map((result, index) => ({
+      ...result,
+      item: itemsWithRelations[index] as ModelObject<M['model']>,
+    }));
 
     return {
       items: resultsWithRelations,
@@ -2031,18 +2338,16 @@ export abstract class DrizzleExportEndpoint<
 
     const result = await query;
 
-    // Load relations if requested
+    // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
-    const itemsWithRelations = await Promise.all(
-      result.map((item) =>
-        loadDrizzleRelations(
-          this.db,
-          item as Record<string, unknown>,
-          this._meta,
-          includeOptions
-        )
-      )
+    const itemsWithRelations = await batchLoadDrizzleRelations(
+      this.db,
+      result as Record<string, unknown>[],
+      this._meta,
+      includeOptions
     );
+
+    const totalPages = Math.ceil(totalCount / perPage);
 
     return {
       result: itemsWithRelations as ModelObject<M['model']>[],
@@ -2050,7 +2355,9 @@ export abstract class DrizzleExportEndpoint<
         page,
         per_page: perPage,
         total_count: totalCount,
-        total_pages: Math.ceil(totalCount / perPage),
+        total_pages: totalPages,
+        has_next_page: page < totalPages,
+        has_prev_page: page > 1,
       },
     };
   }

@@ -8,13 +8,13 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from '../src/index.js';
+import { fromHono, defineModel, defineMeta } from '../../src/index.js';
 import {
   MemoryCreateEndpoint,
   MemoryUpdateEndpoint,
   MemoryReadEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
+} from '../../src/adapters/memory/index.js';
 
 // Clear storage
 clearStorage();
@@ -24,29 +24,29 @@ clearStorage();
 // ============================================================================
 
 const UserSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string(),
-  email: z.string().email(),
+  email: z.email(),
 });
 
 const ProfileSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
+  id: z.uuid(),
+  userId: z.uuid(),
   bio: z.string(),
-  website: z.string().url().optional(),
+  website: z.url().optional(),
 });
 
 const PostSchema = z.object({
-  id: z.string().uuid(),
-  authorId: z.string().uuid(),
+  id: z.uuid(),
+  authorId: z.uuid(),
   title: z.string(),
   content: z.string(),
   published: z.boolean().default(false),
 });
 
 const CommentSchema = z.object({
-  id: z.string().uuid(),
-  postId: z.string().uuid(),
+  id: z.uuid(),
+  postId: z.uuid(),
   authorName: z.string(),
   content: z.string(),
 });

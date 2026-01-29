@@ -29,13 +29,13 @@ import {
   RateLimitExceededException,
   type RateLimitEnv,
   type AuthEnv,
-} from '../src/index.js';
+} from '../../src/index.js';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
+} from '../../src/adapters/memory/index.js';
 
 // Clear storage on start
 clearStorage();
@@ -71,8 +71,8 @@ type AppEnv = AuthEnv & RateLimitEnv & {
 // ============================================================================
 
 const UserSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().email(),
+  id: z.uuid(),
+  email: z.email(),
   name: z.string().min(1),
   tier: z.enum(['free', 'premium']).default('free'),
 });
