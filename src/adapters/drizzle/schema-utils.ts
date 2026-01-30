@@ -23,7 +23,7 @@
  * ```
  */
 
-import type { z } from 'zod';
+import { z } from 'zod';
 import { createRequire } from 'module';
 
 // Create require function for ESM compatibility
@@ -210,14 +210,18 @@ export interface DrizzleSchemas {
  *
  * This is a convenience helper that generates:
  * - `select`: Full record schema for reading data
- * - `insert`: Schema for creating new records
- * - `update`: Partial schema for updating records
+ * - `insert`: Schema for creating new records (with date coercion for JSON input)
+ * - `update`: Partial schema for updating records (with date coercion for JSON input)
+ *
+ * Date coercion is automatically applied to timestamp/date columns, allowing
+ * both Date objects and ISO 8601 date strings as input values.
  *
  * @param table - Drizzle table definition
  * @param options - Optional configuration
  * @param options.insertRefine - Refinements for insert schema
  * @param options.selectRefine - Refinements for select schema
  * @param options.updateRefine - Refinements for update schema
+ * @param options.coerceDates - Whether to coerce date strings to Date objects (default: true)
  * @returns Object containing select, insert, and update schemas
  *
  * @example
@@ -254,12 +258,18 @@ export function createDrizzleSchemas<T extends DrizzleTable>(
     insertRefine?: Record<string, z.ZodTypeAny>;
     selectRefine?: Record<string, z.ZodTypeAny>;
     updateRefine?: Record<string, z.ZodTypeAny>;
+    /** Whether to coerce date strings to Date objects. Default: true */
+    coerceDates?: boolean;
   }
 ): DrizzleSchemas {
   const drizzleZod = tryLoadDrizzleZod();
+  const shouldCoerceDates = options?.coerceDates !== false;
+
+  // Detect date columns for coercion
+  const dateColumns = shouldCoerceDates ? getDateColumns(table) : new Set<string>();
 
   const select = drizzleZod!.createSelectSchema(table, options?.selectRefine);
-  const insert = drizzleZod!.createInsertSchema(table, options?.insertRefine);
+  let insert = drizzleZod!.createInsertSchema(table, options?.insertRefine);
 
   let update: z.ZodObject<Record<string, z.ZodTypeAny>>;
   if (drizzleZod!.createUpdateSchema) {
@@ -267,6 +277,12 @@ export function createDrizzleSchemas<T extends DrizzleTable>(
   } else {
     // Fallback for older drizzle-zod versions
     update = drizzleZod!.createInsertSchema(table, options?.updateRefine).partial() as z.ZodObject<Record<string, z.ZodTypeAny>>;
+  }
+
+  // Apply date coercion to insert and update schemas (not select, as that's for output)
+  if (shouldCoerceDates && dateColumns.size > 0) {
+    insert = applyDateCoercion(insert, dateColumns);
+    update = applyDateCoercion(update, dateColumns);
   }
 
   return { select, insert, update };
@@ -303,4 +319,119 @@ export function isDrizzleZodAvailable(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * A Zod schema that coerces ISO date strings to Date objects.
+ * Accepts both Date objects and ISO 8601 date strings.
+ */
+export const coercedDate = z.preprocess(
+  (val) => {
+    if (val instanceof Date) return val;
+    if (typeof val === 'string') {
+      const parsed = new Date(val);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return val; // Return as-is, let z.date() handle validation
+  },
+  z.date()
+);
+
+/**
+ * A Zod schema that coerces ISO date strings to Date objects, allowing null.
+ */
+export const coercedDateNullable = z.preprocess(
+  (val) => {
+    if (val === null || val === undefined) return null;
+    if (val instanceof Date) return val;
+    if (typeof val === 'string') {
+      const parsed = new Date(val);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return val;
+  },
+  z.date().nullable()
+);
+
+/**
+ * Detects timestamp/date columns in a Drizzle table and returns their names.
+ * Works with PostgreSQL, MySQL, and SQLite timestamp/date columns.
+ */
+function getDateColumns<T extends DrizzleTable>(table: T): Set<string> {
+  const dateColumns = new Set<string>();
+
+  // Access columns from the table definition
+  // Drizzle tables have columns as direct properties, and the _ contains metadata
+  // The columns themselves have a columnType or dataType property
+  const tableObj = table as Record<string, unknown>;
+
+  for (const [name, value] of Object.entries(tableObj)) {
+    // Skip internal properties
+    if (name === '_' || name === '$inferInsert' || name === '$inferSelect') continue;
+
+    // Check if this is a column object with type information
+    const column = value as Record<string, unknown> | null;
+    if (!column || typeof column !== 'object') continue;
+
+    // Try to detect date columns from various Drizzle column properties
+    const dataType = String(column.dataType ?? '').toLowerCase();
+    const columnType = String(column.columnType ?? '').toLowerCase();
+    const config = column.config as Record<string, unknown> | undefined;
+    const configDataType = String(config?.dataType ?? '').toLowerCase();
+
+    // Match timestamp, date, datetime columns across dialects
+    if (
+      dataType.includes('timestamp') ||
+      dataType.includes('date') ||
+      dataType.includes('datetime') ||
+      columnType.includes('pgtimestamp') ||
+      columnType.includes('pgdate') ||
+      columnType.includes('mysqltimestamp') ||
+      columnType.includes('mysqldate') ||
+      columnType.includes('sqlitetimestamp') ||
+      configDataType.includes('timestamp') ||
+      configDataType.includes('date')
+    ) {
+      dateColumns.add(name);
+    }
+  }
+
+  return dateColumns;
+}
+
+/**
+ * Applies date coercion to a Zod schema for the specified fields.
+ * This transforms the schema so that date fields accept both Date objects and ISO strings.
+ */
+function applyDateCoercion(
+  schema: z.ZodObject<Record<string, z.ZodTypeAny>>,
+  dateColumns: Set<string>
+): z.ZodObject<Record<string, z.ZodTypeAny>> {
+  if (dateColumns.size === 0) return schema;
+
+  const shape = schema.shape;
+  const newShape: Record<string, z.ZodTypeAny> = {};
+
+  for (const [key, fieldSchema] of Object.entries(shape)) {
+    if (dateColumns.has(key)) {
+      // Check if the field is optional or nullable
+      const isOptional = fieldSchema.isOptional?.() ?? false;
+      const isNullable = fieldSchema.isNullable?.() ?? false;
+
+      // Create coerced date schema with appropriate modifiers
+      let coercedSchema: z.ZodTypeAny = coercedDate;
+      if (isNullable || isOptional) {
+        coercedSchema = coercedDateNullable;
+      }
+      if (isOptional) {
+        coercedSchema = coercedSchema.optional();
+      }
+
+      newShape[key] = coercedSchema;
+    } else {
+      newShape[key] = fieldSchema;
+    }
+  }
+
+  return z.object(newShape) as z.ZodObject<Record<string, z.ZodTypeAny>>;
 }

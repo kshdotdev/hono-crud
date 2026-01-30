@@ -116,14 +116,11 @@ export abstract class SearchEndpoint<
   /** Filter configuration with allowed operators per field */
   protected filterConfig?: Record<string, Array<'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'ilike' | 'null' | 'between'>>;
 
-  /** Fields that can be used for sorting */
-  protected orderByFields: string[] = [];
+  /** Fields that can be used for sorting. Use with ?sort=fieldName */
+  protected sortFields: string[] = [];
 
-  /** Default sort field */
-  protected defaultOrderBy?: string;
-
-  /** Default sort direction */
-  protected defaultOrderDirection: 'asc' | 'desc' = 'asc';
+  /** Default sort configuration */
+  protected defaultSort?: { field: string; order: 'asc' | 'desc' };
 
   // ============================================================================
   // Pagination Configuration
@@ -243,9 +240,9 @@ export abstract class SearchEndpoint<
     };
 
     // Sorting
-    if (this.orderByFields.length > 0) {
-      shape.order_by = z.enum(this.orderByFields as [string, ...string[]]).optional();
-      shape.order_by_direction = z.enum(['asc', 'desc']).optional();
+    if (this.sortFields.length > 0) {
+      shape.sort = z.enum(this.sortFields as [string, ...string[]]).optional().describe('Field to sort by');
+      shape.order = z.enum(['asc', 'desc']).optional().describe('Sort direction (asc or desc)');
     }
 
     // Filter fields
@@ -410,9 +407,8 @@ export abstract class SearchEndpoint<
       filterConfig: this.filterConfig,
       searchFields: [], // Don't use basic search, we handle it ourselves
       searchFieldName: 'q',
-      orderByFields: this.orderByFields,
-      defaultOrderBy: this.defaultOrderBy,
-      defaultOrderDirection: this.defaultOrderDirection,
+      sortFields: this.sortFields,
+      defaultSort: this.defaultSort,
       defaultPerPage: this.defaultPerPage,
       maxPerPage: this.maxPerPage,
       softDeleteQueryParam: softDeleteConfig.queryParam,

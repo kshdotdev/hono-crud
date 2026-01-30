@@ -32,3 +32,6 @@ coverage/
 
 # API test responses
 tests/api-responses/
+
+# Local test project
+test-api/

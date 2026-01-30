@@ -1,4 +1,4 @@
-import type { Hono, Env, Context } from 'hono';
+import type { Hono, Env, Context, MiddlewareHandler } from 'hono';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { OpenAPIRoute } from './route';
 import { isRouteClass } from './route';
@@ -44,30 +44,58 @@ export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
    * Register a GET route with an OpenAPIRoute class.
    */
   get(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
+  get(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
+  ): HonoOpenAPIApp<E>;
   /**
    * Register a POST route with an OpenAPIRoute class.
    */
   post(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
+  post(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
+  ): HonoOpenAPIApp<E>;
   /**
    * Register a PUT route with an OpenAPIRoute class.
    */
   put(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
+  put(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
+  ): HonoOpenAPIApp<E>;
   /**
    * Register a PATCH route with an OpenAPIRoute class.
    */
   patch(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
+  patch(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
+  ): HonoOpenAPIApp<E>;
   /**
    * Register a DELETE route with an OpenAPIRoute class.
    */
   delete(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
+  delete(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
+  ): HonoOpenAPIApp<E>;
   /**
    * Register an OPTIONS route with an OpenAPIRoute class.
    */
   options(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
+  options(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
+  ): HonoOpenAPIApp<E>;
   /**
    * Register a HEAD route with an OpenAPIRoute class.
    */
   head(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
+  head(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
+  ): HonoOpenAPIApp<E>;
   /**
    * Set up OpenAPI documentation endpoint.
    */
@@ -98,7 +126,8 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
   registerRoute(
     method: RouteMethod,
     path: string,
-    RouteClass: typeof OpenAPIRoute
+    RouteClass: typeof OpenAPIRoute,
+    middlewares: MiddlewareHandler<E>[] = []
   ): void {
     const routeKey = `${method.toUpperCase()} ${path}`;
 
@@ -125,6 +154,20 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
         },
       },
     });
+
+    // Apply middleware for this specific path+method before route handler
+    if (middlewares.length > 0) {
+      const pathPattern = this.convertPath(path);
+      for (const mw of middlewares) {
+        this.app.use(pathPattern, async (c, next) => {
+          // Only apply middleware if the HTTP method matches
+          if (c.req.method.toLowerCase() === method) {
+            return mw(c as Context<E>, next);
+          }
+          await next();
+        });
+      }
+    }
 
     // Register with OpenAPIHono
     this.app.openapi(routeConfig, async (c) => {
@@ -209,18 +252,22 @@ export function fromHono<E extends Env = Env>(
   const proxy = new Proxy(app, {
     get(target, prop: string) {
       if (methods.includes(prop as RouteMethod)) {
-        return (path: string, handlerOrClass: unknown, ...rest: unknown[]) => {
-          // Check if it's an OpenAPIRoute class
-          if (isRouteClass(handlerOrClass)) {
-            handler.registerRoute(prop as RouteMethod, path, handlerOrClass);
+        return (path: string, ...handlers: unknown[]) => {
+          // Find the last argument - could be a route class
+          const lastArg = handlers[handlers.length - 1];
+
+          // Check if the last argument is an OpenAPIRoute class
+          if (isRouteClass(lastArg)) {
+            // All arguments before the route class are middleware
+            const middlewares = handlers.slice(0, -1) as MiddlewareHandler<E>[];
+            handler.registerRoute(prop as RouteMethod, path, lastArg, middlewares);
             return proxy;
           }
 
           // Otherwise, use normal Hono routing
           return (target[prop as keyof typeof target] as Function)(
             path,
-            handlerOrClass,
-            ...rest
+            ...handlers
           );
         };
       }

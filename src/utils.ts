@@ -1,5 +1,5 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import type { Env } from 'hono';
+import type { Env, MiddlewareHandler } from 'hono';
 import type { OpenAPIRoute } from './core/route';
 
 /**
@@ -9,6 +9,44 @@ import type { OpenAPIRoute } from './core/route';
 export interface EndpointClass<E extends Env = Env> {
   new (): OpenAPIRoute<E>;
   isRoute?: boolean;
+  /** Middleware attached via builder or functional API */
+  _middlewares?: MiddlewareHandler<E>[];
+}
+
+/**
+ * All CRUD endpoint names supported by registerCrud.
+ */
+export type CrudEndpointName =
+  | 'create'
+  | 'list'
+  | 'read'
+  | 'update'
+  | 'delete'
+  | 'restore'
+  | 'batchCreate'
+  | 'batchUpdate'
+  | 'batchDelete'
+  | 'batchRestore'
+  | 'search'
+  | 'aggregate'
+  | 'export'
+  | 'import';
+
+/**
+ * Per-endpoint middleware configuration.
+ */
+export type EndpointMiddlewares<E extends Env = Env> = Partial<
+  Record<CrudEndpointName, MiddlewareHandler<E>[]>
+>;
+
+/**
+ * Options for registerCrud function.
+ */
+export interface RegisterCrudOptions<E extends Env = Env> {
+  /** Middleware applied to all endpoints */
+  middlewares?: MiddlewareHandler<E>[];
+  /** Middleware applied to specific endpoints */
+  endpointMiddlewares?: EndpointMiddlewares<E>;
 }
 
 /**
@@ -50,22 +88,42 @@ export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
    * Register a GET endpoint with an OpenAPIRoute class
    */
   get(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
+  get(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
+  ): HonoOpenAPIApp<E>;
   /**
    * Register a POST endpoint with an OpenAPIRoute class
    */
   post(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
+  post(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
+  ): HonoOpenAPIApp<E>;
   /**
    * Register a PUT endpoint with an OpenAPIRoute class
    */
   put(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
+  put(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
+  ): HonoOpenAPIApp<E>;
   /**
    * Register a PATCH endpoint with an OpenAPIRoute class
    */
   patch(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
+  patch(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
+  ): HonoOpenAPIApp<E>;
   /**
    * Register a DELETE endpoint with an OpenAPIRoute class
    */
   delete(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
+  delete(
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
+  ): HonoOpenAPIApp<E>;
 };
 
 /**
@@ -73,6 +131,7 @@ export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
  *
  * @example
  * ```ts
+ * // Basic usage
  * registerCrud(app, '/users', {
  *   create: UserCreate,
  *   list: UserList,
@@ -80,78 +139,123 @@ export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
  *   update: UserUpdate,
  *   delete: UserDelete,
  * });
+ *
+ * // With middleware
+ * registerCrud(app, '/users', endpoints, {
+ *   middlewares: [authMiddleware],  // All endpoints
+ *   endpointMiddlewares: {          // Per-endpoint
+ *     create: [adminOnlyMiddleware],
+ *     delete: [adminOnlyMiddleware],
+ *   },
+ * });
  * ```
  */
 export function registerCrud<E extends Env = Env>(
   app: HonoOpenAPIApp<E> | OpenAPIHono<E>,
   basePath: string,
-  endpoints: CrudEndpoints<E>
+  endpoints: CrudEndpoints<E>,
+  options: RegisterCrudOptions<E> = {}
 ): void {
-  const normalizedPath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
+  const normalizedPath = basePath.endsWith('/')
+    ? basePath.slice(0, -1)
+    : basePath;
   const typedApp = app as HonoOpenAPIApp<E>;
+  const { middlewares = [], endpointMiddlewares = {} } = options;
+
+  /**
+   * Get combined middleware for an endpoint:
+   * 1. Global middleware (from options.middlewares)
+   * 2. Per-endpoint middleware (from options.endpointMiddlewares)
+   * 3. Class-level middleware (from static _middlewares property)
+   */
+  const getMiddleware = (name: CrudEndpointName): MiddlewareHandler<E>[] => {
+    const endpoint = endpoints[name];
+    const classMiddlewares =
+      endpoint && '_middlewares' in endpoint
+        ? (endpoint as { _middlewares?: MiddlewareHandler<E>[] })._middlewares ||
+          []
+        : [];
+
+    return [...middlewares, ...(endpointMiddlewares[name] || []), ...classMiddlewares];
+  };
+
+  // Helper to register route with middleware
+  const registerRoute = (
+    method: 'get' | 'post' | 'patch' | 'delete',
+    path: string,
+    name: CrudEndpointName,
+    endpoint: EndpointClass<E>
+  ): void => {
+    const mw = getMiddleware(name);
+    if (mw.length > 0) {
+      (typedApp[method] as Function)(path, ...mw, endpoint);
+    } else {
+      (typedApp[method] as Function)(path, endpoint);
+    }
+  };
 
   // Collection-level routes (no :id parameter)
   if (endpoints.create) {
-    typedApp.post(normalizedPath, endpoints.create);
+    registerRoute('post', normalizedPath, 'create', endpoints.create);
   }
 
   if (endpoints.list) {
-    typedApp.get(normalizedPath, endpoints.list);
+    registerRoute('get', normalizedPath, 'list', endpoints.list);
   }
 
   // IMPORTANT: Batch routes must be registered BEFORE :id routes
   // to prevent /batch from being matched as an id parameter
   if (endpoints.batchCreate) {
-    typedApp.post(`${normalizedPath}/batch`, endpoints.batchCreate);
+    registerRoute('post', `${normalizedPath}/batch`, 'batchCreate', endpoints.batchCreate);
   }
 
   if (endpoints.batchUpdate) {
-    typedApp.patch(`${normalizedPath}/batch`, endpoints.batchUpdate);
+    registerRoute('patch', `${normalizedPath}/batch`, 'batchUpdate', endpoints.batchUpdate);
   }
 
   if (endpoints.batchDelete) {
-    typedApp.delete(`${normalizedPath}/batch`, endpoints.batchDelete);
+    registerRoute('delete', `${normalizedPath}/batch`, 'batchDelete', endpoints.batchDelete);
   }
 
   if (endpoints.batchRestore) {
-    typedApp.post(`${normalizedPath}/batch/restore`, endpoints.batchRestore);
+    registerRoute('post', `${normalizedPath}/batch/restore`, 'batchRestore', endpoints.batchRestore);
   }
 
   // Search endpoint - must be registered BEFORE :id routes
   if (endpoints.search) {
-    typedApp.get(`${normalizedPath}/search`, endpoints.search);
+    registerRoute('get', `${normalizedPath}/search`, 'search', endpoints.search);
   }
 
   // Aggregate endpoint - must be registered BEFORE :id routes
   if (endpoints.aggregate) {
-    typedApp.get(`${normalizedPath}/aggregate`, endpoints.aggregate);
+    registerRoute('get', `${normalizedPath}/aggregate`, 'aggregate', endpoints.aggregate);
   }
 
   // Export endpoint - must be registered BEFORE :id routes
   if (endpoints.export) {
-    typedApp.get(`${normalizedPath}/export`, endpoints.export);
+    registerRoute('get', `${normalizedPath}/export`, 'export', endpoints.export);
   }
 
   // Import endpoint - must be registered BEFORE :id routes
   if (endpoints.import) {
-    typedApp.post(`${normalizedPath}/import`, endpoints.import);
+    registerRoute('post', `${normalizedPath}/import`, 'import', endpoints.import);
   }
 
   // Item-level routes (with :id parameter) - must be registered AFTER /batch, /search, /export, /import routes
   if (endpoints.read) {
-    typedApp.get(`${normalizedPath}/:id`, endpoints.read);
+    registerRoute('get', `${normalizedPath}/:id`, 'read', endpoints.read);
   }
 
   if (endpoints.update) {
-    typedApp.patch(`${normalizedPath}/:id`, endpoints.update);
+    registerRoute('patch', `${normalizedPath}/:id`, 'update', endpoints.update);
   }
 
   if (endpoints.delete) {
-    typedApp.delete(`${normalizedPath}/:id`, endpoints.delete);
+    registerRoute('delete', `${normalizedPath}/:id`, 'delete', endpoints.delete);
   }
 
   if (endpoints.restore) {
-    typedApp.post(`${normalizedPath}/:id/restore`, endpoints.restore);
+    registerRoute('post', `${normalizedPath}/:id/restore`, 'restore', endpoints.restore);
   }
 }
 

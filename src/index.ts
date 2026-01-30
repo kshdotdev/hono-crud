@@ -205,7 +205,14 @@ export type {
 
 // Utility exports
 export { registerCrud, contentJson, successResponse, errorResponse } from './utils';
-export type { CrudEndpoints, EndpointClass, HonoOpenAPIApp } from './utils';
+export type {
+  CrudEndpoints,
+  EndpointClass,
+  HonoOpenAPIApp,
+  CrudEndpointName,
+  EndpointMiddlewares,
+  RegisterCrudOptions,
+} from './utils';
 
 // CSV utility exports
 export {
@@ -477,3 +484,50 @@ export type {
   StorageEnv,
   StorageMiddlewareConfig,
 } from './storage/index';
+
+// ============================================================================
+// Alternative API Patterns
+// ============================================================================
+
+// Functional API
+export {
+  createCreate,
+  createList,
+  createRead,
+  createUpdate,
+  createDelete,
+} from './functional/index';
+export type {
+  CreateConfig,
+  ListConfig,
+  ReadConfig,
+  UpdateConfig,
+  DeleteConfig,
+} from './functional/index';
+
+// Builder/Fluent API
+export {
+  crud,
+  CrudBuilder,
+  CreateBuilder,
+  ListBuilder,
+  ReadBuilder,
+  UpdateBuilder,
+  DeleteBuilder,
+} from './builder/index';
+
+// Config-Based API
+export {
+  defineEndpoints,
+  MemoryAdapters,
+} from './config/index';
+export type {
+  CreateEndpointConfig as ConfigCreateEndpoint,
+  ListEndpointConfig as ConfigListEndpoint,
+  ReadEndpointConfig as ConfigReadEndpoint,
+  UpdateEndpointConfig as ConfigUpdateEndpoint,
+  DeleteEndpointConfig as ConfigDeleteEndpoint,
+  EndpointsConfig,
+  AdapterBundle,
+  GeneratedEndpoints,
+} from './config/index';

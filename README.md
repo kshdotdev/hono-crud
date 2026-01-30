@@ -111,6 +111,77 @@ OpenAPI documentation is automatically generated. Access it at:
 - **Scalar**: `/reference`
 - **OpenAPI JSON**: `/openapi.json`
 
+## Authentication with better-auth
+
+hono-crud integrates seamlessly with [better-auth](https://www.better-auth.com) for comprehensive authentication.
+
+### Setup
+
+1. **Mount better-auth handler** for authentication routes:
+
+```typescript
+import { Hono } from "hono";
+import { auth } from "./auth"; // your better-auth instance
+import { cors } from "hono/cors";
+
+const app = new Hono<{
+  Variables: {
+    user: typeof auth.$Infer.Session.user | null;
+    session: typeof auth.$Infer.Session.session | null;
+  };
+}>();
+
+// CORS (must be before routes)
+app.use("/api/auth/*", cors({
+  origin: "http://localhost:3000",
+  credentials: true,
+}));
+
+// Mount better-auth
+app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
+```
+
+2. **Add session middleware** to inject user into context:
+
+```typescript
+app.use("*", async (c, next) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  c.set("user", session?.user || null);
+  c.set("session", session?.session || null);
+  await next();
+});
+```
+
+3. **Protect CRUD routes** with hono-crud guards:
+
+```typescript
+import { registerCrud, requireAuth, requireRoles } from "hono-crud";
+
+registerCrud(app, "/api/users", {
+  list: UserList,
+  read: UserRead,
+  update: UserUpdate,
+  delete: UserDelete,
+}, {
+  middlewares: [requireAuth()],
+  endpointMiddlewares: {
+    delete: [requireRoles(["admin"])],
+  },
+});
+```
+
+### Architecture
+
+```
+Request → CORS → Session MW → Auth Guards → CRUD Endpoint
+                    ↓
+              better-auth
+            (validates session)
+```
+
+- **better-auth** handles: login, signup, OAuth, 2FA, session management
+- **hono-crud** handles: CRUD operations with authorization guards
+
 ## Examples
 
 Check out the [examples](./examples) directory for complete working examples:

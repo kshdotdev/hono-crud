@@ -37,9 +37,10 @@ export abstract class ListEndpoint<
   protected searchFieldName: string = 'search';
 
   // Sorting configuration
-  protected orderByFields: string[] = [];
-  protected defaultOrderBy?: string;
-  protected defaultOrderDirection: 'asc' | 'desc' = 'asc';
+  /** Fields that can be used for sorting. Use with ?sort=fieldName */
+  protected sortFields: string[] = [];
+  /** Default sort configuration */
+  protected defaultSort?: { field: string; order: 'asc' | 'desc' };
 
   // Pagination configuration
   protected defaultPerPage: number = 20;
@@ -129,9 +130,9 @@ export abstract class ListEndpoint<
       per_page: z.string().optional(),
     };
 
-    if (this.orderByFields.length > 0) {
-      shape.order_by = z.enum(this.orderByFields as [string, ...string[]]).optional();
-      shape.order_by_direction = z.enum(['asc', 'desc']).optional();
+    if (this.sortFields.length > 0) {
+      shape.sort = z.enum(this.sortFields as [string, ...string[]]).optional().describe('Field to sort by');
+      shape.order = z.enum(['asc', 'desc']).optional().describe('Sort direction (asc or desc)');
     }
 
     if (this.searchFields.length > 0) {
@@ -251,9 +252,8 @@ export abstract class ListEndpoint<
       filterConfig: this.filterConfig,
       searchFields: this.searchFields,
       searchFieldName: this.searchFieldName,
-      orderByFields: this.orderByFields,
-      defaultOrderBy: this.defaultOrderBy,
-      defaultOrderDirection: this.defaultOrderDirection,
+      sortFields: this.sortFields,
+      defaultSort: this.defaultSort,
       defaultPerPage: this.defaultPerPage,
       maxPerPage: this.maxPerPage,
       softDeleteQueryParam: softDeleteConfig.queryParam,

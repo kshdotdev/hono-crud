@@ -42,9 +42,8 @@ export interface ListEndpointConfig {
   searchFieldName?: string;
 
   // Sorting configuration
-  orderByFields?: string[];
-  defaultOrderBy?: string;
-  defaultOrderDirection?: 'asc' | 'desc';
+  sortFields?: string[];
+  defaultSort?: { field: string; order: 'asc' | 'desc' };
 
   // Pagination configuration
   defaultPerPage?: number;
@@ -116,9 +115,8 @@ export function parseListFilters(
     filterConfig = {},
     searchFields = [],
     searchFieldName = 'search',
-    orderByFields = [],
-    defaultOrderBy,
-    defaultOrderDirection = 'asc',
+    sortFields = [],
+    defaultSort,
     defaultPerPage = 20,
     maxPerPage = 100,
     softDeleteQueryParam = 'withDeleted',
@@ -152,14 +150,14 @@ export function parseListFilters(
       continue;
     }
 
-    // Handle ordering
-    if (key === 'order_by') {
-      if (orderByFields.length === 0 || orderByFields.includes(value)) {
+    // Handle sorting (?sort=field&order=asc|desc)
+    if (key === 'sort') {
+      if (sortFields.length === 0 || sortFields.includes(value)) {
         options.order_by = value;
       }
       continue;
     }
-    if (key === 'order_by_direction') {
+    if (key === 'order') {
       if (value === 'asc' || value === 'desc') {
         options.order_by_direction = value;
       }
@@ -249,8 +247,8 @@ export function parseListFilters(
   // Apply defaults
   if (!options.page) options.page = 1;
   if (!options.per_page) options.per_page = defaultPerPage;
-  if (!options.order_by && defaultOrderBy) options.order_by = defaultOrderBy;
-  if (!options.order_by_direction) options.order_by_direction = defaultOrderDirection;
+  if (!options.order_by && defaultSort?.field) options.order_by = defaultSort.field;
+  if (!options.order_by_direction) options.order_by_direction = defaultSort?.order ?? 'asc';
 
   // Apply default fields if field selection is enabled but no fields were specified
   if (fieldSelectionEnabled && !options.fields && defaultSelectFields.length > 0) {

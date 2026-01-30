@@ -56,123 +56,106 @@ import type { ModelObject } from '../../endpoints/types';
 // ============================================================================
 
 /**
- * Query builder type returned by select().from()
+ * Internal query builder interface used for type-safe method calls.
+ * All Drizzle query builders satisfy this interface at runtime.
  */
-interface DrizzleSelectQuery<T = unknown> {
-  where(condition?: SQL): DrizzleSelectQuery<T>;
-  limit(n: number): DrizzleSelectQuery<T>;
-  offset(n: number): DrizzleSelectQuery<T>;
-  orderBy(...columns: SQL[]): DrizzleSelectQuery<T>;
-  then<TResult>(
-    onfulfilled?: (value: T[]) => TResult | PromiseLike<TResult>
-  ): Promise<TResult>;
+interface QueryBuilder extends PromiseLike<unknown[]> {
+  where(condition: unknown): QueryBuilder;
+  limit(n: number): QueryBuilder;
+  offset(n: number): QueryBuilder;
+  orderBy(...columns: unknown[]): QueryBuilder;
+  set(data: Record<string, unknown>): QueryBuilder;
+  values(data: Record<string, unknown> | Record<string, unknown>[]): QueryBuilder;
+  returning(): QueryBuilder;
+  onConflictDoUpdate(config: { target: unknown[]; set: Record<string, unknown>; where?: unknown }): QueryBuilder;
+  onConflictDoNothing(config?: { target?: unknown[] }): QueryBuilder;
+  onDuplicateKeyUpdate(config: { set: Record<string, unknown> }): QueryBuilder;
 }
 
 /**
- * Configuration for ON CONFLICT DO UPDATE (PostgreSQL/SQLite)
+ * Internal database interface used for type-safe method calls.
+ * All Drizzle databases (PostgreSQL, MySQL, SQLite) satisfy this interface at runtime.
  */
-interface OnConflictDoUpdateConfig<T = unknown> {
-  /** Target columns for conflict detection */
-  target: Column[];
-  /** Data to set on conflict */
-  set: Record<string, unknown>;
-  /** Optional where clause for conditional update */
-  where?: SQL;
+interface Database {
+  select(fields?: Record<string, unknown>): { from(table: Table): QueryBuilder };
+  insert(table: Table): QueryBuilder;
+  update(table: Table): QueryBuilder;
+  delete(table: Table): QueryBuilder;
+  transaction<T>(fn: (tx: Database) => Promise<T>): Promise<T>;
 }
 
 /**
- * Insert query builder type with upsert support
+ * Casts a database to the internal Database interface for method calls.
+ * This is safe because all Drizzle databases have these methods at runtime.
  */
-interface DrizzleInsertQuery<T = unknown> {
-  values(data: Record<string, unknown> | Record<string, unknown>[]): DrizzleInsertQuery<T>;
-  returning(): Promise<T[]>;
-  /**
-   * PostgreSQL/SQLite: ON CONFLICT DO UPDATE
-   */
-  onConflictDoUpdate(config: OnConflictDoUpdateConfig<T>): DrizzleInsertQuery<T>;
-  /**
-   * PostgreSQL/SQLite: ON CONFLICT DO NOTHING
-   */
-  onConflictDoNothing(config?: { target?: Column[] }): DrizzleInsertQuery<T>;
-  /**
-   * MySQL: ON DUPLICATE KEY UPDATE
-   */
-  onDuplicateKeyUpdate(config: { set: Record<string, unknown> }): DrizzleInsertQuery<T>;
+function cast<T>(instance: T): Database {
+  return instance as unknown as Database;
 }
 
 /**
- * Update query builder type
- */
-interface DrizzleUpdateQuery<T = unknown> {
-  set(data: Record<string, unknown>): DrizzleUpdateQuery<T>;
-  where(condition?: SQL): DrizzleUpdateQuery<T>;
-  returning(): Promise<T[]>;
-}
-
-/**
- * Delete query builder type
- */
-interface DrizzleDeleteQuery<T = unknown> {
-  where(condition?: SQL): DrizzleDeleteQuery<T>;
-  returning(): Promise<T[]>;
-}
-
-/**
- * Generic Drizzle database interface that works with any dialect.
- * This type provides strong typing while remaining dialect-agnostic.
+ * Base constraint for Drizzle database types.
+ * Your database type must have select, insert, update, delete, and transaction methods.
  *
  * @example
  * ```ts
- * import { drizzle } from 'drizzle-orm/node-postgres';
+ * import { drizzle } from 'drizzle-orm/postgres-js';
+ * import * as schema from './schema';
  *
- * const db = drizzle(pool);
+ * const database = drizzle(client, { schema });
  *
- * class UserCreate extends DrizzleCreateEndpoint<Env, UserMeta> {
- *   db: DrizzleDatabase = db;
+ * // Pass typeof database as the DB generic parameter
+ * class UserCreate extends DrizzleCreateEndpoint<Env, UserMeta, typeof database> {
+ *   db = database;  // Full type safety!
  * }
  * ```
  */
-export interface DrizzleDatabase {
-  /**
-   * Create a SELECT query
-   */
-  select<T extends Record<string, unknown> = Record<string, unknown>>(
-    fields?: T
-  ): {
-    from<TTable extends Table>(table: TTable): DrizzleSelectQuery<InferSelectModel<TTable>>;
-  };
-
-  /**
-   * Create an INSERT query
-   */
-  insert<TTable extends Table>(
-    table: TTable
-  ): DrizzleInsertQuery<InferSelectModel<TTable>>;
-
-  /**
-   * Create an UPDATE query
-   */
-  update<TTable extends Table>(
-    table: TTable
-  ): DrizzleUpdateQuery<InferSelectModel<TTable>>;
-
-  /**
-   * Create a DELETE query
-   */
-  delete<TTable extends Table>(
-    table: TTable
-  ): DrizzleDeleteQuery<InferSelectModel<TTable>>;
-
-  /**
-   * Execute operations within a transaction
-   */
-  transaction<T>(fn: (tx: DrizzleDatabase) => Promise<T>): Promise<T>;
+export interface DrizzleDatabaseConstraint {
+  select: unknown;
+  insert: unknown;
+  update: unknown;
+  delete: unknown;
+  transaction: unknown;
 }
 
 /**
- * @deprecated Use DrizzleDatabase instead
+ * @deprecated Pass your database type as a generic parameter instead
  */
-export type DrizzleDB = DrizzleDatabase;
+export type DrizzleDatabase = DrizzleDatabaseConstraint;
+
+/**
+ * @deprecated Pass your database type as a generic parameter instead
+ */
+export type DrizzleDB = DrizzleDatabaseConstraint;
+
+/**
+ * Type helper for defining Hono Env with database in Variables.
+ * Use this when injecting the database via middleware.
+ *
+ * @example
+ * ```ts
+ * import { DrizzleEnv } from 'hono-crud/adapters/drizzle';
+ *
+ * type AppEnv = DrizzleEnv<typeof db>;
+ *
+ * const app = new Hono<AppEnv>();
+ *
+ * app.use('*', async (c, next) => {
+ *   c.set('db', db);
+ *   await next();
+ * });
+ *
+ * // Endpoints can now access db from context automatically
+ * class ProjectCreate extends DrizzleCreateEndpoint<AppEnv, typeof projectMeta> {
+ *   _meta = projectMeta;
+ *   // No db property needed - comes from context!
+ * }
+ * ```
+ */
+export type DrizzleEnv<DB = DrizzleDatabaseConstraint> = {
+  Variables: {
+    db: DB;
+  };
+};
 
 /**
  * Gets the Drizzle table from the model.
@@ -229,7 +212,7 @@ async function loadDrizzleRelation<T extends Record<string, unknown>>(
         return item;
       }
       const foreignKeyColumn = getColumn(relatedTable, relationConfig.foreignKey);
-      const results = await db
+      const results = await cast(db)
         .select()
         .from(relatedTable)
         .where(eq(foreignKeyColumn, localValue))
@@ -243,7 +226,7 @@ async function loadDrizzleRelation<T extends Record<string, unknown>>(
         return { ...item, [relationName]: [] };
       }
       const foreignKeyColumn = getColumn(relatedTable, relationConfig.foreignKey);
-      const results = await db
+      const results = await cast(db)
         .select()
         .from(relatedTable)
         .where(eq(foreignKeyColumn, localValue));
@@ -256,7 +239,7 @@ async function loadDrizzleRelation<T extends Record<string, unknown>>(
         return { ...item, [relationName]: null };
       }
       const localKeyColumn = getColumn(relatedTable, relationConfig.localKey || 'id');
-      const results = await db
+      const results = await cast(db)
         .select()
         .from(relatedTable)
         .where(eq(localKeyColumn, foreignValue))
@@ -342,7 +325,7 @@ async function batchLoadDrizzleRelations<T extends Record<string, unknown>, M ex
 
         // Batch query: Load all related records in a single query
         const foreignKeyColumn = getColumn(relatedTable, relationConfig.foreignKey);
-        const relatedRecords = await db
+        const relatedRecords = await cast(db)
           .select()
           .from(relatedTable)
           .where(inArray(foreignKeyColumn, localValues));
@@ -391,7 +374,7 @@ async function batchLoadDrizzleRelations<T extends Record<string, unknown>, M ex
 
         // Batch query: Load all parent records in a single query
         const localKeyColumn = getColumn(relatedTable, refLocalKey);
-        const relatedRecords = await db
+        const relatedRecords = await cast(db)
           .select()
           .from(relatedTable)
           .where(inArray(localKeyColumn, foreignValues));
@@ -464,11 +447,29 @@ function buildWhereCondition(
  * Drizzle Create endpoint.
  * Works with any Drizzle dialect (PostgreSQL, MySQL, SQLite).
  *
+ * The database can be provided in three ways:
+ * 1. Direct property: `db = myDb;`
+ * 2. Context injection via middleware: `c.set('db', myDb)`
+ * 3. Factory function: `createDrizzleCrud(db, meta)`
+ *
  * @example
  * ```ts
+ * // Pattern 1: Direct property (backward compatible)
  * class UserCreate extends DrizzleCreateEndpoint<Env, typeof userMeta> {
  *   _meta = userMeta;
- *   db = db;  // Your Drizzle instance
+ *   db = db;
+ * }
+ *
+ * // Pattern 2: Context injection (cleanest - no db property needed)
+ * class UserCreate extends DrizzleCreateEndpoint<AppEnv, typeof userMeta> {
+ *   _meta = userMeta;
+ *   // db comes from c.set('db', myDb) in middleware
+ * }
+ *
+ * // Pattern 3: Factory function (no _meta or db needed)
+ * const User = createDrizzleCrud(db, userMeta);
+ * class UserCreate extends User.Create {
+ *   schema = { tags: ['Users'] };
  * }
  * ```
  */
@@ -476,8 +477,11 @@ export abstract class DrizzleCreateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CreateEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /**
+   * Drizzle database instance.
+   * Can be undefined if using context-based injection via middleware.
+   */
+  db?: DrizzleDatabase;
 
   /**
    * Whether to wrap create and nested operations in a transaction.
@@ -490,10 +494,28 @@ export abstract class DrizzleCreateEndpoint<
   private _tx?: DrizzleDatabase;
 
   /**
-   * Gets the database instance to use (transaction or main db).
+   * Gets the database instance to use. Checks in order:
+   * 1. Transaction context (if in transaction)
+   * 2. Direct property
+   * 3. Context variables (if middleware injected)
    */
   protected getDb(): DrizzleDatabase {
-    return this._tx ?? this.db;
+    // Try transaction context first
+    if (this._tx) return this._tx;
+
+    // Try direct property
+    if (this.db) return this.db;
+
+    // Try context variables (middleware injection)
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+
+    throw new Error(
+      'Database not configured. Either:\n' +
+      '1. Set db property: db = myDb;\n' +
+      '2. Use middleware: c.set("db", myDb);\n' +
+      '3. Use factory: createDrizzleCrud(db, meta)'
+    );
   }
 
   protected getTable(): Table {
@@ -518,7 +540,7 @@ export abstract class DrizzleCreateEndpoint<
       [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
     };
 
-    const result = await db
+    const result = await cast(db)
       .insert(table)
       .values(record)
       .returning();
@@ -557,7 +579,7 @@ export abstract class DrizzleCreateEndpoint<
         [relationConfig.foreignKey]: parentId,
       };
 
-      const result = await db
+      const result = await cast(db)
         .insert(relatedTable)
         .values(record as Record<string, unknown>)
         .returning();
@@ -579,7 +601,7 @@ export abstract class DrizzleCreateEndpoint<
     }
 
     // Execute the entire operation within a transaction
-    return this.db.transaction(async (tx) => {
+    return cast(this.db).transaction(async (tx) => {
       this._tx = tx;
       try {
         return await super.handle();
@@ -604,7 +626,15 @@ export abstract class DrizzleReadEndpoint<
   M extends MetaInput = MetaInput,
 > extends ReadEndpoint<E, M> {
   /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -637,7 +667,7 @@ export abstract class DrizzleReadEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await this.db
+    const result = await cast(this.db)
       .select()
       .from(table)
       .where(and(...conditions))
@@ -649,7 +679,7 @@ export abstract class DrizzleReadEndpoint<
 
     // Load relations if requested
     const itemWithRelations = await loadDrizzleRelations(
-      this.db,
+      this.getDb(),
       result[0] as Record<string, unknown>,
       this._meta,
       includeOptions
@@ -671,7 +701,7 @@ export abstract class DrizzleUpdateEndpoint<
   M extends MetaInput = MetaInput,
 > extends UpdateEndpoint<E, M> {
   /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  db?: DrizzleDatabase;
 
   /**
    * Whether to wrap update and nested operations in a transaction.
@@ -683,11 +713,13 @@ export abstract class DrizzleUpdateEndpoint<
   /** Current transaction context (set during transaction execution) */
   private _tx?: DrizzleDatabase;
 
-  /**
-   * Gets the database instance to use (transaction or main db).
-   */
+  /** Gets the database instance from property, transaction, or context */
   protected getDb(): DrizzleDatabase {
-    return this._tx ?? this.db;
+    if (this._tx) return this._tx;
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
   }
 
   protected getTable(): Table {
@@ -732,7 +764,7 @@ export abstract class DrizzleUpdateEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await db
+    const result = await cast(db)
       .select()
       .from(table)
       .where(and(...conditions))
@@ -766,7 +798,7 @@ export abstract class DrizzleUpdateEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await db
+    const result = await cast(db)
       .update(table)
       .set(data as Record<string, unknown>)
       .where(and(...conditions))
@@ -825,13 +857,13 @@ export abstract class DrizzleUpdateEndpoint<
           [relationConfig.foreignKey]: parentId,
         };
 
-        const created = await db
+        const created = await cast(db)
           .insert(relatedTable)
           .values(record as Record<string, unknown>)
           .returning();
 
         if (created[0]) {
-          result.created.push(created[0]);
+          result.created.push(created[0] as Record<string, unknown>);
         }
       }
     }
@@ -842,7 +874,7 @@ export abstract class DrizzleUpdateEndpoint<
         if (!item.id) continue;
 
         // Verify the record belongs to this parent
-        const existing = await db
+        const existing = await cast(db)
           .select()
           .from(relatedTable)
           .where(and(eq(pkColumn, item.id), eq(fkColumn, parentId)))
@@ -851,14 +883,14 @@ export abstract class DrizzleUpdateEndpoint<
         if (!existing[0]) continue;
 
         const { id, ...updateData } = item;
-        const updated = await db
+        const updated = await cast(db)
           .update(relatedTable)
           .set(updateData as Record<string, unknown>)
           .where(eq(pkColumn, id))
           .returning();
 
         if (updated[0]) {
-          result.updated.push(updated[0]);
+          result.updated.push(updated[0] as Record<string, unknown>);
         }
       }
     }
@@ -867,7 +899,7 @@ export abstract class DrizzleUpdateEndpoint<
     if (operations.delete) {
       for (const id of operations.delete) {
         // Verify the record belongs to this parent before deleting
-        const deleted = await db
+        const deleted = await cast(db)
           .delete(relatedTable)
           .where(and(eq(pkColumn, id), eq(fkColumn, parentId)))
           .returning();
@@ -881,7 +913,7 @@ export abstract class DrizzleUpdateEndpoint<
     // Handle connect operations
     if (operations.connect) {
       for (const id of operations.connect) {
-        const updated = await db
+        const updated = await cast(db)
           .update(relatedTable)
           .set({ [relationConfig.foreignKey]: parentId } as Record<string, unknown>)
           .where(eq(pkColumn, id))
@@ -896,7 +928,7 @@ export abstract class DrizzleUpdateEndpoint<
     // Handle disconnect operations
     if (operations.disconnect) {
       for (const id of operations.disconnect) {
-        const updated = await db
+        const updated = await cast(db)
           .update(relatedTable)
           .set({ [relationConfig.foreignKey]: null } as Record<string, unknown>)
           .where(and(eq(pkColumn, id), eq(fkColumn, parentId)))
@@ -920,7 +952,7 @@ export abstract class DrizzleUpdateEndpoint<
     }
 
     // Execute the entire operation within a transaction
-    return this.db.transaction(async (tx) => {
+    return cast(this.db).transaction(async (tx) => {
       this._tx = tx;
       try {
         return await super.handle();
@@ -943,7 +975,7 @@ export abstract class DrizzleDeleteEndpoint<
   M extends MetaInput = MetaInput,
 > extends DeleteEndpoint<E, M> {
   /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  db?: DrizzleDatabase;
 
   /**
    * Whether to wrap delete and cascade operations in a transaction.
@@ -955,11 +987,13 @@ export abstract class DrizzleDeleteEndpoint<
   /** Current transaction context (set during transaction execution) */
   private _tx?: DrizzleDatabase;
 
-  /**
-   * Gets the database instance to use (transaction or main db).
-   */
+  /** Gets the database instance from property, transaction, or context */
   protected getDb(): DrizzleDatabase {
-    return this._tx ?? this.db;
+    if (this._tx) return this._tx;
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
   }
 
   protected getTable(): Table {
@@ -1004,7 +1038,7 @@ export abstract class DrizzleDeleteEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await db
+    const result = await cast(db)
       .select()
       .from(table)
       .where(and(...conditions))
@@ -1039,7 +1073,7 @@ export abstract class DrizzleDeleteEndpoint<
 
     if (softDeleteConfig.enabled) {
       // Soft delete: set the deletion timestamp
-      const result = await db
+      const result = await cast(db)
         .update(table)
         .set({ [softDeleteConfig.field]: new Date() } as Record<string, unknown>)
         .where(and(...conditions))
@@ -1048,7 +1082,7 @@ export abstract class DrizzleDeleteEndpoint<
       return (result[0] as ModelObject<M['model']>) || null;
     } else {
       // Hard delete: actually remove the record
-      const result = await db
+      const result = await cast(db)
         .delete(table)
         .where(and(...conditions))
         .returning();
@@ -1072,12 +1106,12 @@ export abstract class DrizzleDeleteEndpoint<
 
     const fkColumn = getColumn(relatedTable, relationConfig.foreignKey);
 
-    const result = await db
+    const result = await cast(db)
       .select({ count: sql<number>`count(*)` })
       .from(relatedTable)
       .where(eq(fkColumn, parentId));
 
-    return Number(result[0]?.count) || 0;
+    return Number((result as { count: number }[])[0]?.count) || 0;
   }
 
   /**
@@ -1095,7 +1129,7 @@ export abstract class DrizzleDeleteEndpoint<
 
     const fkColumn = getColumn(relatedTable, relationConfig.foreignKey);
 
-    const result = await db
+    const result = await cast(db)
       .delete(relatedTable)
       .where(eq(fkColumn, parentId))
       .returning();
@@ -1118,7 +1152,7 @@ export abstract class DrizzleDeleteEndpoint<
 
     const fkColumn = getColumn(relatedTable, relationConfig.foreignKey);
 
-    const result = await db
+    const result = await cast(db)
       .update(relatedTable)
       .set({ [relationConfig.foreignKey]: null } as Record<string, unknown>)
       .where(eq(fkColumn, parentId))
@@ -1136,7 +1170,7 @@ export abstract class DrizzleDeleteEndpoint<
     }
 
     // Execute the entire operation within a transaction
-    return this.db.transaction(async (tx) => {
+    return cast(this.db).transaction(async (tx) => {
       this._tx = tx;
       try {
         return await super.handle();
@@ -1161,7 +1195,15 @@ export abstract class DrizzleListEndpoint<
   M extends MetaInput = MetaInput,
 > extends ListEndpoint<E, M> {
   /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -1212,15 +1254,15 @@ export abstract class DrizzleListEndpoint<
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total count using COUNT(*)
-    const countResult = await this.db
+    const countResult = await cast(this.db)
       .select({ count: sql<number>`count(*)` })
       .from(table)
       .where(whereClause);
 
-    const totalCount = Number(countResult[0]?.count) || 0;
+    const totalCount = Number((countResult as { count: number }[])[0]?.count) || 0;
 
     // Build main query
-    let query = this.db.select().from(table).where(whereClause);
+    let query = cast(this.db).select().from(table).where(whereClause);
 
     // Apply sorting
     if (filters.options.order_by) {
@@ -1239,7 +1281,7 @@ export abstract class DrizzleListEndpoint<
     // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const itemsWithRelations = await batchLoadDrizzleRelations(
-      this.db,
+      this.getDb(),
       result as Record<string, unknown>[],
       this._meta,
       includeOptions
@@ -1273,7 +1315,7 @@ export abstract class DrizzleRestoreEndpoint<
   M extends MetaInput = MetaInput,
 > extends RestoreEndpoint<E, M> {
   /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  db?: DrizzleDatabase;
 
   /**
    * Whether to wrap restore operation in a transaction.
@@ -1285,11 +1327,13 @@ export abstract class DrizzleRestoreEndpoint<
   /** Current transaction context (set during transaction execution) */
   private _tx?: DrizzleDatabase;
 
-  /**
-   * Gets the database instance to use (transaction or main db).
-   */
+  /** Gets the database instance from property, transaction, or context */
   protected getDb(): DrizzleDatabase {
-    return this._tx ?? this.db;
+    if (this._tx) return this._tx;
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
   }
 
   protected getTable(): Table {
@@ -1323,7 +1367,7 @@ export abstract class DrizzleRestoreEndpoint<
     conditions.push(isNotNull(this.getColumn(softDeleteConfig.field)));
 
     // Set deletedAt to null to restore the record
-    const result = await db
+    const result = await cast(db)
       .update(table)
       .set({ [softDeleteConfig.field]: null } as Record<string, unknown>)
       .where(and(...conditions))
@@ -1341,7 +1385,7 @@ export abstract class DrizzleRestoreEndpoint<
     }
 
     // Execute the entire operation within a transaction
-    return this.db.transaction(async (tx) => {
+    return cast(this.db).transaction(async (tx) => {
       this._tx = tx;
       try {
         return await super.handle();
@@ -1361,7 +1405,15 @@ export abstract class DrizzleBatchCreateEndpoint<
   M extends MetaInput = MetaInput,
 > extends BatchCreateEndpoint<E, M> {
   /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -1379,7 +1431,7 @@ export abstract class DrizzleBatchCreateEndpoint<
       [primaryKey]: (item as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
     }));
 
-    const result = await this.db
+    const result = await cast(this.db)
       .insert(table)
       .values(records)
       .returning();
@@ -1399,7 +1451,15 @@ export abstract class DrizzleBatchUpdateEndpoint<
   M extends MetaInput = MetaInput,
 > extends BatchUpdateEndpoint<E, M> {
   /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -1427,7 +1487,7 @@ export abstract class DrizzleBatchUpdateEndpoint<
         conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
       }
 
-      const result = await this.db
+      const result = await cast(this.db)
         .update(table)
         .set(item.data as Record<string, unknown>)
         .where(and(...conditions))
@@ -1454,8 +1514,16 @@ export abstract class DrizzleBatchDeleteEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends BatchDeleteEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -1484,14 +1552,14 @@ export abstract class DrizzleBatchDeleteEndpoint<
 
     if (softDeleteConfig.enabled) {
       // Soft delete: set the deletion timestamp
-      result = await this.db
+      result = await cast(this.getDb())
         .update(table)
         .set({ [softDeleteConfig.field]: new Date() } as Record<string, unknown>)
         .where(and(...conditions))
         .returning();
     } else {
       // Hard delete: actually remove the records
-      result = await this.db
+      result = await cast(this.getDb())
         .delete(table)
         .where(and(...conditions))
         .returning();
@@ -1515,8 +1583,16 @@ export abstract class DrizzleBatchRestoreEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends BatchRestoreEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -1540,7 +1616,7 @@ export abstract class DrizzleBatchRestoreEndpoint<
     ];
 
     // Set deletedAt to null to restore the records
-    const result = await this.db
+    const result = await cast(this.getDb())
       .update(table)
       .set({ [softDeleteConfig.field]: null } as Record<string, unknown>)
       .where(and(...conditions))
@@ -1562,8 +1638,16 @@ export abstract class DrizzleUpsertEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends UpsertEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -1598,7 +1682,7 @@ export abstract class DrizzleUpsertEndpoint<
       return null;
     }
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .select()
       .from(table)
       .where(and(...conditions))
@@ -1619,7 +1703,7 @@ export abstract class DrizzleUpsertEndpoint<
       [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
     };
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .insert(table)
       .values(record as Record<string, unknown>)
       .returning();
@@ -1635,7 +1719,7 @@ export abstract class DrizzleUpsertEndpoint<
     const pk = this._meta.model.primaryKeys[0];
     const pkValue = (existing as Record<string, unknown>)[pk];
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .update(table)
       .set(data as Record<string, unknown>)
       .where(eq(this.getColumn(pk), pkValue))
@@ -1689,7 +1773,7 @@ export abstract class DrizzleUpsertEndpoint<
 
     try {
       // Try PostgreSQL/SQLite style: onConflictDoUpdate
-      const insertQuery = this.db.insert(table).values(record as Record<string, unknown>);
+      const insertQuery = cast(this.getDb()).insert(table).values(record as Record<string, unknown>);
 
       // Use onConflictDoUpdate for PostgreSQL/SQLite
       const result = await insertQuery
@@ -1708,7 +1792,7 @@ export abstract class DrizzleUpsertEndpoint<
       // If onConflictDoUpdate fails, try MySQL style: onDuplicateKeyUpdate
       if (error instanceof Error && error.message.includes('onConflictDoUpdate')) {
         try {
-          const insertQuery = this.db.insert(table).values(record as Record<string, unknown>);
+          const insertQuery = cast(this.getDb()).insert(table).values(record as Record<string, unknown>);
           const result = await insertQuery
             .onDuplicateKeyUpdate({
               set: Object.keys(updateSet).length > 0 ? updateSet : { [primaryKey]: sql`${this.getColumn(primaryKey)}` },
@@ -1736,8 +1820,16 @@ export abstract class DrizzleBatchUpsertEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends BatchUpsertEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -1765,7 +1857,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
       return null;
     }
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .select()
       .from(table)
       .where(and(...conditions))
@@ -1785,7 +1877,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
       [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
     };
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .insert(table)
       .values(record as Record<string, unknown>)
       .returning();
@@ -1801,7 +1893,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
     const pk = this._meta.model.primaryKeys[0];
     const pkValue = (existing as Record<string, unknown>)[pk];
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .update(table)
       .set(data as Record<string, unknown>)
       .where(eq(this.getColumn(pk), pkValue))
@@ -1866,7 +1958,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
 
     try {
       // PostgreSQL/SQLite style: onConflictDoUpdate with batch insert
-      const insertQuery = this.db.insert(table).values(records as Record<string, unknown>[]);
+      const insertQuery = cast(this.getDb()).insert(table).values(records as Record<string, unknown>[]);
 
       const result = await insertQuery
         .onConflictDoUpdate({
@@ -1876,7 +1968,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
         .returning();
 
       return {
-        items: result.map((data, index) => ({
+        items: result.map((data: unknown, index: number) => ({
           data: data as ModelObject<M['model']>,
           created: false, // Cannot determine with native upsert
           index,
@@ -1889,7 +1981,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
       // If onConflictDoUpdate fails, try MySQL style: onDuplicateKeyUpdate
       if (error instanceof Error && error.message.includes('onConflictDoUpdate')) {
         try {
-          const insertQuery = this.db.insert(table).values(records as Record<string, unknown>[]);
+          const insertQuery = cast(this.getDb()).insert(table).values(records as Record<string, unknown>[]);
           const result = await insertQuery
             .onDuplicateKeyUpdate({
               set: Object.keys(updateSet).length > 0 ? updateSet : { [primaryKey]: sql`${this.getColumn(primaryKey)}` },
@@ -1897,7 +1989,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
             .returning();
 
           return {
-            items: result.map((data, index) => ({
+            items: result.map((data: unknown, index: number) => ({
               data: data as ModelObject<M['model']>,
               created: false,
               index,
@@ -1924,8 +2016,16 @@ export abstract class DrizzleVersionHistoryEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends VersionHistoryEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -1938,12 +2038,12 @@ export abstract class DrizzleVersionHistoryEndpoint<
   protected override async recordExists(lookupValue: string): Promise<boolean> {
     const table = this.getTable();
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .select({ count: sql<number>`count(*)` })
       .from(table)
       .where(eq(this.getColumn('id'), lookupValue));
 
-    return Number(result[0]?.count) > 0;
+    return Number((result as { count: number }[])[0]?.count) > 0;
   }
 }
 
@@ -1973,8 +2073,16 @@ export abstract class DrizzleVersionRollbackEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends VersionRollbackEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -1992,7 +2100,7 @@ export abstract class DrizzleVersionRollbackEndpoint<
     const table = this.getTable();
     const versionField = this.getVersioningConfig().field;
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .update(table)
       .set({
         ...versionData,
@@ -2013,8 +2121,16 @@ export abstract class DrizzleAggregateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends AggregateEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -2066,7 +2182,7 @@ export abstract class DrizzleAggregateEndpoint<
     // For complex aggregations with GROUP BY, HAVING, etc., we fetch records
     // and use the in-memory computeAggregations helper.
     // This ensures consistent behavior across all databases.
-    const records = await this.db.select().from(table).where(whereClause);
+    const records = await cast(this.getDb()).select().from(table).where(whereClause);
 
     return computeAggregations(records as Record<string, unknown>[], options);
   }
@@ -2104,8 +2220,16 @@ export abstract class DrizzleSearchEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends SearchEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   /**
    * Enable PostgreSQL native full-text search.
@@ -2202,15 +2326,15 @@ export abstract class DrizzleSearchEndpoint<
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total count
-    const countResult = await this.db
+    const countResult = await cast(this.getDb())
       .select({ count: sql<number>`count(*)` })
       .from(table)
       .where(whereClause);
 
-    const totalCount = Number(countResult[0]?.count) || 0;
+    const totalCount = Number((countResult as { count: number }[])[0]?.count) || 0;
 
     // Build main query
-    let query = this.db.select().from(table).where(whereClause);
+    let query = cast(this.getDb()).select().from(table).where(whereClause);
 
     // Apply sorting
     if (filters.options.order_by) {
@@ -2239,7 +2363,7 @@ export abstract class DrizzleSearchEndpoint<
     // Extract items for batch relation loading
     const items = searchResults.map(r => r.item as Record<string, unknown>);
     const itemsWithRelations = await batchLoadDrizzleRelations(
-      this.db,
+      this.getDb(),
       items,
       this._meta,
       includeOptions
@@ -2266,8 +2390,16 @@ export abstract class DrizzleExportEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends ExportEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -2313,15 +2445,15 @@ export abstract class DrizzleExportEndpoint<
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total count
-    const countResult = await this.db
+    const countResult = await cast(this.getDb())
       .select({ count: sql<number>`count(*)` })
       .from(table)
       .where(whereClause);
 
-    const totalCount = Number(countResult[0]?.count) || 0;
+    const totalCount = Number((countResult as { count: number }[])[0]?.count) || 0;
 
     // Build main query
-    let query = this.db.select().from(table).where(whereClause);
+    let query = cast(this.getDb()).select().from(table).where(whereClause);
 
     // Apply sorting
     if (filters.options.order_by) {
@@ -2340,7 +2472,7 @@ export abstract class DrizzleExportEndpoint<
     // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const itemsWithRelations = await batchLoadDrizzleRelations(
-      this.db,
+      this.getDb(),
       result as Record<string, unknown>[],
       this._meta,
       includeOptions
@@ -2370,8 +2502,16 @@ export abstract class DrizzleImportEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends ImportEndpoint<E, M> {
-  /** Drizzle database instance */
-  abstract db: DrizzleDatabase;
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    if (this.db) return this.db;
+    const contextDb = this.context?.get?.('db' as never);
+    if (contextDb) return contextDb as DrizzleDatabase;
+    throw new Error('Database not configured. Set db property or use middleware.');
+  }
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -2409,7 +2549,7 @@ export abstract class DrizzleImportEndpoint<
       return null;
     }
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .select()
       .from(table)
       .where(and(...conditions))
@@ -2433,7 +2573,7 @@ export abstract class DrizzleImportEndpoint<
       [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
     };
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .insert(table)
       .values(record as Record<string, unknown>)
       .returning();
@@ -2452,7 +2592,7 @@ export abstract class DrizzleImportEndpoint<
     const pk = this._meta.model.primaryKeys[0];
     const pkValue = (existing as Record<string, unknown>)[pk];
 
-    const result = await this.db
+    const result = await cast(this.getDb())
       .update(table)
       .set(data as Record<string, unknown>)
       .where(eq(this.getColumn(pk), pkValue))
@@ -2461,3 +2601,148 @@ export abstract class DrizzleImportEndpoint<
     return result[0] as ModelObject<M['model']>;
   }
 }
+
+// ============================================================================
+// Factory Function
+// ============================================================================
+
+/**
+ * Return type of createDrizzleCrud factory function.
+ * Provides type-safe base classes for all CRUD operations.
+ */
+export interface DrizzleCrudClasses<M extends MetaInput> {
+  Create: typeof DrizzleCreateEndpoint<Env, M>;
+  Read: typeof DrizzleReadEndpoint<Env, M>;
+  Update: typeof DrizzleUpdateEndpoint<Env, M>;
+  Delete: typeof DrizzleDeleteEndpoint<Env, M>;
+  List: typeof DrizzleListEndpoint<Env, M>;
+  Restore: typeof DrizzleRestoreEndpoint<Env, M>;
+  Upsert: typeof DrizzleUpsertEndpoint<Env, M>;
+  BatchCreate: typeof DrizzleBatchCreateEndpoint<Env, M>;
+  BatchUpdate: typeof DrizzleBatchUpdateEndpoint<Env, M>;
+  BatchDelete: typeof DrizzleBatchDeleteEndpoint<Env, M>;
+  BatchRestore: typeof DrizzleBatchRestoreEndpoint<Env, M>;
+  BatchUpsert: typeof DrizzleBatchUpsertEndpoint<Env, M>;
+}
+
+/**
+ * Creates a set of Drizzle CRUD endpoint base classes with db and meta pre-configured.
+ * This is the cleanest pattern - no need to set `_meta` or `db` in your classes.
+ *
+ * @param db - Your Drizzle database instance
+ * @param meta - The meta object (from defineMeta)
+ * @returns Object with Create, Read, Update, Delete, List base classes
+ *
+ * @example
+ * ```ts
+ * import { createDrizzleCrud } from 'hono-crud/adapters/drizzle';
+ *
+ * const projectMeta = defineMeta({ model: ProjectModel, fields: projectSchemas.insert });
+ * const Project = createDrizzleCrud(db, projectMeta);
+ *
+ * // Now define endpoints with minimal boilerplate:
+ * class ProjectCreate extends Project.Create {
+ *   schema = { tags: ["Projects"], summary: "Create a new project" };
+ * }
+ *
+ * class ProjectList extends Project.List {
+ *   schema = { tags: ["Projects"], summary: "List all projects" };
+ *   protected searchFields = ["name", "clientName"];
+ *   protected filterFields = ["status"];
+ * }
+ * ```
+ */
+export function createDrizzleCrud<M extends MetaInput>(
+  db: DrizzleDatabaseConstraint,
+  meta: M
+): DrizzleCrudClasses<M> {
+  // Use type assertion to avoid TypeScript's anonymous class protected member restriction
+  return {
+    Create: class extends DrizzleCreateEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    Read: class extends DrizzleReadEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    Update: class extends DrizzleUpdateEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    Delete: class extends DrizzleDeleteEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    List: class extends DrizzleListEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    Restore: class extends DrizzleRestoreEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    Upsert: class extends DrizzleUpsertEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    BatchCreate: class extends DrizzleBatchCreateEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    BatchUpdate: class extends DrizzleBatchUpdateEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    BatchDelete: class extends DrizzleBatchDeleteEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    BatchRestore: class extends DrizzleBatchRestoreEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+    BatchUpsert: class extends DrizzleBatchUpsertEndpoint<Env, M> {
+      _meta = meta;
+      db = db;
+    },
+  } as DrizzleCrudClasses<M>;
+}
+
+// ============================================================================
+// Drizzle Adapters Bundle (for Config-based API)
+// ============================================================================
+
+import type { AdapterBundle } from '../../config/index';
+
+/**
+ * Drizzle adapter bundle for use with defineEndpoints.
+ *
+ * Note: When using DrizzleAdapters with defineEndpoints, you need to provide
+ * your own base classes that extend the Drizzle endpoint classes and include
+ * the `db` property. The config-based API cannot inject the database instance.
+ *
+ * @example
+ * ```ts
+ * import { defineEndpoints } from 'hono-crud';
+ * import { DrizzleAdapters } from 'hono-crud/adapters/drizzle';
+ *
+ * // Create custom adapters with db injected
+ * const MyDrizzleAdapters = {
+ *   CreateEndpoint: class extends DrizzleCreateEndpoint { db = myDb; },
+ *   ListEndpoint: class extends DrizzleListEndpoint { db = myDb; },
+ *   ReadEndpoint: class extends DrizzleReadEndpoint { db = myDb; },
+ *   UpdateEndpoint: class extends DrizzleUpdateEndpoint { db = myDb; },
+ *   DeleteEndpoint: class extends DrizzleDeleteEndpoint { db = myDb; },
+ * };
+ *
+ * const userEndpoints = defineEndpoints({ meta: userMeta, ... }, MyDrizzleAdapters);
+ * ```
+ */
+export const DrizzleAdapters: AdapterBundle = {
+  CreateEndpoint: DrizzleCreateEndpoint,
+  ListEndpoint: DrizzleListEndpoint,
+  ReadEndpoint: DrizzleReadEndpoint,
+  UpdateEndpoint: DrizzleUpdateEndpoint,
+  DeleteEndpoint: DrizzleDeleteEndpoint,
+};
