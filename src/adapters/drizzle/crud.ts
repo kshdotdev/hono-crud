@@ -184,7 +184,7 @@ export abstract class DrizzleCreateEndpoint<
     }
 
     // Execute the entire operation within a transaction
-    return cast(this.db).transaction(async (tx) => {
+    return cast(this.getDb()).transaction(async (tx) => {
       this._tx = tx;
       try {
         return await super.handle();
@@ -250,7 +250,7 @@ export abstract class DrizzleReadEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await cast(this.db)
+    const result = await cast(this.getDb())
       .select()
       .from(table)
       .where(and(...conditions))
@@ -533,7 +533,7 @@ export abstract class DrizzleUpdateEndpoint<
     }
 
     // Execute the entire operation within a transaction
-    return cast(this.db).transaction(async (tx) => {
+    return cast(this.getDb()).transaction(async (tx) => {
       this._tx = tx;
       try {
         return await super.handle();
@@ -751,7 +751,7 @@ export abstract class DrizzleDeleteEndpoint<
     }
 
     // Execute the entire operation within a transaction
-    return cast(this.db).transaction(async (tx) => {
+    return cast(this.getDb()).transaction(async (tx) => {
       this._tx = tx;
       try {
         return await super.handle();
@@ -835,7 +835,8 @@ export abstract class DrizzleListEndpoint<
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total count using COUNT(*)
-    const countResult = await cast(this.db)
+    const db = this.getDb();
+    const countResult = await cast(db)
       .select({ count: sql<number>`count(*)` })
       .from(table)
       .where(whereClause);
@@ -843,7 +844,7 @@ export abstract class DrizzleListEndpoint<
     const totalCount = Number((countResult as { count: number }[])[0]?.count) || 0;
 
     // Build main query
-    let query = cast(this.db).select().from(table).where(whereClause);
+    let query = cast(db).select().from(table).where(whereClause);
 
     // Apply sorting
     if (filters.options.order_by) {
@@ -966,7 +967,7 @@ export abstract class DrizzleRestoreEndpoint<
     }
 
     // Execute the entire operation within a transaction
-    return cast(this.db).transaction(async (tx) => {
+    return cast(this.getDb()).transaction(async (tx) => {
       this._tx = tx;
       try {
         return await super.handle();

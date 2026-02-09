@@ -51,7 +51,7 @@ export abstract class DrizzleBatchCreateEndpoint<
       [primaryKey]: (item as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
     }));
 
-    const result = await cast(this.db)
+    const result = await cast(this.getDb())
       .insert(table)
       .values(records)
       .returning();
@@ -107,7 +107,7 @@ export abstract class DrizzleBatchUpdateEndpoint<
         conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
       }
 
-      const result = await cast(this.db)
+      const result = await cast(this.getDb())
         .update(table)
         .set(item.data as Record<string, unknown>)
         .where(and(...conditions))
