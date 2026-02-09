@@ -6,6 +6,7 @@ import type { MetaInput, OpenAPIRouteSchema, NormalizedSoftDeleteConfig, Normali
 import { getSoftDeleteConfig, applyComputedFields, getMultiTenantConfig, extractTenantId } from '../core/types';
 import { NotFoundException } from '../core/exceptions';
 import { applyFieldSelection, type SingleEndpointConfig, type ModelObject, type FieldSelection } from './types';
+import { generateETag, matchesIfNoneMatch } from '../core/etag';
 
 /**
  * Base endpoint for reading a single resource.
@@ -25,6 +26,10 @@ export abstract class ReadEndpoint<
   protected lookupField: string = 'id';
   protected lookupFields?: string[];
   protected additionalFilters?: string[];
+
+  // ETag configuration
+  /** Enable ETag generation and If-None-Match support for conditional requests */
+  protected etagEnabled: boolean = false;
 
   // Relations configuration
   /** Allowed relation names that can be included via ?include=relation1,relation2 */
@@ -387,6 +392,23 @@ export abstract class ReadEndpoint<
     const result = (fieldSelection.isActive && fieldSelection.fields.length > 0)
       ? applyFieldSelection(transformed as Record<string, unknown>, fieldSelection)
       : transformed;
+
+    // ETag support
+    if (this.etagEnabled) {
+      const etag = await generateETag(result);
+      const ctx = this.getContext();
+
+      // Check If-None-Match for conditional GET
+      const ifNoneMatch = ctx.req.header('If-None-Match');
+      if (matchesIfNoneMatch(ifNoneMatch, etag)) {
+        return new Response(null, {
+          status: 304,
+          headers: { 'ETag': etag },
+        });
+      }
+
+      ctx.header('ETag', etag);
+    }
 
     return this.success(result);
   }

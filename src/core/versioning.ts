@@ -5,6 +5,7 @@ import type {
   AuditFieldChange,
 } from './types';
 import { calculateChanges, getVersioningConfig, type VersioningConfig } from './types';
+import { createRegistryWithDefault } from '../storage/registry';
 
 /**
  * Interface for version history storage adapters.
@@ -199,22 +200,27 @@ export class MemoryVersioningStorage implements VersioningStorage {
 }
 
 /**
- * Global versioning storage instance.
+ * Global versioning storage registry.
+ * Uses lazy initialization -- the default MemoryVersioningStorage is only
+ * created when first accessed.
  */
-let globalVersioningStorage: VersioningStorage = new MemoryVersioningStorage();
+export const versioningStorageRegistry = createRegistryWithDefault<VersioningStorage>(
+  'versioningStorage',
+  () => new MemoryVersioningStorage()
+);
 
 /**
  * Set the global versioning storage.
  */
 export function setVersioningStorage(storage: VersioningStorage): void {
-  globalVersioningStorage = storage;
+  versioningStorageRegistry.set(storage);
 }
 
 /**
  * Get the global versioning storage.
  */
 export function getVersioningStorage(): VersioningStorage {
-  return globalVersioningStorage;
+  return versioningStorageRegistry.getRequired();
 }
 
 /**
@@ -233,17 +239,8 @@ export class VersionManager {
   ) {
     this.config = getVersioningConfig(config, tableName);
     this.tableName = tableName;
-    // Resolve storage with priority: explicit > context > global
-    if (storage) {
-      this.storage = storage;
-    } else if (ctx) {
-      // Check context for storage using type-safe access
-      const vars = (ctx as unknown as { var: Record<string, unknown> }).var;
-      const ctxStorage = vars?.versioningStorage as VersioningStorage | undefined;
-      this.storage = ctxStorage || globalVersioningStorage;
-    } else {
-      this.storage = globalVersioningStorage;
-    }
+    // Resolve storage with priority: explicit > context > global (via registry)
+    this.storage = versioningStorageRegistry.resolve(ctx, storage) ?? versioningStorageRegistry.getRequired();
   }
 
   /**

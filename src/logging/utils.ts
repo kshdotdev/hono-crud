@@ -228,10 +228,9 @@ export function extractClientIp<E extends Env>(
   }
 
   // In Cloudflare Workers, IP is in cf.ip
-  // @ts-expect-error - cf is not typed in all environments
-  if (raw && raw.cf && raw.cf.ip) {
-    // @ts-expect-error - cf is not typed in all environments
-    return raw.cf.ip;
+  const cf = (raw as unknown as { cf?: { ip?: string } } | undefined)?.cf;
+  if (cf?.ip) {
+    return cf.ip;
   }
 
   return undefined;

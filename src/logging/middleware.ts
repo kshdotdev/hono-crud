@@ -1,4 +1,5 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
+import { getLogger } from '../core/logger';
 import type {
   LoggingConfig,
   LoggingStorage,
@@ -22,12 +23,19 @@ import {
 import { resolveLoggingStorage } from '../storage/helpers';
 import { toError } from '../utils/errors';
 import { getContextVar, setContextVar } from '../core/context-helpers';
+import { createNullableRegistry } from '../storage/registry';
 
 // ============================================================================
 // Global Storage
 // ============================================================================
 
-let globalStorage: LoggingStorage | null = null;
+/**
+ * Global logging storage registry.
+ * Nullable -- no default storage is created unless explicitly set.
+ */
+export const loggingStorageRegistry = createNullableRegistry<LoggingStorage>(
+  'loggingStorage'
+);
 
 /**
  * Set the global logging storage.
@@ -41,7 +49,7 @@ let globalStorage: LoggingStorage | null = null;
  * ```
  */
 export function setLoggingStorage(storage: LoggingStorage): void {
-  globalStorage = storage;
+  loggingStorageRegistry.set(storage);
 }
 
 /**
@@ -49,7 +57,7 @@ export function setLoggingStorage(storage: LoggingStorage): void {
  * @returns The global storage or null if not set
  */
 export function getLoggingStorage(): LoggingStorage | null {
-  return globalStorage;
+  return loggingStorageRegistry.get();
 }
 
 // ============================================================================
@@ -414,7 +422,7 @@ export function createLoggingMiddleware<E extends Env = Env>(
         if (config.onError) {
           config.onError(error, entry);
         } else {
-          console.error('[Logging] Failed to process log entry:', error.message);
+          getLogger().error('Failed to process log entry', { error: error.message });
         }
       });
     }

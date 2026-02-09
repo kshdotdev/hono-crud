@@ -1,6 +1,7 @@
 import type { Context, Env } from 'hono';
 import type { OpenAPIRoute } from '../core/route';
 import type { MetaInput } from '../core/types';
+import { getLogger } from '../core/logger';
 import type {
   CacheConfig,
   CacheInvalidationConfig,
@@ -10,13 +11,21 @@ import type {
 import { generateCacheKey, createInvalidationPattern, createRelatedPatterns } from './key-generator';
 import { MemoryCacheStorage } from './storage/memory';
 import { resolveCacheStorage } from '../storage/helpers';
+import { createRegistryWithDefault } from '../storage/registry';
 
 // ============================================================================
 // Global Cache Storage
 // ============================================================================
 
-/** Global cache storage instance */
-let globalCacheStorage: CacheStorage = new MemoryCacheStorage();
+/**
+ * Global cache storage registry.
+ * Uses lazy initialization -- the default MemoryCacheStorage is only
+ * created when first accessed.
+ */
+export const cacheStorageRegistry = createRegistryWithDefault<CacheStorage>(
+  'cacheStorage',
+  () => new MemoryCacheStorage()
+);
 
 /**
  * Set the global cache storage instance.
@@ -32,14 +41,14 @@ let globalCacheStorage: CacheStorage = new MemoryCacheStorage();
  * ```
  */
 export function setCacheStorage(storage: CacheStorage): void {
-  globalCacheStorage = storage;
+  cacheStorageRegistry.set(storage);
 }
 
 /**
  * Get the global cache storage instance.
  */
 export function getCacheStorage(): CacheStorage {
-  return globalCacheStorage;
+  return cacheStorageRegistry.getRequired();
 }
 
 // ============================================================================
@@ -145,8 +154,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
       const ctx = this.getContext();
 
       // Get model meta
-      // @ts-expect-error - _meta is on subclass
-      const meta = this._meta as MetaInput | undefined;
+      const meta = (this as unknown as { _meta?: MetaInput })._meta;
       const tableName = meta?.model?.tableName ?? 'unknown';
 
       // Get validated data
@@ -251,8 +259,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
       const tags: string[] = config.tags ? [...config.tags] : [];
 
       // Add model tag
-      // @ts-expect-error - _meta is on subclass
-      const meta = this._meta as MetaInput | undefined;
+      const meta = (this as unknown as { _meta?: MetaInput })._meta;
       if (meta?.model?.tableName) {
         tags.push(meta.model.tableName);
       }
@@ -279,8 +286,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
         }
       } else {
         // Invalidate all for this model
-        // @ts-expect-error - _meta is on subclass
-        const meta = this._meta as MetaInput | undefined;
+        const meta = (this as unknown as { _meta?: MetaInput })._meta;
         const tableName = meta?.model?.tableName ?? 'unknown';
         const pattern = createInvalidationPattern(tableName, undefined, config.prefix);
         await storage.deletePattern(pattern);
@@ -340,8 +346,7 @@ export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
       const ctx = this.getContext();
       const storage = resolveCacheStorage(ctx);
 
-      // @ts-expect-error - _meta is on subclass
-      const meta = this._meta as MetaInput | undefined;
+      const meta = (this as unknown as { _meta?: MetaInput })._meta;
       const tableName = meta?.model?.tableName ?? 'unknown';
 
       const strategy = config.strategy ?? 'all';
@@ -409,12 +414,11 @@ export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
         }
 
         // Fire and forget invalidation with context
-        // @ts-expect-error - _meta is on subclass
-        const meta = this._meta as MetaInput | undefined;
+        const meta = (this as unknown as { _meta?: MetaInput })._meta;
         const tableName = meta?.model?.tableName ?? 'unknown';
 
         this.performCacheInvalidation(recordId).catch((err) => {
-          console.error('Cache invalidation failed:', {
+          getLogger().error('Cache invalidation failed', {
             error: err instanceof Error ? err.message : String(err),
             tableName,
             recordId,

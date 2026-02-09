@@ -3,7 +3,7 @@ import type { Env } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { OpenAPIRoute } from '../core/route';
 import type { MetaInput, OpenAPIRouteSchema, PaginatedResult, NormalizedSoftDeleteConfig, NormalizedMultiTenantConfig } from '../core/types';
-import { getSoftDeleteConfig, applyComputedFieldsToArray, getMultiTenantConfig, extractTenantId } from '../core/types';
+import { getSoftDeleteConfig, applyComputedFieldsToArray, getMultiTenantConfig, extractTenantId, decodeCursor, encodeCursor } from '../core/types';
 import {
   parseListFilters,
   applyFieldSelectionToArray,
@@ -45,6 +45,19 @@ export abstract class ListEndpoint<
   // Pagination configuration
   protected defaultPerPage: number = 20;
   protected maxPerPage: number = 100;
+
+  /**
+   * Enable cursor-based pagination.
+   * When enabled, clients can use `?cursor=xxx&limit=N` alongside standard page/per_page.
+   * The cursor is an opaque base64-encoded string representing the last item's sort key.
+   */
+  protected cursorPaginationEnabled: boolean = false;
+
+  /**
+   * The field used as the cursor key. Must be unique and sortable (e.g., primary key or timestamp).
+   * @default 'id' (first primary key)
+   */
+  protected cursorField?: string;
 
   // Relations configuration
   /** Allowed relation names that can be included via ?include=relation1,relation2 */
@@ -177,6 +190,12 @@ export abstract class ListEndpoint<
       );
     }
 
+    // Add cursor-based pagination parameters
+    if (this.cursorPaginationEnabled) {
+      shape.cursor = z.string().optional().describe('Opaque cursor for fetching the next page');
+      shape.limit = z.string().optional().describe('Number of items to return (cursor pagination)');
+    }
+
     return z.object(shape) as ZodObject<ZodRawShape>;
   }
 
@@ -231,6 +250,8 @@ export abstract class ListEndpoint<
                   total_pages: z.number().optional(),
                   has_next_page: z.boolean(),
                   has_prev_page: z.boolean(),
+                  next_cursor: z.string().optional(),
+                  prev_cursor: z.string().optional(),
                 }),
               }),
             },
@@ -256,6 +277,8 @@ export abstract class ListEndpoint<
       defaultSort: this.defaultSort,
       defaultPerPage: this.defaultPerPage,
       maxPerPage: this.maxPerPage,
+      cursorPaginationEnabled: this.cursorPaginationEnabled,
+      cursorField: this.cursorField,
       softDeleteQueryParam: softDeleteConfig.queryParam,
       allowedIncludes: this.allowedIncludes,
       // Field selection configuration

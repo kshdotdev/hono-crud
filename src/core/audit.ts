@@ -6,6 +6,7 @@ import type {
   NormalizedAuditConfig,
 } from './types';
 import { calculateChanges, getAuditConfig, type AuditConfig } from './types';
+import { createRegistryWithDefault } from '../storage/registry';
 
 /**
  * Interface for audit log storage adapters.
@@ -114,23 +115,28 @@ export class MemoryAuditLogStorage implements AuditLogStorage {
 }
 
 /**
- * Global audit log storage instance.
- * Set this to use a custom storage implementation.
+ * Global audit log storage registry.
+ * Uses lazy initialization -- the default MemoryAuditLogStorage is only
+ * created when first accessed, avoiding unnecessary allocations on
+ * edge runtimes where audit may not be used.
  */
-let globalAuditStorage: AuditLogStorage = new MemoryAuditLogStorage();
+export const auditStorageRegistry = createRegistryWithDefault<AuditLogStorage>(
+  'auditStorage',
+  () => new MemoryAuditLogStorage()
+);
 
 /**
  * Set the global audit log storage.
  */
 export function setAuditStorage(storage: AuditLogStorage): void {
-  globalAuditStorage = storage;
+  auditStorageRegistry.set(storage);
 }
 
 /**
  * Get the global audit log storage.
  */
 export function getAuditStorage(): AuditLogStorage {
-  return globalAuditStorage;
+  return auditStorageRegistry.getRequired();
 }
 
 /**
@@ -142,17 +148,8 @@ export class AuditLogger {
 
   constructor(config: AuditConfig | undefined, storage?: AuditLogStorage, ctx?: Context<Env>) {
     this.config = getAuditConfig(config);
-    // Resolve storage with priority: explicit > context > global
-    if (storage) {
-      this.storage = storage;
-    } else if (ctx) {
-      // Check context for storage using type-safe access
-      const vars = (ctx as unknown as { var: Record<string, unknown> }).var;
-      const ctxStorage = vars?.auditStorage as AuditLogStorage | undefined;
-      this.storage = ctxStorage || globalAuditStorage;
-    } else {
-      this.storage = globalAuditStorage;
-    }
+    // Resolve storage with priority: explicit > context > global (via registry)
+    this.storage = auditStorageRegistry.resolve(ctx, storage) ?? auditStorageRegistry.getRequired();
   }
 
   /**

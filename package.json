@@ -31,6 +31,30 @@
     "./adapters/prisma": {
       "types": "./dist/adapters/prisma/index.d.ts",
       "import": "./dist/adapters/prisma/index.js"
+    },
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "import": "./dist/auth/index.js"
+    },
+    "./cache": {
+      "types": "./dist/cache/index.d.ts",
+      "import": "./dist/cache/index.js"
+    },
+    "./rate-limit": {
+      "types": "./dist/rate-limit/index.d.ts",
+      "import": "./dist/rate-limit/index.js"
+    },
+    "./logging": {
+      "types": "./dist/logging/index.d.ts",
+      "import": "./dist/logging/index.js"
+    },
+    "./storage": {
+      "types": "./dist/storage/index.d.ts",
+      "import": "./dist/storage/index.js"
+    },
+    "./ui": {
+      "types": "./dist/ui.d.ts",
+      "import": "./dist/ui.js"
     }
   },
   "scripts": {

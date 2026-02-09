@@ -1,6 +1,7 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { OpenAPIRoute } from '../core/route';
+import { getLogger } from '../core/logger';
 import type {
   MetaInput,
   OpenAPIRouteSchema,
@@ -432,9 +433,7 @@ export abstract class BatchUpsertEndpoint<
   ): Promise<BatchUpsertResult<ModelObject<M['model']>>> {
     // Default implementation falls back to non-native batch upsert
     // ORM adapters should override this method
-    console.warn(
-      'Native batch upsert not implemented for this adapter. Falling back to item-by-item pattern.'
-    );
+    getLogger().warn('Native batch upsert not implemented for this adapter. Falling back to item-by-item pattern.');
     return this.performStandardBatchUpsert(items, tx);
   }
 
@@ -545,12 +544,12 @@ export abstract class BatchUpsertEndpoint<
         .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (auditRecords.length > 0) {
-        auditLogger.logBatch(
+        this.runAfterResponse(auditLogger.logBatch(
           'batch_upsert',
           this._meta.model.tableName,
           auditRecords,
           this.getAuditUserId()
-        ).catch(console.error); // Fire and forget
+        ));
       }
     }
 

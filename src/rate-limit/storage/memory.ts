@@ -5,7 +5,9 @@ import type { RateLimitStorage, FixedWindowEntry, SlidingWindowEntry, RateLimitE
  */
 export interface MemoryRateLimitStorageOptions {
   /**
-   * Interval for automatic cleanup of expired entries (ms).
+   * Minimum interval between automatic cleanup runs (ms).
+   * Cleanup is performed lazily on access rather than via background timers,
+   * making this compatible with edge runtimes (Cloudflare Workers, Deno, Bun).
    * Set to 0 to disable automatic cleanup.
    * @default 60000 (1 minute)
    */
@@ -24,15 +26,15 @@ export interface MemoryRateLimitStorageOptions {
  * Note: This storage is not shared across processes/instances.
  * Use Redis storage for multi-instance deployments.
  *
+ * Cleanup is performed lazily on access (no background timers),
+ * making this compatible with edge runtimes like Cloudflare Workers.
+ *
  * @example
  * ```ts
  * import { MemoryRateLimitStorage, setRateLimitStorage } from 'hono-crud';
  *
  * const storage = new MemoryRateLimitStorage();
  * setRateLimitStorage(storage);
- *
- * // Don't forget to destroy when shutting down
- * process.on('SIGTERM', () => storage.destroy());
  * ```
  */
 export class MemoryRateLimitStorage implements RateLimitStorage {
@@ -42,22 +44,43 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
   /** Expiration times: key -> expiration timestamp (ms) */
   private expirations = new Map<string, number>();
 
-  /** Cleanup interval ID */
-  private cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+  /** Minimum interval between cleanup runs (ms) */
+  private cleanupInterval: number;
+
+  /** Timestamp of last cleanup run */
+  private lastCleanup: number = 0;
 
   constructor(options?: MemoryRateLimitStorageOptions) {
-    const cleanupInterval = options?.cleanupInterval ?? 60000;
+    this.cleanupInterval = options?.cleanupInterval ?? 60000;
+  }
 
-    if (cleanupInterval > 0) {
-      this.cleanupIntervalId = setInterval(() => {
-        this.cleanup().catch(() => {});
-      }, cleanupInterval);
+  /**
+   * Runs cleanup if enough time has passed since last cleanup.
+   * Called lazily on access to avoid background timers.
+   */
+  private maybeCleanup(): void {
+    if (this.cleanupInterval <= 0) return;
+    const now = Date.now();
+    if (now - this.lastCleanup >= this.cleanupInterval) {
+      this.lastCleanup = now;
+      this.cleanupSync();
+    }
+  }
 
-      // Ensure interval doesn't prevent process from exiting
-      if (this.cleanupIntervalId.unref) {
-        this.cleanupIntervalId.unref();
+  /**
+   * Synchronous cleanup of expired entries.
+   */
+  private cleanupSync(): number {
+    const now = Date.now();
+    let count = 0;
+    for (const [key, expiration] of this.expirations.entries()) {
+      if (now > expiration) {
+        this.storage.delete(key);
+        this.expirations.delete(key);
+        count++;
       }
     }
+    return count;
   }
 
   /**
@@ -65,6 +88,7 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
    * Creates the entry if it doesn't exist or window has expired.
    */
   async increment(key: string, windowMs: number): Promise<FixedWindowEntry> {
+    this.maybeCleanup();
     const now = Date.now();
     const existing = this.storage.get(key) as FixedWindowEntry | undefined;
 
@@ -96,6 +120,7 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
    * Removes timestamps outside the window.
    */
   async addTimestamp(key: string, windowMs: number, now?: number): Promise<SlidingWindowEntry> {
+    this.maybeCleanup();
     const currentTime = now ?? Date.now();
     const windowStart = currentTime - windowMs;
 
@@ -124,6 +149,7 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
    * Get the current entry for a key.
    */
   async get(key: string): Promise<RateLimitEntry | null> {
+    this.maybeCleanup();
     const entry = this.storage.get(key);
 
     if (!entry) {
@@ -153,28 +179,13 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
    * Clean up expired entries.
    */
   async cleanup(): Promise<number> {
-    const now = Date.now();
-    let count = 0;
-
-    for (const [key, expiration] of this.expirations.entries()) {
-      if (now > expiration) {
-        this.storage.delete(key);
-        this.expirations.delete(key);
-        count++;
-      }
-    }
-
-    return count;
+    return this.cleanupSync();
   }
 
   /**
-   * Destroy the storage and cleanup interval.
+   * Destroy the storage and clear all data.
    */
   destroy(): void {
-    if (this.cleanupIntervalId) {
-      clearInterval(this.cleanupIntervalId);
-      this.cleanupIntervalId = null;
-    }
     this.storage.clear();
     this.expirations.clear();
   }

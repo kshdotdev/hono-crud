@@ -28,20 +28,29 @@ export class StorageRegistry<T> {
   private globalStorage: T | null = null;
   private readonly contextKey: string;
   private readonly defaultFactory: (() => T) | null;
+  private defaultInitialized = false;
 
   /**
    * Creates a new storage registry.
    *
    * @param contextKey - The key used to store/retrieve from Hono context
-   * @param defaultFactory - Optional factory function to create default storage
+   * @param defaultFactory - Optional factory function to create default storage.
+   *   Invoked lazily on first access, not at construction time, to avoid
+   *   wasting cold-start time and memory for unused features.
    */
   constructor(contextKey: string, defaultFactory?: () => T) {
     this.contextKey = contextKey;
     this.defaultFactory = defaultFactory ?? null;
+  }
 
-    // Initialize with default if factory provided
-    if (this.defaultFactory) {
+  /**
+   * Ensures the default storage is initialized (lazy).
+   * Called internally before any read access.
+   */
+  private ensureDefault(): void {
+    if (!this.defaultInitialized && this.defaultFactory && this.globalStorage === null) {
       this.globalStorage = this.defaultFactory();
+      this.defaultInitialized = true;
     }
   }
 
@@ -57,6 +66,7 @@ export class StorageRegistry<T> {
    * Returns null if not set and no default factory was provided.
    */
   get(): T | null {
+    this.ensureDefault();
     return this.globalStorage;
   }
 
@@ -67,6 +77,7 @@ export class StorageRegistry<T> {
    * @throws Error if storage is not configured
    */
   getRequired(): T {
+    this.ensureDefault();
     if (this.globalStorage === null) {
       throw new Error(`Storage not configured for '${this.contextKey}'`);
     }
@@ -106,6 +117,7 @@ export class StorageRegistry<T> {
     }
 
     // Priority 3: Global storage
+    this.ensureDefault();
     return this.globalStorage;
   }
 
@@ -132,11 +144,8 @@ export class StorageRegistry<T> {
    * Useful for testing.
    */
   reset(): void {
-    if (this.defaultFactory) {
-      this.globalStorage = this.defaultFactory();
-    } else {
-      this.globalStorage = null;
-    }
+    this.defaultInitialized = false;
+    this.globalStorage = null;
   }
 
   /**
@@ -150,6 +159,7 @@ export class StorageRegistry<T> {
    * Checks if a storage instance is currently set.
    */
   isConfigured(): boolean {
+    this.ensureDefault();
     return this.globalStorage !== null;
   }
 }

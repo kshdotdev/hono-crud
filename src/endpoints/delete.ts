@@ -2,6 +2,7 @@ import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { OpenAPIRoute } from '../core/route';
+import { getLogger } from '../core/logger';
 import type {
   MetaInput,
   OpenAPIRouteSchema,
@@ -346,9 +347,7 @@ export abstract class DeleteEndpoint<
     tx?: unknown
   ): Promise<number> {
     // Default implementation returns 0 - override in adapter
-    console.warn(
-      `countRelated not implemented for ${relationName}. Override in your adapter for restrict cascade to work.`
-    );
+    getLogger().warn(`countRelated not implemented for ${relationName}. Override in your adapter for restrict cascade to work.`);
     return 0;
   }
 
@@ -363,9 +362,7 @@ export abstract class DeleteEndpoint<
     tx?: unknown
   ): Promise<number> {
     // Default implementation returns 0 - override in adapter
-    console.warn(
-      `deleteRelated not implemented for ${relationName}. Override in your adapter for cascade delete to work.`
-    );
+    getLogger().warn(`deleteRelated not implemented for ${relationName}. Override in your adapter for cascade delete to work.`);
     return 0;
   }
 
@@ -380,9 +377,7 @@ export abstract class DeleteEndpoint<
     tx?: unknown
   ): Promise<number> {
     // Default implementation returns 0 - override in adapter
-    console.warn(
-      `nullifyRelated not implemented for ${relationName}. Override in your adapter for setNull cascade to work.`
-    );
+    getLogger().warn(`nullifyRelated not implemented for ${relationName}. Override in your adapter for setNull cascade to work.`);
     return 0;
   }
 
@@ -532,7 +527,7 @@ export abstract class DeleteEndpoint<
 
     // Handle after hook based on mode
     if (this.afterHookMode === 'fire-and-forget') {
-      Promise.resolve(this.after(deletedItem, cascadeResult)).catch(console.error);
+      this.runAfterResponse(Promise.resolve(this.after(deletedItem, cascadeResult)));
     } else {
       await this.after(deletedItem, cascadeResult);
     }
@@ -540,12 +535,12 @@ export abstract class DeleteEndpoint<
     // Audit logging
     if (this.isAuditEnabled() && parentId !== null) {
       const auditLogger = this.getAuditLogger();
-      auditLogger.logDelete(
+      this.runAfterResponse(auditLogger.logDelete(
         this._meta.model.tableName,
         parentId,
         deletedItem as Record<string, unknown>,
         this.getAuditUserId()
-      ).catch(console.error); // Fire and forget
+      ));
     }
 
     // Build response

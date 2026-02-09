@@ -2,6 +2,7 @@ import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { OpenAPIRoute } from '../core/route';
+import { getLogger } from '../core/logger';
 import type {
   MetaInput,
   OpenAPIRouteSchema,
@@ -369,9 +370,7 @@ export abstract class CreateEndpoint<
     tx?: unknown
   ): Promise<unknown[]> {
     // Default implementation does nothing - override in adapter
-    console.warn(
-      `Nested writes not implemented for ${relationName}. Override createNested() in your adapter.`
-    );
+    getLogger().warn(`Nested writes not implemented for ${relationName}. Override createNested() in your adapter.`);
     return [];
   }
 
@@ -441,7 +440,7 @@ export abstract class CreateEndpoint<
     // Handle after hook based on mode
     if (this.afterHookMode === 'fire-and-forget') {
       // Fire and forget - don't await
-      Promise.resolve(this.after(obj)).catch(console.error);
+      this.runAfterResponse(Promise.resolve(this.after(obj)));
     } else {
       obj = await this.after(obj);
     }
@@ -449,12 +448,12 @@ export abstract class CreateEndpoint<
     // Audit logging
     if (this.isAuditEnabled() && parentId !== null) {
       const auditLogger = this.getAuditLogger();
-      auditLogger.logCreate(
+      this.runAfterResponse(auditLogger.logCreate(
         this._meta.model.tableName,
         parentId,
         obj as Record<string, unknown>,
         this.getAuditUserId()
-      ).catch(console.error); // Fire and forget
+      ));
     }
 
     // Apply computed fields if defined

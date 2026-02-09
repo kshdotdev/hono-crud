@@ -62,6 +62,10 @@ export interface ListOptions {
   include?: string[];
   /** Fields to include in the response (field selection) */
   fields?: string[];
+  /** Cursor for cursor-based pagination (opaque string, typically base64-encoded) */
+  cursor?: string;
+  /** Maximum number of items to return (for cursor pagination) */
+  limit?: number;
 }
 
 // List filters parsed from query
@@ -82,7 +86,34 @@ export interface PaginatedResult<T> {
     has_next_page: boolean;
     /** Whether there is a previous page available */
     has_prev_page: boolean;
+    /** Cursor for fetching the next page (cursor-based pagination) */
+    next_cursor?: string;
+    /** Cursor for fetching the previous page (cursor-based pagination) */
+    prev_cursor?: string;
   };
+}
+
+// ============================================================================
+// Cursor Pagination Utilities
+// ============================================================================
+
+/**
+ * Encodes a cursor value to an opaque base64 string.
+ */
+export function encodeCursor(value: string | number): string {
+  return btoa(String(value));
+}
+
+/**
+ * Decodes an opaque cursor string back to the original value.
+ * Returns null if the cursor is invalid.
+ */
+export function decodeCursor(cursor: string): string | null {
+  try {
+    return atob(cursor);
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================================

@@ -21,7 +21,9 @@ export interface MemoryLoggingStorageOptions {
   maxAge?: number;
 
   /**
-   * Interval for automatic cleanup of old entries (ms).
+   * Minimum interval between automatic cleanup runs (ms).
+   * Cleanup is performed lazily on access rather than via background timers,
+   * making this compatible with edge runtimes (Cloudflare Workers, Deno, Bun).
    * Set to 0 to disable automatic cleanup.
    * @default 300000 (5 minutes)
    */
@@ -40,6 +42,9 @@ export interface MemoryLoggingStorageOptions {
  * Note: This storage is not shared across processes/instances.
  * Use a database or external storage for multi-instance deployments.
  *
+ * Cleanup is performed lazily on access (no background timers),
+ * making this compatible with edge runtimes like Cloudflare Workers.
+ *
  * @example
  * ```ts
  * import { MemoryLoggingStorage, setLoggingStorage } from 'hono-crud';
@@ -49,9 +54,6 @@ export interface MemoryLoggingStorageOptions {
  *   maxAge: 3600000, // 1 hour
  * });
  * setLoggingStorage(storage);
- *
- * // Don't forget to destroy when shutting down
- * process.on('SIGTERM', () => storage.destroy());
  * ```
  */
 export class MemoryLoggingStorage implements LoggingStorage {
@@ -67,32 +69,62 @@ export class MemoryLoggingStorage implements LoggingStorage {
   /** Maximum age in milliseconds */
   private maxAge: number;
 
-  /** Cleanup interval ID */
-  private cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+  /** Minimum interval between cleanup runs (ms) */
+  private cleanupInterval: number;
+
+  /** Timestamp of last cleanup run */
+  private lastCleanup: number = 0;
 
   constructor(options?: MemoryLoggingStorageOptions) {
     this.maxEntries = options?.maxEntries ?? 10000;
     this.maxAge = options?.maxAge ?? 86400000; // 24 hours
-    const cleanupInterval = options?.cleanupInterval ?? 300000; // 5 minutes
+    this.cleanupInterval = options?.cleanupInterval ?? 300000; // 5 minutes
+  }
 
-    if (cleanupInterval > 0) {
-      this.cleanupIntervalId = setInterval(() => {
-        if (this.maxAge > 0) {
-          this.deleteOlderThan(this.maxAge).catch(() => {});
+  /**
+   * Runs age-based cleanup if enough time has passed since last cleanup.
+   * Called lazily on access to avoid background timers.
+   */
+  private maybeCleanup(): void {
+    if (this.cleanupInterval <= 0 || this.maxAge <= 0) return;
+    const now = Date.now();
+    if (now - this.lastCleanup >= this.cleanupInterval) {
+      this.lastCleanup = now;
+      this.deleteOlderThanSync(this.maxAge);
+    }
+  }
+
+  /**
+   * Synchronous version of deleteOlderThan for use in lazy cleanup.
+   */
+  private deleteOlderThanSync(maxAgeMs: number): number {
+    const cutoff = Date.now() - maxAgeMs;
+    let deleted = 0;
+
+    for (let i = this.entryIds.length - 1; i >= 0; i--) {
+      const id = this.entryIds[i];
+      const entry = this.entriesById.get(id);
+
+      if (entry) {
+        const entryTime = new Date(entry.timestamp).getTime();
+        if (entryTime < cutoff) {
+          this.entriesById.delete(id);
+          this.entryIds.splice(i, 1);
+          deleted++;
+        } else {
+          break;
         }
-      }, cleanupInterval);
-
-      // Ensure interval doesn't prevent process from exiting
-      if (this.cleanupIntervalId.unref) {
-        this.cleanupIntervalId.unref();
       }
     }
+
+    return deleted;
   }
 
   /**
    * Store a log entry.
    */
   async store(entry: LogEntry): Promise<void> {
+    this.maybeCleanup();
     // Enforce max entries limit
     while (this.entryIds.length >= this.maxEntries) {
       const oldestId = this.entryIds.pop();
@@ -110,6 +142,7 @@ export class MemoryLoggingStorage implements LoggingStorage {
    * Query log entries with filtering and pagination.
    */
   async query(options?: LogQueryOptions): Promise<LogEntry[]> {
+    this.maybeCleanup();
     let entries = this.getFilteredEntries(options);
 
     // Sort
@@ -165,28 +198,7 @@ export class MemoryLoggingStorage implements LoggingStorage {
    * Delete log entries older than a given age.
    */
   async deleteOlderThan(maxAgeMs: number): Promise<number> {
-    const cutoff = Date.now() - maxAgeMs;
-    let deleted = 0;
-
-    // Iterate from oldest (end) to newest
-    for (let i = this.entryIds.length - 1; i >= 0; i--) {
-      const id = this.entryIds[i];
-      const entry = this.entriesById.get(id);
-
-      if (entry) {
-        const entryTime = new Date(entry.timestamp).getTime();
-        if (entryTime < cutoff) {
-          this.entriesById.delete(id);
-          this.entryIds.splice(i, 1);
-          deleted++;
-        } else {
-          // Since entries are ordered by time, we can stop early
-          break;
-        }
-      }
-    }
-
-    return deleted;
+    return this.deleteOlderThanSync(maxAgeMs);
   }
 
   /**
@@ -200,13 +212,9 @@ export class MemoryLoggingStorage implements LoggingStorage {
   }
 
   /**
-   * Destroy the storage and cleanup interval.
+   * Destroy the storage and clear all data.
    */
   destroy(): void {
-    if (this.cleanupIntervalId) {
-      clearInterval(this.cleanupIntervalId);
-      this.cleanupIntervalId = null;
-    }
     this.entriesById.clear();
     this.entryIds = [];
   }
