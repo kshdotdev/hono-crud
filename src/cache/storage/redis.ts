@@ -1,4 +1,5 @@
 import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
+import { getLogger } from '../../core/logger';
 
 /**
  * Redis client interface.
@@ -314,7 +315,7 @@ export class RedisCacheStorage implements CacheStorage {
     }
 
     // Neither SCAN nor KEYS available
-    console.warn('Redis client does not support SCAN or KEYS. Pattern deletion not available.');
+    getLogger().warn('Redis client does not support SCAN or KEYS. Pattern deletion not available.');
     return [];
   }
 

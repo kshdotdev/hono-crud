@@ -1,4 +1,5 @@
 import type { APIKeyEntry, APIKeyLookupResult } from '../types';
+import { createRegistryWithDefault } from '../../storage/registry';
 
 // ============================================================================
 // In-Memory API Key Storage
@@ -251,21 +252,25 @@ export function isValidAPIKeyFormat(key: string, prefix?: string): boolean {
 // ============================================================================
 
 /**
- * Global in-memory API key storage instance.
- * Use setAPIKeyStorage() to replace with a custom implementation.
+ * Global API key storage registry.
+ * Uses lazy initialization -- the default MemoryAPIKeyStorage is only
+ * created when first accessed.
  */
-let globalAPIKeyStorage = new MemoryAPIKeyStorage();
+export const apiKeyStorageRegistry = createRegistryWithDefault<MemoryAPIKeyStorage>(
+  'apiKeyStorage',
+  () => new MemoryAPIKeyStorage()
+);
 
 /**
  * Gets the global API key storage.
  */
 export function getAPIKeyStorage(): MemoryAPIKeyStorage {
-  return globalAPIKeyStorage;
+  return apiKeyStorageRegistry.getRequired();
 }
 
 /**
  * Sets the global API key storage.
  */
 export function setAPIKeyStorage(storage: MemoryAPIKeyStorage): void {
-  globalAPIKeyStorage = storage;
+  apiKeyStorageRegistry.set(storage);
 }

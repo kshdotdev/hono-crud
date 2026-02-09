@@ -1,6 +1,7 @@
 import type { Context, Env } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { getLogger } from './logger';
 import type {
   OpenAPIRouteSchema,
   RouteOptions,
@@ -145,6 +146,30 @@ export abstract class OpenAPIRoute<
    */
   protected success<T>(result: T, status: ContentfulStatusCode = 200): Response {
     return this.getContext().json({ success: true, result }, status) as unknown as Response;
+  }
+
+  /**
+   * Runs a promise as a background task after the response is sent.
+   * Uses `executionCtx.waitUntil()` when available (Cloudflare Workers, Deno Deploy),
+   * otherwise falls back to fire-and-forget with error logging.
+   */
+  protected runAfterResponse(promise: Promise<unknown>): void {
+    let waitUntil: ((p: Promise<unknown>) => void) | undefined;
+    try {
+      const execCtx = this.getContext().executionCtx;
+      if (execCtx && typeof (execCtx as { waitUntil?: unknown }).waitUntil === 'function') {
+        waitUntil = (execCtx as { waitUntil: (p: Promise<unknown>) => void }).waitUntil.bind(execCtx);
+      }
+    } catch {
+      // executionCtx getter throws when not in a Workers/edge runtime
+    }
+    if (waitUntil) {
+      waitUntil(promise);
+    } else {
+      promise.catch(err => {
+        getLogger().error('Background task failed', { error: err instanceof Error ? err.message : String(err) });
+      });
+    }
   }
 
   /**

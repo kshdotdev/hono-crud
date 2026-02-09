@@ -49,6 +49,10 @@ export interface ListEndpointConfig {
   defaultPerPage?: number;
   maxPerPage?: number;
 
+  // Cursor pagination configuration
+  cursorPaginationEnabled?: boolean;
+  cursorField?: string;
+
   // Soft delete configuration
   softDeleteQueryParam?: string;
 
@@ -119,6 +123,7 @@ export function parseListFilters(
     defaultSort,
     defaultPerPage = 20,
     maxPerPage = 100,
+    cursorPaginationEnabled = false,
     softDeleteQueryParam = 'withDeleted',
     allowedIncludes = [],
     fieldSelectionEnabled = false,
@@ -139,6 +144,16 @@ export function parseListFilters(
     if (rawValue === undefined || rawValue === null) continue;
 
     const value = String(rawValue);
+
+    // Handle cursor-based pagination
+    if (cursorPaginationEnabled && key === 'cursor') {
+      options.cursor = value;
+      continue;
+    }
+    if (cursorPaginationEnabled && key === 'limit') {
+      options.limit = Math.min(maxPerPage, Math.max(1, parseInt(value, 10) || defaultPerPage));
+      continue;
+    }
 
     // Handle pagination
     if (key === 'page') {

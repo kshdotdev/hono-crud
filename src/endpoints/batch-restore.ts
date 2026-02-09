@@ -270,7 +270,7 @@ export abstract class BatchRestoreEndpoint<
     for (const item of restored) {
       try {
         if (this.afterHookMode === 'fire-and-forget') {
-          Promise.resolve(this.after(item)).catch(console.error);
+          this.runAfterResponse(Promise.resolve(this.after(item)));
           results.push(item);
         } else {
           results.push(await this.after(item));
@@ -300,12 +300,12 @@ export abstract class BatchRestoreEndpoint<
         .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (auditRecords.length > 0) {
-        auditLogger.logBatch(
+        this.runAfterResponse(auditLogger.logBatch(
           'batch_restore',
           this._meta.model.tableName,
           auditRecords,
           this.getAuditUserId()
-        ).catch(console.error); // Fire and forget
+        ));
       }
     }
 

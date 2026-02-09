@@ -63,6 +63,8 @@ export {
   parseSearchMode,
   getMultiTenantConfig,
   extractTenantId,
+  encodeCursor,
+  decodeCursor,
 } from './core/types';
 export { multiTenant } from './core/multi-tenant';
 export type {
@@ -135,6 +137,13 @@ export type {
   SearchResult,
 } from './core/types';
 
+// Logger exports
+export { setLogger, getLogger } from './core/logger';
+export type { Logger } from './core/logger';
+
+// ETag exports
+export { generateETag, matchesIfNoneMatch, matchesIfMatch } from './core/etag';
+
 // Endpoint exports
 export { CreateEndpoint } from './endpoints/create';
 export { ReadEndpoint } from './endpoints/read';
@@ -142,6 +151,9 @@ export { UpdateEndpoint } from './endpoints/update';
 export { DeleteEndpoint } from './endpoints/delete';
 export type { CascadeResult } from './endpoints/delete';
 export { ListEndpoint } from './endpoints/list';
+export { CloneEndpoint } from './endpoints/clone';
+export { createSubscribeHandler } from './endpoints/subscribe';
+export type { SubscribeEndpointConfig } from './endpoints/subscribe';
 export { RestoreEndpoint } from './endpoints/restore';
 export { UpsertEndpoint } from './endpoints/upsert';
 export type { UpsertResult } from './endpoints/upsert';
@@ -154,6 +166,8 @@ export { BatchRestoreEndpoint } from './endpoints/batch-restore';
 export type { BatchRestoreResult } from './endpoints/batch-restore';
 export { BatchUpsertEndpoint } from './endpoints/batch-upsert';
 export type { BatchUpsertItemResult, BatchUpsertResult } from './endpoints/batch-upsert';
+export { BulkPatchEndpoint } from './endpoints/bulk-patch';
+export type { BulkPatchResult } from './endpoints/bulk-patch';
 export {
   VersionHistoryEndpoint,
   VersionReadEndpoint,
@@ -484,6 +498,89 @@ export type {
   StorageEnv,
   StorageMiddlewareConfig,
 } from './storage/index';
+
+// Event system exports
+export {
+  CrudEventEmitter,
+  getEventEmitter,
+  setEventEmitter,
+  registerWebhooks,
+} from './events/index';
+export type {
+  CrudEventType,
+  CrudEventPayload,
+  CrudEventListener,
+  EventSubscription,
+  WebhookEndpoint,
+  WebhookConfig,
+  WebhookDeliveryResult,
+} from './events/index';
+
+// Idempotency exports
+export {
+  idempotency,
+  setIdempotencyStorage,
+  getIdempotencyStorage,
+  MemoryIdempotencyStorage,
+} from './idempotency/index';
+export type {
+  IdempotencyConfig,
+  IdempotencyStorage,
+  IdempotencyEntry,
+} from './idempotency/index';
+
+// Health check exports
+export { createHealthEndpoints, createHealthHandler } from './health/index';
+export type {
+  HealthCheck,
+  HealthCheckFn,
+  HealthCheckResult,
+  HealthConfig,
+  HealthResponse,
+} from './health/index';
+
+// Serialization profile exports
+export {
+  applyProfile,
+  applyProfileToArray,
+  resolveProfile,
+  createSerializer,
+  createArraySerializer,
+} from './serialization/index';
+export type {
+  SerializationProfile,
+  SerializationConfig,
+} from './serialization/index';
+
+// Encryption exports
+export {
+  encryptValue,
+  decryptValue,
+  isEncryptedValue,
+  encryptFields,
+  decryptFields,
+  StaticKeyProvider,
+} from './encryption/index';
+export type {
+  EncryptionKeyProvider,
+  FieldEncryptionConfig,
+  EncryptedValue,
+} from './encryption/index';
+
+// API versioning exports
+export {
+  apiVersion,
+  getApiVersion,
+  getApiVersionConfig,
+  versionedResponse,
+} from './api-version/index';
+export type {
+  VersionStrategy,
+  VersionTransformer,
+  ApiVersionConfig,
+  VersioningMiddlewareConfig,
+  ApiVersionEnv,
+} from './api-version/index';
 
 // ============================================================================
 // Alternative API Patterns

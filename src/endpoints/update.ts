@@ -2,6 +2,7 @@ import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { OpenAPIRoute } from '../core/route';
+import { getLogger } from '../core/logger';
 import type {
   MetaInput,
   OpenAPIRouteSchema,
@@ -16,6 +17,7 @@ import type {
 } from '../core/types';
 import { getSoftDeleteConfig, applyComputedFields, extractNestedData, isDirectNestedData, getAuditConfig, getVersioningConfig, getMultiTenantConfig, extractTenantId } from '../core/types';
 import { NotFoundException } from '../core/exceptions';
+import { generateETag, matchesIfMatch } from '../core/etag';
 import { getSchemaFields, type ModelObject } from './types';
 import { createAuditLogger, type AuditLogger } from '../core/audit';
 import { createVersionManager, type VersionManager } from '../core/versioning';
@@ -69,6 +71,10 @@ export abstract class UpdateEndpoint<
   // Nested writes configuration
   /** Relations that allow nested writes. If empty, uses relation config. */
   protected allowNestedWrites: string[] = [];
+
+  // ETag configuration
+  /** Enable If-Match support for optimistic concurrency control */
+  protected etagEnabled: boolean = false;
 
   // Audit logging
   private _auditLogger?: AuditLogger;
@@ -496,9 +502,7 @@ export abstract class UpdateEndpoint<
     tx?: unknown
   ): Promise<NestedWriteResult> {
     // Default implementation does nothing - override in adapter
-    console.warn(
-      `Nested writes not implemented for ${relationName}. Override processNestedWrites() in your adapter.`
-    );
+    getLogger().warn(`Nested writes not implemented for ${relationName}. Override processNestedWrites() in your adapter.`);
     return {
       created: [],
       updated: [],
@@ -532,10 +536,25 @@ export abstract class UpdateEndpoint<
       rawData as Record<string, unknown>
     );
 
-    // Fetch existing record for audit logging and versioning (before update)
+    // Fetch existing record for audit logging, versioning, and ETag (before update)
     let previousRecord: ModelObject<M['model']> | null = null;
-    if (this.isAuditEnabled() || this.isVersioningEnabled()) {
+    if (this.isAuditEnabled() || this.isVersioningEnabled() || this.etagEnabled) {
       previousRecord = await this.findExisting(lookupValue, additionalFilters);
+    }
+
+    // ETag: Check If-Match for optimistic concurrency control
+    if (this.etagEnabled && previousRecord) {
+      const ifMatch = this.getContext().req.header('If-Match');
+      if (ifMatch) {
+        const currentEtag = await generateETag(previousRecord);
+        if (!matchesIfMatch(ifMatch, currentEtag)) {
+          return this.error(
+            'Resource has been modified by another request',
+            'CONFLICT',
+            409
+          );
+        }
+      }
     }
 
     // Save version history before update
@@ -623,7 +642,7 @@ export abstract class UpdateEndpoint<
 
     // Handle after hook based on mode
     if (this.afterHookMode === 'fire-and-forget') {
-      Promise.resolve(this.after(obj)).catch(console.error);
+      this.runAfterResponse(Promise.resolve(this.after(obj)));
     } else {
       obj = await this.after(obj);
     }
@@ -631,13 +650,13 @@ export abstract class UpdateEndpoint<
     // Audit logging
     if (this.isAuditEnabled() && parentId !== null && previousRecord) {
       const auditLogger = this.getAuditLogger();
-      auditLogger.logUpdate(
+      this.runAfterResponse(auditLogger.logUpdate(
         this._meta.model.tableName,
         parentId,
         previousRecord as Record<string, unknown>,
         obj as Record<string, unknown>,
         this.getAuditUserId()
-      ).catch(console.error); // Fire and forget
+      ));
     }
 
     // Apply computed fields if defined
@@ -655,6 +674,12 @@ export abstract class UpdateEndpoint<
 
     // Apply transform
     const result = this.transform(serialized as ModelObject<M['model']>);
+
+    // Add ETag header on response
+    if (this.etagEnabled) {
+      const etag = await generateETag(result);
+      this.getContext().header('ETag', etag);
+    }
 
     return this.success(result);
   }

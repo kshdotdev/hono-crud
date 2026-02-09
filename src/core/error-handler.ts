@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { ZodError } from 'zod';
 import { ApiException, InputValidationException } from './exceptions';
 import { getRequestId } from '../logging/middleware';
+import { getLogger } from './logger';
 
 /**
  * Error mapper: transforms unknown errors to ApiException.
@@ -139,7 +140,7 @@ export function createErrorHandler<E extends Env = Env>(
       // Step 3: Fall back to generic 500 error
       if (!wasMapped) {
         if (logUnmappedErrors) {
-          console.error('[ErrorHandler] Unmapped error:', err);
+          getLogger().error('Unmapped error', { error: err instanceof Error ? err.message : String(err) });
         }
         apiException = new ApiException(
           defaultErrorMessage,

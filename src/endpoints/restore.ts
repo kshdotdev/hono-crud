@@ -241,7 +241,7 @@ export abstract class RestoreEndpoint<
 
     // Handle after hook based on mode
     if (this.afterHookMode === 'fire-and-forget') {
-      Promise.resolve(this.after(restoredItem)).catch(console.error);
+      this.runAfterResponse(Promise.resolve(this.after(restoredItem)));
     } else {
       restoredItem = await this.after(restoredItem);
     }
@@ -250,12 +250,12 @@ export abstract class RestoreEndpoint<
     const recordId = this.getRecordId(restoredItem);
     if (this.isAuditEnabled() && recordId !== null) {
       const auditLogger = this.getAuditLogger();
-      auditLogger.logRestore(
+      this.runAfterResponse(auditLogger.logRestore(
         this._meta.model.tableName,
         recordId,
         restoredItem as Record<string, unknown>,
         this.getAuditUserId()
-      ).catch(console.error); // Fire and forget
+      ));
     }
 
     // Apply serializer if defined

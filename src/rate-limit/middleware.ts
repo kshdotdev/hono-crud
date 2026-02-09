@@ -1,4 +1,5 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
+import { getLogger } from '../core/logger';
 import type {
   RateLimitConfig,
   RateLimitResult,
@@ -12,12 +13,19 @@ import { RateLimitExceededException } from './exceptions';
 import { extractIP, extractUserId, extractAPIKey, shouldSkipPath, generateKey } from './utils';
 import { resolveRateLimitStorage } from '../storage/helpers';
 import { setContextVar } from '../core/context-helpers';
+import { createNullableRegistry } from '../storage/registry';
 
 // ============================================================================
 // Global Storage
 // ============================================================================
 
-let globalStorage: RateLimitStorage | null = null;
+/**
+ * Global rate limit storage registry.
+ * Nullable -- no default storage is created unless explicitly set.
+ */
+export const rateLimitStorageRegistry = createNullableRegistry<RateLimitStorage>(
+  'rateLimitStorage'
+);
 
 /**
  * Set the global rate limit storage.
@@ -31,7 +39,7 @@ let globalStorage: RateLimitStorage | null = null;
  * ```
  */
 export function setRateLimitStorage(storage: RateLimitStorage): void {
-  globalStorage = storage;
+  rateLimitStorageRegistry.set(storage);
 }
 
 /**
@@ -39,7 +47,7 @@ export function setRateLimitStorage(storage: RateLimitStorage): void {
  * @returns The global storage or null if not set
  */
 export function getRateLimitStorage(): RateLimitStorage | null {
-  return globalStorage;
+  return rateLimitStorageRegistry.get();
 }
 
 // ============================================================================
@@ -259,7 +267,7 @@ export function createRateLimitMiddleware<E extends Env = Env>(
     // Get storage (priority: config > context > global)
     const storage = resolveRateLimitStorage(ctx, config.storage);
     if (!storage) {
-      console.warn('Rate limit storage not configured. Skipping rate limiting.');
+      getLogger().warn('Rate limit storage not configured. Skipping rate limiting.');
       return next();
     }
 
@@ -336,7 +344,7 @@ export async function resetRateLimit(
   key: string,
   storage?: RateLimitStorage
 ): Promise<void> {
-  const effectiveStorage = storage ?? globalStorage;
+  const effectiveStorage = storage ?? rateLimitStorageRegistry.get();
   if (!effectiveStorage) {
     throw new Error('Rate limit storage not configured');
   }

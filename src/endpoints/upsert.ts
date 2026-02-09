@@ -2,6 +2,7 @@ import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { OpenAPIRoute } from '../core/route';
+import { getLogger } from '../core/logger';
 import type {
   MetaInput,
   OpenAPIRouteSchema,
@@ -488,9 +489,7 @@ export abstract class UpsertEndpoint<
   ): Promise<UpsertResult<ModelObject<M['model']>>> {
     // Default implementation falls back to non-native upsert
     // ORM adapters should override this method
-    console.warn(
-      'Native upsert not implemented for this adapter. Falling back to find-then-insert/update pattern.'
-    );
+    getLogger().warn('Native upsert not implemented for this adapter. Falling back to find-then-insert/update pattern.');
     return this.performStandardUpsert(data, tx);
   }
 
@@ -556,9 +555,7 @@ export abstract class UpsertEndpoint<
     operations: NestedUpdateInput,
     tx?: unknown
   ): Promise<NestedWriteResult> {
-    console.warn(
-      `Nested writes not implemented for ${relationName}. Override processNestedWrites() in your adapter.`
-    );
+    getLogger().warn(`Nested writes not implemented for ${relationName}. Override processNestedWrites() in your adapter.`);
     return {
       created: [],
       updated: [],
@@ -651,7 +648,7 @@ export abstract class UpsertEndpoint<
 
     // Handle after hook
     if (this.afterHookMode === 'fire-and-forget') {
-      Promise.resolve(this.after(obj, result.created)).catch(console.error);
+      this.runAfterResponse(Promise.resolve(this.after(obj, result.created)));
     } else {
       obj = await this.after(obj, result.created);
     }
@@ -659,14 +656,14 @@ export abstract class UpsertEndpoint<
     // Audit logging
     if (this.isAuditEnabled() && parentId !== null) {
       const auditLogger = this.getAuditLogger();
-      auditLogger.logUpsert(
+      this.runAfterResponse(auditLogger.logUpsert(
         this._meta.model.tableName,
         parentId,
         obj as Record<string, unknown>,
         existing as Record<string, unknown> | undefined,
         result.created,
         this.getAuditUserId()
-      ).catch(console.error); // Fire and forget
+      ));
     }
 
     // Apply computed fields if defined

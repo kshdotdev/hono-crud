@@ -713,14 +713,12 @@ export abstract class ImportEndpoint<
           .filter((r): r is NonNullable<typeof r> => r !== null);
 
         if (auditRecords.length > 0) {
-          auditLogger
-            .logBatch(
-              options.mode === 'upsert' ? 'batch_upsert' : 'batch_create',
-              this._meta.model.tableName,
-              auditRecords,
-              this.getAuditUserId()
-            )
-            .catch(console.error);
+          this.runAfterResponse(auditLogger.logBatch(
+            options.mode === 'upsert' ? 'batch_upsert' : 'batch_create',
+            this._meta.model.tableName,
+            auditRecords,
+            this.getAuditUserId()
+          ));
         }
       }
     }

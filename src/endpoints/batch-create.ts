@@ -262,7 +262,7 @@ export abstract class BatchCreateEndpoint<
     for (let i = 0; i < created.length; i++) {
       try {
         if (this.afterHookMode === 'fire-and-forget') {
-          Promise.resolve(this.after(created[i], i)).catch(console.error);
+          this.runAfterResponse(Promise.resolve(this.after(created[i], i)));
           results.push(created[i]);
         } else {
           results.push(await this.after(created[i], i));
@@ -291,12 +291,12 @@ export abstract class BatchCreateEndpoint<
         .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (auditRecords.length > 0) {
-        auditLogger.logBatch(
+        this.runAfterResponse(auditLogger.logBatch(
           'batch_create',
           this._meta.model.tableName,
           auditRecords,
           this.getAuditUserId()
-        ).catch(console.error); // Fire and forget
+        ));
       }
     }
 

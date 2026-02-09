@@ -473,7 +473,7 @@ describe('createErrorHandler', () => {
       await app.request('/test');
 
       expect(consoleSpy).toHaveBeenCalled();
-      expect(consoleSpy.mock.calls[0][0]).toContain('[ErrorHandler]');
+      expect(consoleSpy.mock.calls[0][0]).toContain('[hono-crud]');
 
       consoleSpy.mockRestore();
     });

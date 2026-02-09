@@ -6,12 +6,20 @@ import type { AuditLogStorage } from '../core/audit';
 import type { VersioningStorage } from '../core/versioning';
 import type { MemoryAPIKeyStorage } from '../auth/storage/memory';
 import type { StorageEnv } from './types';
-import { getRateLimitStorage } from '../rate-limit/middleware';
-import { getLoggingStorage } from '../logging/middleware';
-import { getCacheStorage } from '../cache/mixin';
-import { getAuditStorage } from '../core/audit';
-import { getVersioningStorage } from '../core/versioning';
-import { getAPIKeyStorage } from '../auth/storage/memory';
+import { rateLimitStorageRegistry } from '../rate-limit/middleware';
+import { loggingStorageRegistry } from '../logging/middleware';
+import { cacheStorageRegistry } from '../cache/mixin';
+import { auditStorageRegistry } from '../core/audit';
+import { versioningStorageRegistry } from '../core/versioning';
+import { apiKeyStorageRegistry } from '../auth/storage/memory';
+
+// Re-export getters for backward compatibility (used by other modules)
+export { getRateLimitStorage } from '../rate-limit/middleware';
+export { getLoggingStorage } from '../logging/middleware';
+export { getCacheStorage } from '../cache/mixin';
+export { getAuditStorage } from '../core/audit';
+export { getVersioningStorage } from '../core/versioning';
+export { getAPIKeyStorage } from '../auth/storage/memory';
 
 // ============================================================================
 // Type-Safe Context Variable Access
@@ -65,6 +73,8 @@ export function getContextVar<T>(ctx: unknown, key: string): T | undefined {
 
 // ============================================================================
 // Storage Resolution Functions
+// All delegate to their respective StorageRegistry.resolve() method which
+// implements the priority chain: explicit param > context variable > global.
 // ============================================================================
 
 /**
@@ -73,38 +83,12 @@ export function getContextVar<T>(ctx: unknown, key: string): T | undefined {
  * @param ctx - Optional Hono context (use StorageEnv for type safety)
  * @param explicitStorage - Optional explicit storage instance
  * @returns The resolved storage or null if none available
- *
- * @example
- * ```ts
- * // In middleware with typed context
- * const app = new Hono<StorageEnv>();
- * app.use('/*', async (ctx, next) => {
- *   const storage = resolveRateLimitStorage(ctx);
- *   if (!storage) {
- *     console.warn('No rate limit storage configured');
- *   }
- *   await next();
- * });
- *
- * // With explicit storage
- * const storage = resolveRateLimitStorage(ctx, myCustomStorage);
- * ```
  */
 export function resolveRateLimitStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: RateLimitStorage
 ): RateLimitStorage | null {
-  // Priority 1: Explicit parameter
-  if (explicitStorage) return explicitStorage;
-
-  // Priority 2: Context variable
-  if (ctx) {
-    const ctxStorage = getContextVar<RateLimitStorage>(ctx, 'rateLimitStorage');
-    if (ctxStorage) return ctxStorage;
-  }
-
-  // Priority 3: Global storage
-  return getRateLimitStorage();
+  return rateLimitStorageRegistry.resolve(ctx, explicitStorage);
 }
 
 /**
@@ -118,17 +102,7 @@ export function resolveLoggingStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: LoggingStorage
 ): LoggingStorage | null {
-  // Priority 1: Explicit parameter
-  if (explicitStorage) return explicitStorage;
-
-  // Priority 2: Context variable
-  if (ctx) {
-    const ctxStorage = getContextVar<LoggingStorage>(ctx, 'loggingStorage');
-    if (ctxStorage) return ctxStorage;
-  }
-
-  // Priority 3: Global storage
-  return getLoggingStorage();
+  return loggingStorageRegistry.resolve(ctx, explicitStorage);
 }
 
 /**
@@ -142,17 +116,7 @@ export function resolveCacheStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: CacheStorage
 ): CacheStorage {
-  // Priority 1: Explicit parameter
-  if (explicitStorage) return explicitStorage;
-
-  // Priority 2: Context variable
-  if (ctx) {
-    const ctxStorage = getContextVar<CacheStorage>(ctx, 'cacheStorage');
-    if (ctxStorage) return ctxStorage;
-  }
-
-  // Priority 3: Global storage (always returns a default)
-  return getCacheStorage();
+  return cacheStorageRegistry.resolve(ctx, explicitStorage) ?? cacheStorageRegistry.getRequired();
 }
 
 /**
@@ -166,17 +130,7 @@ export function resolveAuditStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: AuditLogStorage
 ): AuditLogStorage {
-  // Priority 1: Explicit parameter
-  if (explicitStorage) return explicitStorage;
-
-  // Priority 2: Context variable
-  if (ctx) {
-    const ctxStorage = getContextVar<AuditLogStorage>(ctx, 'auditStorage');
-    if (ctxStorage) return ctxStorage;
-  }
-
-  // Priority 3: Global storage (always returns a default)
-  return getAuditStorage();
+  return auditStorageRegistry.resolve(ctx, explicitStorage) ?? auditStorageRegistry.getRequired();
 }
 
 /**
@@ -190,17 +144,7 @@ export function resolveVersioningStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: VersioningStorage
 ): VersioningStorage {
-  // Priority 1: Explicit parameter
-  if (explicitStorage) return explicitStorage;
-
-  // Priority 2: Context variable
-  if (ctx) {
-    const ctxStorage = getContextVar<VersioningStorage>(ctx, 'versioningStorage');
-    if (ctxStorage) return ctxStorage;
-  }
-
-  // Priority 3: Global storage (always returns a default)
-  return getVersioningStorage();
+  return versioningStorageRegistry.resolve(ctx, explicitStorage) ?? versioningStorageRegistry.getRequired();
 }
 
 /**
@@ -214,15 +158,5 @@ export function resolveAPIKeyStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: MemoryAPIKeyStorage
 ): MemoryAPIKeyStorage {
-  // Priority 1: Explicit parameter
-  if (explicitStorage) return explicitStorage;
-
-  // Priority 2: Context variable
-  if (ctx) {
-    const ctxStorage = getContextVar<MemoryAPIKeyStorage>(ctx, 'apiKeyStorage');
-    if (ctxStorage) return ctxStorage;
-  }
-
-  // Priority 3: Global storage (always returns a default)
-  return getAPIKeyStorage();
+  return apiKeyStorageRegistry.resolve(ctx, explicitStorage) ?? apiKeyStorageRegistry.getRequired();
 }
