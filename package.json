@@ -1,6 +1,6 @@
 {
   "name": "hono-crud",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "CRUD generator for Hono with Zod validation and OpenAPI generation",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",

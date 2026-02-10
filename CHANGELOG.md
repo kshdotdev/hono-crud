@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 %b
 %b
 %b
+%b
 ## [0.1.0] - 2025-01-29
 
 ### Added
@@ -40,3 +41,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.2.0]: https://github.com/kshdotdev/hono-crud/compare/v0.1.4...v0.2.0
 [0.3.0]: https://github.com/kshdotdev/hono-crud/compare/v0.2.0...v0.3.0
 [0.3.1]: https://github.com/kshdotdev/hono-crud/compare/v0.3.0...v0.3.1
+[0.3.2]: https://github.com/kshdotdev/hono-crud/compare/v0.3.1...v0.3.2
