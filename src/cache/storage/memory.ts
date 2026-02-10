@@ -45,7 +45,7 @@ export class MemoryCacheStorage implements CacheStorage {
 
   constructor(options?: { defaultTtl?: number; maxEntries?: number }) {
     this.defaultTtl = options?.defaultTtl ?? 300; // 5 minutes
-    this.maxEntries = options?.maxEntries ?? 0;
+    this.maxEntries = options?.maxEntries ?? 10_000;
   }
 
   /**

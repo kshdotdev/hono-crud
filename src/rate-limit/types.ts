@@ -250,8 +250,8 @@ export interface RateLimitConfig<E extends Env = Env> {
 
   /**
    * Whether to trust the proxy header for IP extraction.
-   * Set to false if not behind a trusted proxy.
-   * @default true
+   * Set to true if behind a trusted proxy.
+   * @default false
    */
   trustProxy?: boolean;
 

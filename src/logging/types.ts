@@ -319,7 +319,7 @@ export interface LoggingConfig<E extends Env = Env> {
 
   /**
    * Whether to trust the proxy header for IP extraction.
-   * @default true
+   * @default false
    */
   trustProxy?: boolean;
 

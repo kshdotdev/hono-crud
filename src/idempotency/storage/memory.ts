@@ -21,9 +21,12 @@ export class MemoryIdempotencyStorage implements IdempotencyStorage {
   private cleanupInterval: number;
   /** Timestamp of last cleanup run */
   private lastCleanup: number = 0;
+  /** Maximum number of entries before evicting oldest */
+  private maxEntries: number;
 
-  constructor(options?: { cleanupInterval?: number }) {
+  constructor(options?: { cleanupInterval?: number; maxEntries?: number }) {
     this.cleanupInterval = options?.cleanupInterval ?? 60000;
+    this.maxEntries = options?.maxEntries ?? 10_000;
   }
 
   private maybeCleanup(): void {
@@ -62,6 +65,13 @@ export class MemoryIdempotencyStorage implements IdempotencyStorage {
 
   async set(key: string, entry: IdempotencyEntry, ttlMs: number): Promise<void> {
     this.maybeCleanup();
+    // Evict oldest entry if at capacity
+    if (this.maxEntries > 0 && this.entries.size >= this.maxEntries && !this.entries.has(key)) {
+      const oldestKey = this.entries.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.entries.delete(oldestKey);
+      }
+    }
     this.entries.set(key, {
       entry,
       expiresAt: Date.now() + ttlMs,

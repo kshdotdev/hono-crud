@@ -79,9 +79,8 @@ export class InputValidationException extends ApiException {
 }
 
 export class NotFoundException extends ApiException {
-  constructor(resource: string = 'Resource', id?: string) {
-    const message = id ? `${resource} with id '${id}' not found` : `${resource} not found`;
-    super(message, 404, 'NOT_FOUND');
+  constructor(resource: string = 'Resource', _id?: string) {
+    super(`${resource} not found`, 404, 'NOT_FOUND');
     this.name = 'NotFoundException';
   }
 }

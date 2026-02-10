@@ -27,9 +27,7 @@ export function requireRoles<E extends AuthEnv = AuthEnv>(
     const hasRole = roles.some((role) => userRoles.includes(role));
 
     if (!hasRole) {
-      throw new ForbiddenException(
-        `Required role: ${roles.join(' or ')}`
-      );
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     await next();
@@ -57,9 +55,7 @@ export function requireAllRoles<E extends AuthEnv = AuthEnv>(
     const hasAllRoles = roles.every((role) => userRoles.includes(role));
 
     if (!hasAllRoles) {
-      throw new ForbiddenException(
-        `Required roles: ${roles.join(' and ')}`
-      );
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     await next();
@@ -91,9 +87,7 @@ export function requirePermissions<E extends AuthEnv = AuthEnv>(
     const hasAllPermissions = permissions.every((perm) => userPermissions.includes(perm));
 
     if (!hasAllPermissions) {
-      throw new ForbiddenException(
-        `Required permissions: ${permissions.join(', ')}`
-      );
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     await next();
@@ -121,9 +115,7 @@ export function requireAnyPermission<E extends AuthEnv = AuthEnv>(
     const hasAnyPermission = permissions.some((perm) => userPermissions.includes(perm));
 
     if (!hasAnyPermission) {
-      throw new ForbiddenException(
-        `Required permission: ${permissions.join(' or ')}`
-      );
+      throw new ForbiddenException('Insufficient permissions');
     }
 
     await next();
@@ -232,7 +224,7 @@ export function requireOwnershipOrRole<E extends AuthEnv = AuthEnv>(
       return;
     }
 
-    throw new ForbiddenException('Access denied: not resource owner and missing required role');
+    throw new ForbiddenException('Access denied');
   };
 }
 
