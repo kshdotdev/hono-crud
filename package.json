@@ -85,6 +85,7 @@
     "drizzle",
     "cloudflare-workers"
   ],
+  "sideEffects": false,
   "files": [
     "dist",
     "README.md",
