@@ -24,7 +24,6 @@ export {
   createInsertSchema,
   createUpdateSchema,
   createDrizzleSchemas,
-  createDrizzleSchemasAsync,
   isDrizzleZodAvailable,
 } from './schema-utils';
 export type { DrizzleSchemas } from './schema-utils';
