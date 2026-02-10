@@ -193,29 +193,27 @@ export function shouldExcludePath(
 export function extractClientIp<E extends Env>(
   ctx: Context<E>,
   ipHeader: string = 'X-Forwarded-For',
-  trustProxy: boolean = false
+  _trustProxy: boolean = false
 ): string | undefined {
-  // Check proxy header first if trusted
-  if (trustProxy) {
-    const proxyHeader = ctx.req.header(ipHeader);
-    if (proxyHeader) {
-      // X-Forwarded-For can contain multiple IPs, take the first one
-      const firstIP = proxyHeader.split(',')[0].trim();
-      if (firstIP) {
-        return firstIP;
-      }
+  // Check the configured IP header
+  const proxyHeader = ctx.req.header(ipHeader);
+  if (proxyHeader) {
+    // X-Forwarded-For can contain multiple IPs, take the first one
+    const firstIP = proxyHeader.split(',')[0].trim();
+    if (firstIP) {
+      return firstIP;
     }
+  }
 
-    // Try other common proxy headers
-    const realIP = ctx.req.header('X-Real-IP');
-    if (realIP) {
-      return realIP.trim();
-    }
+  // Try other common proxy headers
+  const realIP = ctx.req.header('X-Real-IP');
+  if (realIP) {
+    return realIP.trim();
+  }
 
-    const cfIP = ctx.req.header('CF-Connecting-IP');
-    if (cfIP) {
-      return cfIP.trim();
-    }
+  const cfIP = ctx.req.header('CF-Connecting-IP');
+  if (cfIP) {
+    return cfIP.trim();
   }
 
   // Fall back to connection info
