@@ -33,8 +33,7 @@ const require = createRequire(import.meta.url);
  * Duck-typed interface for Drizzle tables.
  * This allows compatibility across different drizzle-orm versions and package installations.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type DrizzleTable = { _: { name: string; columns: Record<string, any> } };
+type DrizzleTable = { _: { name: string; columns: Record<string, unknown> } };
 
 // Type definitions for drizzle-zod functions
 // These allow the module to compile even without drizzle-zod installed

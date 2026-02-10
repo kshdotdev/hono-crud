@@ -205,8 +205,8 @@ export abstract class BatchDeleteEndpoint<
    * Override to perform checks or side effects.
    */
   async before(
-    id: string,
-    tx?: unknown
+    _id: string,
+    _tx?: unknown
   ): Promise<void> {
     // Override in subclass
   }
@@ -217,7 +217,7 @@ export abstract class BatchDeleteEndpoint<
    */
   async after(
     data: ModelObject<M['model']>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<ModelObject<M['model']>> {
     return data;
   }

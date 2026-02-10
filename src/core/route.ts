@@ -14,7 +14,7 @@ import type {
  */
 export abstract class OpenAPIRoute<
   E extends Env = Env,
-  Schema extends ZodObject<ZodRawShape> = ZodObject<ZodRawShape>,
+  _Schema extends ZodObject<ZodRawShape> = ZodObject<ZodRawShape>,
 > {
   static isRoute = true;
 
@@ -53,10 +53,10 @@ export abstract class OpenAPIRoute<
     if (schema.request?.body) {
       let body: unknown;
       try {
-        // Try zod-openapi validation first
-        body = ctx.req.valid('json' as never);
+        // Try zod-openapi validation first (cast needed: Hono's valid() expects literal types)
+        body = (ctx.req as { valid: (target: string) => unknown }).valid('json');
       } catch {
-        // zod-openapi not available
+        // zod-openapi validation not available; fall through to manual parsing
       }
 
       // If zod-openapi didn't provide body, parse manually
@@ -64,7 +64,7 @@ export abstract class OpenAPIRoute<
         try {
           body = await ctx.req.json();
         } catch {
-          // No body or invalid JSON
+          // No body or invalid JSON — expected for non-JSON requests
         }
       }
 
@@ -77,10 +77,10 @@ export abstract class OpenAPIRoute<
     if (schema.request?.query) {
       let query: Record<string, unknown> | undefined;
       try {
-        // Try zod-openapi validation first
-        query = ctx.req.valid('query' as never);
+        // Try zod-openapi validation first (cast needed: Hono's valid() expects literal types)
+        query = (ctx.req as { valid: (target: string) => unknown }).valid('query') as Record<string, unknown> | undefined;
       } catch {
-        // zod-openapi not available
+        // zod-openapi validation not available; fall through to manual parsing
       }
 
       // If zod-openapi didn't provide query, parse manually
@@ -97,10 +97,10 @@ export abstract class OpenAPIRoute<
     if (schema.request?.params) {
       let params: Record<string, string> | undefined;
       try {
-        // Try zod-openapi validation first
-        params = ctx.req.valid('param' as never) as Record<string, string>;
+        // Try zod-openapi validation first (cast needed: Hono's valid() expects literal types)
+        params = (ctx.req as { valid: (target: string) => unknown }).valid('param') as Record<string, string>;
       } catch {
-        // zod-openapi not available
+        // zod-openapi validation not available; fall through to manual parsing
       }
 
       // If zod-openapi didn't provide params, parse manually
@@ -137,12 +137,19 @@ export abstract class OpenAPIRoute<
    * Creates a JSON response using Hono's c.json() helper.
    * Returns Response for compatibility with handle() method signature.
    */
+  /**
+   * Hono's c.json() returns TypedResponse<T> which extends Response at runtime
+   * but TypeScript sees a generic mismatch. The cast through unknown is safe.
+   */
   protected json<T>(data: T, status: ContentfulStatusCode = 200): Response {
     return this.getContext().json(data, status) as unknown as Response;
   }
 
   /**
    * Creates a success response.
+   */
+  /**
+   * Hono's c.json() returns TypedResponse<T> — see json() above for cast rationale.
    */
   protected success<T>(result: T, status: ContentfulStatusCode = 200): Response {
     return this.getContext().json({ success: true, result }, status) as unknown as Response;
@@ -185,6 +192,7 @@ export abstract class OpenAPIRoute<
     if (details) {
       errorObj.details = details;
     }
+    // Hono's c.json() returns TypedResponse<T> — see json() above for cast rationale.
     return this.getContext().json(
       {
         success: false,

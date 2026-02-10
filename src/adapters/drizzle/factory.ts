@@ -1,7 +1,7 @@
 import type { Env } from 'hono';
 import type { MetaInput } from '../../core/types';
 import type { AdapterBundle } from '../../config/index';
-import { type DrizzleDatabaseConstraint, type DrizzleDatabase } from './helpers';
+import { type DrizzleDatabaseConstraint } from './helpers';
 import {
   DrizzleCreateEndpoint,
   DrizzleReadEndpoint,

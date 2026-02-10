@@ -148,7 +148,7 @@ export function createOneOfErrorSchema<T extends z.ZodSchema[]>(
 /**
  * Type for the validation hook result.
  */
-export interface ValidationHookResult<E extends Env = Env> {
+export interface ValidationHookResult<_E extends Env = Env> {
   success: false;
   error: z.ZodError;
 }

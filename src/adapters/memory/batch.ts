@@ -275,7 +275,7 @@ export abstract class MemoryBatchUpsertEndpoint<
    */
   protected async nativeBatchUpsert(
     items: Partial<ModelObject<M['model']>>[],
-    tx?: unknown
+    _tx?: unknown
   ): Promise<{
     items: Array<{ data: ModelObject<M['model']>; created: boolean; index: number }>;
     createdCount: number;

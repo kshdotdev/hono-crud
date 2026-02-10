@@ -304,9 +304,9 @@ export abstract class BatchUpsertEndpoint<
    */
   async beforeItem(
     data: Partial<ModelObject<M['model']>>,
-    index: number,
-    isCreate: boolean,
-    tx?: unknown
+    _index: number,
+    _isCreate: boolean,
+    _tx?: unknown
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -317,9 +317,9 @@ export abstract class BatchUpsertEndpoint<
    */
   async afterItem(
     data: ModelObject<M['model']>,
-    index: number,
-    created: boolean,
-    tx?: unknown
+    _index: number,
+    _created: boolean,
+    _tx?: unknown
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -329,7 +329,7 @@ export abstract class BatchUpsertEndpoint<
    */
   async beforeBatch(
     items: Partial<ModelObject<M['model']>>[],
-    tx?: unknown
+    _tx?: unknown
   ): Promise<Partial<ModelObject<M['model']>>[]> {
     return items;
   }
@@ -339,7 +339,7 @@ export abstract class BatchUpsertEndpoint<
    */
   async afterBatch(
     result: BatchUpsertResult<ModelObject<M['model']>>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<BatchUpsertResult<ModelObject<M['model']>>> {
     return result;
   }

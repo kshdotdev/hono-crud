@@ -358,7 +358,7 @@ export abstract class PrismaUpsertEndpoint<
    */
   protected override async nativeUpsert(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<{ data: ModelObject<M['model']>; created: boolean }> {
     const model = this.getModel();
     const upsertKeys = this.getUpsertKeys();

@@ -193,7 +193,7 @@ export abstract class MemoryUpsertEndpoint<
    */
   protected async nativeUpsert(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<{ data: ModelObject<M['model']>; created: boolean }> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const upsertKeys = this.getUpsertKeys();
@@ -270,7 +270,7 @@ export abstract class MemoryUpsertEndpoint<
    */
   protected async processNestedWrites(
     parentId: string | number,
-    relationName: string,
+    _relationName: string,
     relationConfig: RelationConfig,
     operations: NestedUpdateInput
   ): Promise<NestedWriteResult> {

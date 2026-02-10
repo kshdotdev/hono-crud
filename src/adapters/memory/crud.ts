@@ -55,7 +55,7 @@ export abstract class MemoryCreateEndpoint<
    */
   protected async createNested(
     parentId: string | number,
-    relationName: string,
+    _relationName: string,
     relationConfig: RelationConfig,
     data: unknown
   ): Promise<unknown[]> {
@@ -211,7 +211,7 @@ export abstract class MemoryUpdateEndpoint<
    */
   protected async processNestedWrites(
     parentId: string | number,
-    relationName: string,
+    _relationName: string,
     relationConfig: RelationConfig,
     operations: NestedUpdateInput
   ): Promise<NestedWriteResult> {
@@ -380,7 +380,7 @@ export abstract class MemoryDeleteEndpoint<
    */
   protected async countRelated(
     parentId: string | number,
-    relationName: string,
+    _relationName: string,
     relationConfig: RelationConfig
   ): Promise<number> {
     const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);
@@ -400,7 +400,7 @@ export abstract class MemoryDeleteEndpoint<
    */
   protected async deleteRelated(
     parentId: string | number,
-    relationName: string,
+    _relationName: string,
     relationConfig: RelationConfig
   ): Promise<number> {
     const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);
@@ -422,7 +422,7 @@ export abstract class MemoryDeleteEndpoint<
    */
   protected async nullifyRelated(
     parentId: string | number,
-    relationName: string,
+    _relationName: string,
     relationConfig: RelationConfig
   ): Promise<number> {
     const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);

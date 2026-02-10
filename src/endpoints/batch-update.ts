@@ -245,9 +245,9 @@ export abstract class BatchUpdateEndpoint<
    * Override to transform data before update.
    */
   async before(
-    id: string,
+    _id: string,
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -258,7 +258,7 @@ export abstract class BatchUpdateEndpoint<
    */
   async after(
     data: ModelObject<M['model']>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<ModelObject<M['model']>> {
     return data;
   }

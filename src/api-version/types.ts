@@ -1,4 +1,4 @@
-import type { Context, Env, MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 
 /**
  * Strategy for extracting the API version from requests.

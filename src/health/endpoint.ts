@@ -48,7 +48,6 @@ async function runAllChecks(
   checks: HealthCheck[],
   defaultTimeout: number
 ): Promise<{ results: HealthCheckResult[]; status: HealthResponse['status'] }> {
-  const start = Date.now();
   const results = await Promise.all(
     checks.map((c) => runCheck(c, defaultTimeout))
   );

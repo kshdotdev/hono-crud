@@ -405,8 +405,8 @@ export abstract class UpsertEndpoint<
    */
   async before(
     data: Partial<ModelObject<M['model']>>,
-    isCreate: boolean,
-    tx?: unknown
+    _isCreate: boolean,
+    _tx?: unknown
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -416,7 +416,7 @@ export abstract class UpsertEndpoint<
    */
   async beforeCreate(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -426,8 +426,8 @@ export abstract class UpsertEndpoint<
    */
   async beforeUpdate(
     data: Partial<ModelObject<M['model']>>,
-    existing: ModelObject<M['model']>,
-    tx?: unknown
+    _existing: ModelObject<M['model']>,
+    _tx?: unknown
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -438,8 +438,8 @@ export abstract class UpsertEndpoint<
    */
   async after(
     data: ModelObject<M['model']>,
-    created: boolean,
-    tx?: unknown
+    _created: boolean,
+    _tx?: unknown
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -549,11 +549,11 @@ export abstract class UpsertEndpoint<
    * Override in ORM-specific subclasses to implement nested writes.
    */
   protected async processNestedWrites(
-    parentId: string | number,
+    _parentId: string | number,
     relationName: string,
-    relationConfig: RelationConfig,
-    operations: NestedUpdateInput,
-    tx?: unknown
+    _relationConfig: RelationConfig,
+    _operations: NestedUpdateInput,
+    _tx?: unknown
   ): Promise<NestedWriteResult> {
     getLogger().warn(`Nested writes not implemented for ${relationName}. Override processNestedWrites() in your adapter.`);
     return {

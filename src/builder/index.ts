@@ -111,8 +111,7 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
    * @param BaseClass - The adapter-specific base class to extend
    * @returns A class that can be used with registerCrud
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  build<B extends abstract new () => any>(BaseClass: B): B {
+  build<B extends abstract new () => unknown>(BaseClass: B): B {
     const config = {
       meta: this.meta,
       schema: this._schema,
@@ -124,7 +123,7 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
     };
     const middlewares = this._middlewares;
 
-    // @ts-expect-error - Dynamic class creation
+    // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
     const GeneratedClass = class extends BaseClass {
       static _middlewares = middlewares;
       _meta = config.meta;
@@ -289,8 +288,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
    * @param BaseClass - The adapter-specific base class to extend
    * @returns A class that can be used with registerCrud
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  build<B extends abstract new () => any>(BaseClass: B): B {
+  build<B extends abstract new () => unknown>(BaseClass: B): B {
     const config = {
       meta: this.meta,
       schema: this._schema,
@@ -313,7 +311,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
     };
     const middlewares = this._middlewares;
 
-    // @ts-expect-error - Dynamic class creation
+    // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
     const GeneratedClass = class extends BaseClass {
       static _middlewares = middlewares;
       _meta = config.meta;
@@ -450,8 +448,7 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
    * @param BaseClass - The adapter-specific base class to extend
    * @returns A class that can be used with registerCrud
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  build<B extends abstract new () => any>(BaseClass: B): B {
+  build<B extends abstract new () => unknown>(BaseClass: B): B {
     const config = {
       meta: this.meta,
       schema: this._schema,
@@ -468,7 +465,7 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
     };
     const middlewares = this._middlewares;
 
-    // @ts-expect-error - Dynamic class creation
+    // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
     const GeneratedClass = class extends BaseClass {
       static _middlewares = middlewares;
       _meta = config.meta;
@@ -614,8 +611,7 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
    * @param BaseClass - The adapter-specific base class to extend
    * @returns A class that can be used with registerCrud
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  build<B extends abstract new () => any>(BaseClass: B): B {
+  build<B extends abstract new () => unknown>(BaseClass: B): B {
     const config = {
       meta: this.meta,
       schema: this._schema,
@@ -632,7 +628,7 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
     };
     const middlewares = this._middlewares;
 
-    // @ts-expect-error - Dynamic class creation
+    // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
     const GeneratedClass = class extends BaseClass {
       static _middlewares = middlewares;
       _meta = config.meta;
@@ -763,8 +759,7 @@ export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
    * @param BaseClass - The adapter-specific base class to extend
    * @returns A class that can be used with registerCrud
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  build<B extends abstract new () => any>(BaseClass: B): B {
+  build<B extends abstract new () => unknown>(BaseClass: B): B {
     const config = {
       meta: this.meta,
       schema: this._schema,
@@ -778,7 +773,7 @@ export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
     };
     const middlewares = this._middlewares;
 
-    // @ts-expect-error - Dynamic class creation
+    // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
     const GeneratedClass = class extends BaseClass {
       static _middlewares = middlewares;
       _meta = config.meta;

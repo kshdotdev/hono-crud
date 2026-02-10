@@ -178,8 +178,8 @@ export abstract class RestoreEndpoint<
    * Override to perform checks or side effects before restoring.
    */
   async before(
-    lookupValue: string,
-    tx?: unknown
+    _lookupValue: string,
+    _tx?: unknown
   ): Promise<void> {
     // Override in subclass
   }
@@ -190,7 +190,7 @@ export abstract class RestoreEndpoint<
    */
   async after(
     restoredItem: ModelObject<M['model']>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<ModelObject<M['model']>> {
     return restoredItem;
   }

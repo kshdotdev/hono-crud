@@ -4,9 +4,7 @@ import { OpenAPIRoute } from '../core/route';
 import type {
   MetaInput,
   OpenAPIRouteSchema,
-  VersionHistoryEntry,
   NormalizedVersioningConfig,
-  AuditFieldChange,
 } from '../core/types';
 import { getVersioningConfig } from '../core/types';
 import { ApiException, NotFoundException } from '../core/exceptions';
@@ -186,7 +184,7 @@ export abstract class VersionHistoryEndpoint<
    * Override in ORM-specific subclasses.
    */
   protected async recordExists(
-    lookupValue: string
+    _lookupValue: string
   ): Promise<boolean> {
     // Default implementation - override in adapter
     return true;

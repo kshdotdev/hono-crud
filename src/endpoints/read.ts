@@ -5,7 +5,7 @@ import { OpenAPIRoute } from '../core/route';
 import type { MetaInput, OpenAPIRouteSchema, NormalizedSoftDeleteConfig, NormalizedMultiTenantConfig, IncludeOptions } from '../core/types';
 import { getSoftDeleteConfig, applyComputedFields, getMultiTenantConfig, extractTenantId } from '../core/types';
 import { NotFoundException } from '../core/exceptions';
-import { applyFieldSelection, type SingleEndpointConfig, type ModelObject, type FieldSelection } from './types';
+import { applyFieldSelection, type ModelObject, type FieldSelection } from './types';
 import { generateETag, matchesIfNoneMatch } from '../core/etag';
 
 /**

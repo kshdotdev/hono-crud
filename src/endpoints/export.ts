@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Env } from 'hono';
 import { stream } from 'hono/streaming';
 import { ListEndpoint } from './list';
-import type { MetaInput, OpenAPIRouteSchema, ListFilters, PaginatedResult } from '../core/types';
+import type { MetaInput, OpenAPIRouteSchema, ListFilters } from '../core/types';
 import type { ModelObject } from './types';
 import {
   generateCsv,

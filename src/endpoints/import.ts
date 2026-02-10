@@ -1,12 +1,12 @@
-import { z, type ZodObject, type ZodRawShape, type ZodError } from 'zod';
+import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { OpenAPIRoute } from '../core/route';
 import type { MetaInput, OpenAPIRouteSchema, NormalizedAuditConfig } from '../core/types';
 import { getAuditConfig, getSoftDeleteConfig, type NormalizedSoftDeleteConfig } from '../core/types';
 import type { ModelObject } from './types';
 import { createAuditLogger, type AuditLogger } from '../core/audit';
-import { parseCsv, validateCsvHeaders, type CsvParseOptions, type CsvParseResult } from '../utils/csv';
-import { InputValidationException, ConflictException } from '../core/exceptions';
+import { parseCsv, validateCsvHeaders, type CsvParseOptions } from '../utils/csv';
+import { InputValidationException } from '../core/exceptions';
 
 // ============================================================================
 // Import Types
@@ -450,7 +450,7 @@ export abstract class ImportEndpoint<
    */
   protected validateRow(
     data: Partial<ModelObject<M['model']>>,
-    rowNumber: number
+    _rowNumber: number
   ): { valid: boolean; errors?: Array<{ path: string; message: string }> } {
     const schema = this._meta.fields || this._meta.model.schema;
 
@@ -511,9 +511,9 @@ export abstract class ImportEndpoint<
    */
   async before(
     data: Partial<ModelObject<M['model']>>,
-    rowNumber: number,
-    mode: ImportMode,
-    tx?: unknown
+    _rowNumber: number,
+    _mode: ImportMode,
+    _tx?: unknown
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -524,9 +524,9 @@ export abstract class ImportEndpoint<
    */
   async after(
     result: ImportRowResult<ModelObject<M['model']>>,
-    rowNumber: number,
-    mode: ImportMode,
-    tx?: unknown
+    _rowNumber: number,
+    _mode: ImportMode,
+    _tx?: unknown
   ): Promise<ImportRowResult<ModelObject<M['model']>>> {
     return result;
   }
