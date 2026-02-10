@@ -19,15 +19,11 @@
  *   createdAt: timestamp('created_at').defaultNow(),
  * });
  *
- * const { select: UserSchema, insert: CreateUserSchema } = createDrizzleSchemas(users);
+ * const { select: UserSchema, insert: CreateUserSchema } = await createDrizzleSchemas(users);
  * ```
  */
 
 import { z } from 'zod';
-import { createRequire } from 'module';
-
-// Create require function for ESM compatibility
-const require = createRequire(import.meta.url);
 
 /**
  * Duck-typed interface for Drizzle tables.
@@ -62,33 +58,10 @@ let _loadAttempted = false;
 let _loadError: Error | null = null;
 
 /**
- * Tries to load drizzle-zod synchronously.
- * Returns the module if available, null otherwise.
+ * Loads drizzle-zod using dynamic import (edge-compatible).
+ * Returns the cached module if already loaded.
  */
-function tryLoadDrizzleZod(): typeof _drizzleZod {
-  if (_loadAttempted) {
-    if (_loadError) throw _loadError;
-    return _drizzleZod;
-  }
-
-  _loadAttempted = true;
-
-  try {
-    // Use createRequire for ESM compatibility
-    _drizzleZod = require('drizzle-zod');
-    return _drizzleZod;
-  } catch {
-    _loadError = new Error(
-      'drizzle-zod is not installed. Please install it: npm install drizzle-zod'
-    );
-    throw _loadError;
-  }
-}
-
-/**
- * Async version that uses dynamic import.
- */
-async function loadDrizzleZodAsync(): Promise<typeof _drizzleZod> {
+async function ensureDrizzleZod(): Promise<typeof _drizzleZod> {
   if (_loadAttempted) {
     if (_loadError) throw _loadError;
     return _drizzleZod;
@@ -113,22 +86,22 @@ async function loadDrizzleZodAsync(): Promise<typeof _drizzleZod> {
  *
  * @param table - Drizzle table definition
  * @param refine - Optional refinements for specific columns
- * @returns Zod schema for the table's select type
+ * @returns Promise resolving to a Zod schema for the table's select type
  *
  * @example
  * ```ts
  * import { users } from './schema';
  * import { createSelectSchema } from 'hono-crud/adapters/drizzle';
  *
- * const UserSchema = createSelectSchema(users);
+ * const UserSchema = await createSelectSchema(users);
  * type User = z.infer<typeof UserSchema>;
  * ```
  */
-export function createSelectSchema<T extends DrizzleTable>(
+export async function createSelectSchema<T extends DrizzleTable>(
   table: T,
   refine?: Record<string, z.ZodTypeAny>
-): z.ZodObject<Record<string, z.ZodTypeAny>> {
-  const drizzleZod = tryLoadDrizzleZod();
+): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
+  const drizzleZod = await ensureDrizzleZod();
   return drizzleZod!.createSelectSchema(table, refine);
 }
 
@@ -138,22 +111,22 @@ export function createSelectSchema<T extends DrizzleTable>(
  *
  * @param table - Drizzle table definition
  * @param refine - Optional refinements for specific columns
- * @returns Zod schema for the table's insert type
+ * @returns Promise resolving to a Zod schema for the table's insert type
  *
  * @example
  * ```ts
  * import { users } from './schema';
  * import { createInsertSchema } from 'hono-crud/adapters/drizzle';
  *
- * const CreateUserSchema = createInsertSchema(users);
+ * const CreateUserSchema = await createInsertSchema(users);
  * type CreateUser = z.infer<typeof CreateUserSchema>;
  * ```
  */
-export function createInsertSchema<T extends DrizzleTable>(
+export async function createInsertSchema<T extends DrizzleTable>(
   table: T,
   refine?: Record<string, z.ZodTypeAny>
-): z.ZodObject<Record<string, z.ZodTypeAny>> {
-  const drizzleZod = tryLoadDrizzleZod();
+): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
+  const drizzleZod = await ensureDrizzleZod();
   return drizzleZod!.createInsertSchema(table, refine);
 }
 
@@ -166,22 +139,22 @@ export function createInsertSchema<T extends DrizzleTable>(
  *
  * @param table - Drizzle table definition
  * @param refine - Optional refinements for specific columns
- * @returns Zod schema for the table's update type
+ * @returns Promise resolving to a Zod schema for the table's update type
  *
  * @example
  * ```ts
  * import { users } from './schema';
  * import { createUpdateSchema } from 'hono-crud/adapters/drizzle';
  *
- * const UpdateUserSchema = createUpdateSchema(users);
+ * const UpdateUserSchema = await createUpdateSchema(users);
  * type UpdateUser = z.infer<typeof UpdateUserSchema>;
  * ```
  */
-export function createUpdateSchema<T extends DrizzleTable>(
+export async function createUpdateSchema<T extends DrizzleTable>(
   table: T,
   refine?: Record<string, z.ZodTypeAny>
-): z.ZodObject<Record<string, z.ZodTypeAny>> {
-  const drizzleZod = tryLoadDrizzleZod();
+): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
+  const drizzleZod = await ensureDrizzleZod();
 
   if (drizzleZod!.createUpdateSchema) {
     return drizzleZod!.createUpdateSchema(table, refine);
@@ -221,7 +194,7 @@ export interface DrizzleSchemas {
  * @param options.selectRefine - Refinements for select schema
  * @param options.updateRefine - Refinements for update schema
  * @param options.coerceDates - Whether to coerce date strings to Date objects (default: true)
- * @returns Object containing select, insert, and update schemas
+ * @returns Promise resolving to object containing select, insert, and update schemas
  *
  * @example
  * ```ts
@@ -236,7 +209,7 @@ export interface DrizzleSchemas {
  * });
  *
  * // Generate schemas from table
- * const schemas = createDrizzleSchemas(users, {
+ * const schemas = await createDrizzleSchemas(users, {
  *   insertRefine: {
  *     email: z.string().email(), // Add email validation
  *   },
@@ -251,7 +224,7 @@ export interface DrizzleSchemas {
  * });
  * ```
  */
-export function createDrizzleSchemas<T extends DrizzleTable>(
+export async function createDrizzleSchemas<T extends DrizzleTable>(
   table: T,
   options?: {
     insertRefine?: Record<string, z.ZodTypeAny>;
@@ -260,8 +233,8 @@ export function createDrizzleSchemas<T extends DrizzleTable>(
     /** Whether to coerce date strings to Date objects. Default: true */
     coerceDates?: boolean;
   }
-): DrizzleSchemas {
-  const drizzleZod = tryLoadDrizzleZod();
+): Promise<DrizzleSchemas> {
+  const drizzleZod = await ensureDrizzleZod();
   const shouldCoerceDates = options?.coerceDates !== false;
 
   // Detect date columns for coercion
@@ -288,36 +261,12 @@ export function createDrizzleSchemas<T extends DrizzleTable>(
 }
 
 /**
- * Async version of createDrizzleSchemas that handles lazy loading.
- * Use this if you're not sure drizzle-zod is already loaded.
- *
- * @param table - Drizzle table definition
- * @param options - Optional configuration
- * @returns Promise resolving to schemas object
- */
-export async function createDrizzleSchemasAsync<T extends DrizzleTable>(
-  table: T,
-  options?: {
-    insertRefine?: Record<string, z.ZodTypeAny>;
-    selectRefine?: Record<string, z.ZodTypeAny>;
-    updateRefine?: Record<string, z.ZodTypeAny>;
-  }
-): Promise<DrizzleSchemas> {
-  await loadDrizzleZodAsync();
-  return createDrizzleSchemas(table, options);
-}
-
-/**
- * Checks if drizzle-zod is available.
- * @returns true if drizzle-zod can be imported
+ * Checks if drizzle-zod is available (from cache only).
+ * Returns true only if drizzle-zod has been successfully loaded before.
+ * @returns true if drizzle-zod has been loaded
  */
 export function isDrizzleZodAvailable(): boolean {
-  try {
-    tryLoadDrizzleZod();
-    return true;
-  } catch {
-    return false;
-  }
+  return _drizzleZod !== null;
 }
 
 /**

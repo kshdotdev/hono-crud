@@ -6,7 +6,6 @@ import {
   createInsertSchema,
   createUpdateSchema,
   createDrizzleSchemas,
-  createDrizzleSchemasAsync,
   isDrizzleZodAvailable,
 } from '../src/adapters/drizzle/schema-utils.js';
 
@@ -37,12 +36,15 @@ const posts = pgTable('posts', {
 // ============================================================================
 
 describe('isDrizzleZodAvailable', () => {
-  it('should return true when drizzle-zod is installed', () => {
+  it('should return true after drizzle-zod has been loaded', async () => {
+    // Force a load first
+    await createSelectSchema(users);
     const result = isDrizzleZodAvailable();
     expect(result).toBe(true);
   });
 
-  it('should be consistent on multiple calls', () => {
+  it('should be consistent on multiple calls', async () => {
+    await createSelectSchema(users);
     const result1 = isDrizzleZodAvailable();
     const result2 = isDrizzleZodAvailable();
     const result3 = isDrizzleZodAvailable();
@@ -56,14 +58,14 @@ describe('isDrizzleZodAvailable', () => {
 // ============================================================================
 
 describe('createSelectSchema', () => {
-  it('should create a Zod schema from a Drizzle table', () => {
-    const schema = createSelectSchema(users);
+  it('should create a Zod schema from a Drizzle table', async () => {
+    const schema = await createSelectSchema(users);
     expect(schema).toBeDefined();
     expect(typeof schema.parse).toBe('function');
   });
 
-  it('should validate correct data', () => {
-    const schema = createSelectSchema(users);
+  it('should validate correct data', async () => {
+    const schema = await createSelectSchema(users);
     const validUser = {
       id: crypto.randomUUID(),
       name: 'Alice',
@@ -78,8 +80,8 @@ describe('createSelectSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should reject invalid data', () => {
-    const schema = createSelectSchema(users);
+  it('should reject invalid data', async () => {
+    const schema = await createSelectSchema(users);
     const invalidUser = {
       id: 'not-a-uuid',
       name: 123, // Should be string
@@ -90,8 +92,8 @@ describe('createSelectSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('should handle nullable fields', () => {
-    const schema = createSelectSchema(users);
+  it('should handle nullable fields', async () => {
+    const schema = await createSelectSchema(users);
     const userWithNulls = {
       id: crypto.randomUUID(),
       name: 'Bob',
@@ -106,8 +108,8 @@ describe('createSelectSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should work with custom refinements', () => {
-    const schema = createSelectSchema(users, {
+  it('should work with custom refinements', async () => {
+    const schema = await createSelectSchema(users, {
       email: z.string().email().endsWith('@company.com'),
     });
 
@@ -139,14 +141,14 @@ describe('createSelectSchema', () => {
 // ============================================================================
 
 describe('createInsertSchema', () => {
-  it('should create a Zod schema for inserts', () => {
-    const schema = createInsertSchema(users);
+  it('should create a Zod schema for inserts', async () => {
+    const schema = await createInsertSchema(users);
     expect(schema).toBeDefined();
     expect(typeof schema.parse).toBe('function');
   });
 
-  it('should make fields with defaults optional', () => {
-    const schema = createInsertSchema(users);
+  it('should make fields with defaults optional', async () => {
+    const schema = await createInsertSchema(users);
 
     // Insert without id (has defaultRandom), createdAt (has defaultNow), isActive (has default)
     const insertData = {
@@ -158,8 +160,8 @@ describe('createInsertSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should require non-nullable fields without defaults', () => {
-    const schema = createInsertSchema(posts);
+  it('should require non-nullable fields without defaults', async () => {
+    const schema = await createInsertSchema(posts);
 
     // Missing required fields
     const incompleteData = {
@@ -170,8 +172,8 @@ describe('createInsertSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('should validate insert data correctly', () => {
-    const schema = createInsertSchema(posts);
+  it('should validate insert data correctly', async () => {
+    const schema = await createInsertSchema(posts);
 
     const validPost = {
       title: 'My Post',
@@ -183,8 +185,8 @@ describe('createInsertSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should work with custom refinements', () => {
-    const schema = createInsertSchema(users, {
+  it('should work with custom refinements', async () => {
+    const schema = await createInsertSchema(users, {
       name: z.string().min(2).max(50),
       age: z.number().min(0).max(150).optional(),
     });
@@ -213,14 +215,14 @@ describe('createInsertSchema', () => {
 // ============================================================================
 
 describe('createUpdateSchema', () => {
-  it('should create a Zod schema for updates', () => {
-    const schema = createUpdateSchema(users);
+  it('should create a Zod schema for updates', async () => {
+    const schema = await createUpdateSchema(users);
     expect(schema).toBeDefined();
     expect(typeof schema.parse).toBe('function');
   });
 
-  it('should make all fields optional for updates', () => {
-    const schema = createUpdateSchema(users);
+  it('should make all fields optional for updates', async () => {
+    const schema = await createUpdateSchema(users);
 
     // Update with just one field
     const updateData = {
@@ -231,15 +233,15 @@ describe('createUpdateSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should accept empty object for updates', () => {
-    const schema = createUpdateSchema(users);
+  it('should accept empty object for updates', async () => {
+    const schema = await createUpdateSchema(users);
 
     const result = schema.safeParse({});
     expect(result.success).toBe(true);
   });
 
-  it('should still validate field types', () => {
-    const schema = createUpdateSchema(users);
+  it('should still validate field types', async () => {
+    const schema = await createUpdateSchema(users);
 
     const invalidUpdate = {
       age: 'not a number',
@@ -255,16 +257,16 @@ describe('createUpdateSchema', () => {
 // ============================================================================
 
 describe('createDrizzleSchemas', () => {
-  it('should return all three schemas', () => {
-    const schemas = createDrizzleSchemas(users);
+  it('should return all three schemas', async () => {
+    const schemas = await createDrizzleSchemas(users);
 
     expect(schemas.select).toBeDefined();
     expect(schemas.insert).toBeDefined();
     expect(schemas.update).toBeDefined();
   });
 
-  it('should return schemas with correct behavior', () => {
-    const schemas = createDrizzleSchemas(users);
+  it('should return schemas with correct behavior', async () => {
+    const schemas = await createDrizzleSchemas(users);
 
     // Select schema requires all fields
     const selectResult = schemas.select.safeParse({
@@ -292,8 +294,8 @@ describe('createDrizzleSchemas', () => {
     expect(updateResult.success).toBe(true);
   });
 
-  it('should accept refinement options', () => {
-    const schemas = createDrizzleSchemas(users, {
+  it('should accept refinement options', async () => {
+    const schemas = await createDrizzleSchemas(users, {
       insertRefine: {
         email: z.string().email(),
       },
@@ -307,8 +309,8 @@ describe('createDrizzleSchemas', () => {
     expect(schemas.update).toBeDefined();
   });
 
-  it('should apply insertRefine to insert schema', () => {
-    const schemas = createDrizzleSchemas(users, {
+  it('should apply insertRefine to insert schema', async () => {
+    const schemas = await createDrizzleSchemas(users, {
       insertRefine: {
         name: z.string().min(5, 'Name must be at least 5 characters'),
       },
@@ -330,43 +332,14 @@ describe('createDrizzleSchemas', () => {
     const result2 = schemas.insert.safeParse(longName);
     expect(result2.success).toBe(true);
   });
-});
 
-// ============================================================================
-// createDrizzleSchemasAsync() Tests
-// ============================================================================
-
-describe('createDrizzleSchemasAsync', () => {
   it('should return a promise', () => {
-    const result = createDrizzleSchemasAsync(users);
+    const result = createDrizzleSchemas(users);
     expect(result).toBeInstanceOf(Promise);
   });
 
-  it('should resolve to schemas object', async () => {
-    const schemas = await createDrizzleSchemasAsync(users);
-
-    expect(schemas.select).toBeDefined();
-    expect(schemas.insert).toBeDefined();
-    expect(schemas.update).toBeDefined();
-  });
-
-  it('should work the same as sync version', async () => {
-    const asyncSchemas = await createDrizzleSchemasAsync(users);
-    const syncSchemas = createDrizzleSchemas(users);
-
-    const testData = {
-      name: 'Test',
-      email: 'test@example.com',
-    };
-
-    const asyncResult = asyncSchemas.insert.safeParse(testData);
-    const syncResult = syncSchemas.insert.safeParse(testData);
-
-    expect(asyncResult.success).toBe(syncResult.success);
-  });
-
-  it('should accept refinement options', async () => {
-    const schemas = await createDrizzleSchemasAsync(users, {
+  it('should accept refinement options (async)', async () => {
+    const schemas = await createDrizzleSchemas(users, {
       insertRefine: {
         age: z.number().positive().optional(),
       },
@@ -381,8 +354,8 @@ describe('createDrizzleSchemasAsync', () => {
 // ============================================================================
 
 describe('Type inference', () => {
-  it('should allow type inference from schemas', () => {
-    const schemas = createDrizzleSchemas(users);
+  it('should allow type inference from schemas', async () => {
+    const schemas = await createDrizzleSchemas(users);
 
     // These would fail TypeScript compilation if types weren't correct
     type SelectUser = z.infer<typeof schemas.select>;
@@ -416,7 +389,6 @@ describe('Drizzle adapter exports', () => {
     expect(exports.createInsertSchema).toBeDefined();
     expect(exports.createUpdateSchema).toBeDefined();
     expect(exports.createDrizzleSchemas).toBeDefined();
-    expect(exports.createDrizzleSchemasAsync).toBeDefined();
     expect(exports.isDrizzleZodAvailable).toBeDefined();
   });
 
@@ -433,19 +405,19 @@ describe('Drizzle adapter exports', () => {
 // ============================================================================
 
 describe('Edge cases', () => {
-  it('should handle tables with only required fields', () => {
+  it('should handle tables with only required fields', async () => {
     const simpleTable = pgTable('simple', {
       id: uuid('id').primaryKey(),
       value: text('value').notNull(),
     });
 
-    const schemas = createDrizzleSchemas(simpleTable);
+    const schemas = await createDrizzleSchemas(simpleTable);
     expect(schemas.select).toBeDefined();
     expect(schemas.insert).toBeDefined();
     expect(schemas.update).toBeDefined();
   });
 
-  it('should handle tables with all optional fields', () => {
+  it('should handle tables with all optional fields', async () => {
     const optionalTable = pgTable('optional', {
       id: uuid('id').primaryKey().defaultRandom(),
       a: text('a'),
@@ -453,16 +425,16 @@ describe('Edge cases', () => {
       c: boolean('c').default(false),
     });
 
-    const schemas = createDrizzleSchemas(optionalTable);
+    const schemas = await createDrizzleSchemas(optionalTable);
 
     // All fields should be optional for insert
     const result = schemas.insert.safeParse({});
     expect(result.success).toBe(true);
   });
 
-  it('should handle multiple tables independently', () => {
-    const userSchemas = createDrizzleSchemas(users);
-    const postSchemas = createDrizzleSchemas(posts);
+  it('should handle multiple tables independently', async () => {
+    const userSchemas = await createDrizzleSchemas(users);
+    const postSchemas = await createDrizzleSchemas(posts);
 
     // Schemas should be independent
     expect(userSchemas.select).not.toBe(postSchemas.select);
