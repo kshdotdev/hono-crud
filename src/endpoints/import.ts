@@ -139,6 +139,9 @@ export abstract class ImportEndpoint<
   /** CSV parsing options. */
   protected csvOptions: Partial<CsvParseOptions> = {};
 
+  /** Maximum body size in bytes for import requests (default: 10MB). */
+  protected maxBodySize: number = 10 * 1024 * 1024;
+
   /** Fields that are optional during import (won't cause validation errors if missing). */
   protected optionalImportFields: string[] = [];
 
@@ -358,6 +361,9 @@ export abstract class ImportEndpoint<
     // Handle CSV - body is not consumed by OpenAPI validator for text/csv
     if (contentType.includes('text/csv')) {
       const csvContent = await ctx.req.text();
+      if (csvContent.length > this.maxBodySize) {
+        throw new InputValidationException(`Request body exceeds maximum size of ${this.maxBodySize} bytes`);
+      }
       return this.parseCsvData(csvContent);
     }
 
@@ -371,10 +377,18 @@ export abstract class ImportEndpoint<
       }
 
       const content = await file.text();
+      if (content.length > this.maxBodySize) {
+        throw new InputValidationException(`Uploaded file exceeds maximum size of ${this.maxBodySize} bytes`);
+      }
       const filename = file.name.toLowerCase();
 
       if (filename.endsWith('.json')) {
-        const body = JSON.parse(content) as { items?: unknown[] } | unknown[];
+        let body: { items?: unknown[] } | unknown[];
+        try {
+          body = JSON.parse(content) as { items?: unknown[] } | unknown[];
+        } catch {
+          throw new InputValidationException('Invalid JSON content in uploaded file');
+        }
         const items = Array.isArray(body) ? body : body.items;
         if (!items || !Array.isArray(items)) {
           throw new InputValidationException('JSON file must contain an array or an object with "items" array');
@@ -392,7 +406,12 @@ export abstract class ImportEndpoint<
       // Try to detect format from content
       const trimmed = content.trim();
       if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-        const body = JSON.parse(content) as { items?: unknown[] } | unknown[];
+        let body: { items?: unknown[] } | unknown[];
+        try {
+          body = JSON.parse(content) as { items?: unknown[] } | unknown[];
+        } catch {
+          throw new InputValidationException('Invalid JSON content in uploaded file');
+        }
         const items = Array.isArray(body) ? body : body.items;
         if (!items || !Array.isArray(items)) {
           throw new InputValidationException('JSON file must contain an array or an object with "items" array');

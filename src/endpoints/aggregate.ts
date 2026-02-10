@@ -12,6 +12,7 @@ import type {
   NormalizedSoftDeleteConfig,
 } from '../core/types';
 import { getSoftDeleteConfig, parseAggregateQuery } from '../core/types';
+import { InputValidationException } from '../core/exceptions';
 
 /**
  * Default aggregate configuration.
@@ -51,6 +52,12 @@ export abstract class AggregateEndpoint<
    * Override to restrict which fields can be aggregated.
    */
   protected aggregateConfig: AggregateConfig = {};
+
+  /**
+   * Maximum number of GROUP BY fields allowed per query.
+   * Prevents cardinality explosion from too many grouping dimensions.
+   */
+  protected maxGroupByFields: number = 5;
 
   /**
    * Fields that can be used for filtering.
@@ -204,6 +211,11 @@ export abstract class AggregateEndpoint<
 
     // Validate groupBy fields
     if (options.groupBy) {
+      if (options.groupBy.length > this.maxGroupByFields) {
+        throw new InputValidationException(
+          `Maximum ${this.maxGroupByFields} GROUP BY fields allowed`
+        );
+      }
       for (const field of options.groupBy) {
         if (config.groupByFields.length > 0 && !config.groupByFields.includes(field)) {
           throw new Error(`Field '${field}' is not allowed for GROUP BY`);

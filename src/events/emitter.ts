@@ -39,6 +39,12 @@ export class CrudEventEmitter {
   private tableListeners = new Map<string, Set<CrudEventListener>>();
   /** Listeners for all events on all tables */
   private globalListeners = new Set<CrudEventListener>();
+  /** Maximum listeners per event key. 0 = unlimited. */
+  private maxListeners: number;
+
+  constructor(options?: { maxListeners?: number }) {
+    this.maxListeners = options?.maxListeners ?? 100;
+  }
 
   /**
    * Subscribe to a specific event type on a specific table.
@@ -48,7 +54,12 @@ export class CrudEventEmitter {
     if (!this.listeners.has(key)) {
       this.listeners.set(key, new Set());
     }
-    this.listeners.get(key)!.add(listener);
+    const set = this.listeners.get(key)!;
+    if (this.maxListeners > 0 && set.size >= this.maxListeners) {
+      getLogger().warn(`Max listeners (${this.maxListeners}) reached for event "${key}". Listener not added.`);
+      return { unsubscribe: () => {} };
+    }
+    set.add(listener);
 
     return {
       unsubscribe: () => {
@@ -64,7 +75,12 @@ export class CrudEventEmitter {
     if (!this.tableListeners.has(table)) {
       this.tableListeners.set(table, new Set());
     }
-    this.tableListeners.get(table)!.add(listener);
+    const set = this.tableListeners.get(table)!;
+    if (this.maxListeners > 0 && set.size >= this.maxListeners) {
+      getLogger().warn(`Max listeners (${this.maxListeners}) reached for table "${table}". Listener not added.`);
+      return { unsubscribe: () => {} };
+    }
+    set.add(listener);
 
     return {
       unsubscribe: () => {
@@ -77,6 +93,10 @@ export class CrudEventEmitter {
    * Subscribe to all events on all tables.
    */
   onAny(listener: CrudEventListener): EventSubscription {
+    if (this.maxListeners > 0 && this.globalListeners.size >= this.maxListeners) {
+      getLogger().warn(`Max global listeners (${this.maxListeners}) reached. Listener not added.`);
+      return { unsubscribe: () => {} };
+    }
     this.globalListeners.add(listener);
 
     return {

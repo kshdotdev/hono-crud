@@ -165,7 +165,9 @@ export abstract class ExportEndpoint<
    * Gets the filename for the export.
    */
   protected getExportFilename(format: ExportFormat): string {
-    const baseName = this.exportFilename || this._meta.model.tableName;
+    const rawName = this.exportFilename || this._meta.model.tableName;
+    // Sanitize filename to prevent header injection
+    const baseName = rawName.replace(/[^a-zA-Z0-9_-]/g, '_');
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     return `${baseName}-export-${timestamp}.${format}`;
   }
@@ -287,6 +289,11 @@ export abstract class ExportEndpoint<
    * Escapes a CSV field value for safe output.
    */
   private escapeCsvField(value: string): string {
+    // Sanitize CSV formula injection (OWASP recommendation)
+    const firstChar = value.charAt(0);
+    if (firstChar === '=' || firstChar === '+' || firstChar === '-' || firstChar === '@' || firstChar === '\t' || firstChar === '\r') {
+      return `"\t${value.replace(/"/g, '""')}"`;
+    }
     if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
       return `"${value.replace(/"/g, '""')}"`;
     }
@@ -349,13 +356,14 @@ export abstract class ExportEndpoint<
   protected async fetchAllForExport(
     filters: ListFilters
   ): Promise<ModelObject<M['model']>[]> {
-    // Override pagination to fetch all records up to the limit
+    // Override pagination to fetch all records up to the limit (hard cap at 100k)
+    const effectiveLimit = Math.min(this.maxExportRecords, 100_000);
     const exportFilters: ListFilters = {
       ...filters,
       options: {
         ...filters.options,
         page: 1,
-        per_page: this.maxExportRecords,
+        per_page: effectiveLimit,
       },
     };
 

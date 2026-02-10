@@ -12,13 +12,13 @@ import { getContextVar } from '../core/context-helpers';
  *
  * @param ctx - Hono context
  * @param ipHeader - Header name for proxy IP (default: 'X-Forwarded-For')
- * @param trustProxy - Whether to trust proxy headers (default: true)
+ * @param trustProxy - Whether to trust proxy headers (default: false)
  * @returns The client IP address or 'unknown'
  */
 export function extractIP<E extends Env>(
   ctx: Context<E>,
   ipHeader: string = 'X-Forwarded-For',
-  trustProxy: boolean = true
+  trustProxy: boolean = false
 ): string {
   // Check proxy header first if trusted
   if (trustProxy) {

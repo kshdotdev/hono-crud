@@ -131,6 +131,14 @@ export function escapeCsvValue(
   // Convert to string
   const str = String(value);
 
+  // Sanitize CSV formula injection (OWASP recommendation)
+  // Values starting with formula triggers are prefixed with a tab character
+  const firstChar = str.charAt(0);
+  if (firstChar === '=' || firstChar === '+' || firstChar === '-' || firstChar === '@' || firstChar === '\t' || firstChar === '\r') {
+    const escaped = str.replace(/"/g, '""');
+    return `"\t${escaped}"`;
+  }
+
   // Check if quoting is needed (contains delimiter, quotes, or newlines)
   const needsQuoting =
     str.includes(delimiter) ||

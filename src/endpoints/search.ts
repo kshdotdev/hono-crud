@@ -91,6 +91,11 @@ export abstract class SearchEndpoint<
   protected minQueryLength: number = 2;
 
   /**
+   * Maximum query length allowed to prevent CPU exhaustion from long search strings.
+   */
+  protected maxQueryLength: number = 500;
+
+  /**
    * HTML tag used to wrap highlighted matches.
    */
   protected highlightTag: string = 'mark';
@@ -220,7 +225,7 @@ export abstract class SearchEndpoint<
     // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4)
     const shape: Record<string, z.ZodTypeAny> = {
       // Search parameters
-      q: z.string().min(this.minQueryLength).describe('Search query'),
+      q: z.string().min(this.minQueryLength).max(this.maxQueryLength).describe('Search query'),
       fields: z.string().optional().describe(
         `Comma-separated fields to search. Available: ${Object.keys(this.getSearchableFields()).join(', ')}`
       ),

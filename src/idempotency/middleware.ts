@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 import type { IdempotencyConfig, IdempotencyEntry, IdempotencyStorage } from './types';
 import { MemoryIdempotencyStorage } from './storage/memory';
 import { createRegistryWithDefault } from '../storage/registry';
+import { getContextVar } from '../core/context-helpers';
 
 // ============================================================================
 // Global Storage
@@ -105,8 +106,12 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
       return next();
     }
 
+    // Scope the key to the authenticated user to prevent cross-user replay
+    const userId = getContextVar<string>(ctx, 'userId') || 'anonymous';
+    const scopedKey = `${userId}:${idempotencyKey}`;
+
     // Check for existing response
-    const existing = await storage.get(idempotencyKey);
+    const existing = await storage.get(scopedKey);
     if (existing) {
       // Replay the cached response
       return new Response(existing.body, {
@@ -120,7 +125,7 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
     }
 
     // Check for in-flight request with same key
-    const locked = await storage.isLocked(idempotencyKey);
+    const locked = await storage.isLocked(scopedKey);
     if (locked) {
       return ctx.json(
         {
@@ -135,7 +140,7 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
     }
 
     // Acquire lock
-    const acquired = await storage.lock(idempotencyKey, lockTimeoutMs);
+    const acquired = await storage.lock(scopedKey, lockTimeoutMs);
     if (!acquired) {
       return ctx.json(
         {
@@ -162,17 +167,17 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
       });
 
       const entry: IdempotencyEntry = {
-        key: idempotencyKey,
+        key: scopedKey,
         statusCode: response.status,
         body,
         headers,
         createdAt: Date.now(),
       };
 
-      await storage.set(idempotencyKey, entry, ttlMs);
+      await storage.set(scopedKey, entry, ttlMs);
     } finally {
       // Release lock
-      await storage.unlock(idempotencyKey);
+      await storage.unlock(scopedKey);
     }
   };
 }

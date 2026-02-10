@@ -190,7 +190,7 @@ export function createLoggingMiddleware<E extends Env = Env>(
   const includeQuery = config.includeQuery ?? true;
   const includeClientIp = config.includeClientIp ?? true;
   const ipHeader = config.ipHeader ?? 'X-Forwarded-For';
-  const trustProxy = config.trustProxy ?? true;
+  const trustProxy = config.trustProxy ?? false;
   const minResponseTimeMs = config.minResponseTimeMs ?? 0;
   const generateRequestId = config.generateRequestId ?? defaultGenerateRequestId;
 
