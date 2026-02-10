@@ -168,7 +168,7 @@ class ProductList extends DrizzleListEndpoint {
 
   schema = { tags: ['Products'], summary: 'List products' };
   searchFields = ['name', 'sku'];
-  orderByFields = ['name', 'price', 'stock'];
+  sortFields = ['name', 'price', 'stock'];
 }
 
 // Batch upsert inventory by SKU + warehouseId (composite key)
@@ -200,7 +200,7 @@ class InventoryList extends DrizzleListEndpoint {
 
   schema = { tags: ['Inventory'], summary: 'List inventory' };
   filterFields = ['sku', 'warehouseId'];
-  orderByFields = ['sku', 'warehouseId', 'quantity'];
+  sortFields = ['sku', 'warehouseId', 'quantity'];
 }
 
 // ============================================================================

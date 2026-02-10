@@ -76,9 +76,8 @@ class UserList extends DrizzleListEndpoint {
   searchFields = ['name', 'email'];
 
   // Configure sorting
-  orderByFields = ['name', 'createdAt', 'age'];
-  defaultOrderBy = 'createdAt';
-  defaultOrderDirection: 'asc' | 'desc' = 'desc';
+  sortFields = ['name', 'createdAt', 'age'];
+  defaultSort = { field: 'createdAt', order: 'desc' as const };
 
   // Pagination defaults
   defaultPerPage = 20;

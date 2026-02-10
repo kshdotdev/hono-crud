@@ -132,9 +132,8 @@ class UserList extends PrismaListEndpoint {
   };
 
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'age', 'createdAt'];
-  defaultOrderBy = 'createdAt';
-  defaultOrderDirection: 'asc' | 'desc' = 'desc';
+  sortFields = ['name', 'age', 'createdAt'];
+  defaultSort = { field: 'createdAt', order: 'desc' as const };
 
   allowedIncludes = ['posts', 'profile', 'comments'];
 }
@@ -213,7 +212,7 @@ class PostList extends PrismaListEndpoint {
   schema = { tags: ['Posts'], summary: 'List posts' };
   filterFields = ['status'];
   searchFields = ['title', 'content'];
-  orderByFields = ['title', 'createdAt'];
+  sortFields = ['title', 'createdAt'];
   allowedIncludes = ['author', 'comments'];
 }
 
@@ -312,8 +311,8 @@ class CategoryList extends PrismaListEndpoint {
   filterConfig = {
     sortOrder: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'] as const,
   };
-  orderByFields = ['name', 'sortOrder'];
-  defaultOrderBy = 'sortOrder';
+  sortFields = ['name', 'sortOrder'];
+  defaultSort = { field: 'sortOrder', order: 'asc' as const };
 }
 
 class CategoryUpsert extends PrismaUpsertEndpoint {

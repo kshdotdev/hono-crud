@@ -75,7 +75,7 @@ Query parameters:
 
   filterFields = ['role', 'status'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'createdAt'];
+  sortFields = ['name', 'createdAt'];
 }
 
 class UserRead extends PrismaReadEndpoint {

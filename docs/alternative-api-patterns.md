@@ -69,8 +69,7 @@ class UserList extends MemoryListEndpoint {
   schema = { tags: ['Users'], summary: 'List users' };
   filterFields = ['role', 'status'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'createdAt'];
-  defaultOrderDirection = 'desc';
+  sortFields = ['name', 'createdAt'];
 }
 
 registerCrud(app, '/users', {
@@ -135,8 +134,7 @@ const UserList = createList({
   schema: { tags: ['Users'], summary: 'List users' },
   filterFields: ['role', 'status'],
   searchFields: ['name', 'email'],
-  orderByFields: ['name', 'createdAt'],
-  defaultOrderDirection: 'desc',
+  sortFields: ['name', 'createdAt'],
   defaultPerPage: 20,
   maxPerPage: 100,
 }, MemoryListEndpoint);
@@ -193,9 +191,8 @@ registerCrud(app, '/users', {
 | `filterConfig` | `object` | Advanced filter operators per field |
 | `searchFields` | `string[]` | Fields available for search |
 | `searchFieldName` | `string` | Search query parameter name (default: 'search') |
-| `orderByFields` | `string[]` | Fields available for sorting |
-| `defaultOrderBy` | `string` | Default sort field |
-| `defaultOrderDirection` | `'asc' \| 'desc'` | Default sort direction |
+| `sortFields` | `string[]` | Fields available for sorting (use with `?sort=field&order=asc\|desc`) |
+| `defaultSort` | `{ field: string, order: 'asc' \| 'desc' }` | Default sort configuration |
 | `defaultPerPage` | `number` | Default page size (default: 20) |
 | `maxPerPage` | `number` | Maximum page size (default: 100) |
 | `allowedIncludes` | `string[]` | Allowed relation names |

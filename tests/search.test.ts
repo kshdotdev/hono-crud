@@ -55,7 +55,7 @@ class ArticleSearch extends MemorySearchEndpoint {
     views: ['gt', 'gte', 'lt', 'lte', 'eq'] as const,
   };
 
-  protected orderByFields = ['title', 'views', 'author'];
+  protected sortFields = ['title', 'views', 'author'];
 }
 
 describe('Search Utilities', () => {

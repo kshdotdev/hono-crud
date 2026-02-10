@@ -151,7 +151,7 @@ List users with optional field selection.
   // Allow filtering and sorting
   filterFields = ['role'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'createdAt'];
+  sortFields = ['name', 'createdAt'];
 }
 
 /**

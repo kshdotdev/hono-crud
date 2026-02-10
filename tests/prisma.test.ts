@@ -333,7 +333,7 @@ class UserList extends PrismaListEndpoint {
   get prisma() { return mockPrisma; }
   filterFields = ['role'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'email'];
+  sortFields = ['name', 'email'];
 }
 
 class UserRestore extends PrismaRestoreEndpoint {
@@ -382,7 +382,7 @@ class PostCreate extends PrismaCreateEndpoint {
 class PostList extends PrismaListEndpoint {
   _meta = { model: PostModel };
   get prisma() { return mockPrisma; }
-  orderByFields = ['title', 'views'];
+  sortFields = ['title', 'views'];
 }
 
 class PostAggregate extends PrismaAggregateEndpoint {

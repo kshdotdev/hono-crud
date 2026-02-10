@@ -181,7 +181,7 @@ class UserList extends MemoryListEndpoint {
 
   filterFields = ['status', 'emailVerified'];
   searchFields = ['firstName', 'lastName', 'email'];
-  orderByFields = ['firstName', 'lastName', 'createdAt'];
+  sortFields = ['firstName', 'lastName', 'createdAt'];
 
   schema = {
     tags: ['Users'],

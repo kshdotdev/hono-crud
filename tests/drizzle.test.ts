@@ -139,7 +139,7 @@ class UserList extends DrizzleListEndpoint {
   db = db as unknown as DrizzleDatabase;
   filterFields = ['role'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'email'];
+  sortFields = ['name', 'email'];
   allowedIncludes = ['posts'];
 }
 
@@ -178,7 +178,7 @@ class PostRead extends DrizzleReadEndpoint {
 class PostList extends DrizzleListEndpoint {
   _meta = { model: PostModel };
   db = db as unknown as DrizzleDatabase;
-  orderByFields = ['title', 'views'];
+  sortFields = ['title', 'views'];
   allowedIncludes = ['author'];
 }
 

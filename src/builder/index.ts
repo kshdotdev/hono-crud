@@ -13,8 +13,8 @@
  *   .summary('List users')
  *   .filter('role', 'status')
  *   .search('name', 'email')
- *   .orderBy('name', 'createdAt')
- *   .defaultOrder('createdAt', 'desc')
+ *   .sortable('name', 'createdAt')
+ *   .defaultSort('createdAt', 'desc')
  *   .pagination(20, 100)
  *   .include('profile', 'posts')
  *   .build(MemoryListEndpoint);

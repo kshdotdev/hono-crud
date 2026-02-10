@@ -87,9 +87,8 @@ class UserList extends MemoryListEndpoint {
 
   filterFields = ['role'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'createdAt'];
-  defaultOrderBy = 'createdAt';
-  defaultOrderDirection: 'asc' | 'desc' = 'desc';
+  sortFields = ['name', 'createdAt'];
+  defaultSort = { field: 'createdAt', order: 'desc' as const };
 }
 
 class UserRead extends MemoryReadEndpoint {

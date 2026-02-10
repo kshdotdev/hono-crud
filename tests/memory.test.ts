@@ -44,7 +44,7 @@ class TestList extends MemoryListEndpoint<any, TestMeta> {
     age: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'],
   };
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'age'];
+  sortFields = ['name', 'age'];
 }
 
 class TestRead extends MemoryReadEndpoint<any, TestMeta> {
