@@ -32,9 +32,9 @@
  * ```
  */
 
-import type { Env } from 'hono';
 import type { MetaInput, HookMode } from '../core/types';
 import type { ModelObject } from '../endpoints/types';
+
 
 // Import memory adapters for the MemoryAdapters bundle
 import {
@@ -242,32 +242,22 @@ export interface EndpointsConfig<M extends MetaInput> {
  * Adapter bundle containing base classes for all CRUD operations.
  */
 export interface AdapterBundle {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  CreateEndpoint: abstract new () => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ListEndpoint: abstract new () => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ReadEndpoint: abstract new () => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  UpdateEndpoint: abstract new () => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DeleteEndpoint: abstract new () => any;
+  CreateEndpoint: abstract new () => unknown;
+  ListEndpoint: abstract new () => unknown;
+  ReadEndpoint: abstract new () => unknown;
+  UpdateEndpoint: abstract new () => unknown;
+  DeleteEndpoint: abstract new () => unknown;
 }
 
 /**
  * Generated endpoints object compatible with registerCrud.
  */
 export interface GeneratedEndpoints {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  create?: new () => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  list?: new () => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  read?: new () => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  update?: new () => any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  delete?: new () => any;
+  create?: new () => unknown;
+  list?: new () => unknown;
+  read?: new () => unknown;
+  update?: new () => unknown;
+  delete?: new () => unknown;
 }
 
 // ============================================================================
@@ -338,6 +328,7 @@ export function defineEndpoints<M extends MetaInput>(
     const createConfig = config.create;
     const BaseCreate = adapters.CreateEndpoint;
 
+    // @ts-expect-error - Dynamic class creation: BaseCreate is typed as abstract new () => unknown for flexibility
     result.create = class extends BaseCreate {
       _meta = config.meta;
       schema = createConfig.openapi || {};
@@ -366,6 +357,7 @@ export function defineEndpoints<M extends MetaInput>(
     const listConfig = config.list;
     const BaseList = adapters.ListEndpoint;
 
+    // @ts-expect-error - Dynamic class creation: BaseList is typed as abstract new () => unknown for flexibility
     result.list = class extends BaseList {
       _meta = config.meta;
       schema = listConfig.openapi || {};
@@ -407,6 +399,7 @@ export function defineEndpoints<M extends MetaInput>(
     const readConfig = config.read;
     const BaseRead = adapters.ReadEndpoint;
 
+    // @ts-expect-error - Dynamic class creation: BaseRead is typed as abstract new () => unknown for flexibility
     result.read = class extends BaseRead {
       _meta = config.meta;
       schema = readConfig.openapi || {};
@@ -440,6 +433,7 @@ export function defineEndpoints<M extends MetaInput>(
     const updateConfig = config.update;
     const BaseUpdate = adapters.UpdateEndpoint;
 
+    // @ts-expect-error - Dynamic class creation: BaseUpdate is typed as abstract new () => unknown for flexibility
     result.update = class extends BaseUpdate {
       _meta = config.meta;
       schema = updateConfig.openapi || {};
@@ -479,6 +473,7 @@ export function defineEndpoints<M extends MetaInput>(
     const deleteConfig = config.delete;
     const BaseDelete = adapters.DeleteEndpoint;
 
+    // @ts-expect-error - Dynamic class creation: BaseDelete is typed as abstract new () => unknown for flexibility
     result.delete = class extends BaseDelete {
       _meta = config.meta;
       schema = deleteConfig.openapi || {};

@@ -182,8 +182,8 @@ export abstract class BatchCreateEndpoint<
    */
   async before(
     data: Partial<ModelObject<M['model']>>,
-    index: number,
-    tx?: unknown
+    _index: number,
+    _tx?: unknown
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -194,8 +194,8 @@ export abstract class BatchCreateEndpoint<
    */
   async after(
     data: ModelObject<M['model']>,
-    index: number,
-    tx?: unknown
+    _index: number,
+    _tx?: unknown
   ): Promise<ModelObject<M['model']>> {
     return data;
   }

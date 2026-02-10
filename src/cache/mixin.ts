@@ -1,6 +1,6 @@
 import type { Context, Env } from 'hono';
 import type { OpenAPIRoute } from '../core/route';
-import type { MetaInput } from '../core/types';
+import type { MetaInput, Constructor } from '../core/types';
 import { getLogger } from '../core/logger';
 import type {
   CacheConfig,
@@ -54,11 +54,6 @@ export function getCacheStorage(): CacheStorage {
 // ============================================================================
 // Type Helpers
 // ============================================================================
-
-/**
- * Constructor type for classes.
- */
-type Constructor<T = object> = new (...args: unknown[]) => T;
 
 /**
  * Interface for cacheable endpoint methods added by withCache mixin.
@@ -127,7 +122,7 @@ export interface CacheInvalidationMethods {
 export function withCache<TBase extends Constructor<OpenAPIRoute>>(
   Base: TBase
 ): TBase & Constructor<CacheEndpointMethods> {
-  // @ts-expect-error - TypeScript has issues with mixin patterns and protected members
+  // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class CachedRoute extends Base implements CacheEndpointMethods {
     /**
      * Cache configuration for this endpoint.
@@ -320,7 +315,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
 export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
   Base: TBase
 ): TBase & Constructor<CacheInvalidationMethods> {
-  // @ts-expect-error - TypeScript has issues with mixin patterns and protected members
+  // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class InvalidatingRoute extends Base implements CacheInvalidationMethods {
     /**
      * Cache invalidation configuration.
@@ -397,7 +392,7 @@ export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
      * Override handle to perform invalidation after the mutation.
      */
     async handle(): Promise<Response> {
-      // @ts-expect-error - TypeScript can't see that Base has a concrete handle implementation
+      // @ts-expect-error - TS mixin limitation: super.handle() not visible through generic base (TS#17744)
       const response = await super.handle();
 
       // Only invalidate on success

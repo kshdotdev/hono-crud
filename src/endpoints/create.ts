@@ -8,11 +8,10 @@ import type {
   OpenAPIRouteSchema,
   HookMode,
   RelationConfig,
-  NestedWriteResult,
   NormalizedAuditConfig,
   NormalizedMultiTenantConfig,
 } from '../core/types';
-import { applyComputedFields, extractNestedData, isDirectNestedData, getAuditConfig, getMultiTenantConfig, extractTenantId } from '../core/types';
+import { applyComputedFields, extractNestedData, getAuditConfig, getMultiTenantConfig, extractTenantId } from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
 import { createAuditLogger, type AuditLogger } from '../core/audit';
 
@@ -307,7 +306,7 @@ export abstract class CreateEndpoint<
    */
   async before(
     data: ModelObject<M['model']>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -318,7 +317,7 @@ export abstract class CreateEndpoint<
    */
   async after(
     data: ModelObject<M['model']>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -363,11 +362,11 @@ export abstract class CreateEndpoint<
    * @returns The created nested records
    */
   protected async createNested(
-    parentId: string | number,
+    _parentId: string | number,
     relationName: string,
-    relationConfig: RelationConfig,
-    data: unknown,
-    tx?: unknown
+    _relationConfig: RelationConfig,
+    _data: unknown,
+    _tx?: unknown
   ): Promise<unknown[]> {
     // Default implementation does nothing - override in adapter
     getLogger().warn(`Nested writes not implemented for ${relationName}. Override createNested() in your adapter.`);

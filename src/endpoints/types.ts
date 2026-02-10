@@ -80,6 +80,20 @@ export interface UpdateEndpointConfig extends SingleEndpointConfig {
   blockedUpdateFields?: string[];
 }
 
+/**
+ * Coerce a raw filter value string based on operator type.
+ * Array operators (in, nin, between) split on commas; null operator coerces to boolean.
+ */
+function coerceFilterValue(operator: FilterOperator, raw: string): unknown {
+  if (operator === 'in' || operator === 'nin' || operator === 'between') {
+    return raw.split(',').map((v) => v.trim());
+  }
+  if (operator === 'null') {
+    return raw.toLowerCase() === 'true';
+  }
+  return raw;
+}
+
 // Parse query string filter syntax
 export function parseFilterValue(
   value: string
@@ -88,18 +102,7 @@ export function parseFilterValue(
   const operatorMatch = value.match(/^\[([a-z]+)\](.*)$/);
   if (operatorMatch) {
     const operator = operatorMatch[1] as FilterOperator;
-    let parsedValue: unknown = operatorMatch[2];
-
-    // Handle array operators
-    if (operator === 'in' || operator === 'nin') {
-      parsedValue = (parsedValue as string).split(',').map((v) => v.trim());
-    } else if (operator === 'between') {
-      parsedValue = (parsedValue as string).split(',').map((v) => v.trim());
-    } else if (operator === 'null') {
-      parsedValue = (parsedValue as string).toLowerCase() === 'true';
-    }
-
-    return { operator, value: parsedValue };
+    return { operator, value: coerceFilterValue(operator, operatorMatch[2]) };
   }
 
   // Default to equality
@@ -238,17 +241,7 @@ export function parseListFilters(
       const operator = bracketMatch[2] as FilterOperator;
 
       if (allowedFilters[field]?.includes(operator)) {
-        let parsedValue: unknown = value;
-
-        if (operator === 'in' || operator === 'nin') {
-          parsedValue = value.split(',').map((v) => v.trim());
-        } else if (operator === 'between') {
-          parsedValue = value.split(',').map((v) => v.trim());
-        } else if (operator === 'null') {
-          parsedValue = value.toLowerCase() === 'true';
-        }
-
-        filters.push({ field, operator, value: parsedValue });
+        filters.push({ field, operator, value: coerceFilterValue(operator, value) });
       }
       continue;
     }

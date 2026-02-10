@@ -677,7 +677,7 @@ export abstract class DrizzleDeleteEndpoint<
    */
   protected override async countRelated(
     parentId: string | number,
-    relationName: string,
+    _relationName: string,
     relationConfig: RelationConfig,
     tx?: unknown
   ): Promise<number> {
@@ -700,7 +700,7 @@ export abstract class DrizzleDeleteEndpoint<
    */
   protected override async deleteRelated(
     parentId: string | number,
-    relationName: string,
+    _relationName: string,
     relationConfig: RelationConfig,
     tx?: unknown
   ): Promise<number> {
@@ -723,7 +723,7 @@ export abstract class DrizzleDeleteEndpoint<
    */
   protected override async nullifyRelated(
     parentId: string | number,
-    relationName: string,
+    _relationName: string,
     relationConfig: RelationConfig,
     tx?: unknown
   ): Promise<number> {

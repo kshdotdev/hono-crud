@@ -1539,3 +1539,8 @@ export type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
  * Make specific fields of a type required.
  */
 export type RequiredBy<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
+
+/**
+ * Constructor type for classes. Used in mixin patterns (withCache, withAuth, etc.).
+ */
+export type Constructor<T = object> = new (...args: unknown[]) => T;

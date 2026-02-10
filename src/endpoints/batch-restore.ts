@@ -203,8 +203,8 @@ export abstract class BatchRestoreEndpoint<
    * Override to perform checks or side effects.
    */
   async before(
-    id: string,
-    tx?: unknown
+    _id: string,
+    _tx?: unknown
   ): Promise<void> {
     // Override in subclass
   }
@@ -215,7 +215,7 @@ export abstract class BatchRestoreEndpoint<
    */
   async after(
     data: ModelObject<M['model']>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<ModelObject<M['model']>> {
     return data;
   }

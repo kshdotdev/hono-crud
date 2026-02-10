@@ -1,5 +1,5 @@
 import type { Env } from 'hono';
-import { eq, and, isNull, isNotNull, inArray, sql } from 'drizzle-orm';
+import { eq, and, isNull, isNotNull, inArray } from 'drizzle-orm';
 import type { SQL, Table, Column } from 'drizzle-orm';
 import { BatchCreateEndpoint } from '../../endpoints/batch-create';
 import { BatchUpdateEndpoint, type BatchUpdateItem } from '../../endpoints/batch-update';

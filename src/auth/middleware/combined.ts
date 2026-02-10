@@ -1,5 +1,5 @@
-import type { Context, MiddlewareHandler } from 'hono';
-import type { AuthEnv, AuthConfig, PathPattern, AuthType } from '../types';
+import type { MiddlewareHandler } from 'hono';
+import type { AuthEnv, AuthConfig, PathPattern } from '../types';
 import { UnauthorizedException } from '../../core/exceptions';
 import { createJWTMiddleware } from './jwt';
 import { createAPIKeyMiddleware } from './api-key';

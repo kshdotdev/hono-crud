@@ -317,8 +317,8 @@ export abstract class DeleteEndpoint<
    * Override to perform checks or side effects before deleting.
    */
   async before(
-    lookupValue: string,
-    tx?: unknown
+    _lookupValue: string,
+    _tx?: unknown
   ): Promise<void> {
     // Override in subclass
   }
@@ -328,9 +328,9 @@ export abstract class DeleteEndpoint<
    * Override to perform cleanup or side effects after deleting.
    */
   async after(
-    deletedItem: ModelObject<M['model']>,
-    cascadeResult?: CascadeResult,
-    tx?: unknown
+    _deletedItem: ModelObject<M['model']>,
+    _cascadeResult?: CascadeResult,
+    _tx?: unknown
   ): Promise<void> {
     // Override in subclass
   }
@@ -341,10 +341,10 @@ export abstract class DeleteEndpoint<
    * Must be implemented by ORM-specific subclasses.
    */
   protected async countRelated(
-    parentId: string | number,
+    _parentId: string | number,
     relationName: string,
-    relationConfig: RelationConfig,
-    tx?: unknown
+    _relationConfig: RelationConfig,
+    _tx?: unknown
   ): Promise<number> {
     // Default implementation returns 0 - override in adapter
     getLogger().warn(`countRelated not implemented for ${relationName}. Override in your adapter for restrict cascade to work.`);
@@ -356,10 +356,10 @@ export abstract class DeleteEndpoint<
    * Must be implemented by ORM-specific subclasses.
    */
   protected async deleteRelated(
-    parentId: string | number,
+    _parentId: string | number,
     relationName: string,
-    relationConfig: RelationConfig,
-    tx?: unknown
+    _relationConfig: RelationConfig,
+    _tx?: unknown
   ): Promise<number> {
     // Default implementation returns 0 - override in adapter
     getLogger().warn(`deleteRelated not implemented for ${relationName}. Override in your adapter for cascade delete to work.`);
@@ -371,10 +371,10 @@ export abstract class DeleteEndpoint<
    * Must be implemented by ORM-specific subclasses.
    */
   protected async nullifyRelated(
-    parentId: string | number,
+    _parentId: string | number,
     relationName: string,
-    relationConfig: RelationConfig,
-    tx?: unknown
+    _relationConfig: RelationConfig,
+    _tx?: unknown
   ): Promise<number> {
     // Default implementation returns 0 - override in adapter
     getLogger().warn(`nullifyRelated not implemented for ${relationName}. Override in your adapter for setNull cascade to work.`);

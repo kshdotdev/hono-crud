@@ -313,21 +313,6 @@ export function createCsvStream<T extends Record<string, unknown>>(
 // ============================================================================
 
 /**
- * Parses a CSV value, handling quoted strings.
- */
-function parseCsvField(field: string, delimiter: string): string {
-  field = field.trim();
-
-  // Check if field is quoted
-  if (field.startsWith('"') && field.endsWith('"')) {
-    // Remove surrounding quotes and unescape doubled quotes
-    return field.slice(1, -1).replace(/""/g, '"');
-  }
-
-  return field;
-}
-
-/**
  * Parses a CSV line into fields, handling quoted values with embedded delimiters.
  */
 function parseCsvLine(line: string, delimiter: string): string[] {

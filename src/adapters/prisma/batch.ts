@@ -82,7 +82,6 @@ export abstract class PrismaBatchCreateEndpoint<
   override async batchCreate(
     items: Partial<ModelObject<M['model']>>[]
   ): Promise<ModelObject<M['model']>[]> {
-    const model = this.getModel();
     const primaryKey = this._meta.model.primaryKeys[0];
 
     // Generate IDs for items that don't have them
@@ -403,7 +402,7 @@ export abstract class PrismaBatchUpsertEndpoint<
    */
   protected override async nativeBatchUpsert(
     items: Partial<ModelObject<M['model']>>[],
-    tx?: unknown
+    _tx?: unknown
   ): Promise<{
     items: Array<{ data: ModelObject<M['model']>; created: boolean; index: number }>;
     createdCount: number;

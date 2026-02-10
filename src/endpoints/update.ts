@@ -424,7 +424,7 @@ export abstract class UpdateEndpoint<
    */
   async before(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -435,7 +435,7 @@ export abstract class UpdateEndpoint<
    */
   async after(
     data: ModelObject<M['model']>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -475,9 +475,9 @@ export abstract class UpdateEndpoint<
    * Override in ORM-specific subclasses if audit logging is enabled.
    */
   protected async findExisting(
-    lookupValue: string,
-    additionalFilters?: Record<string, string>,
-    tx?: unknown
+    _lookupValue: string,
+    _additionalFilters?: Record<string, string>,
+    _tx?: unknown
   ): Promise<ModelObject<M['model']> | null> {
     // Default implementation returns null - override in adapter
     return null;
@@ -495,11 +495,11 @@ export abstract class UpdateEndpoint<
    * @returns The result of nested operations
    */
   protected async processNestedWrites(
-    parentId: string | number,
+    _parentId: string | number,
     relationName: string,
-    relationConfig: RelationConfig,
-    operations: NestedUpdateInput,
-    tx?: unknown
+    _relationConfig: RelationConfig,
+    _operations: NestedUpdateInput,
+    _tx?: unknown
   ): Promise<NestedWriteResult> {
     // Default implementation does nothing - override in adapter
     getLogger().warn(`Nested writes not implemented for ${relationName}. Override processNestedWrites() in your adapter.`);

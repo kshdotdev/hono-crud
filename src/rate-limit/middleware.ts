@@ -6,8 +6,6 @@ import type {
   RateLimitStorage,
   KeyStrategy,
   KeyExtractor,
-  FixedWindowEntry,
-  SlidingWindowEntry,
 } from './types';
 import { RateLimitExceededException } from './exceptions';
 import { extractIP, extractUserId, extractAPIKey, shouldSkipPath, generateKey } from './utils';

@@ -10,7 +10,6 @@ import type {
   AggregateResult,
   AggregateConfig,
   NormalizedSoftDeleteConfig,
-  FilterCondition,
 } from '../core/types';
 import { getSoftDeleteConfig, parseAggregateQuery } from '../core/types';
 

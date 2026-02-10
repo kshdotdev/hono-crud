@@ -2,7 +2,6 @@ import type { Context, Env } from 'hono';
 import type {
   AuditAction,
   AuditLogEntry,
-  AuditFieldChange,
   NormalizedAuditConfig,
 } from './types';
 import { calculateChanges, getAuditConfig, type AuditConfig } from './types';

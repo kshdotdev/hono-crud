@@ -32,8 +32,7 @@ type OpenAPIRouteConstructor = new () => OpenAPIRoute<Env>;
  * Type for any class that extends OpenAPIRoute.
  * This uses a duck-typed approach to allow subclasses with different generic parameters.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type OpenAPIRouteClass = new () => { getSchema(): OpenAPIRouteSchema; handle(): Promise<Response>; setContext(ctx: any): void };
+type OpenAPIRouteClass = new () => { getSchema(): OpenAPIRouteSchema; handle(): Promise<Response>; setContext(ctx: Context<Env>): void };
 
 /**
  * Type for the proxied Hono app that accepts both regular handlers and OpenAPIRoute classes.
@@ -197,12 +196,14 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
 
   /**
    * Sets up the OpenAPI documentation endpoints.
+   * Falls back to `options.openapi_url` when no path is provided.
    * @param path - The path to serve the OpenAPI JSON at
    * @param config - OpenAPI configuration
    */
-  setupDocs(path: string, config: OpenAPIConfig): void {
+  setupDocs(path: string | undefined, config: OpenAPIConfig): void {
+    const docPath = path ?? this.options.openapi_url ?? '/openapi.json';
     // OpenAPI JSON endpoint
-    this.app.doc(path, {
+    this.app.doc(docPath, {
       openapi: config.openapi || '3.1.0',
       info: config.info,
       servers: config.servers,
@@ -265,7 +266,7 @@ export function fromHono<E extends Env = Env>(
           }
 
           // Otherwise, use normal Hono routing
-          return (target[prop as keyof typeof target] as Function)(
+          return (target[prop as keyof typeof target] as (...args: unknown[]) => unknown)(
             path,
             ...handlers
           );
@@ -281,7 +282,7 @@ export function fromHono<E extends Env = Env>(
       // For 'use' method, apply to the app and return proxy for chaining
       if (prop === 'use') {
         return (...args: unknown[]) => {
-          (target[prop as keyof typeof target] as Function)(...args);
+          (target[prop as keyof typeof target] as (...args: unknown[]) => unknown)(...args);
           return proxy;
         };
       }

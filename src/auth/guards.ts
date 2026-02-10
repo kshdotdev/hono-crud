@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
-import type { AuthEnv, AuthUser, AuthorizationCheck, OwnershipExtractor, Guard } from './types';
+import type { AuthEnv, AuthorizationCheck, OwnershipExtractor, Guard } from './types';
 import { ForbiddenException, UnauthorizedException } from '../core/exceptions';
 
 // ============================================================================
@@ -332,7 +332,7 @@ export function denyAll<E extends AuthEnv = AuthEnv>(
  * ```
  */
 export function allowAll<E extends AuthEnv = AuthEnv>(): MiddlewareHandler<E> {
-  return async (ctx, next) => {
+  return async (_ctx, next) => {
     await next();
   };
 }

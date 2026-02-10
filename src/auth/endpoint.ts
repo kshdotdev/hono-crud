@@ -1,23 +1,13 @@
 import { z } from 'zod';
-import type { Env, Context } from 'hono';
+import type { Context } from 'hono';
 import type { AuthEnv, AuthUser, EndpointAuthConfig } from './types';
-import type { OpenAPIRouteSchema, MetaInput } from '../core/types';
+import type { OpenAPIRouteSchema, MetaInput, Constructor } from '../core/types';
 import { OpenAPIRoute } from '../core/route';
 import { UnauthorizedException, ForbiddenException } from '../core/exceptions';
 
 // ============================================================================
 // Type Helpers
 // ============================================================================
-
-/**
- * Constructor type for classes.
- */
-type Constructor<T = object> = new (...args: unknown[]) => T;
-
-/**
- * Extract the Env type parameter from an OpenAPIRoute.
- */
-type ExtractEnv<T> = T extends OpenAPIRoute<infer E, infer _S> ? E : Env;
 
 /**
  * Interface for auth endpoint methods added by withAuth mixin.
@@ -63,7 +53,7 @@ export interface AuthEndpointMethods {
  */
 export abstract class AuthenticatedEndpoint<
   E extends AuthEnv = AuthEnv,
-  M extends MetaInput = MetaInput,
+  _M extends MetaInput = MetaInput,
 > extends OpenAPIRoute<E> {
   /**
    * Whether authentication is required for this endpoint.
@@ -91,7 +81,7 @@ export abstract class AuthenticatedEndpoint<
    * Custom authorization check.
    * Return true to allow, false to deny.
    */
-  async authorize(user: AuthUser, ctx: Context<E>): Promise<boolean> {
+  async authorize(_user: AuthUser, _ctx: Context<E>): Promise<boolean> {
     return true;
   }
 
@@ -345,7 +335,7 @@ export abstract class AuthenticatedEndpoint<
 export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
   Base: TBase
 ): TBase & Constructor<EndpointAuthConfig & AuthEndpointMethods> {
-  // @ts-expect-error - TypeScript has issues with mixin patterns and protected members
+  // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class AuthenticatedRoute extends Base implements EndpointAuthConfig {
     /**
      * Whether authentication is required for this endpoint.
@@ -373,7 +363,7 @@ export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
      * Custom authorization check.
      * Return true to allow, false to deny.
      */
-    async authorize(user: AuthUser, ctx: Context): Promise<boolean> {
+    async authorize(_user: AuthUser, _ctx: Context): Promise<boolean> {
       return true;
     }
 

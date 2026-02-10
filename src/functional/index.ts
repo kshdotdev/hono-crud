@@ -222,8 +222,7 @@ export interface DeleteConfig<M extends MetaInput, E extends Env = Env> {
 export function createCreate<
   M extends MetaInput,
   E extends Env = Env,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  B extends abstract new () => any = abstract new () => any,
+  B extends abstract new () => unknown = abstract new () => unknown,
 >(
   config: CreateConfig<M, E>,
   BaseClass: B
@@ -232,7 +231,7 @@ export function createCreate<
   const afterFn = config.after;
   const middlewares = config.middlewares || [];
 
-  // @ts-expect-error - Dynamic class creation
+  // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
   const GeneratedClass = class extends BaseClass {
     static _middlewares = middlewares;
     _meta = config.meta;
@@ -280,8 +279,7 @@ export function createCreate<
 export function createList<
   M extends MetaInput,
   E extends Env = Env,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  B extends abstract new () => any = abstract new () => any,
+  B extends abstract new () => unknown = abstract new () => unknown,
 >(
   config: ListConfig<M, E>,
   BaseClass: B
@@ -290,7 +288,7 @@ export function createList<
   const transformFn = config.transform;
   const middlewares = config.middlewares || [];
 
-  // @ts-expect-error - Dynamic class creation
+  // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
   const GeneratedClass = class extends BaseClass {
     static _middlewares = middlewares;
     _meta = config.meta;
@@ -347,8 +345,7 @@ export function createList<
 export function createRead<
   M extends MetaInput,
   E extends Env = Env,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  B extends abstract new () => any = abstract new () => any,
+  B extends abstract new () => unknown = abstract new () => unknown,
 >(
   config: ReadConfig<M, E>,
   BaseClass: B
@@ -357,7 +354,7 @@ export function createRead<
   const transformFn = config.transform;
   const middlewares = config.middlewares || [];
 
-  // @ts-expect-error - Dynamic class creation
+  // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
   const GeneratedClass = class extends BaseClass {
     static _middlewares = middlewares;
     _meta = config.meta;
@@ -409,8 +406,7 @@ export function createRead<
 export function createUpdate<
   M extends MetaInput,
   E extends Env = Env,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  B extends abstract new () => any = abstract new () => any,
+  B extends abstract new () => unknown = abstract new () => unknown,
 >(
   config: UpdateConfig<M, E>,
   BaseClass: B
@@ -420,7 +416,7 @@ export function createUpdate<
   const transformFn = config.transform;
   const middlewares = config.middlewares || [];
 
-  // @ts-expect-error - Dynamic class creation
+  // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
   const GeneratedClass = class extends BaseClass {
     static _middlewares = middlewares;
     _meta = config.meta;
@@ -477,8 +473,7 @@ export function createUpdate<
 export function createDelete<
   M extends MetaInput,
   E extends Env = Env,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  B extends abstract new () => any = abstract new () => any,
+  B extends abstract new () => unknown = abstract new () => unknown,
 >(
   config: DeleteConfig<M, E>,
   BaseClass: B
@@ -487,7 +482,7 @@ export function createDelete<
   const afterFn = config.after;
   const middlewares = config.middlewares || [];
 
-  // @ts-expect-error - Dynamic class creation
+  // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
   const GeneratedClass = class extends BaseClass {
     static _middlewares = middlewares;
     _meta = config.meta;
