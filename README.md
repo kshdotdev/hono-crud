@@ -4,196 +4,348 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 
-A powerful CRUD generator for [Hono](https://hono.dev) with Zod validation and automatic OpenAPI documentation.
+Type-safe CRUD generator for [Hono](https://hono.dev) with Zod validation and automatic OpenAPI documentation.
 
 ## Features
 
-- **Full CRUD Operations** - Automatically generate Create, Read, Update, Delete endpoints
-- **OpenAPI/Swagger** - Auto-generated API documentation with Swagger UI and Scalar support
-- **Database Adapters** - Built-in support for Prisma, Drizzle ORM, and in-memory storage
+- **Full CRUD Operations** - Generate Create, Read, Update, Delete, List endpoints with one call
+- **OpenAPI/Swagger** - Auto-generated docs with Swagger UI, Scalar, and ReDoc
+- **Database Adapters** - Memory (prototyping), Drizzle ORM, and Prisma
+- **4 API Patterns** - Class-based, functional, builder, and config-based
 - **Zod Validation** - Type-safe request/response validation
 - **TypeScript First** - Full type inference and autocompletion
 - **Edge Ready** - Works with Cloudflare Workers, Deno, Bun, and Node.js
-- **Customizable** - Override any generated route or add custom middleware
+- **Authentication** - JWT, API Key middleware with role/permission guards
+- **Caching** - Response caching with automatic invalidation
+- **Rate Limiting** - Fixed/sliding window with tier-based limits
+- **Advanced Features** - Soft delete, relations, batch operations, search, versioning, audit logging, and more
 
 ## Installation
 
 ```bash
-# npm
-npm install hono-crud
-
-# pnpm
-pnpm add hono-crud
-
-# yarn
-yarn add hono-crud
-
-# bun
-bun add hono-crud
+npm install hono-crud hono zod
 ```
+
+Peer dependencies: `hono >= 4.0.0` and `zod >= 4.0.0` are required.
 
 ## Quick Start
 
 ```typescript
-import { Hono } from "hono";
-import { HonoCrud } from "hono-crud";
-import { MemoryAdapter } from "hono-crud/adapters/memory";
-import { z } from "zod";
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { fromHono, registerCrud, setupSwaggerUI, defineModel, defineMeta } from 'hono-crud';
+import {
+  MemoryCreateEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
+  MemoryDeleteEndpoint,
+  MemoryListEndpoint,
+} from 'hono-crud/adapters/memory';
 
-const app = new Hono();
-
-// Define your schema
+// 1. Define your schema
 const UserSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  email: z.string().email(),
+  id: z.uuid(),
+  email: z.email(),
+  name: z.string().min(1),
+  role: z.enum(['admin', 'user']),
 });
 
-// Create CRUD instance
-const crud = new HonoCrud({
-  adapter: new MemoryAdapter(),
-});
-
-// Register resource
-crud.resource("users", {
+// 2. Create model + meta
+const UserModel = defineModel({
+  tableName: 'users',
   schema: UserSchema,
+  primaryKeys: ['id'],
 });
 
-// Mount to your app
-app.route("/api", crud.routes());
+const userMeta = defineMeta({ model: UserModel });
 
-export default app;
-```
+// 3. Define endpoints
+class UserCreate extends MemoryCreateEndpoint {
+  _meta = userMeta;
+  schema = { tags: ['Users'], summary: 'Create a user' };
+}
 
-## Database Adapters
+class UserList extends MemoryListEndpoint {
+  _meta = userMeta;
+  schema = { tags: ['Users'], summary: 'List users' };
+  filterFields = ['role'];
+  searchFields = ['name', 'email'];
+}
 
-### Memory Adapter
+class UserRead extends MemoryReadEndpoint {
+  _meta = userMeta;
+  schema = { tags: ['Users'], summary: 'Get a user' };
+}
 
-Perfect for prototyping and testing:
+class UserUpdate extends MemoryUpdateEndpoint {
+  _meta = userMeta;
+  schema = { tags: ['Users'], summary: 'Update a user' };
+  allowedUpdateFields = ['name', 'role'];
+}
 
-```typescript
-import { MemoryAdapter } from "hono-crud/adapters/memory";
+class UserDelete extends MemoryDeleteEndpoint {
+  _meta = userMeta;
+  schema = { tags: ['Users'], summary: 'Delete a user' };
+}
 
-const adapter = new MemoryAdapter();
-```
+// 4. Wire it up
+const app = fromHono(new Hono());
 
-### Drizzle Adapter
-
-For production use with Drizzle ORM:
-
-```typescript
-import { DrizzleAdapter } from "hono-crud/adapters/drizzle";
-import { db } from "./db";
-import { users } from "./schema";
-
-const adapter = new DrizzleAdapter(db, {
-  users: users,
-});
-```
-
-### Prisma Adapter
-
-For production use with Prisma:
-
-```typescript
-import { PrismaAdapter } from "hono-crud/adapters/prisma";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
-const adapter = new PrismaAdapter(prisma);
-```
-
-## API Documentation
-
-OpenAPI documentation is automatically generated. Access it at:
-
-- **Swagger UI**: `/docs`
-- **Scalar**: `/reference`
-- **OpenAPI JSON**: `/openapi.json`
-
-## Authentication with better-auth
-
-hono-crud integrates seamlessly with [better-auth](https://www.better-auth.com) for comprehensive authentication.
-
-### Setup
-
-1. **Mount better-auth handler** for authentication routes:
-
-```typescript
-import { Hono } from "hono";
-import { auth } from "./auth"; // your better-auth instance
-import { cors } from "hono/cors";
-
-const app = new Hono<{
-  Variables: {
-    user: typeof auth.$Infer.Session.user | null;
-    session: typeof auth.$Infer.Session.session | null;
-  };
-}>();
-
-// CORS (must be before routes)
-app.use("/api/auth/*", cors({
-  origin: "http://localhost:3000",
-  credentials: true,
-}));
-
-// Mount better-auth
-app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
-```
-
-2. **Add session middleware** to inject user into context:
-
-```typescript
-app.use("*", async (c, next) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  c.set("user", session?.user || null);
-  c.set("session", session?.session || null);
-  await next();
-});
-```
-
-3. **Protect CRUD routes** with hono-crud guards:
-
-```typescript
-import { registerCrud, requireAuth, requireRoles } from "hono-crud";
-
-registerCrud(app, "/api/users", {
+registerCrud(app, '/users', {
+  create: UserCreate,
   list: UserList,
   read: UserRead,
   update: UserUpdate,
   delete: UserDelete,
-}, {
-  middlewares: [requireAuth()],
+});
+
+// 5. OpenAPI docs
+app.doc('/openapi.json', {
+  openapi: '3.1.0',
+  info: { title: 'My API', version: '1.0.0' },
+});
+setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
+
+export default app;
+```
+
+This generates:
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `POST` | `/users` | Create a user |
+| `GET` | `/users` | List users (with filtering, search, pagination) |
+| `GET` | `/users/:id` | Get a user by ID |
+| `PATCH` | `/users/:id` | Update a user |
+| `DELETE` | `/users/:id` | Delete a user |
+
+## API Patterns
+
+hono-crud supports four ways to define endpoints. All produce classes compatible with `registerCrud()` and can be mixed.
+
+| Pattern | Best For | Style |
+|---------|----------|-------|
+| **Class-based** | Complex logic, database adapters | `class UserList extends MemoryListEndpoint { ... }` |
+| **Functional** | Quick setup | `createList({ meta, filterFields: ['role'] }, MemoryListEndpoint)` |
+| **Builder** | Readable chains | `crud(meta).list().filter('role').build(MemoryListEndpoint)` |
+| **Config-based** | Declarative, all-in-one | `defineEndpoints({ meta, list: { ... } }, MemoryAdapters)` |
+
+```typescript
+import { createList, crud, defineEndpoints, MemoryAdapters } from 'hono-crud';
+
+// Functional
+const UserList = createList(
+  { meta: userMeta, filterFields: ['role'], searchFields: ['name'] },
+  MemoryListEndpoint
+);
+
+// Builder
+const UserList = crud(userMeta)
+  .list()
+  .filter('role')
+  .search('name')
+  .pagination(20, 100)
+  .build(MemoryListEndpoint);
+
+// Config-based (all endpoints at once)
+const endpoints = defineEndpoints({
+  meta: userMeta,
+  create: { openapi: { tags: ['Users'], summary: 'Create user' } },
+  list: { filtering: { fields: ['role'] }, search: { fields: ['name'] } },
+  read: {},
+  update: { fields: { allowed: ['name', 'role'] } },
+  delete: {},
+}, MemoryAdapters);
+
+registerCrud(app, '/users', endpoints);
+```
+
+See [docs/alternative-api-patterns.md](./docs/alternative-api-patterns.md) for the full reference.
+
+## Database Adapters
+
+### Memory
+
+Zero-config, perfect for prototyping and tests:
+
+```typescript
+import { MemoryCreateEndpoint, MemoryListEndpoint /* ... */ } from 'hono-crud/adapters/memory';
+```
+
+### Drizzle
+
+Use `createDrizzleCrud` for minimal boilerplate:
+
+```typescript
+import { createDrizzleCrud } from 'hono-crud/adapters/drizzle';
+import { db } from './db';
+
+const User = createDrizzleCrud(db, userMeta);
+
+class UserCreate extends User.Create {
+  schema = { tags: ['Users'], summary: 'Create user' };
+}
+
+class UserList extends User.List {
+  schema = { tags: ['Users'], summary: 'List users' };
+  filterFields = ['role'];
+}
+```
+
+Or set `db` directly on each endpoint class:
+
+```typescript
+import { DrizzleListEndpoint } from 'hono-crud/adapters/drizzle';
+
+class UserList extends DrizzleListEndpoint {
+  _meta = userMeta;
+  db = drizzleDb;
+  filterFields = ['role'];
+}
+```
+
+### Prisma
+
+```typescript
+import { PrismaListEndpoint } from 'hono-crud/adapters/prisma';
+
+class UserList extends PrismaListEndpoint {
+  _meta = userMeta;
+  prisma = prismaClient;
+  filterFields = ['role'];
+}
+```
+
+See [docs/database-adapters.md](./docs/database-adapters.md) for complete setup guides.
+
+## Authentication
+
+Built-in JWT and API Key middleware with composable guards:
+
+```typescript
+import { createJWTMiddleware, requireRoles, requireAuthenticated, anyOf } from 'hono-crud';
+
+// JWT middleware
+app.use('/api/*', createJWTMiddleware({
+  secret: process.env.JWT_SECRET!,
+  issuer: 'my-app',
+}));
+
+// Guards on specific endpoints
+registerCrud(app, '/users', endpoints, {
+  middlewares: [requireAuthenticated()],
   endpointMiddlewares: {
-    delete: [requireRoles(["admin"])],
+    delete: [requireRoles('admin')],
   },
 });
+
+// Composable guards
+app.use('/admin/*', anyOf(
+  requireRoles('admin'),
+  requireOwnership((ctx) => ctx.req.param('id'))
+));
 ```
 
-### Architecture
+See [docs/authentication.md](./docs/authentication.md) for JWT, API Key, guards, and better-auth integration.
 
-```
-Request → CORS → Session MW → Auth Guards → CRUD Endpoint
-                    ↓
-              better-auth
-            (validates session)
+## Middleware
+
+### Caching
+
+```typescript
+import { withCache, withCacheInvalidation, setCacheStorage, MemoryCacheStorage } from 'hono-crud';
+
+class UserRead extends withCache(MemoryReadEndpoint) {
+  _meta = userMeta;
+  cacheConfig = { ttl: 300, perUser: false };
+}
 ```
 
-- **better-auth** handles: login, signup, OAuth, 2FA, session management
-- **hono-crud** handles: CRUD operations with authorization guards
+See [docs/caching.md](./docs/caching.md).
+
+### Rate Limiting
+
+```typescript
+import { createRateLimitMiddleware, setRateLimitStorage, MemoryRateLimitStorage } from 'hono-crud';
+
+setRateLimitStorage(new MemoryRateLimitStorage());
+
+app.use('/api/*', createRateLimitMiddleware({
+  limit: 100,
+  windowSeconds: 60,
+  keyStrategy: 'ip',
+}));
+```
+
+See [docs/rate-limiting.md](./docs/rate-limiting.md).
+
+### Logging
+
+```typescript
+import { createLoggingMiddleware, setLoggingStorage, MemoryLoggingStorage } from 'hono-crud';
+
+setLoggingStorage(new MemoryLoggingStorage());
+
+app.use('*', createLoggingMiddleware({
+  redactHeaders: ['authorization', 'cookie'],
+  redactBodyFields: ['password'],
+}));
+```
+
+See [docs/logging.md](./docs/logging.md).
+
+## Advanced Features
+
+- **Soft Delete & Restore** - `softDelete: true` in model, `?withDeleted=true`, restore endpoint
+- **Relations** - `hasOne`, `hasMany`, `belongsTo` with `?include=posts,profile`
+- **Nested Writes** - Create/update related records in a single request
+- **Batch Operations** - Batch create, update, delete, restore, upsert
+- **Upsert** - Create or update by unique keys
+- **Versioning** - Record version history with rollback
+- **Audit Logging** - Track who changed what and when
+- **Full-Text Search** - Weighted search with highlighting
+- **Aggregation** - Sum, count, avg, min, max with grouping
+- **Export/Import** - CSV and JSON export/import
+- **Computed Fields** - Virtual fields calculated on read
+- **Field Selection** - `?fields=id,name,email`
+- **Events & Webhooks** - Event emitter with webhook delivery
+- **Encryption** - Field-level encryption with Web Crypto API
+- **Idempotency** - Idempotency key middleware for safe retries
+- **Multi-Tenancy** - Tenant isolation via header, path, query, or JWT
+- **Health Checks** - Liveness and readiness endpoints
+- **Error Handling** - Typed exceptions with custom error handlers
+
+See [docs/advanced-features.md](./docs/advanced-features.md) for examples of every feature.
+
+## API Documentation
+
+```typescript
+import { setupSwaggerUI, setupReDoc, setupScalar } from 'hono-crud';
+
+// OpenAPI spec
+app.doc('/openapi.json', {
+  openapi: '3.1.0',
+  info: { title: 'My API', version: '1.0.0' },
+});
+
+// Documentation UIs
+setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
+setupReDoc(app, { redocPath: '/redoc', specPath: '/openapi.json' });
+setupScalar(app, '/reference', { specUrl: '/openapi.json' });
+```
 
 ## Examples
 
-Check out the [examples](./examples) directory for complete working examples:
+See the [examples/](./examples) directory for complete working applications:
 
-- [Memory Adapter Examples](./examples/memory)
-- [Drizzle Examples](./examples/drizzle)
-- [Prisma Examples](./examples/prisma)
+- [Memory Adapter](./examples/memory) - Basic CRUD, alternative APIs, comprehensive features
+- [Drizzle + PostgreSQL](./examples/drizzle) - Schema, relations, filtering, batch operations
+- [Prisma + PostgreSQL](./examples/prisma) - Schema, relations, filtering, batch operations
 
 ## Requirements
 
-- Node.js >= 18.0.0
-- TypeScript >= 5.0 (recommended)
+- Node.js >= 20
+- TypeScript >= 5.0
 
 ## License
 
