@@ -30,7 +30,9 @@ export type CrudEndpointName =
   | 'search'
   | 'aggregate'
   | 'export'
-  | 'import';
+  | 'import'
+  | 'nlQuery'
+  | 'rag';
 
 /**
  * Per-endpoint middleware configuration.
@@ -77,6 +79,10 @@ export interface CrudEndpoints<E extends Env = Env> {
   export?: EndpointClass<E>;
   /** Import endpoint for bulk data import from CSV/JSON */
   import?: EndpointClass<E>;
+  /** Natural language query endpoint (requires AI model) */
+  nlQuery?: EndpointClass<E>;
+  /** RAG (Retrieval-Augmented Generation) endpoint (requires AI model) */
+  rag?: EndpointClass<E>;
 }
 
 /**
@@ -239,6 +245,15 @@ export function registerCrud<E extends Env = Env>(
   // Import endpoint - must be registered BEFORE :id routes
   if (endpoints.import) {
     registerRoute('post', `${normalizedPath}/import`, 'import', endpoints.import);
+  }
+
+  // AI endpoints - must be registered BEFORE :id routes
+  if (endpoints.nlQuery) {
+    registerRoute('post', `${normalizedPath}/nl-query`, 'nlQuery', endpoints.nlQuery);
+  }
+
+  if (endpoints.rag) {
+    registerRoute('post', `${normalizedPath}/ask`, 'rag', endpoints.rag);
   }
 
   // Item-level routes (with :id parameter) - must be registered AFTER /batch, /search, /export, /import routes
