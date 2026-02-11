@@ -44,8 +44,8 @@ The original approach using class inheritance. Best for complex logic, custom me
 ### Basic Usage
 
 ```typescript
-import { defineMeta, defineModel, registerCrud } from 'hono-crud';
-import { MemoryListEndpoint, MemoryCreateEndpoint } from 'hono-crud/adapters/memory';
+import { defineModel, defineMeta, registerCrud } from 'hono-crud';
+import { MemoryCreateEndpoint, MemoryListEndpoint } from 'hono-crud/adapters/memory';
 
 const UserModel = defineModel({
   tableName: 'users',
@@ -60,7 +60,7 @@ class UserCreate extends MemoryCreateEndpoint {
   schema = { tags: ['Users'], summary: 'Create user' };
 
   async before(data) {
-    return { ...data, createdAt: new Date() };
+    return { ...data, createdAt: new Date().toISOString() };
   }
 }
 
@@ -81,7 +81,7 @@ registerCrud(app, '/users', {
 
 ### With Database Adapters
 
-For Drizzle and Prisma, you must provide the database connection as a class property:
+For Drizzle and Prisma, provide the database connection as a class property:
 
 ```typescript
 // Drizzle
@@ -124,10 +124,12 @@ import {
 ### Basic Usage
 
 ```typescript
+import { MemoryCreateEndpoint, MemoryListEndpoint, MemoryReadEndpoint, MemoryUpdateEndpoint, MemoryDeleteEndpoint } from 'hono-crud/adapters/memory';
+
 const UserCreate = createCreate({
   meta: userMeta,
   schema: { tags: ['Users'], summary: 'Create user' },
-  before: (data) => ({ ...data, createdAt: new Date() }),
+  before: (data) => ({ ...data, createdAt: new Date().toISOString() }),
 }, MemoryCreateEndpoint);
 
 const UserList = createList({
@@ -151,7 +153,7 @@ const UserUpdate = createUpdate({
   meta: userMeta,
   schema: { tags: ['Users'], summary: 'Update user' },
   allowedUpdateFields: ['name', 'role', 'status'],
-  before: (data) => ({ ...data, updatedAt: new Date() }),
+  before: (data) => ({ ...data, updatedAt: new Date().toISOString() }),
 }, MemoryUpdateEndpoint);
 
 const UserDelete = createDelete({
@@ -257,13 +259,13 @@ import { crud } from 'hono-crud';
 ### Basic Usage
 
 ```typescript
+import { MemoryCreateEndpoint, MemoryListEndpoint, MemoryReadEndpoint, MemoryUpdateEndpoint, MemoryDeleteEndpoint } from 'hono-crud/adapters/memory';
+
 const UserCreate = crud(userMeta)
   .create()
   .tags('Users')
   .summary('Create user')
-  .description('Creates a new user account')
-  .before((data) => ({ ...data, createdAt: new Date() }))
-  .after((data) => console.log('Created:', data.id))
+  .before((data) => ({ ...data, createdAt: new Date().toISOString() }))
   .build(MemoryCreateEndpoint);
 
 const UserList = crud(userMeta)
@@ -282,7 +284,6 @@ const UserRead = crud(userMeta)
   .read()
   .tags('Users')
   .summary('Get user')
-  .lookupField('id')
   .include('profile')
   .build(MemoryReadEndpoint);
 
@@ -291,8 +292,7 @@ const UserUpdate = crud(userMeta)
   .tags('Users')
   .summary('Update user')
   .allowedFields('name', 'role', 'status')
-  .blockedFields('email', 'createdAt')
-  .before((data) => ({ ...data, updatedAt: new Date() }))
+  .before((data) => ({ ...data, updatedAt: new Date().toISOString() }))
   .build(MemoryUpdateEndpoint);
 
 const UserDelete = crud(userMeta)
@@ -414,10 +414,8 @@ const userEndpoints = defineEndpoints({
   create: {
     openapi: { tags: ['Users'], summary: 'Create user' },
     hooks: {
-      before: (data) => ({ ...data, createdAt: new Date() }),
-      after: (data) => console.log('Created:', data.id),
+      before: (data) => ({ ...data, createdAt: new Date().toISOString() }),
     },
-    nestedCreate: ['profile'],
   },
 
   list: {
@@ -428,45 +426,26 @@ const userEndpoints = defineEndpoints({
         age: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'],
       },
     },
-    search: {
-      fields: ['name', 'email'],
-      paramName: 'q',
-    },
+    search: { fields: ['name', 'email'] },
     sorting: {
       fields: ['name', 'createdAt'],
       default: 'createdAt',
       defaultDirection: 'desc',
     },
-    pagination: {
-      defaultPerPage: 20,
-      maxPerPage: 100,
-    },
+    pagination: { defaultPerPage: 20, maxPerPage: 100 },
     includes: ['profile', 'posts'],
-    hooks: {
-      after: (items) => items,
-      transform: (item) => item,
-    },
   },
 
   read: {
     openapi: { tags: ['Users'], summary: 'Get user' },
-    lookupField: 'id',
     includes: ['profile'],
-    fieldSelection: {
-      enabled: true,
-      allowed: ['id', 'name', 'email', 'role'],
-      blocked: ['password'],
-    },
   },
 
   update: {
     openapi: { tags: ['Users'], summary: 'Update user' },
-    fields: {
-      allowed: ['name', 'role', 'status'],
-      blocked: ['email', 'createdAt'],
-    },
+    fields: { allowed: ['name', 'role', 'status'] },
     hooks: {
-      before: (data) => ({ ...data, updatedAt: new Date() }),
+      before: (data) => ({ ...data, updatedAt: new Date().toISOString() }),
     },
   },
 
@@ -476,21 +455,7 @@ const userEndpoints = defineEndpoints({
   },
 }, MemoryAdapters);
 
-// Register all endpoints at once
 registerCrud(app, '/users', userEndpoints);
-```
-
-### Configuration Structure
-
-```typescript
-interface EndpointsConfig {
-  meta: MetaInput;           // Required: model metadata
-  create?: CreateConfig;     // Optional: create endpoint
-  list?: ListConfig;         // Optional: list endpoint
-  read?: ReadConfig;         // Optional: read endpoint
-  update?: UpdateConfig;     // Optional: update endpoint
-  delete?: DeleteConfig;     // Optional: delete endpoint
-}
 ```
 
 ### Adapter Bundles
@@ -499,14 +464,8 @@ interface EndpointsConfig {
 // Built-in Memory adapter bundle
 import { MemoryAdapters } from 'hono-crud';
 
-// Create custom adapter bundles
-const DrizzleAdapters = {
-  CreateEndpoint: DrizzleCreateEndpoint,
-  ListEndpoint: DrizzleListEndpoint,
-  ReadEndpoint: DrizzleReadEndpoint,
-  UpdateEndpoint: DrizzleUpdateEndpoint,
-  DeleteEndpoint: DrizzleDeleteEndpoint,
-};
+// Create custom adapter bundles for Drizzle or Prisma
+import { DrizzleAdapters } from 'hono-crud/adapters/drizzle';
 
 const endpoints = defineEndpoints(config, DrizzleAdapters);
 ```
@@ -515,43 +474,34 @@ const endpoints = defineEndpoints(config, DrizzleAdapters);
 
 ## Mixing Patterns
 
-All patterns are fully compatible and can be mixed in a single application:
+All patterns are fully compatible and can be mixed in a single `registerCrud` call:
 
 ```typescript
-// Builder pattern for create
+// Builder for create
 const UserCreate = crud(userMeta)
   .create()
   .tags('Users')
-  .before((data) => ({ ...data, createdAt: new Date() }))
+  .before((data) => ({ ...data, createdAt: new Date().toISOString() }))
   .build(MemoryCreateEndpoint);
 
-// Functional pattern for list
+// Functional for list
 const UserList = createList({
   meta: userMeta,
   filterFields: ['role'],
   searchFields: ['name'],
 }, MemoryListEndpoint);
 
-// Class-based pattern for read
+// Class-based for read
 class UserRead extends MemoryReadEndpoint {
   _meta = userMeta;
   schema = { tags: ['Users'] };
 }
 
-// Config-based for update and delete
-const { update: UserUpdate, delete: UserDelete } = defineEndpoints({
-  meta: userMeta,
-  update: { fields: { allowed: ['name'] } },
-  delete: {},
-}, MemoryAdapters);
-
-// Mix them all together
+// Mix them together
 registerCrud(app, '/users', {
   create: UserCreate,
   list: UserList,
   read: UserRead,
-  update: UserUpdate,
-  delete: UserDelete,
 });
 ```
 
@@ -559,23 +509,23 @@ registerCrud(app, '/users', {
 
 ## Choosing a Pattern
 
-### Use Class-based when:
+**Use Class-based when:**
 - You need complex custom logic
-- Using Drizzle or Prisma adapters (requires db/prisma property)
+- Using Drizzle or Prisma adapters (requires `db`/`prisma` property)
 - You want full TypeScript intellisense on class properties
 - You need to override multiple methods
 
-### Use Functional when:
+**Use Functional when:**
 - You want quick, simple endpoint definitions
 - Configuration is straightforward
 - You prefer function composition
 
-### Use Builder when:
+**Use Builder when:**
 - You want readable, self-documenting code
 - You prefer method chaining
 - You want IDE autocomplete to guide configuration
 
-### Use Config-based when:
+**Use Config-based when:**
 - You want to define all endpoints in one place
 - You prefer declarative configuration
 - You want consistent structure across endpoints
