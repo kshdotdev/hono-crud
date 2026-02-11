@@ -6,6 +6,7 @@ export default defineConfig({
     'src/adapters/memory/index.ts',
     'src/adapters/drizzle/index.ts',
     'src/adapters/prisma/index.ts',
+    'src/ai/index.ts',
     'src/auth/index.ts',
     'src/cache/index.ts',
     'src/rate-limit/index.ts',
@@ -29,5 +30,6 @@ export default defineConfig({
     '@hono/swagger-ui',
     '@scalar/hono-api-reference',
     'zod',
+    'ai',
   ],
 });

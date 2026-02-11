@@ -17,6 +17,7 @@ export * from './crud';
 export * from './batch';
 export * from './advanced';
 export * from './factory';
+export * from './ai';
 
 // Re-export drizzle-zod schema utilities
 export {
