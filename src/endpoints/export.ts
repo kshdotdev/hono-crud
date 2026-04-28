@@ -89,6 +89,9 @@ export abstract class ExportEndpoint<
   /** Whether to enable streaming for large exports. */
   protected enableStreaming: boolean = true;
 
+  /** Page size for paginated streaming export. @default 500 */
+  protected streamPageSize: number = 500;
+
   /** Fields to exclude from the export. */
   protected excludedExportFields: string[] = [];
 
@@ -317,6 +320,100 @@ export abstract class ExportEndpoint<
   }
 
   /**
+   * Paginated streaming export using ReadableStream.
+   * Fetches records page-by-page and encodes each chunk as CSV rows,
+   * avoiding loading all records into memory at once.
+   */
+  protected exportAsCsvStreamPaginated(
+    filters: ListFilters,
+    format: ExportFormat
+  ): Response {
+    const filename = this.getExportFilename(format);
+    const pageSize = this.streamPageSize;
+    const maxRecords = Math.min(this.maxExportRecords, 100_000);
+    const excludedFields = this.excludedExportFields;
+    const endpoint = this;
+    let headerFields: string[] | null = null;
+
+    const readable = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        let page = 1;
+        let exported = 0;
+
+        try {
+          while (exported < maxRecords) {
+            const pageFilters: ListFilters = {
+              ...filters,
+              options: { ...filters.options, page, per_page: pageSize },
+            };
+
+            const result = await endpoint.list(pageFilters);
+            let records = result.result;
+
+            if (records.length === 0) break;
+            if (records.length > maxRecords - exported) {
+              records = records.slice(0, maxRecords - exported);
+            }
+
+            // Apply hooks
+            records = await endpoint.after(records);
+            records = await endpoint.beforeExport(records);
+            const prepared = endpoint.prepareRecordsForExport(records);
+
+            // Write header from first batch
+            if (!headerFields && prepared.length > 0) {
+              headerFields = Object.keys(prepared[0]).filter(
+                (k) => !excludedFields.includes(k)
+              );
+              const headerRow = headerFields.map((field) => endpoint.escapeCsvField(field)).join(',') + '\n';
+              controller.enqueue(encoder.encode(headerRow));
+            }
+
+            // Write rows
+            if (headerFields) {
+              for (const record of prepared) {
+                const row = headerFields.map((field) => {
+                  const value = record[field];
+                  return endpoint.formatAndEscapeCsvField(value);
+                }).join(',') + '\n';
+                controller.enqueue(encoder.encode(row));
+              }
+            }
+
+            exported += records.length;
+            page++;
+
+            // Stop if we got fewer records than the page size (last page)
+            if (records.length < pageSize) break;
+          }
+        } catch (err) {
+          controller.error(err);
+          return;
+        }
+
+        controller.close();
+      },
+    });
+
+    return new Response(readable, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    });
+  }
+
+  /**
+   * Formats and escapes a single value for CSV output.
+   */
+  private formatAndEscapeCsvField(value: unknown): string {
+    const formatted = this.formatCsvValue(value);
+    return this.escapeCsvField(formatted);
+  }
+
+  /**
    * Legacy streaming method using Web ReadableStream.
    * Kept for backwards compatibility.
    */
@@ -334,7 +431,6 @@ export abstract class ExportEndpoint<
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="${this.getExportFilename(format)}"`,
-        'Transfer-Encoding': 'chunked',
       },
     });
   }
@@ -379,6 +475,11 @@ export abstract class ExportEndpoint<
     const exportOptions = await this.getExportOptions();
     const filters = await this.getFilters();
 
+    // Use paginated streaming for CSV when streaming is requested
+    if (exportOptions.format === 'csv' && exportOptions.stream) {
+      return this.exportAsCsvStreamPaginated(filters, exportOptions.format);
+    }
+
     // Fetch all records for export
     let records = await this.fetchAllForExport(filters);
 
@@ -393,9 +494,6 @@ export abstract class ExportEndpoint<
 
     // Export based on format
     if (exportOptions.format === 'csv') {
-      if (exportOptions.stream && preparedRecords.length > 1000) {
-        return this.exportAsCsvStream(preparedRecords, exportOptions.format);
-      }
       return this.exportAsCsv(preparedRecords, exportOptions.format);
     }
 

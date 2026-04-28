@@ -57,7 +57,7 @@ function shouldSkipPath(path: string, skipPaths: PathPattern[]): boolean {
  * const app = new Hono<AuthEnv>();
  *
  * app.use('*', createAuthMiddleware({
- *   jwt: { secret: process.env.JWT_SECRET! },
+ *   jwt: { secret: c.env.JWT_SECRET },
  *   apiKey: {
  *     lookupKey: async (hash) => await db.apiKeys.findByHash(hash),
  *   },
@@ -150,7 +150,7 @@ export function createAuthMiddleware<E extends AuthEnv = AuthEnv>(
  * @example
  * ```ts
  * app.use('*', optionalAuth({
- *   jwt: { secret: process.env.JWT_SECRET! },
+ *   jwt: { secret: c.env.JWT_SECRET },
  * }));
  *
  * app.get('/public', (c) => {

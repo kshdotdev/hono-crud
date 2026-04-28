@@ -12,6 +12,7 @@ export default defineConfig({
     'src/logging/index.ts',
     'src/storage/index.ts',
     'src/ui.ts',
+    'src/types/cloudflare.ts',
   ],
   format: ['esm'],
   dts: true,
@@ -29,5 +30,7 @@ export default defineConfig({
     '@hono/swagger-ui',
     '@scalar/hono-api-reference',
     'zod',
+    'pluralize',
+    'fastest-levenshtein',
   ],
 });

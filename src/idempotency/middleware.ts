@@ -1,7 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import type { IdempotencyConfig, IdempotencyEntry, IdempotencyStorage } from './types';
-import { MemoryIdempotencyStorage } from './storage/memory';
-import { createRegistryWithDefault } from '../storage/registry';
+import { createNullableRegistry } from '../storage/registry';
 import { getContextVar } from '../core/context-helpers';
 
 // ============================================================================
@@ -10,11 +9,11 @@ import { getContextVar } from '../core/context-helpers';
 
 /**
  * Global idempotency storage registry.
- * Uses lazy initialization with MemoryIdempotencyStorage as default.
+ * Compatibility global registry. Prefer passing storage explicitly or injecting
+ * it with createCrudMiddleware() in edge runtimes.
  */
-export const idempotencyStorageRegistry = createRegistryWithDefault<IdempotencyStorage>(
-  'idempotencyStorage',
-  () => new MemoryIdempotencyStorage()
+export const idempotencyStorageRegistry = createNullableRegistry<IdempotencyStorage>(
+  'idempotencyStorage'
 );
 
 /**
@@ -54,7 +53,7 @@ export function getIdempotencyStorage(): IdempotencyStorage {
  * import { idempotency } from 'hono-crud';
  *
  * const app = new Hono();
- * app.use('/api/*', idempotency());
+ * app.use('/api/*', idempotency({ storage: new MemoryIdempotencyStorage() }));
  *
  * // Or with configuration:
  * app.use('/api/*', idempotency({

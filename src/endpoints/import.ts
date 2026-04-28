@@ -6,7 +6,7 @@ import { getAuditConfig, getSoftDeleteConfig, type NormalizedSoftDeleteConfig } 
 import type { ModelObject } from './types';
 import { createAuditLogger, type AuditLogger } from '../core/audit';
 import { parseCsv, validateCsvHeaders, type CsvParseOptions } from '../utils/csv';
-import { InputValidationException } from '../core/exceptions';
+import { ConfigurationException, InputValidationException } from '../core/exceptions';
 
 // ============================================================================
 // Import Types
@@ -120,6 +120,9 @@ export abstract class ImportEndpoint<
 
   /** Maximum number of records per import request. */
   protected maxBatchSize: number = 1000;
+
+  /** Number of rows to process concurrently in each batch. @default 100 */
+  protected importBatchSize: number = 100;
 
   /** Whether to stop on first error. */
   protected stopOnError: boolean = false;
@@ -257,7 +260,7 @@ export abstract class ImportEndpoint<
                   results: z.array(z.object({
                     rowNumber: z.number(),
                     status: z.enum(['created', 'updated', 'skipped', 'failed']),
-                    data: z.any().optional(),
+                    data: z.unknown().optional(),
                     error: z.string().optional(),
                     validationErrors: z.array(z.object({
                       path: z.string(),
@@ -286,7 +289,7 @@ export abstract class ImportEndpoint<
                   results: z.array(z.object({
                     rowNumber: z.number(),
                     status: z.enum(['created', 'updated', 'skipped', 'failed']),
-                    data: z.any().optional(),
+                    data: z.unknown().optional(),
                     error: z.string().optional(),
                     validationErrors: z.array(z.object({
                       path: z.string(),
@@ -307,7 +310,7 @@ export abstract class ImportEndpoint<
                 error: z.object({
                   code: z.string(),
                   message: z.string(),
-                  details: z.any().optional(),
+                  details: z.unknown().optional(),
                 }),
               }),
             },
@@ -322,10 +325,21 @@ export abstract class ImportEndpoint<
    */
   protected async getImportOptions(): Promise<ImportOptions> {
     const { query } = await this.getValidatedData();
+    const skipInvalidRows = query?.skipInvalid === 'true'
+      ? true
+      : query?.skipInvalid === 'false'
+        ? false
+        : this.skipInvalidRows;
+    const stopOnError = query?.stopOnError === 'true'
+      ? true
+      : query?.stopOnError === 'false'
+        ? false
+        : this.stopOnError;
+
     return {
       mode: (query?.mode as ImportMode) || this.defaultMode,
-      skipInvalidRows: query?.skipInvalid === 'true' ? true : this.skipInvalidRows,
-      stopOnError: query?.stopOnError === 'true' ? true : this.stopOnError,
+      skipInvalidRows,
+      stopOnError,
     };
   }
 
@@ -666,6 +680,9 @@ export abstract class ImportEndpoint<
 
     const options = await this.getImportOptions();
     const items = await this.parseImportData();
+    if (!Number.isInteger(this.importBatchSize) || this.importBatchSize < 1) {
+      throw new ConfigurationException('importBatchSize must be a positive integer');
+    }
 
     const summary: ImportSummary = {
       total: items.length,
@@ -676,38 +693,45 @@ export abstract class ImportEndpoint<
     };
 
     const results: ImportRowResult<ModelObject<M['model']>>[] = [];
+    let stopped = false;
+    const effectiveBatchSize = options.stopOnError ? 1 : this.importBatchSize;
 
-    // Process each row
-    for (let i = 0; i < items.length; i++) {
-      const rowNumber = i + 1;
-      const data = items[i];
+    // Process rows in batches for memory efficiency
+    for (let i = 0; i < items.length && !stopped; i += effectiveBatchSize) {
+      const batch = items.slice(i, i + effectiveBatchSize);
+      const batchResults = await Promise.all(
+        batch.map(async (data, idx) => {
+          const rowNumber = i + idx + 1;
+          let result = await this.processRow(data, rowNumber, options);
+          result = await this.after(result, rowNumber, options.mode);
+          return result;
+        })
+      );
 
-      let result = await this.processRow(data, rowNumber, options);
+      for (const result of batchResults) {
+        results.push(result);
 
-      // Apply after hook
-      result = await this.after(result, rowNumber, options.mode);
+        // Update summary
+        switch (result.status) {
+          case 'created':
+            summary.created++;
+            break;
+          case 'updated':
+            summary.updated++;
+            break;
+          case 'skipped':
+            summary.skipped++;
+            break;
+          case 'failed':
+            summary.failed++;
+            break;
+        }
 
-      results.push(result);
-
-      // Update summary
-      switch (result.status) {
-        case 'created':
-          summary.created++;
+        // Stop on error if configured
+        if (options.stopOnError && result.status === 'failed') {
+          stopped = true;
           break;
-        case 'updated':
-          summary.updated++;
-          break;
-        case 'skipped':
-          summary.skipped++;
-          break;
-        case 'failed':
-          summary.failed++;
-          break;
-      }
-
-      // Stop on error if configured
-      if (options.stopOnError && result.status === 'failed') {
-        break;
+        }
       }
     }
 

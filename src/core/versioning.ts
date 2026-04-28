@@ -201,8 +201,9 @@ export class MemoryVersioningStorage implements VersioningStorage {
 
 /**
  * Global versioning storage registry.
- * Uses lazy initialization -- the default MemoryVersioningStorage is only
- * created when first accessed.
+ * Compatibility getters can still create a MemoryVersioningStorage lazily, but
+ * request-time versioning resolution requires explicit, context, or configured
+ * global storage.
  */
 export const versioningStorageRegistry = createRegistryWithDefault<VersioningStorage>(
   'versioningStorage',
@@ -228,7 +229,7 @@ export function getVersioningStorage(): VersioningStorage {
  */
 export class VersionManager {
   private config: NormalizedVersioningConfig;
-  private storage: VersioningStorage;
+  private storage: VersioningStorage | null;
   private tableName: string;
 
   constructor(
@@ -239,8 +240,16 @@ export class VersionManager {
   ) {
     this.config = getVersioningConfig(config, tableName);
     this.tableName = tableName;
-    // Resolve storage with priority: explicit > context > global (via registry)
-    this.storage = versioningStorageRegistry.resolve(ctx, storage) ?? versioningStorageRegistry.getRequired();
+    this.storage = versioningStorageRegistry.resolve(ctx, storage);
+  }
+
+  private getStorage(): VersioningStorage {
+    if (!this.storage) {
+      throw new Error(
+        'Versioning storage not configured. Pass storage explicitly or inject versioningStorage with createCrudMiddleware().'
+      );
+    }
+    return this.storage;
   }
 
   /**
@@ -311,15 +320,16 @@ export class VersionManager {
     }
 
     // Save to storage
-    if ('store' in this.storage && typeof this.storage.store === 'function') {
-      await (this.storage as MemoryVersioningStorage).store(this.tableName, entry);
+    const storage = this.getStorage();
+    if ('store' in storage && typeof storage.store === 'function') {
+      await (storage as MemoryVersioningStorage).store(this.tableName, entry);
     } else {
-      await this.storage.save(entry);
+      await storage.save(entry);
     }
 
     // Prune old versions if maxVersions is set
-    if (this.config.maxVersions && this.storage.pruneVersions) {
-      await this.storage.pruneVersions(
+    if (this.config.maxVersions && storage.pruneVersions) {
+      await storage.pruneVersions(
         this.tableName,
         recordId,
         this.config.maxVersions
@@ -336,7 +346,7 @@ export class VersionManager {
     recordId: string | number,
     options?: { limit?: number; offset?: number }
   ): Promise<VersionHistoryEntry[]> {
-    return this.storage.getByRecordId(this.tableName, recordId, options);
+    return this.getStorage().getByRecordId(this.tableName, recordId, options);
   }
 
   /**
@@ -346,7 +356,7 @@ export class VersionManager {
     recordId: string | number,
     version: number
   ): Promise<VersionHistoryEntry | null> {
-    return this.storage.getVersion(this.tableName, recordId, version);
+    return this.getStorage().getVersion(this.tableName, recordId, version);
   }
 
   /**
@@ -364,7 +374,7 @@ export class VersionManager {
    * Get the latest version number for a record.
    */
   async getLatestVersion(recordId: string | number): Promise<number> {
-    return this.storage.getLatestVersion(this.tableName, recordId);
+    return this.getStorage().getLatestVersion(this.tableName, recordId);
   }
 
   /**
@@ -395,8 +405,9 @@ export class VersionManager {
    * Delete all versions for a record.
    */
   async deleteAllVersions(recordId: string | number): Promise<number> {
-    if (this.storage.deleteAllVersions) {
-      return this.storage.deleteAllVersions(this.tableName, recordId);
+    const storage = this.getStorage();
+    if (storage.deleteAllVersions) {
+      return storage.deleteAllVersions(this.tableName, recordId);
     }
     return 0;
   }
@@ -430,7 +441,7 @@ export class VersionManager {
  *
  * @example
  * ```ts
- * // Using global storage
+ * // Using compatibility global storage
  * const manager = createVersionManager(config, 'users');
  *
  * // Using context-based storage

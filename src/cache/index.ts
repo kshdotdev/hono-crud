@@ -24,6 +24,8 @@ export {
 export { MemoryCacheStorage } from './storage/memory';
 export { RedisCacheStorage } from './storage/redis';
 export type { RedisClient, RedisCacheStorageOptions } from './storage/redis';
+export { KVCacheStorage } from './storage/cloudflare-kv';
+export type { KVCacheStorageOptions } from './storage/cloudflare-kv';
 
 // Mixins and global storage
 export {

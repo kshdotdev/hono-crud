@@ -115,9 +115,9 @@ export class MemoryAuditLogStorage implements AuditLogStorage {
 
 /**
  * Global audit log storage registry.
- * Uses lazy initialization -- the default MemoryAuditLogStorage is only
- * created when first accessed, avoiding unnecessary allocations on
- * edge runtimes where audit may not be used.
+ * Compatibility getters can still create a MemoryAuditLogStorage lazily, but
+ * request-time audit resolution requires explicit, context, or configured
+ * global storage.
  */
 export const auditStorageRegistry = createRegistryWithDefault<AuditLogStorage>(
   'auditStorage',
@@ -143,12 +143,20 @@ export function getAuditStorage(): AuditLogStorage {
  */
 export class AuditLogger {
   private config: NormalizedAuditConfig;
-  private storage: AuditLogStorage;
+  private storage: AuditLogStorage | null;
 
   constructor(config: AuditConfig | undefined, storage?: AuditLogStorage, ctx?: Context<Env>) {
     this.config = getAuditConfig(config);
-    // Resolve storage with priority: explicit > context > global (via registry)
-    this.storage = auditStorageRegistry.resolve(ctx, storage) ?? auditStorageRegistry.getRequired();
+    this.storage = auditStorageRegistry.resolve(ctx, storage);
+  }
+
+  private getStorage(): AuditLogStorage {
+    if (!this.storage) {
+      throw new Error(
+        'Audit storage not configured. Pass storage explicitly or inject auditStorage with createCrudMiddleware().'
+      );
+    }
+    return this.storage;
   }
 
   /**
@@ -182,7 +190,7 @@ export class AuditLogger {
       entry.record = this.filterFields(record);
     }
 
-    await this.storage.store(entry);
+    await this.getStorage().store(entry);
   }
 
   /**
@@ -222,7 +230,7 @@ export class AuditLogger {
       );
     }
 
-    await this.storage.store(entry);
+    await this.getStorage().store(entry);
   }
 
   /**
@@ -249,7 +257,7 @@ export class AuditLogger {
       entry.previousRecord = this.filterFields(previousRecord);
     }
 
-    await this.storage.store(entry);
+    await this.getStorage().store(entry);
   }
 
   /**
@@ -276,7 +284,7 @@ export class AuditLogger {
       entry.record = this.filterFields(record);
     }
 
-    await this.storage.store(entry);
+    await this.getStorage().store(entry);
   }
 
   /**
@@ -317,7 +325,7 @@ export class AuditLogger {
       );
     }
 
-    await this.storage.store(entry);
+    await this.getStorage().store(entry);
   }
 
   /**
@@ -361,7 +369,7 @@ export class AuditLogger {
         );
       }
 
-      await this.storage.store(entry);
+      await this.getStorage().store(entry);
     }
   }
 
@@ -416,7 +424,7 @@ export class AuditLogger {
  *
  * @example
  * ```ts
- * // Using global storage
+ * // Using compatibility global storage
  * const logger = createAuditLogger(config);
  *
  * // Using context-based storage

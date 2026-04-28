@@ -1,5 +1,5 @@
 import type { CrudEventPayload, CrudEventListener } from './types';
-import { getEventEmitter, type CrudEventEmitter } from './emitter';
+import { resolveEventEmitter, type CrudEventEmitter } from './emitter';
 
 /**
  * Webhook endpoint configuration.
@@ -25,10 +25,23 @@ export interface WebhookEndpoint {
 export interface WebhookConfig {
   /** Webhook endpoints to deliver events to */
   endpoints: WebhookEndpoint[];
-  /** Event emitter to subscribe to. Uses global emitter if not provided. */
+  /** Event emitter to subscribe to. Falls back only to a configured compatibility global emitter. */
   emitter?: CrudEventEmitter;
   /** Callback for delivery failures */
   onError?: (endpoint: WebhookEndpoint, event: CrudEventPayload, error: Error) => void;
+  /**
+   * Wrap delivery promises with waitUntil for edge runtimes.
+   * Without this, delivery may be aborted when the response is sent.
+   *
+   * @example
+   * ```ts
+   * registerWebhooks({
+   *   endpoints: [...],
+   *   waitUntil: c.executionCtx.waitUntil.bind(c.executionCtx),
+   * });
+   * ```
+   */
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 /**
@@ -146,7 +159,9 @@ async function deliverToEndpoint(
  * ```ts
  * import { registerWebhooks, getEventEmitter } from 'hono-crud';
  *
+ * const emitter = getEventEmitter(); // Compatibility global, or pass your own emitter.
  * const unsubscribe = registerWebhooks({
+ *   emitter,
  *   endpoints: [
  *     {
  *       url: 'https://hooks.example.com/crud',
@@ -164,14 +179,17 @@ async function deliverToEndpoint(
  * ```
  */
 export function registerWebhooks(config: WebhookConfig): () => void {
-  const emitter = config.emitter ?? getEventEmitter();
+  const emitter = resolveEventEmitter(undefined, config.emitter);
+  if (!emitter) {
+    throw new Error('Event emitter not configured. Pass emitter explicitly or call setEventEmitter() first.');
+  }
 
   const listener: CrudEventListener = (event) => {
     for (const endpoint of config.endpoints) {
       if (!matchesFilter(event, endpoint.events)) continue;
 
       // Fire and forget delivery
-      deliverToEndpoint(endpoint, event).then((result) => {
+      const deliveryPromise = deliverToEndpoint(endpoint, event).then((result) => {
         if (!result.success && config.onError) {
           config.onError(
             endpoint,
@@ -188,6 +206,11 @@ export function registerWebhooks(config: WebhookConfig): () => void {
           );
         }
       });
+
+      // Keep delivery alive past response in edge runtimes
+      if (config.waitUntil) {
+        config.waitUntil(deliveryPromise);
+      }
     }
   };
 

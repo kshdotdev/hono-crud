@@ -61,7 +61,7 @@ export class MemoryCacheStorage implements CacheStorage {
     }
 
     // Check expiration
-    if (entry.expiresAt && entry.expiresAt < new Date()) {
+    if (entry.expiresAt && entry.expiresAt < Date.now()) {
       // Entry has expired, delete it
       await this.delete(key);
       this.stats.misses++;
@@ -84,10 +84,11 @@ export class MemoryCacheStorage implements CacheStorage {
       this.evictOldest();
     }
 
+    const now = Date.now();
     const entry: CacheEntry<T> = {
       data,
-      createdAt: new Date(),
-      expiresAt: ttl > 0 ? new Date(Date.now() + ttl * 1000) : null,
+      createdAt: now,
+      expiresAt: ttl > 0 ? now + ttl * 1000 : null,
       tags,
     };
 
@@ -99,7 +100,10 @@ export class MemoryCacheStorage implements CacheStorage {
       }
     }
 
-    // Add to storage
+    // Delete and re-insert to move to newest position (Map insertion order)
+    if (oldEntry) {
+      this.storage.delete(key);
+    }
     this.storage.set(key, entry);
     this.stats.size = this.storage.size;
 
@@ -196,7 +200,7 @@ export class MemoryCacheStorage implements CacheStorage {
     }
 
     // Check expiration
-    if (entry.expiresAt && entry.expiresAt < new Date()) {
+    if (entry.expiresAt && entry.expiresAt < Date.now()) {
       await this.delete(key);
       return false;
     }
@@ -244,20 +248,11 @@ export class MemoryCacheStorage implements CacheStorage {
 
   /**
    * Evict oldest entry when at capacity.
+   * Uses Map insertion order for O(1) lookup instead of scanning all entries.
    */
   private evictOldest(): void {
-    let oldestKey: string | null = null;
-    let oldestTime = Infinity;
-
-    for (const [key, entry] of this.storage.entries()) {
-      const time = entry.createdAt.getTime();
-      if (time < oldestTime) {
-        oldestTime = time;
-        oldestKey = key;
-      }
-    }
-
-    if (oldestKey) {
+    const oldestKey = this.storage.keys().next().value;
+    if (oldestKey !== undefined) {
       this.delete(oldestKey).catch(() => {});
     }
   }
@@ -266,7 +261,7 @@ export class MemoryCacheStorage implements CacheStorage {
    * Clean up expired entries (manual garbage collection).
    */
   async cleanup(): Promise<number> {
-    const now = new Date();
+    const now = Date.now();
     let count = 0;
     const keysToDelete: string[] = [];
 

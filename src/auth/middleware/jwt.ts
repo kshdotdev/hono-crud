@@ -72,7 +72,7 @@ function defaultExtractUser(claims: JWTClaims): AuthUser {
  * const app = new Hono<AuthEnv>();
  *
  * app.use('*', createJWTMiddleware({
- *   secret: process.env.JWT_SECRET!,
+ *   secret: c.env.JWT_SECRET,
  *   issuer: 'my-app',
  * }));
  *

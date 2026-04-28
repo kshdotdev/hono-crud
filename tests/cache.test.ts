@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   MemoryCacheStorage,
+  RedisCacheStorage,
   generateCacheKey,
   createInvalidationPattern,
   createRelatedPatterns,
@@ -23,6 +24,7 @@ import {
 } from '../src/adapters/memory/index.js';
 import { fromHono, registerCrud } from '../src/index.js';
 import type { MetaInput, Model } from '../src/index.js';
+import type { RedisClient } from '../src/cache/index.js';
 
 // Define test schema
 const UserSchema = z.object({
@@ -61,6 +63,8 @@ describe('MemoryCacheStorage', () => {
 
       expect(entry).not.toBeNull();
       expect(entry!.data.name).toBe('test');
+      expect(entry!.createdAt).toBeTypeOf('number');
+      expect(entry!.expiresAt).toBeTypeOf('number');
     });
 
     it('should return null for non-existent key', async () => {
@@ -268,6 +272,51 @@ describe('MemoryCacheStorage', () => {
 
       vi.useRealTimers();
     });
+  });
+});
+
+class InMemoryRedisClient implements RedisClient {
+  private values = new Map<string, string>();
+
+  async get(key: string): Promise<string | null> {
+    return this.values.get(key) ?? null;
+  }
+
+  async set(key: string, value: string): Promise<unknown> {
+    this.values.set(key, value);
+    return 'OK';
+  }
+
+  async del(...keys: string[]): Promise<number> {
+    let deleted = 0;
+    for (const key of keys) {
+      if (this.values.delete(key)) deleted++;
+    }
+    return deleted;
+  }
+
+  async exists(...keys: string[]): Promise<number> {
+    return keys.filter((key) => this.values.has(key)).length;
+  }
+}
+
+describe('RedisCacheStorage', () => {
+  it('should migrate legacy Date-string cache entries to epoch milliseconds', async () => {
+    const client = new InMemoryRedisClient();
+    const cache = new RedisCacheStorage({ client, prefix: 'test:' });
+    const now = Date.now();
+
+    await client.set('test:legacy', JSON.stringify({
+      data: { name: 'legacy' },
+      createdAt: new Date(now - 1000).toISOString(),
+      expiresAt: new Date(now + 60_000).toISOString(),
+    }));
+
+    const entry = await cache.get<{ name: string }>('legacy');
+    expect(entry).not.toBeNull();
+    expect(entry!.data.name).toBe('legacy');
+    expect(entry!.createdAt).toBeTypeOf('number');
+    expect(entry!.expiresAt).toBeTypeOf('number');
   });
 });
 

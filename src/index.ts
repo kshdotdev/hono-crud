@@ -369,6 +369,7 @@ export {
   // Storage implementations
   MemoryCacheStorage,
   RedisCacheStorage,
+  KVCacheStorage,
   // Key generation utilities
   generateCacheKey,
   createInvalidationPattern,
@@ -388,6 +389,7 @@ export type {
   InvalidationPatternOptions,
   RedisClient,
   RedisCacheStorageOptions,
+  KVCacheStorageOptions,
   CacheEndpointMethods,
   CacheInvalidationMethods,
 } from './cache/index';
@@ -411,6 +413,7 @@ export {
   // Storage implementations
   MemoryRateLimitStorage,
   RedisRateLimitStorage,
+  KVRateLimitStorage,
 } from './rate-limit/index';
 export type {
   FixedWindowEntry,
@@ -430,6 +433,7 @@ export type {
   MemoryRateLimitStorageOptions,
   RedisRateLimitClient,
   RedisRateLimitStorageOptions,
+  KVRateLimitStorageOptions,
 } from './rate-limit/index';
 
 // Logging exports
@@ -472,6 +476,10 @@ export type {
   MemoryLoggingStorageOptions,
 } from './logging/index';
 
+// Unified middleware
+export { createCrudMiddleware } from './middleware';
+export type { CrudMiddlewareConfig } from './middleware';
+
 // Storage exports (context-based storage management)
 export {
   // Middleware
@@ -489,6 +497,7 @@ export {
   resolveAuditStorage,
   resolveVersioningStorage,
   resolveAPIKeyStorage,
+  resolveIdempotencyStorage,
   // Registry
   StorageRegistry,
   createNullableRegistry,
@@ -504,6 +513,7 @@ export {
   CrudEventEmitter,
   getEventEmitter,
   setEventEmitter,
+  resolveEventEmitter,
   registerWebhooks,
 } from './events/index';
 export type {

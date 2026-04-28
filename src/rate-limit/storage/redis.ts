@@ -98,8 +98,8 @@ return cjson.encode({timestamps = timestamps})
  *
  * const storage = new RedisRateLimitStorage({
  *   client: new Redis({
- *     url: process.env.REDIS_URL,
- *     token: process.env.REDIS_TOKEN,
+ *     url: c.env.REDIS_URL,
+ *     token: c.env.REDIS_TOKEN,
  *   }),
  * });
  * setRateLimitStorage(storage);
@@ -111,7 +111,7 @@ return cjson.encode({timestamps = timestamps})
  * import { RedisRateLimitStorage, setRateLimitStorage } from 'hono-crud';
  *
  * const storage = new RedisRateLimitStorage({
- *   client: new Redis(process.env.REDIS_URL),
+ *   client: new Redis(c.env.REDIS_URL),
  * });
  * setRateLimitStorage(storage);
  * ```

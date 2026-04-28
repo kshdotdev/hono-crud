@@ -66,6 +66,36 @@ class UserImport extends MemoryImportEndpoint<any, UserMeta> {
   protected optionalImportFields = ['id', 'age', 'active']; // These are optional on import
 }
 
+class LargeUserExport extends UserExport {
+  protected maxExportRecords = 1200;
+
+  override async list() {
+    const records = Array.from({ length: 1001 }, (_, index) => ({
+      id: crypto.randomUUID(),
+      name: `User ${index}`,
+      email: `user-${index}@example.com`,
+      role: 'user' as const,
+      active: true,
+    }));
+
+    return {
+      result: records,
+      result_info: {
+        page: 1,
+        per_page: records.length,
+        total_count: records.length,
+        total_pages: 1,
+        has_next_page: false,
+        has_prev_page: false,
+      },
+    };
+  }
+}
+
+class StopOnErrorImport extends UserImport {
+  protected importBatchSize = 3;
+}
+
 // ============================================================================
 // CSV Utilities Tests
 // ============================================================================
@@ -465,6 +495,31 @@ describe('Export Endpoint', () => {
       const lines = csv.split('\r\n');
       expect(lines[0]).not.toContain('age');
     });
+
+    it('should honor stream=false for large CSV exports', async () => {
+      const largeApp = fromHono(new Hono());
+      registerCrud(largeApp, '/users', {
+        export: LargeUserExport,
+      });
+
+      const res = await largeApp.request('/users/export?format=csv&stream=false');
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Transfer-Encoding')).toBeNull();
+
+      const csv = await res.text();
+      expect(csv).toContain('User 1000');
+    });
+
+    it('should not set Transfer-Encoding for streamed CSV responses', async () => {
+      const largeApp = fromHono(new Hono());
+      registerCrud(largeApp, '/users', {
+        export: LargeUserExport,
+      });
+
+      const res = await largeApp.request('/users/export?format=csv&stream=true');
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Transfer-Encoding')).toBeNull();
+    });
   });
 
   describe('Search and Sort in Export', () => {
@@ -567,6 +622,32 @@ describe('Import Endpoint', () => {
       expect(data.result.summary.skipped).toBe(2);
       expect(data.result.results[1].status).toBe('skipped');
       expect(data.result.results[1].validationErrors).toBeDefined();
+    });
+
+    it('should stop before processing later rows when stopOnError is enabled', async () => {
+      const stopApp = fromHono(new Hono());
+      registerCrud(stopApp, '/users', {
+        import: StopOnErrorImport,
+      });
+
+      const res = await stopApp.request('/users/import?skipInvalid=false&stopOnError=true', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [
+            { name: 'Alice', email: 'alice@example.com', role: 'admin' },
+            { name: 'Bob', email: 'invalid-email', role: 'user' },
+            { name: 'Charlie', email: 'charlie@example.com', role: 'user' },
+          ],
+        }),
+      });
+
+      expect(res.status).toBe(207);
+      const data = await res.json();
+      expect(data.result.summary.created).toBe(1);
+      expect(data.result.summary.failed).toBe(1);
+      expect(data.result.results).toHaveLength(2);
+      expect(data.result.results[1].status).toBe('failed');
     });
 
     it('should require items array in request body', async () => {

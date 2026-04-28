@@ -15,9 +15,11 @@ import {
 import { MemoryRateLimitStorage } from '../src/rate-limit/storage/memory.js';
 import { MemoryLoggingStorage } from '../src/logging/storage/memory.js';
 import { MemoryCacheStorage } from '../src/cache/storage/memory.js';
-import { MemoryAuditLogStorage } from '../src/core/audit.js';
-import { MemoryVersioningStorage } from '../src/core/versioning.js';
+import { MemoryAuditLogStorage, setAuditStorage } from '../src/core/audit.js';
+import { MemoryVersioningStorage, setVersioningStorage } from '../src/core/versioning.js';
 import { MemoryAPIKeyStorage } from '../src/auth/storage/memory.js';
+import { MemoryIdempotencyStorage } from '../src/idempotency/storage/memory.js';
+import { CrudEventEmitter } from '../src/events/emitter.js';
 import {
   setRateLimitStorage,
   getRateLimitStorage,
@@ -30,6 +32,7 @@ import {
   setCacheStorage,
   getCacheStorage,
 } from '../src/cache/mixin.js';
+import { setAPIKeyStorage } from '../src/auth/storage/memory.js';
 
 describe('Storage Module', () => {
   describe('createStorageMiddleware', () => {
@@ -40,6 +43,8 @@ describe('Storage Module', () => {
       const auditStorage = new MemoryAuditLogStorage();
       const versioningStorage = new MemoryVersioningStorage();
       const apiKeyStorage = new MemoryAPIKeyStorage();
+      const idempotencyStorage = new MemoryIdempotencyStorage();
+      const eventEmitter = new CrudEventEmitter();
 
       const app = new Hono<StorageEnv>();
 
@@ -52,6 +57,8 @@ describe('Storage Module', () => {
           auditStorage,
           versioningStorage,
           apiKeyStorage,
+          idempotencyStorage,
+          eventEmitter,
         })
       );
 
@@ -63,6 +70,8 @@ describe('Storage Module', () => {
         expect(ctx.var.auditStorage).toBe(auditStorage);
         expect(ctx.var.versioningStorage).toBe(versioningStorage);
         expect(ctx.var.apiKeyStorage).toBe(apiKeyStorage);
+        expect(ctx.var.idempotencyStorage).toBe(idempotencyStorage);
+        expect(ctx.var.eventEmitter).toBe(eventEmitter);
         return ctx.text('ok');
       });
 
@@ -131,6 +140,10 @@ describe('Storage Module', () => {
       // Clear global storage
       setRateLimitStorage(null as unknown as MemoryRateLimitStorage);
       setLoggingStorage(null as unknown as MemoryLoggingStorage);
+      setCacheStorage(null as unknown as MemoryCacheStorage);
+      setAuditStorage(null as unknown as MemoryAuditLogStorage);
+      setVersioningStorage(null as unknown as MemoryVersioningStorage);
+      setAPIKeyStorage(null as unknown as MemoryAPIKeyStorage);
     });
 
     describe('resolveRateLimitStorage', () => {
@@ -200,10 +213,9 @@ describe('Storage Module', () => {
         expect(result).toBe(explicit);
       });
 
-      it('should return default global storage when nothing configured', () => {
+      it('should return null when nothing configured', () => {
         const result = resolveCacheStorage();
-        // Cache storage always returns a default
-        expect(result).toBeDefined();
+        expect(result).toBeNull();
       });
     });
 
@@ -214,10 +226,9 @@ describe('Storage Module', () => {
         expect(result).toBe(explicit);
       });
 
-      it('should return default global storage when nothing configured', () => {
+      it('should return null when nothing configured', () => {
         const result = resolveAuditStorage();
-        // Audit storage always returns a default
-        expect(result).toBeDefined();
+        expect(result).toBeNull();
       });
     });
 
@@ -228,10 +239,9 @@ describe('Storage Module', () => {
         expect(result).toBe(explicit);
       });
 
-      it('should return default global storage when nothing configured', () => {
+      it('should return null when nothing configured', () => {
         const result = resolveVersioningStorage();
-        // Versioning storage always returns a default
-        expect(result).toBeDefined();
+        expect(result).toBeNull();
       });
     });
 
@@ -242,10 +252,9 @@ describe('Storage Module', () => {
         expect(result).toBe(explicit);
       });
 
-      it('should return default global storage when nothing configured', () => {
+      it('should return null when nothing configured', () => {
         const result = resolveAPIKeyStorage();
-        // API key storage always returns a default
-        expect(result).toBeDefined();
+        expect(result).toBeNull();
       });
     });
   });

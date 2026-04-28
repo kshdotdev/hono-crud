@@ -16,6 +16,14 @@ export interface RedisClient {
   smembers?(key: string): Promise<string[]>;
   srem?(key: string, ...members: string[]): Promise<number>;
   flushdb?(): Promise<string>;
+  /** Pipeline support for batching commands (supported by @upstash/redis and ioredis). */
+  pipeline?(): {
+    set(key: string, value: string, options?: { ex?: number }): unknown;
+    del(...keys: string[]): unknown;
+    sadd(key: string, ...members: string[]): unknown;
+    srem(key: string, ...members: string[]): unknown;
+    exec(): Promise<unknown[]>;
+  };
 }
 
 /**
@@ -51,8 +59,8 @@ export interface RedisCacheStorageOptions {
  *
  * const cache = new RedisCacheStorage({
  *   client: new Redis({
- *     url: process.env.REDIS_URL,
- *     token: process.env.REDIS_TOKEN,
+ *     url: c.env.REDIS_URL,
+ *     token: c.env.REDIS_TOKEN,
  *   }),
  * });
  * setCacheStorage(cache);
@@ -64,7 +72,7 @@ export interface RedisCacheStorageOptions {
  * import { RedisCacheStorage, setCacheStorage } from 'hono-crud/cache';
  *
  * const cache = new RedisCacheStorage({
- *   client: new Redis(process.env.REDIS_URL),
+ *   client: new Redis(c.env.REDIS_URL),
  * });
  * setCacheStorage(cache);
  * ```
@@ -120,14 +128,16 @@ export class RedisCacheStorage implements CacheStorage {
     try {
       const entry = JSON.parse(value) as CacheEntry<T>;
 
-      // Convert date strings back to Date objects
-      entry.createdAt = new Date(entry.createdAt);
-      if (entry.expiresAt) {
-        entry.expiresAt = new Date(entry.expiresAt);
+      // Migration guard: convert legacy Date strings to epoch ms
+      if (typeof entry.createdAt === 'string') {
+        entry.createdAt = new Date(entry.createdAt).getTime();
+      }
+      if (entry.expiresAt !== null && typeof entry.expiresAt === 'string') {
+        entry.expiresAt = new Date(entry.expiresAt as unknown as string).getTime();
       }
 
       // Redis handles TTL, but check just in case
-      if (entry.expiresAt && entry.expiresAt < new Date()) {
+      if (entry.expiresAt && entry.expiresAt < Date.now()) {
         this.stats.misses++;
         return null;
       }
@@ -148,26 +158,37 @@ export class RedisCacheStorage implements CacheStorage {
     const ttl = options?.ttl ?? this.defaultTtl;
     const tags = options?.tags;
 
+    const now = Date.now();
     const entry: CacheEntry<T> = {
       data,
-      createdAt: new Date(),
-      expiresAt: ttl > 0 ? new Date(Date.now() + ttl * 1000) : null,
+      createdAt: now,
+      expiresAt: ttl > 0 ? now + ttl * 1000 : null,
       tags,
     };
 
     const value = JSON.stringify(entry);
 
-    // Set with TTL
-    if (ttl > 0) {
-      await this.client.set(fullKey, value, { ex: ttl });
-    } else {
-      await this.client.set(fullKey, value);
-    }
-
-    // Update tag index
-    if (tags && this.client.sadd) {
+    // Use pipeline when tags exist and pipeline is available (single round-trip)
+    if (tags && tags.length > 0 && this.client.pipeline) {
+      const pipe = this.client.pipeline();
+      ttl > 0 ? pipe.set(fullKey, value, { ex: ttl }) : pipe.set(fullKey, value);
       for (const tag of tags) {
-        await this.client.sadd(this.getTagKey(tag), key);
+        pipe.sadd(this.getTagKey(tag), key);
+      }
+      await pipe.exec();
+    } else {
+      // Sequential fallback
+      if (ttl > 0) {
+        await this.client.set(fullKey, value, { ex: ttl });
+      } else {
+        await this.client.set(fullKey, value);
+      }
+
+      // Update tag index
+      if (tags && this.client.sadd) {
+        for (const tag of tags) {
+          await this.client.sadd(this.getTagKey(tag), key);
+        }
       }
     }
   }
@@ -256,9 +277,19 @@ export class RedisCacheStorage implements CacheStorage {
       return 0;
     }
 
-    let count = 0;
+    // Use pipeline for batch deletes if available
+    if (this.client.pipeline) {
+      const pipe = this.client.pipeline();
+      for (const key of keys) {
+        pipe.del(this.getKey(key));
+      }
+      pipe.del(tagKey);
+      await pipe.exec();
+      return keys.length;
+    }
 
-    // Delete each key
+    // Sequential fallback
+    let count = 0;
     for (const key of keys) {
       const deleted = await this.delete(key);
       if (deleted) {
