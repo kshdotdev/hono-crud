@@ -78,6 +78,14 @@ export function createStorageMiddleware<E extends Env = Env>(
       ctx.set('apiKeyStorage', config.apiKeyStorage);
     }
 
+    if (config.idempotencyStorage) {
+      ctx.set('idempotencyStorage', config.idempotencyStorage);
+    }
+
+    if (config.eventEmitter) {
+      ctx.set('eventEmitter', config.eventEmitter);
+    }
+
     await next();
   };
 }

@@ -3,8 +3,10 @@
  */
 export interface CacheEntry<T = unknown> {
   data: T;
-  createdAt: Date;
-  expiresAt: Date | null;
+  /** Epoch milliseconds when the entry was created. */
+  createdAt: number;
+  /** Epoch milliseconds when the entry expires, or null for no expiration. */
+  expiresAt: number | null;
   tags?: string[];
 }
 

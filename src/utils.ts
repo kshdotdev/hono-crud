@@ -126,6 +126,14 @@ export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
   ): HonoOpenAPIApp<E>;
 };
 
+type RouteRegistrar<E extends Env> = {
+  (path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
+  (
+    path: string,
+    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
+  ): HonoOpenAPIApp<E>;
+};
+
 /**
  * Registers CRUD endpoints for a resource.
  *
@@ -187,10 +195,11 @@ export function registerCrud<E extends Env = Env>(
     endpoint: EndpointClass<E>
   ): void => {
     const mw = getMiddleware(name);
+    const register = typedApp[method] as RouteRegistrar<E>;
     if (mw.length > 0) {
-      (typedApp[method] as Function)(path, ...mw, endpoint);
+      register(path, ...mw, endpoint);
     } else {
-      (typedApp[method] as Function)(path, endpoint);
+      register(path, endpoint);
     }
   };
 

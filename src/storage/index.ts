@@ -20,6 +20,7 @@ export {
   resolveAuditStorage,
   resolveVersioningStorage,
   resolveAPIKeyStorage,
+  resolveIdempotencyStorage,
 } from './helpers';
 
 // Registry

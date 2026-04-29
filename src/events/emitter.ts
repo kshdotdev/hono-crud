@@ -1,5 +1,7 @@
 import type { CrudEventType, CrudEventPayload, CrudEventListener, EventSubscription } from './types';
 import { getLogger } from '../core/logger';
+import type { Context, Env } from 'hono';
+import { getContextVar } from '../core/context-helpers';
 
 /**
  * Lightweight event emitter for CRUD operations.
@@ -198,6 +200,11 @@ let globalEmitter: CrudEventEmitter | null = null;
 
 /**
  * Get or create the global event emitter.
+ *
+ * Compatibility API only. In edge runtimes (Cloudflare Workers, Deno, Bun)
+ * the global emitter is per-isolate state — listeners are not shared across
+ * isolates and may surprise multi-tenant code. Prefer passing an emitter
+ * explicitly or injecting one via `createCrudMiddleware`.
  */
 export function getEventEmitter(): CrudEventEmitter {
   if (!globalEmitter) {
@@ -211,4 +218,23 @@ export function getEventEmitter(): CrudEventEmitter {
  */
 export function setEventEmitter(emitter: CrudEventEmitter): void {
   globalEmitter = emitter;
+}
+
+/**
+ * Resolve an event emitter without creating a global instance.
+ */
+export function resolveEventEmitter<E extends Env>(
+  ctx?: Context<E>,
+  explicit?: CrudEventEmitter
+): CrudEventEmitter | null {
+  if (explicit) {
+    return explicit;
+  }
+  if (ctx) {
+    const contextEmitter = getContextVar<CrudEventEmitter>(ctx, 'eventEmitter');
+    if (contextEmitter) {
+      return contextEmitter;
+    }
+  }
+  return globalEmitter;
 }

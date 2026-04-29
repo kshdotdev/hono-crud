@@ -6,7 +6,7 @@ import type { MetaInput, OpenAPIRouteSchema, ListFilters } from '../core/types';
 import type { ModelObject } from './types';
 import {
   generateCsv,
-  createCsvStream,
+  escapeCsvValue,
   type CsvGenerateOptions,
 } from '../utils/csv';
 
@@ -51,14 +51,10 @@ export interface ExportResult<T> {
 
 /**
  * Base endpoint for exporting resources in CSV or JSON format.
- * Extends ListEndpoint to leverage existing filtering, sorting, pagination, and field selection.
+ * Extends ListEndpoint to leverage filtering, sorting, pagination, and field selection.
+ * Edge-runtime compatible (Web APIs only); CSV streaming uses Web `ReadableStream`.
  *
- * Features:
- * - CSV and JSON export formats
- * - Streaming support for large exports via Web ReadableStream
- * - Uses all ListEndpoint features (filters, sort, field selection)
- * - Configurable max records and excluded fields
- * - Edge runtime compatible (Web APIs only)
+ * Query params: `format=json|csv`, `stream=true|false` (see `getExportQuerySchema`).
  *
  * @example
  * ```ts
@@ -71,13 +67,6 @@ export interface ExportResult<T> {
  *   protected filterFields = ['status', 'role'];
  * }
  * ```
- *
- * API Usage:
- * - `GET /users/export` - Export as JSON (default)
- * - `GET /users/export?format=csv` - Export as CSV
- * - `GET /users/export?format=csv&status=active` - Export with filters
- * - `GET /users/export?format=json&fields=id,name,email` - Export with field selection
- * - `GET /users/export?format=csv&stream=true` - Stream large exports
  */
 export abstract class ExportEndpoint<
   E extends Env = Env,
@@ -88,6 +77,9 @@ export abstract class ExportEndpoint<
 
   /** Whether to enable streaming for large exports. */
   protected enableStreaming: boolean = true;
+
+  /** Page size for paginated streaming export. @default 500 */
+  protected streamPageSize: number = 500;
 
   /** Fields to exclude from the export. */
   protected excludedExportFields: string[] = [];
@@ -247,94 +239,102 @@ export abstract class ExportEndpoint<
   ): Response {
     const ctx = this.getContext();
     const filename = this.getExportFilename(format);
-    const csvOptions = {
-      ...this.csvOptions,
-      excludeFields: this.excludedExportFields,
-    };
+    const csvOptions = this.csvOptions;
+    const excludedFields = this.excludedExportFields;
 
-    // Use Hono's stream helper for better integration
     return stream(ctx, async (streamWriter) => {
-      // Set headers before writing
       ctx.header('Content-Type', 'text/csv; charset=utf-8');
       ctx.header('Content-Disposition', `attachment; filename="${filename}"`);
 
-      // Generate CSV header
-      if (records.length > 0) {
-        const firstRecord = records[0];
-        const fields = Object.keys(firstRecord).filter(
-          (key) => !csvOptions.excludeFields?.includes(key)
-        );
+      if (records.length === 0) return;
 
-        // Write header row
-        const headerRow = fields.map((field) => this.escapeCsvField(String(field))).join(',') + '\n';
-        await streamWriter.write(headerRow);
+      const fields = Object.keys(records[0]).filter((key) => !excludedFields.includes(key));
+      const headerRow = fields.map((field) => escapeCsvValue(field, csvOptions)).join(',') + '\n';
+      await streamWriter.write(headerRow);
 
-        // Write data rows in batches for memory efficiency
-        const batchSize = 100;
-        for (let i = 0; i < records.length; i += batchSize) {
-          const batch = records.slice(i, i + batchSize);
-          for (const record of batch) {
-            const row = fields.map((field) => {
-              const value = record[field];
-              return this.escapeCsvField(this.formatCsvValue(value));
-            }).join(',') + '\n';
-            await streamWriter.write(row);
-          }
+      const batchSize = 100;
+      for (let i = 0; i < records.length; i += batchSize) {
+        for (const record of records.slice(i, i + batchSize)) {
+          const row = fields.map((field) => escapeCsvValue(record[field], csvOptions)).join(',') + '\n';
+          await streamWriter.write(row);
         }
       }
     });
   }
 
   /**
-   * Escapes a CSV field value for safe output.
+   * Paginated streaming export using ReadableStream.
+   * Fetches records page-by-page and encodes each chunk as CSV rows,
+   * avoiding loading all records into memory at once.
    */
-  private escapeCsvField(value: string): string {
-    // Sanitize CSV formula injection (OWASP recommendation)
-    const firstChar = value.charAt(0);
-    if (firstChar === '=' || firstChar === '+' || firstChar === '-' || firstChar === '@' || firstChar === '\t' || firstChar === '\r') {
-      return `"\t${value.replace(/"/g, '""')}"`;
-    }
-    if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
-      return `"${value.replace(/"/g, '""')}"`;
-    }
-    return value;
-  }
-
-  /**
-   * Formats a value for CSV output.
-   */
-  private formatCsvValue(value: unknown): string {
-    if (value === null || value === undefined) {
-      return '';
-    }
-    if (value instanceof Date) {
-      return value.toISOString();
-    }
-    if (typeof value === 'object') {
-      return JSON.stringify(value);
-    }
-    return String(value);
-  }
-
-  /**
-   * Legacy streaming method using Web ReadableStream.
-   * Kept for backwards compatibility.
-   */
-  protected exportAsCsvStreamLegacy(
-    records: Record<string, unknown>[],
+  protected exportAsCsvStreamPaginated(
+    filters: ListFilters,
     format: ExportFormat
   ): Response {
-    const csvStream = createCsvStream(records, {
-      ...this.csvOptions,
-      excludeFields: this.excludedExportFields,
+    const filename = this.getExportFilename(format);
+    const pageSize = this.streamPageSize;
+    const maxRecords = Math.min(this.maxExportRecords, 100_000);
+    const excludedFields = this.excludedExportFields;
+    const csvOptions = this.csvOptions;
+    let headerFields: string[] | null = null;
+
+    const readable = new ReadableStream({
+      start: async (controller) => {
+        const encoder = new TextEncoder();
+        let page = 1;
+        let exported = 0;
+
+        try {
+          while (exported < maxRecords) {
+            const pageFilters: ListFilters = {
+              ...filters,
+              options: { ...filters.options, page, per_page: pageSize },
+            };
+
+            const result = await this.list(pageFilters);
+            let records = result.result;
+
+            if (records.length === 0) break;
+            if (records.length > maxRecords - exported) {
+              records = records.slice(0, maxRecords - exported);
+            }
+
+            records = await this.after(records);
+            records = await this.beforeExport(records);
+            const prepared = this.prepareRecordsForExport(records);
+
+            if (!headerFields && prepared.length > 0) {
+              headerFields = Object.keys(prepared[0]).filter((k) => !excludedFields.includes(k));
+              const headerRow = headerFields.map((field) => escapeCsvValue(field, csvOptions)).join(',') + '\n';
+              controller.enqueue(encoder.encode(headerRow));
+            }
+
+            if (headerFields) {
+              for (const record of prepared) {
+                const row = headerFields.map((field) => escapeCsvValue(record[field], csvOptions)).join(',') + '\n';
+                controller.enqueue(encoder.encode(row));
+              }
+            }
+
+            exported += records.length;
+            page++;
+
+            if (records.length < pageSize) break;
+          }
+        } catch (err) {
+          controller.error(err);
+          return;
+        }
+
+        controller.close();
+      },
     });
 
-    return new Response(csvStream, {
+    return new Response(readable, {
       status: 200,
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="${this.getExportFilename(format)}"`,
-        'Transfer-Encoding': 'chunked',
+        'Content-Disposition': `attachment; filename="${filename}"`,
       },
     });
   }
@@ -379,6 +379,11 @@ export abstract class ExportEndpoint<
     const exportOptions = await this.getExportOptions();
     const filters = await this.getFilters();
 
+    // Use paginated streaming for CSV when streaming is requested
+    if (exportOptions.format === 'csv' && exportOptions.stream) {
+      return this.exportAsCsvStreamPaginated(filters, exportOptions.format);
+    }
+
     // Fetch all records for export
     let records = await this.fetchAllForExport(filters);
 
@@ -393,9 +398,6 @@ export abstract class ExportEndpoint<
 
     // Export based on format
     if (exportOptions.format === 'csv') {
-      if (exportOptions.stream && preparedRecords.length > 1000) {
-        return this.exportAsCsvStream(preparedRecords, exportOptions.format);
-      }
       return this.exportAsCsv(preparedRecords, exportOptions.format);
     }
 

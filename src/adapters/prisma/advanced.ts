@@ -43,7 +43,7 @@ export abstract class PrismaSearchEndpoint<
 > extends SearchEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
@@ -100,7 +100,7 @@ export abstract class PrismaSearchEndpoint<
     options: SearchOptions,
     filters: ListFilters
   ): Promise<SearchResult<ModelObject<M['model']>>> {
-    const model = this.getModel();
+    const model = await this.getModel();
 
     // Build WHERE clause with search conditions and soft delete filtering
     const where = this.buildSearchWhere(options, filters);
@@ -165,14 +165,14 @@ export abstract class PrismaExportEndpoint<
 > extends ExportEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
     // Execute common query logic
     const queryResult = await executePrismaQuery({
-      model: this.getModel(),
+      model: await this.getModel(),
       filters,
       searchFields: this.searchFields,
       softDeleteConfig: this.getSoftDeleteConfig(),
@@ -205,7 +205,7 @@ export abstract class PrismaImportEndpoint<
 > extends ImportEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
@@ -215,7 +215,7 @@ export abstract class PrismaImportEndpoint<
   override async findExisting(
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']> | null> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const upsertKeys = this.getUpsertKeys();
 
     // Build where clause from upsert keys
@@ -241,7 +241,7 @@ export abstract class PrismaImportEndpoint<
   override async create(
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const primaryKey = this._meta.model.primaryKeys[0];
 
     // Generate UUID if not provided
@@ -261,7 +261,7 @@ export abstract class PrismaImportEndpoint<
     existing: ModelObject<M['model']>,
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const primaryKey = this._meta.model.primaryKeys[0];
 
     const result = await model.update({
@@ -286,7 +286,7 @@ export abstract class PrismaUpsertEndpoint<
   abstract prisma: PrismaClient;
   protected useTransaction: boolean = false;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
@@ -296,7 +296,7 @@ export abstract class PrismaUpsertEndpoint<
   override async findExisting(
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']> | null> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const upsertKeys = this.getUpsertKeys();
 
     // Build where clause from upsert keys
@@ -322,7 +322,7 @@ export abstract class PrismaUpsertEndpoint<
   override async create(
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const primaryKey = this._meta.model.primaryKeys[0];
 
     // Generate UUID if not provided
@@ -342,7 +342,7 @@ export abstract class PrismaUpsertEndpoint<
     existing: ModelObject<M['model']>,
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const primaryKey = this._meta.model.primaryKeys[0];
 
     const result = await model.update({
@@ -360,7 +360,7 @@ export abstract class PrismaUpsertEndpoint<
     data: Partial<ModelObject<M['model']>>,
     _tx?: unknown
   ): Promise<{ data: ModelObject<M['model']>; created: boolean }> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const upsertKeys = this.getUpsertKeys();
     const primaryKey = this._meta.model.primaryKeys[0];
 
@@ -412,12 +412,12 @@ export abstract class PrismaVersionHistoryEndpoint<
 > extends VersionHistoryEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
   protected override async recordExists(lookupValue: string): Promise<boolean> {
-    const model = this.getModel();
+    const model = await this.getModel();
 
     const count = await model.count({
       where: { [this.lookupField]: lookupValue },
@@ -455,7 +455,7 @@ export abstract class PrismaVersionRollbackEndpoint<
 > extends VersionRollbackEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
@@ -464,7 +464,7 @@ export abstract class PrismaVersionRollbackEndpoint<
     versionData: Record<string, unknown>,
     newVersion: number
   ): Promise<ModelObject<M['model']>> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const versionField = this.getVersioningConfig().field;
     const primaryKey = this._meta.model.primaryKeys[0];
 
@@ -507,7 +507,7 @@ export abstract class PrismaAggregateEndpoint<
    */
   protected useNativeAggregation: boolean = true;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
@@ -576,7 +576,7 @@ export abstract class PrismaAggregateEndpoint<
   }
 
   override async aggregate(options: AggregateOptions): Promise<AggregateResult> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const where = await this.buildAggregateWhere(options);
 
     // Fall back to in-memory computation if native aggregation is disabled
@@ -688,7 +688,7 @@ export abstract class PrismaAggregateEndpoint<
     }
 
     // Execute native aggregation
-    const modelName = getModelName(this._meta.model.tableName);
+    const modelName = await getModelName(this._meta.model.tableName);
     const prismaModel = this.prisma[modelName] as unknown as {
       aggregate: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
     };
@@ -787,7 +787,7 @@ export abstract class PrismaAggregateEndpoint<
     }
 
     // Execute native groupBy
-    const modelName = getModelName(this._meta.model.tableName);
+    const modelName = await getModelName(this._meta.model.tableName);
     const prismaModel = this.prisma[modelName] as unknown as {
       groupBy: (args: Record<string, unknown>) => Promise<Record<string, unknown>[]>;
     };

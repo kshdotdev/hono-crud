@@ -31,12 +31,12 @@ export abstract class PrismaCreateEndpoint<
   abstract prisma: PrismaClient;
   protected useTransaction: boolean = false;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
   override async create(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const primaryKey = this._meta.model.primaryKeys[0];
 
     // Generate UUID if not provided
@@ -59,7 +59,7 @@ export abstract class PrismaReadEndpoint<
 > extends ReadEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
@@ -68,7 +68,7 @@ export abstract class PrismaReadEndpoint<
     additionalFilters?: Record<string, string>,
     includeOptions?: IncludeOptions
   ): Promise<ModelObject<M['model']> | null> {
-    const model = this.getModel();
+    const model = await this.getModel();
 
     const where: Record<string, unknown> = {
       [this.lookupField]: lookupValue,
@@ -103,7 +103,7 @@ export abstract class PrismaUpdateEndpoint<
   abstract prisma: PrismaClient;
   protected useTransaction: boolean = false;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
@@ -112,7 +112,7 @@ export abstract class PrismaUpdateEndpoint<
     data: Partial<ModelObject<M['model']>>,
     additionalFilters?: Record<string, string>
   ): Promise<ModelObject<M['model']> | null> {
-    const model = this.getModel();
+    const model = await this.getModel();
 
     // First find the record
     const where: Record<string, unknown> = {
@@ -146,7 +146,7 @@ export abstract class PrismaDeleteEndpoint<
   abstract prisma: PrismaClient;
   protected useTransaction: boolean = false;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
@@ -157,7 +157,7 @@ export abstract class PrismaDeleteEndpoint<
     lookupValue: string,
     additionalFilters?: Record<string, string>
   ): Promise<ModelObject<M['model']> | null> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const softDeleteConfig = this.getSoftDeleteConfig();
 
     const where: Record<string, unknown> = {
@@ -178,7 +178,7 @@ export abstract class PrismaDeleteEndpoint<
     lookupValue: string,
     additionalFilters?: Record<string, string>
   ): Promise<ModelObject<M['model']> | null> {
-    const model = this.getModel();
+    const model = await this.getModel();
     const softDeleteConfig = this.getSoftDeleteConfig();
 
     // Build where clause
@@ -226,14 +226,14 @@ export abstract class PrismaListEndpoint<
 > extends ListEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected getModel(): PrismaModelOperations {
+  protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
     // Execute common query logic
     const queryResult = await executePrismaQuery({
-      model: this.getModel(),
+      model: await this.getModel(),
       filters,
       searchFields: this.searchFields,
       softDeleteConfig: this.getSoftDeleteConfig(),

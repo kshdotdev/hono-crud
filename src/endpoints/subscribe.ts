@@ -1,9 +1,12 @@
 import type { Context, Env } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { CrudEventPayload, CrudEventType, EventSubscription } from '../events/types';
-import { getEventEmitter, type CrudEventEmitter } from '../events/emitter';
+import { resolveEventEmitter, type CrudEventEmitter } from '../events/emitter';
 
-// Module-level connection tracking per table
+// Per-isolate SSE connection counter. Not a strict global limit:
+// in Cloudflare Workers each isolate keeps its own counter, so the cap
+// applies per isolate, not per deployment. For strict caps use a Durable
+// Object or KV-backed tracker.
 const connectionCounts = new Map<string, number>();
 
 /** Default sensitive fields to strip from SSE event payloads. */
@@ -17,7 +20,7 @@ export interface SubscribeEndpointConfig {
   table: string;
   /** Specific event types to subscribe to. If empty, subscribes to all. */
   events?: CrudEventType[];
-  /** Custom event emitter. Uses global emitter if not provided. */
+  /** Custom event emitter. Falls back to ctx.var.eventEmitter or a configured compatibility global emitter. */
   emitter?: CrudEventEmitter;
   /** Filter function to control which events are sent to a specific client */
   filter?: (event: CrudEventPayload, ctx: Context) => boolean;
@@ -63,16 +66,19 @@ function stripSensitiveFields(
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import { createSubscribeHandler } from 'hono-crud';
+ * import { createSubscribeHandler, CrudEventEmitter } from 'hono-crud';
  *
  * const app = new Hono();
  *
+ * const events = new CrudEventEmitter();
+ *
  * // Subscribe to all user events
- * app.get('/users/subscribe', createSubscribeHandler({ table: 'users' }));
+ * app.get('/users/subscribe', createSubscribeHandler({ table: 'users', emitter: events }));
  *
  * // Subscribe to specific events with filtering
  * app.get('/users/subscribe', createSubscribeHandler({
  *   table: 'users',
+ *   emitter: events,
  *   events: ['created', 'updated'],
  *   filter: (event, ctx) => {
  *     // Only send events for the authenticated user's records
@@ -95,6 +101,14 @@ export function createSubscribeHandler(config: SubscribeEndpointConfig) {
   } = config;
 
   return (ctx: Context<Env>) => {
+    const emitter = resolveEventEmitter(ctx, customEmitter);
+    if (!emitter) {
+      return ctx.json(
+        { success: false, error: { code: 'EVENT_EMITTER_NOT_CONFIGURED', message: 'Event emitter not configured' } },
+        500
+      );
+    }
+
     // Check connection limit
     const currentCount = connectionCounts.get(table) || 0;
     if (currentCount >= maxConnections) {
@@ -108,7 +122,6 @@ export function createSubscribeHandler(config: SubscribeEndpointConfig) {
     connectionCounts.set(table, currentCount + 1);
 
     return streamSSE(ctx, async (stream) => {
-      const emitter = customEmitter ?? getEventEmitter();
       let subscription: EventSubscription;
 
       // Subscribe to events

@@ -199,15 +199,6 @@ export function clearPrismaModelMappings(): void {
 }
 
 /**
- * Converts a plural word to singular.
- * Handles irregular plurals (people→person, children→child, etc.) and
- * common English pluralization patterns automatically.
- */
-function pluralToSingular(word: string): string {
-  return inlineSingular(word);
-}
-
-/**
  * Gets the model name for Prisma from the table name.
  * Prisma uses singular camelCase model names (e.g., 'users' -> 'user').
  *
@@ -216,31 +207,25 @@ function pluralToSingular(word: string): string {
  * @param tableName - The table name (e.g., 'users', 'user_profiles', 'order-items')
  * @returns The Prisma model name (e.g., 'user', 'userProfile', 'orderItem')
  */
-export function getModelName(tableName: string): string {
-  // Check cache first
+export async function getModelName(tableName: string): Promise<string> {
   const cached = modelNameCache.get(tableName);
   if (cached) {
     return cached;
   }
 
-  // Check custom mappings
   const custom = customModelMappings.get(tableName.toLowerCase());
   if (custom) {
     cacheModelName(tableName, custom);
     return custom;
   }
 
-  // Convert snake_case or kebab-case to camelCase
+  // snake_case / kebab-case → camelCase, then plural → singular
   let name = tableName
     .replace(/[-_](.)/g, (_, char) => char.toUpperCase())
     .replace(/^./, (char) => char.toLowerCase());
+  name = await inlineSingular(name);
 
-  // Convert plural to singular
-  name = pluralToSingular(name);
-
-  // Cache the result
   cacheModelName(tableName, name);
-
   return name;
 }
 
@@ -266,20 +251,22 @@ function getAvailablePrismaModels(prisma: PrismaClient): string[] {
 /**
  * Finds similar model names for error suggestions using Levenshtein distance.
  */
-function findSimilarModelNames(target: string, available: string[], maxSuggestions = 3): string[] {
+async function findSimilarModelNames(target: string, available: string[], maxSuggestions = 3): Promise<string[]> {
   if (available.length === 0) return [];
 
   const targetLower = target.toLowerCase();
-  const scored = available
-    .map(name => ({
+  const scored = await Promise.all(
+    available.map(async (name) => ({
       name,
-      distance: levenshteinDistance(targetLower, name.toLowerCase()),
+      distance: await levenshteinDistance(targetLower, name.toLowerCase()),
     }))
+  );
+
+  return scored
     .filter(item => item.distance <= Math.max(3, target.length / 2))
     .sort((a, b) => a.distance - b.distance)
-    .slice(0, maxSuggestions);
-
-  return scored.map(item => item.name);
+    .slice(0, maxSuggestions)
+    .map(item => item.name);
 }
 
 /**
@@ -291,13 +278,13 @@ function findSimilarModelNames(target: string, available: string[], maxSuggestio
  * @returns The Prisma model operations
  * @throws Error if the model is not found in the Prisma client
  */
-export function getPrismaModel(prisma: PrismaClient, tableName: string): PrismaModelOperations {
-  const modelName = getModelName(tableName);
+export async function getPrismaModel(prisma: PrismaClient, tableName: string): Promise<PrismaModelOperations> {
+  const modelName = await getModelName(tableName);
   const model = prisma[modelName];
 
   if (!model || typeof model.create !== 'function') {
     const availableModels = getAvailablePrismaModels(prisma);
-    const suggestions = findSimilarModelNames(modelName, availableModels);
+    const suggestions = await findSimilarModelNames(modelName, availableModels);
 
     let errorMessage = `Model '${modelName}' not found in Prisma client. ` +
       `Table name: '${tableName}'. `;
@@ -327,7 +314,7 @@ export async function loadPrismaRelation<T extends Record<string, unknown>>(
   relationName: string,
   relationConfig: RelationConfig
 ): Promise<T> {
-  const relatedModelName = getModelName(relationConfig.model);
+  const relatedModelName = await getModelName(relationConfig.model);
   const relatedModel = prisma[relatedModelName];
 
   if (!relatedModel) {
@@ -424,7 +411,7 @@ export async function batchLoadPrismaRelations<T extends Record<string, unknown>
       continue;
     }
 
-    const relatedModelName = getModelName(relationConfig.model);
+    const relatedModelName = await getModelName(relationConfig.model);
     const relatedModel = prisma[relatedModelName];
 
     if (!relatedModel) {

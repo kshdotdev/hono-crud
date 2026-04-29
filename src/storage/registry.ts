@@ -7,7 +7,9 @@ import { getContextVar } from '../core/context-helpers';
  *
  * Supports two modes:
  * 1. Nullable storage - returns null if not set (e.g., rate limit, logging)
- * 2. Storage with defaults - always returns a storage instance (e.g., cache, audit)
+ * 2. Compatibility defaults - get()/getRequired() lazily create a default
+ *    only for legacy global getter APIs. Request-time resolve() never creates
+ *    hidden mutable state.
  *
  * @example
  * ```ts
@@ -63,10 +65,22 @@ export class StorageRegistry<T> {
 
   /**
    * Gets the global storage instance.
-   * Returns null if not set and no default factory was provided.
+   * Compatibility API: lazily creates a default if a factory was provided.
+   *
+   * In edge runtimes prefer `resolve(ctx, explicit)` instead — the global
+   * path holds per-isolate state which is not portable across deployments
+   * and may surprise multi-tenant code.
    */
   get(): T | null {
     this.ensureDefault();
+    return this.globalStorage;
+  }
+
+  /**
+   * Gets only a storage instance that was explicitly configured.
+   * Does not create compatibility defaults.
+   */
+  getConfigured(): T | null {
     return this.globalStorage;
   }
 
@@ -116,8 +130,9 @@ export class StorageRegistry<T> {
       }
     }
 
-    // Priority 3: Global storage
-    this.ensureDefault();
+    // Priority 3: Explicitly configured global storage. Do not create a
+    // default here; edge runtimes should not get hidden in-memory state just
+    // because a request-time helper was called.
     return this.globalStorage;
   }
 
@@ -159,7 +174,6 @@ export class StorageRegistry<T> {
    * Checks if a storage instance is currently set.
    */
   isConfigured(): boolean {
-    this.ensureDefault();
     return this.globalStorage !== null;
   }
 }

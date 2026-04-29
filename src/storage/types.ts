@@ -5,6 +5,8 @@ import type { CacheStorage } from '../cache/types';
 import type { AuditLogStorage } from '../core/audit';
 import type { VersioningStorage } from '../core/versioning';
 import type { MemoryAPIKeyStorage } from '../auth/storage/memory';
+import type { IdempotencyStorage } from '../idempotency/types';
+import type { CrudEventEmitter } from '../events/emitter';
 
 /**
  * Extended Hono environment with storage context variables.
@@ -35,6 +37,8 @@ export interface StorageEnv extends Env {
     auditStorage?: AuditLogStorage;
     versioningStorage?: VersioningStorage;
     apiKeyStorage?: MemoryAPIKeyStorage;
+    idempotencyStorage?: IdempotencyStorage;
+    eventEmitter?: CrudEventEmitter;
   };
 }
 
@@ -86,4 +90,16 @@ export interface StorageMiddlewareConfig {
    * If provided, will be available as `ctx.var.apiKeyStorage`.
    */
   apiKeyStorage?: MemoryAPIKeyStorage;
+
+  /**
+   * Idempotency storage instance.
+   * If provided, will be available as `ctx.var.idempotencyStorage`.
+   */
+  idempotencyStorage?: IdempotencyStorage;
+
+  /**
+   * CRUD event emitter instance.
+   * If provided, will be available as `ctx.var.eventEmitter`.
+   */
+  eventEmitter?: CrudEventEmitter;
 }

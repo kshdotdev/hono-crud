@@ -43,3 +43,6 @@ export type { MemoryRateLimitStorageOptions } from './storage/memory';
 
 export { RedisRateLimitStorage } from './storage/redis';
 export type { RedisRateLimitClient, RedisRateLimitStorageOptions } from './storage/redis';
+
+export { KVRateLimitStorage } from './storage/cloudflare-kv';
+export type { KVRateLimitStorageOptions } from './storage/cloudflare-kv';

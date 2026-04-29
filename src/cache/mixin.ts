@@ -19,8 +19,8 @@ import { createRegistryWithDefault } from '../storage/registry';
 
 /**
  * Global cache storage registry.
- * Uses lazy initialization -- the default MemoryCacheStorage is only
- * created when first accessed.
+ * Compatibility registry. Request-time cache helpers use explicit/context
+ * storage and do not create this default automatically.
  */
 export const cacheStorageRegistry = createRegistryWithDefault<CacheStorage>(
   'cacheStorage',
@@ -36,7 +36,7 @@ export const cacheStorageRegistry = createRegistryWithDefault<CacheStorage>(
  * import { RedisCacheStorage, setCacheStorage } from 'hono-crud/cache';
  *
  * setCacheStorage(new RedisCacheStorage({
- *   client: new Redis({ url: process.env.REDIS_URL }),
+ *   client: new Redis({ url: c.env.REDIS_URL }),
  * }));
  * ```
  */
@@ -196,6 +196,10 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
       const key = await this.generateCacheKey();
       const ctx = this.getContext();
       const storage = resolveCacheStorage(ctx);
+      if (!storage) {
+        this._cacheHit = false;
+        return null;
+      }
       const entry = await storage.get<T>(key);
 
       this._cacheHit = entry !== null;
@@ -249,6 +253,9 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
       const key = await this.generateCacheKey();
       const ctx = this.getContext();
       const storage = resolveCacheStorage(ctx);
+      if (!storage) {
+        return;
+      }
 
       // Build tags
       const tags: string[] = config.tags ? [...config.tags] : [];
@@ -271,6 +278,9 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
     async invalidateCache(options?: { pattern?: string; tags?: string[] }): Promise<void> {
       const ctx = this.getContext();
       const storage = resolveCacheStorage(ctx);
+      if (!storage) {
+        return;
+      }
       const config = this.getCacheConfig();
 
       if (options?.pattern) {
@@ -340,6 +350,9 @@ export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
       const config = this.getCacheInvalidationConfig();
       const ctx = this.getContext();
       const storage = resolveCacheStorage(ctx);
+      if (!storage) {
+        return;
+      }
 
       const meta = (this as unknown as { _meta?: MetaInput })._meta;
       const tableName = meta?.model?.tableName ?? 'unknown';

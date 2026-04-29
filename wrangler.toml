@@ -1,0 +1,18 @@
+# Minimal wrangler configuration for vitest-pool-workers tests.
+# Not intended for deployment — used only for local test bindings.
+
+name = "hono-crud-tests"
+compatibility_date = "2024-11-01"
+
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "test-cache-kv"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "test-rate-limit-kv"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "test-db"
+database_id = "test-db-id"

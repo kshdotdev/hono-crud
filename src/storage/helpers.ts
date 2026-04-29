@@ -5,6 +5,7 @@ import type { CacheStorage } from '../cache/types';
 import type { AuditLogStorage } from '../core/audit';
 import type { VersioningStorage } from '../core/versioning';
 import type { MemoryAPIKeyStorage } from '../auth/storage/memory';
+import type { IdempotencyStorage } from '../idempotency/types';
 import type { StorageEnv } from './types';
 import { rateLimitStorageRegistry } from '../rate-limit/middleware';
 import { loggingStorageRegistry } from '../logging/middleware';
@@ -12,6 +13,7 @@ import { cacheStorageRegistry } from '../cache/mixin';
 import { auditStorageRegistry } from '../core/audit';
 import { versioningStorageRegistry } from '../core/versioning';
 import { apiKeyStorageRegistry } from '../auth/storage/memory';
+import { idempotencyStorageRegistry } from '../idempotency/middleware';
 
 // Re-export getters for backward compatibility (used by other modules)
 export { getRateLimitStorage } from '../rate-limit/middleware';
@@ -20,6 +22,7 @@ export { getCacheStorage } from '../cache/mixin';
 export { getAuditStorage } from '../core/audit';
 export { getVersioningStorage } from '../core/versioning';
 export { getAPIKeyStorage } from '../auth/storage/memory';
+export { getIdempotencyStorage } from '../idempotency/middleware';
 
 // ============================================================================
 // Type-Safe Context Variable Access
@@ -110,13 +113,13 @@ export function resolveLoggingStorage<E extends Env>(
  *
  * @param ctx - Optional Hono context
  * @param explicitStorage - Optional explicit storage instance
- * @returns The resolved storage (defaults to global MemoryCacheStorage)
+ * @returns The resolved storage, or null when no storage was configured
  */
 export function resolveCacheStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: CacheStorage
-): CacheStorage {
-  return cacheStorageRegistry.resolve(ctx, explicitStorage) ?? cacheStorageRegistry.getRequired();
+): CacheStorage | null {
+  return cacheStorageRegistry.resolve(ctx, explicitStorage);
 }
 
 /**
@@ -124,13 +127,13 @@ export function resolveCacheStorage<E extends Env>(
  *
  * @param ctx - Optional Hono context
  * @param explicitStorage - Optional explicit storage instance
- * @returns The resolved storage (defaults to global MemoryAuditLogStorage)
+ * @returns The resolved storage, or null when no storage was configured
  */
 export function resolveAuditStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: AuditLogStorage
-): AuditLogStorage {
-  return auditStorageRegistry.resolve(ctx, explicitStorage) ?? auditStorageRegistry.getRequired();
+): AuditLogStorage | null {
+  return auditStorageRegistry.resolve(ctx, explicitStorage);
 }
 
 /**
@@ -138,13 +141,13 @@ export function resolveAuditStorage<E extends Env>(
  *
  * @param ctx - Optional Hono context
  * @param explicitStorage - Optional explicit storage instance
- * @returns The resolved storage (defaults to global MemoryVersioningStorage)
+ * @returns The resolved storage, or null when no storage was configured
  */
 export function resolveVersioningStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: VersioningStorage
-): VersioningStorage {
-  return versioningStorageRegistry.resolve(ctx, explicitStorage) ?? versioningStorageRegistry.getRequired();
+): VersioningStorage | null {
+  return versioningStorageRegistry.resolve(ctx, explicitStorage);
 }
 
 /**
@@ -152,11 +155,25 @@ export function resolveVersioningStorage<E extends Env>(
  *
  * @param ctx - Optional Hono context
  * @param explicitStorage - Optional explicit storage instance
- * @returns The resolved storage (defaults to global MemoryAPIKeyStorage)
+ * @returns The resolved storage, or null when no storage was configured
  */
 export function resolveAPIKeyStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: MemoryAPIKeyStorage
-): MemoryAPIKeyStorage {
-  return apiKeyStorageRegistry.resolve(ctx, explicitStorage) ?? apiKeyStorageRegistry.getRequired();
+): MemoryAPIKeyStorage | null {
+  return apiKeyStorageRegistry.resolve(ctx, explicitStorage);
+}
+
+/**
+ * Resolves idempotency storage with priority: explicit param > context > global.
+ *
+ * @param ctx - Optional Hono context
+ * @param explicitStorage - Optional explicit storage instance
+ * @returns The resolved storage, or null when no storage was configured
+ */
+export function resolveIdempotencyStorage<E extends Env>(
+  ctx?: Context<E>,
+  explicitStorage?: IdempotencyStorage
+): IdempotencyStorage | null {
+  return idempotencyStorageRegistry.resolve(ctx, explicitStorage);
 }
