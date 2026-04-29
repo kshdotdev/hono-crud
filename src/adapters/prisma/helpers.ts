@@ -199,15 +199,6 @@ export function clearPrismaModelMappings(): void {
 }
 
 /**
- * Converts a plural word to singular.
- * Handles irregular plurals (people→person, children→child, etc.) and
- * common English pluralization patterns automatically.
- */
-async function pluralToSingular(word: string): Promise<string> {
-  return inlineSingular(word);
-}
-
-/**
  * Gets the model name for Prisma from the table name.
  * Prisma uses singular camelCase model names (e.g., 'users' -> 'user').
  *
@@ -217,30 +208,24 @@ async function pluralToSingular(word: string): Promise<string> {
  * @returns The Prisma model name (e.g., 'user', 'userProfile', 'orderItem')
  */
 export async function getModelName(tableName: string): Promise<string> {
-  // Check cache first
   const cached = modelNameCache.get(tableName);
   if (cached) {
     return cached;
   }
 
-  // Check custom mappings
   const custom = customModelMappings.get(tableName.toLowerCase());
   if (custom) {
     cacheModelName(tableName, custom);
     return custom;
   }
 
-  // Convert snake_case or kebab-case to camelCase
+  // snake_case / kebab-case → camelCase, then plural → singular
   let name = tableName
     .replace(/[-_](.)/g, (_, char) => char.toUpperCase())
     .replace(/^./, (char) => char.toLowerCase());
+  name = await inlineSingular(name);
 
-  // Convert plural to singular
-  name = await pluralToSingular(name);
-
-  // Cache the result
   cacheModelName(tableName, name);
-
   return name;
 }
 

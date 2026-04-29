@@ -1,6 +1,14 @@
 import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 import type { KVNamespace } from '../../shared/kv-types';
 
+const KV_BATCH_CONCURRENCY = 50;
+
+async function runBatched<T>(items: T[], fn: (item: T) => Promise<unknown>): Promise<void> {
+  for (let i = 0; i < items.length; i += KV_BATCH_CONCURRENCY) {
+    await Promise.all(items.slice(i, i + KV_BATCH_CONCURRENCY).map(fn));
+  }
+}
+
 /**
  * Options for Cloudflare KV cache storage.
  */
@@ -71,6 +79,18 @@ export class KVCacheStorage implements CacheStorage {
     try {
       const entry = JSON.parse(raw) as CacheEntry<T>;
 
+      // Migration guard: convert legacy Date strings to epoch ms
+      const legacyCreatedAt = entry.createdAt as unknown;
+      if (typeof legacyCreatedAt === 'string') {
+        const parsed = Date.parse(legacyCreatedAt);
+        entry.createdAt = Number.isNaN(parsed) ? Date.now() : parsed;
+      }
+      const legacyExpiresAt = entry.expiresAt as unknown;
+      if (typeof legacyExpiresAt === 'string') {
+        const parsed = Date.parse(legacyExpiresAt);
+        entry.expiresAt = Number.isNaN(parsed) ? null : parsed;
+      }
+
       // Check expiration (KV TTL handles this, but guard against clock skew)
       if (entry.expiresAt && entry.expiresAt < Date.now()) {
         this.stats.misses++;
@@ -102,7 +122,7 @@ export class KVCacheStorage implements CacheStorage {
 
     // Update tag indices
     if (tags) {
-      for (const tag of tags) {
+      await runBatched(tags, async (tag) => {
         const tagKey = this.getTagKey(tag);
         const existing = await this.kv.get(tagKey);
         const keys: string[] = existing ? JSON.parse(existing) : [];
@@ -111,7 +131,7 @@ export class KVCacheStorage implements CacheStorage {
           // Tag indices expire after 24h to prevent unbounded growth
           await this.kv.put(tagKey, JSON.stringify(keys), { expirationTtl: 86400 });
         }
-      }
+      });
     }
   }
 
@@ -124,19 +144,18 @@ export class KVCacheStorage implements CacheStorage {
       try {
         const entry = JSON.parse(raw) as CacheEntry<unknown>;
         if (entry.tags) {
-          for (const tag of entry.tags) {
+          await runBatched(entry.tags, async (tag) => {
             const tagKey = this.getTagKey(tag);
             const existing = await this.kv.get(tagKey);
-            if (existing) {
-              const keys: string[] = JSON.parse(existing);
-              const filtered = keys.filter((k) => k !== key);
-              if (filtered.length > 0) {
-                await this.kv.put(tagKey, JSON.stringify(filtered), { expirationTtl: 86400 });
-              } else {
-                await this.kv.delete(tagKey);
-              }
+            if (!existing) return;
+            const keys: string[] = JSON.parse(existing);
+            const filtered = keys.filter((k) => k !== key);
+            if (filtered.length > 0) {
+              await this.kv.put(tagKey, JSON.stringify(filtered), { expirationTtl: 86400 });
+            } else {
+              await this.kv.delete(tagKey);
             }
-          }
+          });
         }
       } catch {
         // Ignore parse errors
@@ -164,11 +183,9 @@ export class KVCacheStorage implements CacheStorage {
         cursor,
       });
 
-      for (const { name } of result.keys) {
-        const originalKey = name.substring(this.prefix.length);
-        await this.delete(originalKey);
-        count++;
-      }
+      const keys = result.keys.map(({ name }) => name.substring(this.prefix.length));
+      await runBatched(keys, (k) => this.delete(k));
+      count += keys.length;
 
       cursor = result.list_complete ? undefined : result.cursor;
     } while (cursor);
@@ -182,15 +199,9 @@ export class KVCacheStorage implements CacheStorage {
     if (!existing) return 0;
 
     const keys: string[] = JSON.parse(existing);
-    let count = 0;
-
-    for (const key of keys) {
-      await this.kv.delete(this.getKey(key));
-      count++;
-    }
-
+    await runBatched(keys, (k) => this.kv.delete(this.getKey(k)));
     await this.kv.delete(tagKey);
-    return count;
+    return keys.length;
   }
 
   async has(key: string): Promise<boolean> {

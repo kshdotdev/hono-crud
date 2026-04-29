@@ -66,6 +66,10 @@ export class StorageRegistry<T> {
   /**
    * Gets the global storage instance.
    * Compatibility API: lazily creates a default if a factory was provided.
+   *
+   * In edge runtimes prefer `resolve(ctx, explicit)` instead — the global
+   * path holds per-isolate state which is not portable across deployments
+   * and may surprise multi-tenant code.
    */
   get(): T | null {
     this.ensureDefault();

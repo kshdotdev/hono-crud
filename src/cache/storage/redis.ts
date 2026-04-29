@@ -129,11 +129,15 @@ export class RedisCacheStorage implements CacheStorage {
       const entry = JSON.parse(value) as CacheEntry<T>;
 
       // Migration guard: convert legacy Date strings to epoch ms
-      if (typeof entry.createdAt === 'string') {
-        entry.createdAt = new Date(entry.createdAt).getTime();
+      const legacyCreatedAt = entry.createdAt as unknown;
+      if (typeof legacyCreatedAt === 'string') {
+        const parsed = Date.parse(legacyCreatedAt);
+        entry.createdAt = Number.isNaN(parsed) ? Date.now() : parsed;
       }
-      if (entry.expiresAt !== null && typeof entry.expiresAt === 'string') {
-        entry.expiresAt = new Date(entry.expiresAt as unknown as string).getTime();
+      const legacyExpiresAt = entry.expiresAt as unknown;
+      if (typeof legacyExpiresAt === 'string') {
+        const parsed = Date.parse(legacyExpiresAt);
+        entry.expiresAt = Number.isNaN(parsed) ? null : parsed;
       }
 
       // Redis handles TTL, but check just in case

@@ -3,7 +3,10 @@ import { streamSSE } from 'hono/streaming';
 import type { CrudEventPayload, CrudEventType, EventSubscription } from '../events/types';
 import { resolveEventEmitter, type CrudEventEmitter } from '../events/emitter';
 
-// Module-level connection tracking per table
+// Per-isolate SSE connection counter. Not a strict global limit:
+// in Cloudflare Workers each isolate keeps its own counter, so the cap
+// applies per isolate, not per deployment. For strict caps use a Durable
+// Object or KV-backed tracker.
 const connectionCounts = new Map<string, number>();
 
 /** Default sensitive fields to strip from SSE event payloads. */

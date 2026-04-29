@@ -200,8 +200,11 @@ let globalEmitter: CrudEventEmitter | null = null;
 
 /**
  * Get or create the global event emitter.
- * Compatibility API. Prefer passing an emitter explicitly or injecting one with
- * createCrudMiddleware() in edge runtimes.
+ *
+ * Compatibility API only. In edge runtimes (Cloudflare Workers, Deno, Bun)
+ * the global emitter is per-isolate state — listeners are not shared across
+ * isolates and may surprise multi-tenant code. Prefer passing an emitter
+ * explicitly or injecting one via `createCrudMiddleware`.
  */
 export function getEventEmitter(): CrudEventEmitter {
   if (!globalEmitter) {
