@@ -1,6 +1,7 @@
 import type { Context, Env } from 'hono';
 import type { PathPattern, RedactField } from './types';
 import { getContextVar } from '../core/context-helpers';
+import { extractCloudflareIp } from '../types/cloudflare';
 
 // ============================================================================
 // Redaction Utilities
@@ -225,13 +226,7 @@ export function extractClientIp<E extends Env>(
     }
   }
 
-  // In Cloudflare Workers, IP is in cf.ip
-  const cf = (raw as unknown as { cf?: { ip?: string } } | undefined)?.cf;
-  if (cf?.ip) {
-    return cf.ip;
-  }
-
-  return undefined;
+  return extractCloudflareIp(raw);
 }
 
 /**

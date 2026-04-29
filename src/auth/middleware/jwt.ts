@@ -2,8 +2,17 @@ import type { Context, MiddlewareHandler } from 'hono';
 import { verify, decode } from 'hono/jwt';
 import type { JWTPayload } from 'hono/utils/jwt/types';
 import type { AuthEnv, JWTConfig, JWTClaims, JWTAlgorithm, AuthUser } from '../types';
+import { safeParseJWTClaims } from '../types';
 import { UnauthorizedException } from '../../core/exceptions';
 import { validateJWTClaims } from '../validators/jwt-claims';
+
+function narrowJWTPayload(payload: unknown): JWTClaims {
+  const parsed = safeParseJWTClaims(payload);
+  if (!parsed.success) {
+    throw new UnauthorizedException('Invalid token payload');
+  }
+  return parsed.data;
+}
 
 // ============================================================================
 // Algorithm Mapping
@@ -127,8 +136,7 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
       throw new UnauthorizedException('Invalid token');
     }
 
-    // Convert payload to JWTClaims
-    const claims: JWTClaims = payload as unknown as JWTClaims;
+    const claims = narrowJWTPayload(payload);
 
     // Validate additional claims (issuer, audience) using shared validator
     // Note: Hono's verify already validates exp, nbf, iat
@@ -138,7 +146,6 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
       audience: config.audience,
     });
 
-    // Extract user info
     const user = extractUser(claims);
 
     // Set context variables
@@ -198,8 +205,7 @@ export async function verifyJWT(
     throw new UnauthorizedException('Invalid token');
   }
 
-  // Convert payload to JWTClaims
-  const claims: JWTClaims = payload as unknown as JWTClaims;
+  const claims = narrowJWTPayload(payload);
 
   // Validate additional claims using shared validator
   validateJWTClaims(claims, {
@@ -213,8 +219,11 @@ export async function verifyJWT(
 
 /**
  * Decodes a JWT token without verification.
- * WARNING: This does not verify the signature. Use only for debugging or
- * when you know the token has already been verified.
+ *
+ * WARNING: The signature is NOT verified. Use only for debugging or after
+ * the caller has already verified the token. The payload shape IS validated
+ * with the standard claims schema; returns `null` if either the token can't
+ * be decoded or the payload doesn't match the expected shape.
  */
 export function decodeJWT(token: string): { header: unknown; payload: JWTClaims } | null {
   try {
@@ -222,10 +231,11 @@ export function decodeJWT(token: string): { header: unknown; payload: JWTClaims 
     if (!decoded || !decoded.header || !decoded.payload) {
       return null;
     }
-    return {
-      header: decoded.header,
-      payload: decoded.payload as unknown as JWTClaims,
-    };
+    const parsed = safeParseJWTClaims(decoded.payload);
+    if (!parsed.success) {
+      return null;
+    }
+    return { header: decoded.header, payload: parsed.data };
   } catch {
     return null;
   }

@@ -83,3 +83,23 @@ export function getWaitUntil(ctx: {
 }): WaitUntilFn {
   return ctx.executionCtx.waitUntil.bind(ctx.executionCtx);
 }
+
+/**
+ * Safely extract the connecting IP from a Cloudflare Workers `Request`.
+ *
+ * Workers attach a non-standard `cf` property whose `ip` field holds the
+ * client IP. This helper narrows from `unknown` with runtime checks instead
+ * of casting blindly, and returns `undefined` outside Workers or when the
+ * shape doesn't match.
+ */
+export function extractCloudflareIp(raw: unknown): string | undefined {
+  if (raw === null || typeof raw !== 'object' || !('cf' in raw)) {
+    return undefined;
+  }
+  const cf = (raw as { cf?: unknown }).cf;
+  if (cf === null || typeof cf !== 'object' || !('ip' in cf)) {
+    return undefined;
+  }
+  const ip = (cf as { ip?: unknown }).ip;
+  return typeof ip === 'string' ? ip : undefined;
+}
