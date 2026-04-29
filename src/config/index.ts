@@ -32,6 +32,7 @@
  * ```
  */
 
+import type { ZodObject, ZodRawShape } from 'zod';
 import type { MetaInput, HookMode } from '../core/types';
 import type { ModelObject } from '../endpoints/types';
 
@@ -81,6 +82,18 @@ export interface CreateEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
   hooks?: CreateHooks<M>;
   nestedCreate?: string[];
+  /**
+   * Override the request body validation schema for this endpoint.
+   *
+   * When set, the default schema (model schema minus primary keys, with
+   * multi-tenant exclusions and nested-relation merging applied) is bypassed
+   * — the user's schema is used as-is. Same precedence as `meta.fields`, but
+   * scoped to this single endpoint.
+   *
+   * The caller is responsible for excluding any auto-injected fields
+   * (primary keys, tenant id, etc.) from the override schema.
+   */
+  bodySchema?: ZodObject<ZodRawShape>;
 }
 
 /**
@@ -199,6 +212,16 @@ export interface UpdateEndpointConfig<M extends MetaInput> {
   fields?: UpdateFieldConfig;
   nestedWrites?: string[];
   hooks?: UpdateHooks<M>;
+  /**
+   * Override the request body validation schema for this endpoint.
+   *
+   * When set, the default schema (model schema minus primary keys, with
+   * `fields.allowed` / `fields.blocked` filtering and `.partial()` applied,
+   * plus nested-relation merging) is bypassed — the user's schema is used
+   * as-is. Note: the override is **not** automatically wrapped in
+   * `.partial()`; the caller decides which fields are required.
+   */
+  bodySchema?: ZodObject<ZodRawShape>;
 }
 
 /**
@@ -336,6 +359,13 @@ export function defineEndpoints<M extends MetaInput>(
       protected afterHookMode: HookMode = createConfig.hooks?.afterMode || 'sequential';
       protected allowNestedCreate = createConfig.nestedCreate || [];
 
+      protected getBodySchema(): ZodObject<ZodRawShape> {
+        if (createConfig.bodySchema) {
+          return createConfig.bodySchema;
+        }
+        return super.getBodySchema();
+      }
+
       async before(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>> {
         if (createConfig.hooks?.before) {
           return createConfig.hooks.before(data, tx);
@@ -444,6 +474,13 @@ export function defineEndpoints<M extends MetaInput>(
       protected allowNestedWrites = updateConfig.nestedWrites || [];
       protected beforeHookMode: HookMode = updateConfig.hooks?.beforeMode || 'sequential';
       protected afterHookMode: HookMode = updateConfig.hooks?.afterMode || 'sequential';
+
+      protected getBodySchema(): ZodObject<ZodRawShape> {
+        if (updateConfig.bodySchema) {
+          return updateConfig.bodySchema;
+        }
+        return super.getBodySchema();
+      }
 
       async before(data: Partial<ModelObject<M['model']>>, tx?: unknown): Promise<Partial<ModelObject<M['model']>>> {
         if (updateConfig.hooks?.before) {
