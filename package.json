@@ -52,6 +52,42 @@
       "types": "./dist/storage/index.d.ts",
       "import": "./dist/storage/index.js"
     },
+    "./events": {
+      "types": "./dist/events/index.d.ts",
+      "import": "./dist/events/index.js"
+    },
+    "./idempotency": {
+      "types": "./dist/idempotency/index.d.ts",
+      "import": "./dist/idempotency/index.js"
+    },
+    "./health": {
+      "types": "./dist/health/index.d.ts",
+      "import": "./dist/health/index.js"
+    },
+    "./encryption": {
+      "types": "./dist/encryption/index.d.ts",
+      "import": "./dist/encryption/index.js"
+    },
+    "./serialization": {
+      "types": "./dist/serialization/index.d.ts",
+      "import": "./dist/serialization/index.js"
+    },
+    "./api-version": {
+      "types": "./dist/api-version/index.d.ts",
+      "import": "./dist/api-version/index.js"
+    },
+    "./audit": {
+      "types": "./dist/audit/index.d.ts",
+      "import": "./dist/audit/index.js"
+    },
+    "./versioning": {
+      "types": "./dist/versioning/index.d.ts",
+      "import": "./dist/versioning/index.js"
+    },
+    "./multi-tenant": {
+      "types": "./dist/multi-tenant/index.d.ts",
+      "import": "./dist/multi-tenant/index.js"
+    },
     "./ui": {
       "types": "./dist/ui.d.ts",
       "import": "./dist/ui.js"

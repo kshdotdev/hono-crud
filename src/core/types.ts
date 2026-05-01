@@ -1,6 +1,7 @@
 import type { z, ZodObject, ZodRawShape, ZodType } from 'zod';
 import type { Context, Env } from 'hono';
 import type { RouteConfig } from '@hono/zod-openapi';
+import { getContextVar } from '../utils/context';
 
 // ============================================================================
 // Schema Type Utilities
@@ -1165,6 +1166,33 @@ export interface Model<
    * ```
    */
   multiTenant?: boolean | MultiTenantConfig;
+
+  /**
+   * Configure field-level encryption for this model.
+   * Listed fields are encrypted via Web Crypto AES-GCM before write and
+   * decrypted automatically before the response (or before computed fields run).
+   *
+   * @example
+   * ```ts
+   * fieldEncryption: {
+   *   fields: ['ssn', 'taxId'],
+   *   keyProvider: new StaticKeyProvider(rawKey),
+   * }
+   * ```
+   */
+  fieldEncryption?: import('../encryption/types').FieldEncryptionConfig;
+
+  /**
+   * Default serialization profile applied to read/list responses.
+   * Use a SerializationProfile to whitelist/blacklist fields per role
+   * or to apply field transforms before the response is sent.
+   *
+   * @example
+   * ```ts
+   * serializationProfile: profile<User>().exclude('password').build()
+   * ```
+   */
+  serializationProfile?: import('../serialization/types').SerializationProfile;
 }
 
 /**
@@ -1351,8 +1379,7 @@ export function extractTenantId(
       return ctx.req.header(config.headerName);
 
     case 'context':
-      // Use raw access for compatibility with different Hono typing setups
-      return (ctx as unknown as { get: (key: string) => string | undefined }).get(config.contextKey);
+      return getContextVar<string>(ctx, config.contextKey);
 
     case 'path':
       return ctx.req.param(config.pathParam);

@@ -27,6 +27,7 @@ import type {
 } from '../../core/types';
 import type { ModelObject } from '../../endpoints/types';
 import { getStore, loadRelations } from './helpers';
+import { isVisible } from './visibility';
 
 /**
  * Memory-based Clone endpoint for testing.
@@ -53,21 +54,8 @@ export abstract class MemoryCloneEndpoint<
 
     if (!existing) return null;
 
-    // Skip soft-deleted records
-    if (softDeleteConfig.enabled) {
-      const deletedAt = (existing as Record<string, unknown>)[softDeleteConfig.field];
-      if (deletedAt !== null && deletedAt !== undefined) {
-        return null;
-      }
-    }
-
-    // Check additional filters
-    if (additionalFilters) {
-      for (const [key, value] of Object.entries(additionalFilters)) {
-        if (String((existing as Record<string, unknown>)[key]) !== value) {
-          return null;
-        }
-      }
+    if (!isVisible(existing, softDeleteConfig, additionalFilters)) {
+      return null;
     }
 
     return existing;

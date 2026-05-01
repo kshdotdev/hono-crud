@@ -1,9 +1,8 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { HTTPException } from 'hono/http-exception';
-import { OpenAPIRoute } from '../core/route';
-import type { MetaInput, OpenAPIRouteSchema, NormalizedSoftDeleteConfig, NormalizedMultiTenantConfig, IncludeOptions } from '../core/types';
-import { getSoftDeleteConfig, applyComputedFields, getMultiTenantConfig, extractTenantId } from '../core/types';
+import { CrudEndpoint } from './base';
+import type {MetaInput, OpenAPIRouteSchema, IncludeOptions} from '../core/types';
+import { applyComputedFields } from '../core/types';
 import { NotFoundException } from '../core/exceptions';
 import { applyFieldSelection, type ModelObject, type FieldSelection } from './types';
 import { generateETag, matchesIfNoneMatch } from '../core/etag';
@@ -19,8 +18,7 @@ import { generateETag, matchesIfNoneMatch } from '../core/etag';
 export abstract class ReadEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   // Lookup configuration
   protected lookupField: string = 'id';
@@ -50,16 +48,10 @@ export abstract class ReadEndpoint<
   /**
    * Get the soft delete configuration for this model.
    */
-  protected getSoftDeleteConfig(): NormalizedSoftDeleteConfig {
-    return getSoftDeleteConfig(this._meta.model.softDelete);
-  }
 
   /**
    * Check if soft delete is enabled for this model.
    */
-  protected isSoftDeleteEnabled(): boolean {
-    return this.getSoftDeleteConfig().enabled;
-  }
 
   // ============================================================================
   // Multi-Tenancy Support
@@ -68,41 +60,18 @@ export abstract class ReadEndpoint<
   /**
    * Get the multi-tenant configuration for this model.
    */
-  protected getMultiTenantConfig(): NormalizedMultiTenantConfig {
-    return getMultiTenantConfig(this._meta.model.multiTenant);
-  }
 
   /**
    * Check if multi-tenancy is enabled for this model.
    */
-  protected isMultiTenantEnabled(): boolean {
-    return this.getMultiTenantConfig().enabled;
-  }
 
   /**
    * Get the current tenant ID from the request context.
    */
-  protected getTenantId(): string | undefined {
-    if (!this.context) return undefined;
-    const config = this.getMultiTenantConfig();
-    return extractTenantId(this.context, config);
-  }
 
   /**
    * Validates that tenant ID is present when required.
    */
-  protected validateTenantId(): string | undefined {
-    const config = this.getMultiTenantConfig();
-    if (!config.enabled) return undefined;
-
-    const tenantId = this.getTenantId();
-
-    if (!tenantId && config.required) {
-      throw new HTTPException(400, { message: config.errorMessage });
-    }
-
-    return tenantId;
-  }
 
   /**
    * Returns the path parameter schema.
@@ -370,6 +339,7 @@ export abstract class ReadEndpoint<
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
     }
 
+    obj = await this.decryptOnRead(obj as Record<string, unknown>) as ModelObject<M['model']>;
     obj = await this.after(obj);
 
     // Apply computed fields if defined
@@ -385,8 +355,11 @@ export abstract class ReadEndpoint<
       ? this._meta.model.serializer(obj)
       : obj;
 
+    // Apply default serialization profile (model.serializationProfile)
+    const profiled = this.applyProfile(serialized as Record<string, unknown>);
+
     // Apply transform
-    const transformed = this.transform(serialized as ModelObject<M['model']>);
+    const transformed = this.transform(profiled as ModelObject<M['model']>);
 
     // Apply field selection if enabled and fields were specified
     const result = (fieldSelection.isActive && fieldSelection.fields.length > 0)

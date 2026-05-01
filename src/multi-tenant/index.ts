@@ -1,5 +1,6 @@
 import type { Context, MiddlewareHandler, Env } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { setContextVar } from '../utils/context';
 
 /**
  * Options for the multi-tenant middleware.
@@ -44,7 +45,7 @@ export interface MultiTenantMiddlewareOptions {
    * Custom function to extract tenant ID.
    * Only used when source is 'custom'.
    */
-  extractor?: (ctx: Context) => string | undefined | Promise<string | undefined>;
+  extractor?: <E extends Env>(ctx: Context<E>) => string | undefined | Promise<string | undefined>;
 
   /**
    * The key to store the tenant ID in context.
@@ -70,13 +71,13 @@ export interface MultiTenantMiddlewareOptions {
    * Custom error handler for missing tenant ID.
    * If provided, this function is called instead of throwing an error.
    */
-  onMissing?: (ctx: Context) => Response | Promise<Response>;
+  onMissing?: <E extends Env>(ctx: Context<E>) => Response | Promise<Response>;
 
   /**
    * Validate the tenant ID.
    * Return true if valid, false or throw an error if invalid.
    */
-  validate?: (tenantId: string, ctx: Context) => boolean | Promise<boolean>;
+  validate?: <E extends Env>(tenantId: string, ctx: Context<E>) => boolean | Promise<boolean>;
 
   /**
    * Custom error message when tenant ID is invalid.
@@ -159,7 +160,7 @@ export function multiTenant<E extends Env = Env>(
       }
       return undefined;
     },
-    custom: (ctx) => extractor?.(ctx as unknown as Context),
+    custom: (ctx) => extractor?.(ctx),
   };
 
   return async (ctx, next) => {
@@ -170,7 +171,7 @@ export function multiTenant<E extends Env = Env>(
     if (!tenantId) {
       if (required) {
         if (onMissing) {
-          return onMissing(ctx as unknown as Context);
+          return onMissing(ctx);
         }
         throw new HTTPException(400, { message: errorMessage });
       }
@@ -180,15 +181,13 @@ export function multiTenant<E extends Env = Env>(
 
     // Validate tenant ID if validator provided
     if (validate) {
-      const isValid = await validate(tenantId, ctx as unknown as Context);
+      const isValid = await validate(tenantId, ctx);
       if (!isValid) {
         throw new HTTPException(400, { message: invalidMessage });
       }
     }
 
-    // Set tenant ID in context using raw access for compatibility
-    // This works regardless of Hono's strict typing
-    (ctx as unknown as { set: (key: string, value: string) => void }).set(contextKey, tenantId);
+    setContextVar(ctx, contextKey, tenantId);
 
     return next();
   };

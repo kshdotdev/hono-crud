@@ -1,26 +1,12 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { HTTPException } from 'hono/http-exception';
-import { OpenAPIRoute } from '../core/route';
+import { CrudEndpoint } from './base';
 import { getLogger } from '../core/logger';
-import type {
-  MetaInput,
-  OpenAPIRouteSchema,
-  HookMode,
-  NormalizedSoftDeleteConfig,
-  NormalizedAuditConfig,
-  NormalizedVersioningConfig,
-  NormalizedMultiTenantConfig,
-  RelationConfig,
-  NestedUpdateInput,
-  NestedWriteResult,
-} from '../core/types';
-import { getSoftDeleteConfig, applyComputedFields, extractNestedData, isDirectNestedData, getAuditConfig, getVersioningConfig, getMultiTenantConfig, extractTenantId } from '../core/types';
+import type {MetaInput, OpenAPIRouteSchema, HookMode, RelationConfig, NestedUpdateInput, NestedWriteResult} from '../core/types';
+import { applyComputedFields, extractNestedData, isDirectNestedData } from '../core/types';
 import { NotFoundException } from '../core/exceptions';
 import { generateETag, matchesIfMatch } from '../core/etag';
 import { getSchemaFields, type ModelObject } from './types';
-import { createAuditLogger, type AuditLogger } from '../core/audit';
-import { createVersionManager, type VersionManager } from '../core/versioning';
 
 /**
  * Base endpoint for updating resources.
@@ -52,8 +38,7 @@ import { createVersionManager, type VersionManager } from '../core/versioning';
 export abstract class UpdateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   // Lookup configuration
   protected lookupField: string = 'id';
@@ -77,101 +62,48 @@ export abstract class UpdateEndpoint<
   protected etagEnabled: boolean = false;
 
   // Audit logging
-  private _auditLogger?: AuditLogger;
 
   // Versioning
-  private _versionManager?: VersionManager;
 
   /**
    * Get the audit logger for this endpoint.
    */
-  protected getAuditLogger(): AuditLogger {
-    if (!this._auditLogger) {
-      this._auditLogger = createAuditLogger(this._meta.model.audit);
-    }
-    return this._auditLogger;
-  }
 
   /**
    * Get the audit configuration for this model.
    */
-  protected getAuditConfig(): NormalizedAuditConfig {
-    return getAuditConfig(this._meta.model.audit);
-  }
 
   /**
    * Check if audit logging is enabled for this model.
    */
-  protected isAuditEnabled(): boolean {
-    return this.getAuditConfig().enabled;
-  }
 
   /**
    * Get the user ID for audit logging.
    */
-  protected getAuditUserId(): string | undefined {
-    const config = this.getAuditConfig();
-    if (config.getUserId && this.context) {
-      return config.getUserId(this.context);
-    }
-    // Try to get userId from context variables
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
-  }
 
   /**
    * Get the version manager for this endpoint.
    */
-  protected getVersionManager(): VersionManager {
-    if (!this._versionManager) {
-      this._versionManager = createVersionManager(
-        this._meta.model.versioning,
-        this._meta.model.tableName
-      );
-    }
-    return this._versionManager;
-  }
 
   /**
    * Get the versioning configuration for this model.
    */
-  protected getVersioningConfig(): NormalizedVersioningConfig {
-    return getVersioningConfig(this._meta.model.versioning, this._meta.model.tableName);
-  }
 
   /**
    * Check if versioning is enabled for this model.
    */
-  protected isVersioningEnabled(): boolean {
-    return this.getVersioningConfig().enabled;
-  }
 
   /**
    * Get the user ID for versioning.
    */
-  protected getVersioningUserId(): string | undefined {
-    const config = this.getVersioningConfig();
-    if (config.getUserId && this.context) {
-      return config.getUserId(this.context);
-    }
-    // Try to get userId from context variables
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
-  }
 
   /**
    * Get the soft delete configuration for this model.
    */
-  protected getSoftDeleteConfig(): NormalizedSoftDeleteConfig {
-    return getSoftDeleteConfig(this._meta.model.softDelete);
-  }
 
   /**
    * Check if soft delete is enabled for this model.
    */
-  protected isSoftDeleteEnabled(): boolean {
-    return this.getSoftDeleteConfig().enabled;
-  }
 
   // ============================================================================
   // Multi-Tenancy Support
@@ -180,41 +112,18 @@ export abstract class UpdateEndpoint<
   /**
    * Get the multi-tenant configuration for this model.
    */
-  protected getMultiTenantConfig(): NormalizedMultiTenantConfig {
-    return getMultiTenantConfig(this._meta.model.multiTenant);
-  }
 
   /**
    * Check if multi-tenancy is enabled for this model.
    */
-  protected isMultiTenantEnabled(): boolean {
-    return this.getMultiTenantConfig().enabled;
-  }
 
   /**
    * Get the current tenant ID from the request context.
    */
-  protected getTenantId(): string | undefined {
-    if (!this.context) return undefined;
-    const config = this.getMultiTenantConfig();
-    return extractTenantId(this.context, config);
-  }
 
   /**
    * Validates that tenant ID is present when required.
    */
-  protected validateTenantId(): string | undefined {
-    const config = this.getMultiTenantConfig();
-    if (!config.enabled) return undefined;
-
-    const tenantId = this.getTenantId();
-
-    if (!tenantId && config.required) {
-      throw new HTTPException(400, { message: config.errorMessage });
-    }
-
-    return tenantId;
-  }
 
   /**
    * Returns the path parameter schema.
@@ -582,12 +491,15 @@ export abstract class UpdateEndpoint<
     }
 
     data = await this.before(data);
+    data = await this.encryptOnWrite(data as Record<string, unknown>) as Partial<ModelObject<M['model']>>;
 
     let obj = await this.update(lookupValue, data, additionalFilters);
 
     if (!obj) {
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
     }
+
+    obj = await this.decryptOnRead(obj as Record<string, unknown>) as ModelObject<M['model']>;
 
     // Get the parent ID for nested writes
     const parentId = this.getParentId(obj);
@@ -659,6 +571,17 @@ export abstract class UpdateEndpoint<
       ));
     }
 
+    // Emit updated event
+    if (parentId !== null) {
+      this.runAfterResponse(
+        this.emitEvent('updated', {
+          recordId: parentId,
+          data: obj,
+          previousData: previousRecord ?? undefined,
+        })
+      );
+    }
+
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {
       obj = await applyComputedFields(
@@ -672,8 +595,11 @@ export abstract class UpdateEndpoint<
       ? this._meta.model.serializer(obj)
       : obj;
 
+    // Apply default serialization profile (model.serializationProfile)
+    const profiled = this.applyProfile(serialized as Record<string, unknown>);
+
     // Apply transform
-    const result = this.transform(serialized as ModelObject<M['model']>);
+    const result = this.transform(profiled as ModelObject<M['model']>);
 
     // Add ETag header on response
     if (this.etagEnabled) {
@@ -688,12 +614,4 @@ export abstract class UpdateEndpoint<
    * Gets the parent ID from the record.
    * Override if your primary key is not 'id'.
    */
-  protected getParentId(record: ModelObject<M['model']>): string | number | null {
-    const pk = this._meta.model.primaryKeys[0];
-    const id = (record as Record<string, unknown>)[pk];
-    if (typeof id === 'string' || typeof id === 'number') {
-      return id;
-    }
-    return null;
-  }
 }

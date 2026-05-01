@@ -1,10 +1,8 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { OpenAPIRoute } from '../core/route';
-import type { MetaInput, OpenAPIRouteSchema, NormalizedAuditConfig } from '../core/types';
-import { getAuditConfig, getSoftDeleteConfig, type NormalizedSoftDeleteConfig } from '../core/types';
+import { CrudEndpoint } from './base';
+import type {MetaInput, OpenAPIRouteSchema} from '../core/types';
 import type { ModelObject } from './types';
-import { createAuditLogger, type AuditLogger } from '../core/audit';
 import { parseCsv, validateCsvHeaders, type CsvParseOptions } from '../utils/csv';
 import { ConfigurationException, InputValidationException } from '../core/exceptions';
 
@@ -115,8 +113,7 @@ export interface ImportOptions {
 export abstract class ImportEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   /** Maximum number of records per import request. */
   protected maxBatchSize: number = 1000;
@@ -149,50 +146,26 @@ export abstract class ImportEndpoint<
   protected optionalImportFields: string[] = [];
 
   // Audit logging
-  private _auditLogger?: AuditLogger;
 
   /**
    * Get the soft delete configuration for this model.
    */
-  protected getSoftDeleteConfig(): NormalizedSoftDeleteConfig {
-    return getSoftDeleteConfig(this._meta.model.softDelete);
-  }
 
   /**
    * Get the audit logger for this endpoint.
    */
-  protected getAuditLogger(): AuditLogger {
-    if (!this._auditLogger) {
-      this._auditLogger = createAuditLogger(this._meta.model.audit);
-    }
-    return this._auditLogger;
-  }
 
   /**
    * Get the audit configuration for this model.
    */
-  protected getAuditConfig(): NormalizedAuditConfig {
-    return getAuditConfig(this._meta.model.audit);
-  }
 
   /**
    * Check if audit logging is enabled.
    */
-  protected isAuditEnabled(): boolean {
-    return this.getAuditConfig().enabled;
-  }
 
   /**
    * Get the user ID for audit logging.
    */
-  protected getAuditUserId(): string | undefined {
-    const config = this.getAuditConfig();
-    if (config.getUserId && this.context) {
-      return config.getUserId(this.context);
-    }
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
-  }
 
   /**
    * Gets the upsert keys for matching existing records.
@@ -204,14 +177,6 @@ export abstract class ImportEndpoint<
   /**
    * Gets the record ID from a record.
    */
-  protected getRecordId(record: ModelObject<M['model']>): string | number | null {
-    const pk = this._meta.model.primaryKeys[0];
-    const id = (record as Record<string, unknown>)[pk];
-    if (typeof id === 'string' || typeof id === 'number') {
-      return id;
-    }
-    return null;
-  }
 
   /**
    * Returns the schema for import request body.

@@ -15,8 +15,8 @@ import {
 import { MemoryRateLimitStorage } from '../src/rate-limit/storage/memory.js';
 import { MemoryLoggingStorage } from '../src/logging/storage/memory.js';
 import { MemoryCacheStorage } from '../src/cache/storage/memory.js';
-import { MemoryAuditLogStorage, setAuditStorage } from '../src/core/audit.js';
-import { MemoryVersioningStorage, setVersioningStorage } from '../src/core/versioning.js';
+import { MemoryAuditLogStorage, setAuditStorage } from '../src/audit/index.js';
+import { MemoryVersioningStorage, setVersioningStorage } from '../src/versioning/index.js';
 import { MemoryAPIKeyStorage } from '../src/auth/storage/memory.js';
 import { MemoryIdempotencyStorage } from '../src/idempotency/storage/memory.js';
 import { CrudEventEmitter } from '../src/events/emitter.js';

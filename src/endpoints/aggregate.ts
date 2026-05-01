@@ -1,17 +1,8 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { OpenAPIRoute } from '../core/route';
-import type {
-  MetaInput,
-  OpenAPIRouteSchema,
-  AggregateOperation,
-  AggregateField,
-  AggregateOptions,
-  AggregateResult,
-  AggregateConfig,
-  NormalizedSoftDeleteConfig,
-} from '../core/types';
-import { getSoftDeleteConfig, parseAggregateQuery } from '../core/types';
+import { CrudEndpoint } from './base';
+import type {MetaInput, OpenAPIRouteSchema, AggregateOperation, AggregateField, AggregateOptions, AggregateResult, AggregateConfig} from '../core/types';
+import {parseAggregateQuery} from '../core/types';
 import { InputValidationException } from '../core/exceptions';
 
 /**
@@ -44,8 +35,7 @@ const DEFAULT_AGGREGATE_CONFIG: Required<AggregateConfig> = {
 export abstract class AggregateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   /**
    * Configuration for allowed aggregations.
@@ -68,16 +58,10 @@ export abstract class AggregateEndpoint<
   /**
    * Get the soft delete configuration for this model.
    */
-  protected getSoftDeleteConfig(): NormalizedSoftDeleteConfig {
-    return getSoftDeleteConfig(this._meta.model.softDelete);
-  }
 
   /**
    * Check if soft delete is enabled for this model.
    */
-  protected isSoftDeleteEnabled(): boolean {
-    return this.getSoftDeleteConfig().enabled;
-  }
 
   /**
    * Get normalized aggregate configuration with defaults.

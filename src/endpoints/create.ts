@@ -1,19 +1,10 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { HTTPException } from 'hono/http-exception';
-import { OpenAPIRoute } from '../core/route';
+import { CrudEndpoint } from './base';
 import { getLogger } from '../core/logger';
-import type {
-  MetaInput,
-  OpenAPIRouteSchema,
-  HookMode,
-  RelationConfig,
-  NormalizedAuditConfig,
-  NormalizedMultiTenantConfig,
-} from '../core/types';
-import { applyComputedFields, extractNestedData, getAuditConfig, getMultiTenantConfig, extractTenantId } from '../core/types';
+import type {MetaInput, OpenAPIRouteSchema, HookMode, RelationConfig} from '../core/types';
+import { applyComputedFields, extractNestedData } from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
-import { createAuditLogger, type AuditLogger } from '../core/audit';
 
 /**
  * Base endpoint for creating resources.
@@ -41,8 +32,7 @@ import { createAuditLogger, type AuditLogger } from '../core/audit';
 export abstract class CreateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   // Hook execution mode
   protected beforeHookMode: HookMode = 'sequential';
@@ -53,46 +43,23 @@ export abstract class CreateEndpoint<
   protected allowNestedCreate: string[] = [];
 
   // Audit logging
-  private _auditLogger?: AuditLogger;
 
   /**
    * Get the audit logger for this endpoint.
    */
-  protected getAuditLogger(): AuditLogger {
-    if (!this._auditLogger) {
-      this._auditLogger = createAuditLogger(this._meta.model.audit);
-    }
-    return this._auditLogger;
-  }
 
   /**
    * Get the audit configuration for this model.
    */
-  protected getAuditConfig(): NormalizedAuditConfig {
-    return getAuditConfig(this._meta.model.audit);
-  }
 
   /**
    * Check if audit logging is enabled for this model.
    */
-  protected isAuditEnabled(): boolean {
-    return this.getAuditConfig().enabled;
-  }
 
   /**
    * Get the user ID for audit logging.
    * Override this method to customize how user ID is extracted.
    */
-  protected getAuditUserId(): string | undefined {
-    const config = this.getAuditConfig();
-    if (config.getUserId && this.context) {
-      return config.getUserId(this.context);
-    }
-    // Default: try to get from context
-    // Try to get userId from context variables
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
-  }
 
   // ============================================================================
   // Multi-Tenancy Support
@@ -101,60 +68,25 @@ export abstract class CreateEndpoint<
   /**
    * Get the multi-tenant configuration for this model.
    */
-  protected getMultiTenantConfig(): NormalizedMultiTenantConfig {
-    return getMultiTenantConfig(this._meta.model.multiTenant);
-  }
 
   /**
    * Check if multi-tenancy is enabled for this model.
    */
-  protected isMultiTenantEnabled(): boolean {
-    return this.getMultiTenantConfig().enabled;
-  }
 
   /**
    * Get the current tenant ID from the request context.
    * Returns undefined if multi-tenancy is not enabled or tenant ID is not found.
    */
-  protected getTenantId(): string | undefined {
-    if (!this.context) return undefined;
-    const config = this.getMultiTenantConfig();
-    return extractTenantId(this.context, config);
-  }
 
   /**
    * Validates that tenant ID is present when required.
    * Throws HTTPException if missing and required.
    */
-  protected validateTenantId(): string | undefined {
-    const config = this.getMultiTenantConfig();
-    if (!config.enabled) return undefined;
-
-    const tenantId = this.getTenantId();
-
-    if (!tenantId && config.required) {
-      throw new HTTPException(400, { message: config.errorMessage });
-    }
-
-    return tenantId;
-  }
 
   /**
    * Injects tenant ID into the data object.
    * Called automatically before create when multi-tenancy is enabled.
    */
-  protected injectTenantId<T extends Record<string, unknown>>(data: T): T {
-    const config = this.getMultiTenantConfig();
-    if (!config.enabled) return data;
-
-    const tenantId = this.getTenantId();
-    if (!tenantId) return data;
-
-    return {
-      ...data,
-      [config.field]: tenantId,
-    };
-  }
 
   /**
    * Returns the Zod schema for request body.
@@ -394,7 +326,9 @@ export abstract class CreateEndpoint<
     obj = this.injectTenantId(obj as Record<string, unknown>) as ModelObject<M['model']>;
 
     obj = await this.before(obj);
+    obj = await this.encryptOnWrite(obj as Record<string, unknown>) as ModelObject<M['model']>;
     obj = await this.create(obj);
+    obj = await this.decryptOnRead(obj as Record<string, unknown>) as ModelObject<M['model']>;
 
     // Get the parent ID for nested writes
     const parentId = this.getParentId(obj);
@@ -455,6 +389,11 @@ export abstract class CreateEndpoint<
       ));
     }
 
+    // Emit created event
+    if (parentId !== null) {
+      this.runAfterResponse(this.emitEvent('created', { recordId: parentId, data: obj }));
+    }
+
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {
       obj = await applyComputedFields(
@@ -468,8 +407,11 @@ export abstract class CreateEndpoint<
       ? this._meta.model.serializer(obj)
       : obj;
 
+    // Apply default serialization profile (model.serializationProfile)
+    const profiled = this.applyProfile(serialized as Record<string, unknown>);
+
     // Apply transform
-    const result = this.transform(serialized as ModelObject<M['model']>);
+    const result = this.transform(profiled as ModelObject<M['model']>);
 
     return this.success(result, 201);
   }
@@ -478,12 +420,4 @@ export abstract class CreateEndpoint<
    * Gets the parent ID from the created record.
    * Override if your primary key is not 'id'.
    */
-  protected getParentId(record: ModelObject<M['model']>): string | number | null {
-    const pk = this._meta.model.primaryKeys[0];
-    const id = (record as Record<string, unknown>)[pk];
-    if (typeof id === 'string' || typeof id === 'number') {
-      return id;
-    }
-    return null;
-  }
 }

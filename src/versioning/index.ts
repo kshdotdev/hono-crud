@@ -3,8 +3,8 @@ import type {
   VersionHistoryEntry,
   NormalizedVersioningConfig,
   AuditFieldChange,
-} from './types';
-import { calculateChanges, getVersioningConfig, type VersioningConfig } from './types';
+} from '../core/types';
+import { calculateChanges, getVersioningConfig, type VersioningConfig } from '../core/types';
 import { createRegistryWithDefault } from '../storage/registry';
 
 /**

@@ -2,16 +2,16 @@ import type { Context, Env } from 'hono';
 import type { RateLimitStorage } from '../rate-limit/types';
 import type { LoggingStorage } from '../logging/types';
 import type { CacheStorage } from '../cache/types';
-import type { AuditLogStorage } from '../core/audit';
-import type { VersioningStorage } from '../core/versioning';
-import type { MemoryAPIKeyStorage } from '../auth/storage/memory';
+import type { AuditLogStorage } from '../audit';
+import type { VersioningStorage } from '../versioning';
+import type { APIKeyStorage } from '../auth/types';
 import type { IdempotencyStorage } from '../idempotency/types';
 import type { StorageEnv } from './types';
 import { rateLimitStorageRegistry } from '../rate-limit/middleware';
 import { loggingStorageRegistry } from '../logging/middleware';
 import { cacheStorageRegistry } from '../cache/mixin';
-import { auditStorageRegistry } from '../core/audit';
-import { versioningStorageRegistry } from '../core/versioning';
+import { auditStorageRegistry } from '../audit';
+import { versioningStorageRegistry } from '../versioning';
 import { apiKeyStorageRegistry } from '../auth/storage/memory';
 import { idempotencyStorageRegistry } from '../idempotency/middleware';
 
@@ -19,8 +19,8 @@ import { idempotencyStorageRegistry } from '../idempotency/middleware';
 export { getRateLimitStorage } from '../rate-limit/middleware';
 export { getLoggingStorage } from '../logging/middleware';
 export { getCacheStorage } from '../cache/mixin';
-export { getAuditStorage } from '../core/audit';
-export { getVersioningStorage } from '../core/versioning';
+export { getAuditStorage } from '../audit';
+export { getVersioningStorage } from '../versioning';
 export { getAPIKeyStorage } from '../auth/storage/memory';
 export { getIdempotencyStorage } from '../idempotency/middleware';
 
@@ -159,8 +159,8 @@ export function resolveVersioningStorage<E extends Env>(
  */
 export function resolveAPIKeyStorage<E extends Env>(
   ctx?: Context<E>,
-  explicitStorage?: MemoryAPIKeyStorage
-): MemoryAPIKeyStorage | null {
+  explicitStorage?: APIKeyStorage
+): APIKeyStorage | null {
   return apiKeyStorageRegistry.resolve(ctx, explicitStorage);
 }
 

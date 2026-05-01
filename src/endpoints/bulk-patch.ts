@@ -1,6 +1,6 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { OpenAPIRoute } from '../core/route';
+import { CrudEndpoint } from './base';
 import type {
   MetaInput,
   OpenAPIRouteSchema,
@@ -35,8 +35,7 @@ export interface BulkPatchResult<T = unknown> {
 export abstract class BulkPatchEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   /** Maximum number of records that can be updated in a single bulk operation */
   protected maxBulkSize: number = 1000;

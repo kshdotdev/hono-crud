@@ -2,9 +2,9 @@ import type { Env } from 'hono';
 import type { RateLimitStorage } from '../rate-limit/types';
 import type { LoggingStorage } from '../logging/types';
 import type { CacheStorage } from '../cache/types';
-import type { AuditLogStorage } from '../core/audit';
-import type { VersioningStorage } from '../core/versioning';
-import type { MemoryAPIKeyStorage } from '../auth/storage/memory';
+import type { AuditLogStorage } from '../audit';
+import type { VersioningStorage } from '../versioning';
+import type { APIKeyStorage } from '../auth/types';
 import type { IdempotencyStorage } from '../idempotency/types';
 import type { CrudEventEmitter } from '../events/emitter';
 
@@ -36,7 +36,7 @@ export interface StorageEnv extends Env {
     cacheStorage?: CacheStorage;
     auditStorage?: AuditLogStorage;
     versioningStorage?: VersioningStorage;
-    apiKeyStorage?: MemoryAPIKeyStorage;
+    apiKeyStorage?: APIKeyStorage;
     idempotencyStorage?: IdempotencyStorage;
     eventEmitter?: CrudEventEmitter;
   };
@@ -89,7 +89,7 @@ export interface StorageMiddlewareConfig {
    * API key storage instance.
    * If provided, will be available as `ctx.var.apiKeyStorage`.
    */
-  apiKeyStorage?: MemoryAPIKeyStorage;
+  apiKeyStorage?: APIKeyStorage;
 
   /**
    * Idempotency storage instance.

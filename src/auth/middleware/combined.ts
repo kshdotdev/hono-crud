@@ -1,49 +1,9 @@
 import type { MiddlewareHandler } from 'hono';
-import type { AuthEnv, AuthConfig, PathPattern } from '../types';
+import type { AuthEnv, AuthConfig } from '../types';
 import { UnauthorizedException } from '../../core/exceptions';
+import { matchAny } from '../../utils/path-match';
 import { createJWTMiddleware } from './jwt';
 import { createAPIKeyMiddleware } from './api-key';
-
-// ============================================================================
-// Path Matching
-// ============================================================================
-
-/**
- * Checks if a path matches a pattern.
- */
-function matchPath(path: string, pattern: PathPattern): boolean {
-  if (pattern instanceof RegExp) {
-    return pattern.test(path);
-  }
-
-  // Handle wildcards
-  if (pattern.includes('*')) {
-    // ** matches any number of path segments
-    if (pattern.includes('**')) {
-      const regexPattern = pattern
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*\*/g, '.*')
-        .replace(/\*/g, '[^/]*');
-      return new RegExp(`^${regexPattern}$`).test(path);
-    }
-
-    // * matches a single path segment
-    const regexPattern = pattern
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '[^/]*');
-    return new RegExp(`^${regexPattern}$`).test(path);
-  }
-
-  // Exact match
-  return path === pattern;
-}
-
-/**
- * Checks if a path should skip authentication.
- */
-function shouldSkipPath(path: string, skipPaths: PathPattern[]): boolean {
-  return skipPaths.some((pattern) => matchPath(path, pattern));
-}
 
 // ============================================================================
 // Combined Auth Middleware
@@ -87,7 +47,7 @@ export function createAuthMiddleware<E extends AuthEnv = AuthEnv>(
   return async (ctx, next) => {
     // Check if path should skip auth
     const path = ctx.req.path;
-    if (shouldSkipPath(path, skipPaths)) {
+    if (matchAny(path, skipPaths)) {
       ctx.set('authType', 'none');
       return next();
     }

@@ -9,6 +9,7 @@ import type {
 } from '../../core/types';
 import type { ModelObject } from '../../endpoints/types';
 import { getStore } from './helpers';
+import { isVisible } from './visibility';
 
 /**
  * Memory-based Batch Create endpoint for testing.
@@ -70,13 +71,9 @@ export abstract class MemoryBatchUpdateEndpoint<
         continue;
       }
 
-      // Check if soft-deleted
-      if (softDeleteConfig.enabled) {
-        const deletedAt = (existing as Record<string, unknown>)[softDeleteConfig.field];
-        if (deletedAt !== null && deletedAt !== undefined) {
-          notFound.push(item.id); // Treat soft-deleted as not found
-          continue;
-        }
+      if (!isVisible(existing, softDeleteConfig)) {
+        notFound.push(item.id); // Treat soft-deleted as not found
+        continue;
       }
 
       const updatedRecord = { ...existing, ...item.data } as ModelObject<M['model']>;
@@ -112,13 +109,9 @@ export abstract class MemoryBatchDeleteEndpoint<
         continue;
       }
 
-      // Check if already soft-deleted
-      if (softDeleteConfig.enabled) {
-        const deletedAt = (existing as Record<string, unknown>)[softDeleteConfig.field];
-        if (deletedAt !== null && deletedAt !== undefined) {
-          notFound.push(id); // Already deleted
-          continue;
-        }
+      if (!isVisible(existing, softDeleteConfig)) {
+        notFound.push(id); // Already deleted
+        continue;
       }
 
       if (softDeleteConfig.enabled) {

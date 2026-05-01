@@ -32,6 +32,7 @@
 import type { Env, MiddlewareHandler } from 'hono';
 import type { MetaInput, HookMode } from '../core/types';
 import type { ModelObject } from '../endpoints/types';
+import { generateEndpointClass } from '../core/generate-endpoint-class';
 
 // ============================================================================
 // Create Builder
@@ -112,42 +113,16 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
    * @returns A class that can be used with registerCrud
    */
   build<B extends abstract new () => unknown>(BaseClass: B): B {
-    const config = {
+    return generateEndpointClass(BaseClass, {
       meta: this.meta,
       schema: this._schema,
-      before: this._before,
-      after: this._after,
+      before: this._before as ((...args: unknown[]) => unknown) | undefined,
+      after: this._after as ((...args: unknown[]) => unknown) | undefined,
       beforeHookMode: this._beforeHookMode,
       afterHookMode: this._afterHookMode,
       allowNestedCreate: this._allowNestedCreate,
-    };
-    const middlewares = this._middlewares;
-
-    // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
-    const GeneratedClass = class extends BaseClass {
-      static _middlewares = middlewares;
-      _meta = config.meta;
-      schema = config.schema || {};
-      protected beforeHookMode: HookMode = config.beforeHookMode;
-      protected afterHookMode: HookMode = config.afterHookMode;
-      protected allowNestedCreate = config.allowNestedCreate;
-
-      async before(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>> {
-        if (config.before) {
-          return config.before(data, tx);
-        }
-        return super.before(data, tx);
-      }
-
-      async after(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>> {
-        if (config.after) {
-          return config.after(data, tx);
-        }
-        return super.after(data, tx);
-      }
-    };
-
-    return GeneratedClass;
+      middlewares: this._middlewares as MiddlewareHandler[],
+    });
   }
 }
 
@@ -289,7 +264,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
    * @returns A class that can be used with registerCrud
    */
   build<B extends abstract new () => unknown>(BaseClass: B): B {
-    const config = {
+    return generateEndpointClass(BaseClass, {
       meta: this.meta,
       schema: this._schema,
       filterFields: this._filterFields,
@@ -306,47 +281,10 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
       blockedSelectFields: this._blockedSelectFields,
       alwaysIncludeFields: this._alwaysIncludeFields,
       defaultSelectFields: this._defaultSelectFields,
-      after: this._after,
-      transform: this._transform,
-    };
-    const middlewares = this._middlewares;
-
-    // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
-    const GeneratedClass = class extends BaseClass {
-      static _middlewares = middlewares;
-      _meta = config.meta;
-      schema = config.schema || {};
-      protected filterFields = config.filterFields;
-      protected filterConfig = config.filterConfig;
-      protected searchFields = config.searchFields;
-      protected searchFieldName = config.searchFieldName;
-      protected sortFields = config.sortFields;
-      protected defaultSort = config.defaultSort;
-      protected defaultPerPage = config.defaultPerPage;
-      protected maxPerPage = config.maxPerPage;
-      protected allowedIncludes = config.allowedIncludes;
-      protected fieldSelectionEnabled = config.fieldSelectionEnabled;
-      protected allowedSelectFields = config.allowedSelectFields;
-      protected blockedSelectFields = config.blockedSelectFields;
-      protected alwaysIncludeFields = config.alwaysIncludeFields;
-      protected defaultSelectFields = config.defaultSelectFields;
-
-      async after(items: ModelObject<M['model']>[]): Promise<ModelObject<M['model']>[]> {
-        if (config.after) {
-          return config.after(items);
-        }
-        return super.after(items);
-      }
-
-      protected transform(item: ModelObject<M['model']>): unknown {
-        if (config.transform) {
-          return config.transform(item);
-        }
-        return super.transform(item);
-      }
-    };
-
-    return GeneratedClass;
+      after: this._after as ((...args: unknown[]) => unknown) | undefined,
+      transform: this._transform as ((...args: unknown[]) => unknown) | undefined,
+      middlewares: this._middlewares as MiddlewareHandler[],
+    });
   }
 }
 
@@ -449,7 +387,7 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
    * @returns A class that can be used with registerCrud
    */
   build<B extends abstract new () => unknown>(BaseClass: B): B {
-    const config = {
+    return generateEndpointClass(BaseClass, {
       meta: this.meta,
       schema: this._schema,
       lookupField: this._lookupField,
@@ -460,41 +398,10 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
       blockedSelectFields: this._blockedSelectFields,
       alwaysIncludeFields: this._alwaysIncludeFields,
       defaultSelectFields: this._defaultSelectFields,
-      after: this._after,
-      transform: this._transform,
-    };
-    const middlewares = this._middlewares;
-
-    // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
-    const GeneratedClass = class extends BaseClass {
-      static _middlewares = middlewares;
-      _meta = config.meta;
-      schema = config.schema || {};
-      protected lookupField = config.lookupField;
-      protected additionalFilters = config.additionalFilters;
-      protected allowedIncludes = config.allowedIncludes;
-      protected fieldSelectionEnabled = config.fieldSelectionEnabled;
-      protected allowedSelectFields = config.allowedSelectFields;
-      protected blockedSelectFields = config.blockedSelectFields;
-      protected alwaysIncludeFields = config.alwaysIncludeFields;
-      protected defaultSelectFields = config.defaultSelectFields;
-
-      async after(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
-        if (config.after) {
-          return config.after(data);
-        }
-        return super.after(data);
-      }
-
-      protected transform(item: ModelObject<M['model']>): unknown {
-        if (config.transform) {
-          return config.transform(item);
-        }
-        return super.transform(item);
-      }
-    };
-
-    return GeneratedClass;
+      after: this._after as ((...args: unknown[]) => unknown) | undefined,
+      transform: this._transform as ((...args: unknown[]) => unknown) | undefined,
+      middlewares: this._middlewares as MiddlewareHandler[],
+    });
   }
 }
 
@@ -612,7 +519,7 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
    * @returns A class that can be used with registerCrud
    */
   build<B extends abstract new () => unknown>(BaseClass: B): B {
-    const config = {
+    return generateEndpointClass(BaseClass, {
       meta: this.meta,
       schema: this._schema,
       lookupField: this._lookupField,
@@ -620,50 +527,13 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
       allowedUpdateFields: this._allowedUpdateFields,
       blockedUpdateFields: this._blockedUpdateFields,
       allowNestedWrites: this._allowNestedWrites,
-      before: this._before,
-      after: this._after,
+      before: this._before as ((...args: unknown[]) => unknown) | undefined,
+      after: this._after as ((...args: unknown[]) => unknown) | undefined,
       beforeHookMode: this._beforeHookMode,
       afterHookMode: this._afterHookMode,
-      transform: this._transform,
-    };
-    const middlewares = this._middlewares;
-
-    // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
-    const GeneratedClass = class extends BaseClass {
-      static _middlewares = middlewares;
-      _meta = config.meta;
-      schema = config.schema || {};
-      protected lookupField = config.lookupField;
-      protected additionalFilters = config.additionalFilters;
-      protected allowedUpdateFields = config.allowedUpdateFields;
-      protected blockedUpdateFields = config.blockedUpdateFields;
-      protected allowNestedWrites = config.allowNestedWrites;
-      protected beforeHookMode: HookMode = config.beforeHookMode;
-      protected afterHookMode: HookMode = config.afterHookMode;
-
-      async before(data: Partial<ModelObject<M['model']>>, tx?: unknown): Promise<Partial<ModelObject<M['model']>>> {
-        if (config.before) {
-          return config.before(data, tx);
-        }
-        return super.before(data, tx);
-      }
-
-      async after(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>> {
-        if (config.after) {
-          return config.after(data, tx);
-        }
-        return super.after(data, tx);
-      }
-
-      protected transform(item: ModelObject<M['model']>): unknown {
-        if (config.transform) {
-          return config.transform(item);
-        }
-        return super.transform(item);
-      }
-    };
-
-    return GeneratedClass;
+      transform: this._transform as ((...args: unknown[]) => unknown) | undefined,
+      middlewares: this._middlewares as MiddlewareHandler[],
+    });
   }
 }
 
@@ -760,46 +630,18 @@ export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
    * @returns A class that can be used with registerCrud
    */
   build<B extends abstract new () => unknown>(BaseClass: B): B {
-    const config = {
+    return generateEndpointClass(BaseClass, {
       meta: this.meta,
       schema: this._schema,
       lookupField: this._lookupField,
       additionalFilters: this._additionalFilters,
       includeCascadeResults: this._includeCascadeResults,
-      before: this._before,
-      after: this._after,
+      before: this._before as ((...args: unknown[]) => unknown) | undefined,
+      after: this._after as ((...args: unknown[]) => unknown) | undefined,
       beforeHookMode: this._beforeHookMode,
       afterHookMode: this._afterHookMode,
-    };
-    const middlewares = this._middlewares;
-
-    // @ts-expect-error - TS cannot resolve members of dynamically-provided abstract base class (TS#4628)
-    const GeneratedClass = class extends BaseClass {
-      static _middlewares = middlewares;
-      _meta = config.meta;
-      schema = config.schema || {};
-      protected lookupField = config.lookupField;
-      protected additionalFilters = config.additionalFilters;
-      protected includeCascadeResults = config.includeCascadeResults;
-      protected beforeHookMode: HookMode = config.beforeHookMode;
-      protected afterHookMode: HookMode = config.afterHookMode;
-
-      async before(lookupValue: string, tx?: unknown): Promise<void> {
-        if (config.before) {
-          return config.before(lookupValue, tx);
-        }
-        return super.before(lookupValue, tx);
-      }
-
-      async after(deletedItem: ModelObject<M['model']>, cascadeResult?: unknown, tx?: unknown): Promise<void> {
-        if (config.after) {
-          return config.after(deletedItem, cascadeResult, tx);
-        }
-        return super.after(deletedItem, cascadeResult, tx);
-      }
-    };
-
-    return GeneratedClass;
+      middlewares: this._middlewares as MiddlewareHandler[],
+    });
   }
 }
 
