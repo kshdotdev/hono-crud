@@ -8,6 +8,32 @@ import type {
   ValidatedData,
 } from './types';
 
+type ValidationTarget = 'json' | 'query' | 'param';
+
+/**
+ * Read a validated value from `ctx.req` if zod-openapi exposed one.
+ * Centralized cast — `ctx.req.valid()` requires a literal target type at the
+ * call site (overload constraint), but the target is dynamic for our generic
+ * `getValidatedData()`.
+ */
+function readValidated(ctx: Context, target: ValidationTarget): unknown {
+  try {
+    return (ctx.req as { valid: (t: ValidationTarget) => unknown }).valid(target);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Cast through `unknown` to satisfy the `Response` return contract of
+ * `handle()`. Hono's `c.json()` returns `TypedResponse<T>` which extends
+ * `Response` at runtime but TypeScript sees a generic mismatch. Centralised
+ * here so the cast lives in exactly one place.
+ */
+function asResponse<T>(typed: T): Response {
+  return typed as unknown as Response;
+}
+
 /**
  * Base class for OpenAPI routes.
  * Provides request validation, schema generation, and lifecycle hooks.
@@ -49,17 +75,9 @@ export abstract class OpenAPIRoute<
     const schema = this.getSchema();
     const data: ValidatedData<T> = {};
 
-    // Get body if schema defines it
+    // Body
     if (schema.request?.body) {
-      let body: unknown;
-      try {
-        // Try zod-openapi validation first (cast needed: Hono's valid() expects literal types)
-        body = (ctx.req as { valid: (target: string) => unknown }).valid('json');
-      } catch {
-        // zod-openapi validation not available; fall through to manual parsing
-      }
-
-      // If zod-openapi didn't provide body, parse manually
+      let body = readValidated(ctx, 'json');
       if (body === undefined) {
         try {
           body = await ctx.req.json();
@@ -67,47 +85,28 @@ export abstract class OpenAPIRoute<
           // No body or invalid JSON — expected for non-JSON requests
         }
       }
-
       if (body !== undefined) {
         data.body = body as T;
       }
     }
 
-    // Get query parameters
+    // Query
     if (schema.request?.query) {
-      let query: Record<string, unknown> | undefined;
-      try {
-        // Try zod-openapi validation first (cast needed: Hono's valid() expects literal types)
-        query = (ctx.req as { valid: (target: string) => unknown }).valid('query') as Record<string, unknown> | undefined;
-      } catch {
-        // zod-openapi validation not available; fall through to manual parsing
-      }
-
-      // If zod-openapi didn't provide query, parse manually
+      let query = readValidated(ctx, 'query') as Record<string, unknown> | undefined;
       if (query === undefined) {
         query = ctx.req.query();
       }
-
       if (query !== undefined) {
         data.query = query;
       }
     }
 
-    // Get path parameters
+    // Path params
     if (schema.request?.params) {
-      let params: Record<string, string> | undefined;
-      try {
-        // Try zod-openapi validation first (cast needed: Hono's valid() expects literal types)
-        params = (ctx.req as { valid: (target: string) => unknown }).valid('param') as Record<string, string>;
-      } catch {
-        // zod-openapi validation not available; fall through to manual parsing
-      }
-
-      // If zod-openapi didn't provide params, parse manually
+      let params = readValidated(ctx, 'param') as Record<string, string> | undefined;
       if (params === undefined) {
         params = ctx.req.param() as Record<string, string>;
       }
-
       if (params !== undefined) {
         data.params = params;
       }
@@ -135,24 +134,16 @@ export abstract class OpenAPIRoute<
 
   /**
    * Creates a JSON response using Hono's c.json() helper.
-   * Returns Response for compatibility with handle() method signature.
-   */
-  /**
-   * Hono's c.json() returns TypedResponse<T> which extends Response at runtime
-   * but TypeScript sees a generic mismatch. The cast through unknown is safe.
    */
   protected json<T>(data: T, status: ContentfulStatusCode = 200): Response {
-    return this.getContext().json(data, status) as unknown as Response;
+    return asResponse(this.getContext().json(data, status));
   }
 
   /**
    * Creates a success response.
    */
-  /**
-   * Hono's c.json() returns TypedResponse<T> — see json() above for cast rationale.
-   */
   protected success<T>(result: T, status: ContentfulStatusCode = 200): Response {
-    return this.getContext().json({ success: true, result }, status) as unknown as Response;
+    return asResponse(this.getContext().json({ success: true, result }, status));
   }
 
   /**
@@ -192,14 +183,7 @@ export abstract class OpenAPIRoute<
     if (details) {
       errorObj.details = details;
     }
-    // Hono's c.json() returns TypedResponse<T> — see json() above for cast rationale.
-    return this.getContext().json(
-      {
-        success: false,
-        error: errorObj,
-      },
-      status
-    ) as unknown as Response;
+    return asResponse(this.getContext().json({ success: false, error: errorObj }, status));
   }
 }
 

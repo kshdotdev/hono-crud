@@ -1,9 +1,8 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { HTTPException } from 'hono/http-exception';
-import { OpenAPIRoute } from '../core/route';
-import type { MetaInput, OpenAPIRouteSchema, PaginatedResult, NormalizedSoftDeleteConfig, NormalizedMultiTenantConfig } from '../core/types';
-import { getSoftDeleteConfig, applyComputedFieldsToArray, getMultiTenantConfig, extractTenantId } from '../core/types';
+import { CrudEndpoint } from './base';
+import type {MetaInput, OpenAPIRouteSchema, PaginatedResult} from '../core/types';
+import { applyComputedFieldsToArray } from '../core/types';
 import {
   parseListFilters,
   applyFieldSelectionToArray,
@@ -25,8 +24,7 @@ import {
 export abstract class ListEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   // Filter configuration
   protected filterFields: string[] = [];
@@ -78,16 +76,10 @@ export abstract class ListEndpoint<
   /**
    * Get the soft delete configuration for this model.
    */
-  protected getSoftDeleteConfig(): NormalizedSoftDeleteConfig {
-    return getSoftDeleteConfig(this._meta.model.softDelete);
-  }
 
   /**
    * Check if soft delete is enabled for this model.
    */
-  protected isSoftDeleteEnabled(): boolean {
-    return this.getSoftDeleteConfig().enabled;
-  }
 
   // ============================================================================
   // Multi-Tenancy Support
@@ -96,42 +88,19 @@ export abstract class ListEndpoint<
   /**
    * Get the multi-tenant configuration for this model.
    */
-  protected getMultiTenantConfig(): NormalizedMultiTenantConfig {
-    return getMultiTenantConfig(this._meta.model.multiTenant);
-  }
 
   /**
    * Check if multi-tenancy is enabled for this model.
    */
-  protected isMultiTenantEnabled(): boolean {
-    return this.getMultiTenantConfig().enabled;
-  }
 
   /**
    * Get the current tenant ID from the request context.
    */
-  protected getTenantId(): string | undefined {
-    if (!this.context) return undefined;
-    const config = this.getMultiTenantConfig();
-    return extractTenantId(this.context, config);
-  }
 
   /**
    * Validates that tenant ID is present when required.
    * Throws HTTPException if missing and required.
    */
-  protected validateTenantId(): string | undefined {
-    const config = this.getMultiTenantConfig();
-    if (!config.enabled) return undefined;
-
-    const tenantId = this.getTenantId();
-
-    if (!tenantId && config.required) {
-      throw new HTTPException(400, { message: config.errorMessage });
-    }
-
-    return tenantId;
-  }
 
   /**
    * Returns the query parameter schema for filtering and pagination.
@@ -349,7 +318,12 @@ export abstract class ListEndpoint<
 
     const paginatedResult = await this.list(filters);
 
-    let items = await this.after(paginatedResult.result);
+    // Decrypt encrypted fields on each record before further processing
+    const decrypted = await Promise.all(
+      paginatedResult.result.map((r) => this.decryptOnRead(r as Record<string, unknown>))
+    );
+
+    let items = await this.after(decrypted as ModelObject<M['model']>[]);
 
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {
@@ -364,8 +338,11 @@ export abstract class ListEndpoint<
       items = items.map((item) => this._meta.model.serializer!(item) as ModelObject<M['model']>);
     }
 
+    // Apply default serialization profile (model.serializationProfile)
+    const profiled = this.applyProfileToArray(items as Record<string, unknown>[]);
+
     // Apply transform to each item
-    const transformedItems = items.map((item) => this.transform(item));
+    const transformedItems = profiled.map((item) => this.transform(item as ModelObject<M['model']>));
 
     // Apply field selection if enabled and fields were specified
     const result = (this.fieldSelectionEnabled && filters.options.fields && filters.options.fields.length > 0)

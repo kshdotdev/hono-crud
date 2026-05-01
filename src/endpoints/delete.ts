@@ -1,22 +1,10 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { HTTPException } from 'hono/http-exception';
-import { OpenAPIRoute } from '../core/route';
+import { CrudEndpoint } from './base';
 import { getLogger } from '../core/logger';
-import type {
-  MetaInput,
-  OpenAPIRouteSchema,
-  HookMode,
-  NormalizedSoftDeleteConfig,
-  NormalizedAuditConfig,
-  NormalizedMultiTenantConfig,
-  RelationConfig,
-  CascadeAction,
-} from '../core/types';
-import { getSoftDeleteConfig, getAuditConfig, getMultiTenantConfig, extractTenantId } from '../core/types';
+import type {MetaInput, OpenAPIRouteSchema, HookMode, RelationConfig, CascadeAction} from '../core/types';
 import { NotFoundException, ConflictException } from '../core/exceptions';
 import type { ModelObject } from './types';
-import { createAuditLogger, type AuditLogger } from '../core/audit';
 
 /**
  * Result of cascade operations during delete.
@@ -68,8 +56,7 @@ export interface CascadeResult {
 export abstract class DeleteEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   // Lookup configuration
   protected lookupField: string = 'id';
@@ -87,58 +74,30 @@ export abstract class DeleteEndpoint<
   protected includeCascadeResults: boolean = false;
 
   // Audit logging
-  private _auditLogger?: AuditLogger;
 
   /**
    * Get the audit logger for this endpoint.
    */
-  protected getAuditLogger(): AuditLogger {
-    if (!this._auditLogger) {
-      this._auditLogger = createAuditLogger(this._meta.model.audit);
-    }
-    return this._auditLogger;
-  }
 
   /**
    * Get the audit configuration for this model.
    */
-  protected getAuditConfig(): NormalizedAuditConfig {
-    return getAuditConfig(this._meta.model.audit);
-  }
 
   /**
    * Check if audit logging is enabled for this model.
    */
-  protected isAuditEnabled(): boolean {
-    return this.getAuditConfig().enabled;
-  }
 
   /**
    * Get the user ID for audit logging.
    */
-  protected getAuditUserId(): string | undefined {
-    const config = this.getAuditConfig();
-    if (config.getUserId && this.context) {
-      return config.getUserId(this.context);
-    }
-    // Try to get userId from context variables
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
-  }
 
   /**
    * Get the soft delete configuration for this model.
    */
-  protected getSoftDeleteConfig(): NormalizedSoftDeleteConfig {
-    return getSoftDeleteConfig(this._meta.model.softDelete);
-  }
 
   /**
    * Check if soft delete is enabled for this model.
    */
-  protected isSoftDeleteEnabled(): boolean {
-    return this.getSoftDeleteConfig().enabled;
-  }
 
   // ============================================================================
   // Multi-Tenancy Support
@@ -147,41 +106,18 @@ export abstract class DeleteEndpoint<
   /**
    * Get the multi-tenant configuration for this model.
    */
-  protected getMultiTenantConfig(): NormalizedMultiTenantConfig {
-    return getMultiTenantConfig(this._meta.model.multiTenant);
-  }
 
   /**
    * Check if multi-tenancy is enabled for this model.
    */
-  protected isMultiTenantEnabled(): boolean {
-    return this.getMultiTenantConfig().enabled;
-  }
 
   /**
    * Get the current tenant ID from the request context.
    */
-  protected getTenantId(): string | undefined {
-    if (!this.context) return undefined;
-    const config = this.getMultiTenantConfig();
-    return extractTenantId(this.context, config);
-  }
 
   /**
    * Validates that tenant ID is present when required.
    */
-  protected validateTenantId(): string | undefined {
-    const config = this.getMultiTenantConfig();
-    if (!config.enabled) return undefined;
-
-    const tenantId = this.getTenantId();
-
-    if (!tenantId && config.required) {
-      throw new HTTPException(400, { message: config.errorMessage });
-    }
-
-    return tenantId;
-  }
 
   /**
    * Returns the path parameter schema.
@@ -419,14 +355,6 @@ export abstract class DeleteEndpoint<
   /**
    * Gets the parent ID from the record.
    */
-  protected getParentId(record: ModelObject<M['model']>): string | number | null {
-    const pk = this._meta.model.primaryKeys[0];
-    const id = (record as Record<string, unknown>)[pk];
-    if (typeof id === 'string' || typeof id === 'number') {
-      return id;
-    }
-    return null;
-  }
 
   /**
    * Finds the record to be deleted (without deleting it).
@@ -541,6 +469,13 @@ export abstract class DeleteEndpoint<
         deletedItem as Record<string, unknown>,
         this.getAuditUserId()
       ));
+    }
+
+    // Emit deleted event
+    if (parentId !== null) {
+      this.runAfterResponse(
+        this.emitEvent('deleted', { recordId: parentId, previousData: deletedItem })
+      );
     }
 
     // Build response

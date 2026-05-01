@@ -33,6 +33,7 @@ import {
   batchLoadDrizzleRelations,
   buildWhereCondition,
 } from './helpers';
+import { getDrizzleDb } from './connection';
 
 /**
  * Drizzle Upsert endpoint.
@@ -47,10 +48,7 @@ export abstract class DrizzleUpsertEndpoint<
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -229,10 +227,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -425,10 +420,7 @@ export abstract class DrizzleVersionHistoryEndpoint<
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -482,10 +474,7 @@ export abstract class DrizzleVersionRollbackEndpoint<
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -530,10 +519,7 @@ export abstract class DrizzleAggregateEndpoint<
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -629,10 +615,7 @@ export abstract class DrizzleSearchEndpoint<
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   /**
@@ -799,10 +782,7 @@ export abstract class DrizzleExportEndpoint<
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -911,10 +891,7 @@ export abstract class DrizzleImportEndpoint<
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {

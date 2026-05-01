@@ -175,13 +175,13 @@ export function createErrorHandler<E extends Env = Env>(
     if (includeRequestId) {
       const requestId = getRequestId(ctx);
       if (requestId) {
-        (responseBody.error as Record<string, unknown>).requestId = requestId;
+        responseBody.error.requestId = requestId;
       }
     }
 
     // Add stack trace if enabled (development only!)
     if (includeStackTrace && err.stack) {
-      (responseBody.error as Record<string, unknown>).stack = err.stack;
+      responseBody.error.stack = err.stack;
     }
 
     // Step 6: Return JSON response

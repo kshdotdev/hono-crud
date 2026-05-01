@@ -17,14 +17,16 @@ async function runCheck(
   const timeout = check.timeout ?? defaultTimeout;
   const start = Date.now();
 
-  try {
-    const result = await Promise.race([
-      check.check(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Health check timed out')), timeout)
-      ),
-    ]);
+  // Use a shared timer that we can clear once the check resolves, otherwise
+  // the timer keeps ticking on the runtime's task queue (significant on
+  // Cloudflare Workers where every pending timer holds a tick).
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Health check timed out')), timeout);
+  });
 
+  try {
+    const result = await Promise.race([check.check(), timeoutPromise]);
     return {
       name: check.name,
       healthy: true,
@@ -38,6 +40,8 @@ async function runCheck(
       latency: Date.now() - start,
       message: err instanceof Error ? err.message : String(err),
     };
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 

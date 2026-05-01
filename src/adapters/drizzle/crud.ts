@@ -27,6 +27,7 @@ import {
   batchLoadDrizzleRelations,
   buildWhereCondition,
 } from './helpers';
+import { getDrizzleDb } from './connection';
 
 /**
  * Drizzle Create endpoint.
@@ -76,7 +77,7 @@ export abstract class DrizzleCreateEndpoint<
   protected useTransaction: boolean = false;
 
   /** Current transaction context (set during transaction execution) */
-  private _tx?: DrizzleDatabase;
+  protected _tx?: DrizzleDatabase;
 
   /**
    * Gets the database instance to use. Checks in order:
@@ -85,22 +86,7 @@ export abstract class DrizzleCreateEndpoint<
    * 3. Context variables (if middleware injected)
    */
   protected getDb(): DrizzleDatabase {
-    // Try transaction context first
-    if (this._tx) return this._tx;
-
-    // Try direct property
-    if (this.db) return this.db;
-
-    // Try context variables (middleware injection)
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-
-    throw new Error(
-      'Database not configured. Either:\n' +
-      '1. Set db property: db = myDb;\n' +
-      '2. Use middleware: c.set("db", myDb);\n' +
-      '3. Use factory: createDrizzleCrud(db, meta)'
-    );
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -213,10 +199,7 @@ export abstract class DrizzleReadEndpoint<
 
   /** Gets the database instance from property or context */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -294,15 +277,11 @@ export abstract class DrizzleUpdateEndpoint<
   protected useTransaction: boolean = false;
 
   /** Current transaction context (set during transaction execution) */
-  private _tx?: DrizzleDatabase;
+  protected _tx?: DrizzleDatabase;
 
   /** Gets the database instance from property, transaction, or context */
   protected getDb(): DrizzleDatabase {
-    if (this._tx) return this._tx;
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -566,15 +545,11 @@ export abstract class DrizzleDeleteEndpoint<
   protected useTransaction: boolean = false;
 
   /** Current transaction context (set during transaction execution) */
-  private _tx?: DrizzleDatabase;
+  protected _tx?: DrizzleDatabase;
 
   /** Gets the database instance from property, transaction, or context */
   protected getDb(): DrizzleDatabase {
-    if (this._tx) return this._tx;
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -780,10 +755,7 @@ export abstract class DrizzleListEndpoint<
 
   /** Gets the database instance from property or context */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -907,15 +879,11 @@ export abstract class DrizzleRestoreEndpoint<
   protected useTransaction: boolean = false;
 
   /** Current transaction context (set during transaction execution) */
-  private _tx?: DrizzleDatabase;
+  protected _tx?: DrizzleDatabase;
 
   /** Gets the database instance from property, transaction, or context */
   protected getDb(): DrizzleDatabase {
-    if (this._tx) return this._tx;
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {

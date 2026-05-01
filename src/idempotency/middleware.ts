@@ -112,12 +112,13 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
     // Check for existing response
     const existing = await storage.get(scopedKey);
     if (existing) {
-      // Replay the cached response
+      // Replay the cached response. Preserve the original Content-Type
+      // (do not hard-code application/json — the original handler may have
+      // returned XML, plain text, binary, etc.).
       return new Response(existing.body, {
         status: existing.statusCode,
         headers: {
           ...existing.headers,
-          'Content-Type': 'application/json',
           'Idempotency-Replayed': 'true',
         },
       });

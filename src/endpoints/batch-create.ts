@@ -1,10 +1,8 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { OpenAPIRoute } from '../core/route';
-import type { MetaInput, OpenAPIRouteSchema, HookMode, NormalizedAuditConfig } from '../core/types';
-import { getAuditConfig } from '../core/types';
+import { CrudEndpoint } from './base';
+import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
 import type { ModelObject } from './types';
-import { createAuditLogger, type AuditLogger } from '../core/audit';
 
 /**
  * Base endpoint for batch creating resources.
@@ -15,8 +13,7 @@ import { createAuditLogger, type AuditLogger } from '../core/audit';
 export abstract class BatchCreateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   /** Maximum number of records that can be created in a single request */
   protected maxBatchSize: number = 100;
@@ -29,56 +26,26 @@ export abstract class BatchCreateEndpoint<
   protected afterHookMode: HookMode = 'sequential';
 
   // Audit logging
-  private _auditLogger?: AuditLogger;
 
   /**
    * Get the audit logger for this endpoint.
    */
-  protected getAuditLogger(): AuditLogger {
-    if (!this._auditLogger) {
-      this._auditLogger = createAuditLogger(this._meta.model.audit);
-    }
-    return this._auditLogger;
-  }
 
   /**
    * Get the audit configuration for this model.
    */
-  protected getAuditConfig(): NormalizedAuditConfig {
-    return getAuditConfig(this._meta.model.audit);
-  }
 
   /**
    * Check if audit logging is enabled for this model.
    */
-  protected isAuditEnabled(): boolean {
-    return this.getAuditConfig().enabled;
-  }
 
   /**
    * Get the user ID for audit logging.
    */
-  protected getAuditUserId(): string | undefined {
-    const config = this.getAuditConfig();
-    if (config.getUserId && this.context) {
-      return config.getUserId(this.context);
-    }
-    // Try to get userId from context variables
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
-  }
 
   /**
    * Gets the record ID from a created record.
    */
-  protected getRecordId(record: ModelObject<M['model']>): string | number | null {
-    const pk = this._meta.model.primaryKeys[0];
-    const id = (record as Record<string, unknown>)[pk];
-    if (typeof id === 'string' || typeof id === 'number') {
-      return id;
-    }
-    return null;
-  }
 
   /**
    * Returns the request body schema for batch creation.

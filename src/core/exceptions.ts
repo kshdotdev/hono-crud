@@ -38,8 +38,23 @@ export class ApiException extends HTTPException {
    * Converts the exception to a JSON response object.
    * Maintains backwards compatibility with existing error handling.
    */
-  toJSON() {
-    const errorObj: { code: string; message: string; details?: unknown } = {
+  toJSON(): {
+    success: false;
+    error: {
+      code: string;
+      message: string;
+      details?: unknown;
+      requestId?: string;
+      stack?: string;
+    };
+  } {
+    const errorObj: {
+      code: string;
+      message: string;
+      details?: unknown;
+      requestId?: string;
+      stack?: string;
+    } = {
       code: this.code,
       message: this.message,
     };

@@ -1,17 +1,8 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { OpenAPIRoute } from '../core/route';
-import type {
-  MetaInput,
-  OpenAPIRouteSchema,
-  NormalizedSoftDeleteConfig,
-  SearchOptions,
-  SearchResult,
-  SearchResultItem,
-  SearchMode,
-  SearchFieldConfig,
-} from '../core/types';
-import { getSoftDeleteConfig, parseSearchMode } from '../core/types';
+import { CrudEndpoint } from './base';
+import type {MetaInput, OpenAPIRouteSchema, SearchOptions, SearchResult, SearchResultItem, SearchMode, SearchFieldConfig} from '../core/types';
+import { parseSearchMode } from '../core/types';
 import {
   parseListFilters,
   applyFieldSelectionToArray,
@@ -49,8 +40,7 @@ import {
 export abstract class SearchEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   // ============================================================================
   // Search Configuration
@@ -170,16 +160,10 @@ export abstract class SearchEndpoint<
   /**
    * Get the soft delete configuration for this model.
    */
-  protected getSoftDeleteConfig(): NormalizedSoftDeleteConfig {
-    return getSoftDeleteConfig(this._meta.model.softDelete);
-  }
 
   /**
    * Check if soft delete is enabled for this model.
    */
-  protected isSoftDeleteEnabled(): boolean {
-    return this.getSoftDeleteConfig().enabled;
-  }
 
   // ============================================================================
   // Search Field Configuration

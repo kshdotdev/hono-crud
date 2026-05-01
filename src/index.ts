@@ -37,16 +37,16 @@ export {
   createAuditLogger,
   setAuditStorage,
   getAuditStorage,
-} from './core/audit';
-export type { AuditLogStorage } from './core/audit';
+} from './audit';
+export type { AuditLogStorage } from './audit';
 export {
   VersionManager,
   MemoryVersioningStorage,
   createVersionManager,
   setVersioningStorage,
   getVersioningStorage,
-} from './core/versioning';
-export type { VersioningStorage } from './core/versioning';
+} from './versioning';
+export type { VersioningStorage } from './versioning';
 export {
   defineModel,
   defineMeta,
@@ -66,11 +66,11 @@ export {
   encodeCursor,
   decodeCursor,
 } from './core/types';
-export { multiTenant } from './core/multi-tenant';
+export { multiTenant } from './multi-tenant';
 export type {
   MultiTenantMiddlewareOptions,
   TenantEnv,
-} from './core/multi-tenant';
+} from './multi-tenant';
 export type {
   FilterOperator,
   FilterConfig,

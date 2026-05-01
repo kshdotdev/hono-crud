@@ -1,4 +1,4 @@
-import type { Context, MiddlewareHandler } from 'hono';
+import type { Context, Env, MiddlewareHandler } from 'hono';
 
 /**
  * Strategy for extracting the API version from requests.
@@ -53,10 +53,13 @@ export interface VersioningMiddlewareConfig {
 
 /**
  * Environment type additions for API versioning.
+ *
+ * Variables are typed optional because they are only set after the api-version
+ * middleware has run. Use `extends ApiVersionEnv` on your app's `Env` to opt in.
  */
-export interface ApiVersionEnv {
+export interface ApiVersionEnv extends Env {
   Variables: {
-    apiVersion: string;
-    apiVersionConfig: ApiVersionConfig;
+    apiVersion?: string;
+    apiVersionConfig?: ApiVersionConfig;
   };
 }

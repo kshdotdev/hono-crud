@@ -15,6 +15,7 @@ import {
   getTable,
   getColumn,
 } from './helpers';
+import { getDrizzleDb } from './connection';
 
 /**
  * Drizzle Batch Create endpoint.
@@ -29,10 +30,7 @@ export abstract class DrizzleBatchCreateEndpoint<
 
   /** Gets the database instance from property or context */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -75,10 +73,7 @@ export abstract class DrizzleBatchUpdateEndpoint<
 
   /** Gets the database instance from property or context */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -139,10 +134,7 @@ export abstract class DrizzleBatchDeleteEndpoint<
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {
@@ -208,10 +200,7 @@ export abstract class DrizzleBatchRestoreEndpoint<
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
-    if (this.db) return this.db;
-    const contextDb = this.context?.get?.('db' as never);
-    if (contextDb) return contextDb as DrizzleDatabase;
-    throw new Error('Database not configured. Set db property or use middleware.');
+    return getDrizzleDb(this);
   }
 
   protected getTable(): Table {

@@ -1,5 +1,5 @@
-import type { APIKeyEntry, APIKeyLookupResult } from '../types';
-import { createRegistryWithDefault } from '../../storage/registry';
+import type { APIKeyEntry, APIKeyLookupResult, APIKeyStorage } from '../types';
+import { createNullableRegistry } from '../../storage/registry';
 
 // ============================================================================
 // In-Memory API Key Storage
@@ -27,7 +27,7 @@ import { createRegistryWithDefault } from '../../storage/registry';
  * }));
  * ```
  */
-export class MemoryAPIKeyStorage {
+export class MemoryAPIKeyStorage implements APIKeyStorage {
   private keys: Map<string, APIKeyEntry> = new Map();
   private hashToId: Map<string, string> = new Map();
 
@@ -253,24 +253,31 @@ export function isValidAPIKeyFormat(key: string, prefix?: string): boolean {
 
 /**
  * Global API key storage registry.
- * Uses lazy initialization -- the default MemoryAPIKeyStorage is only
- * created when first accessed.
+ *
+ * Returns null if not configured (no hidden in-memory default — that
+ * silently masked production misconfiguration where forgotten registration
+ * meant every API key would miss against an empty store). To opt into the
+ * old behaviour, instantiate `MemoryAPIKeyStorage` and call `setAPIKeyStorage()`.
  */
-export const apiKeyStorageRegistry = createRegistryWithDefault<MemoryAPIKeyStorage>(
-  'apiKeyStorage',
-  () => new MemoryAPIKeyStorage()
-);
+export const apiKeyStorageRegistry = createNullableRegistry<APIKeyStorage>('apiKeyStorage');
 
 /**
- * Gets the global API key storage.
+ * Gets the global API key storage. Returns null if not configured.
  */
-export function getAPIKeyStorage(): MemoryAPIKeyStorage {
+export function getAPIKeyStorage(): APIKeyStorage | null {
+  return apiKeyStorageRegistry.get();
+}
+
+/**
+ * Gets the global API key storage. Throws if not configured.
+ */
+export function getAPIKeyStorageRequired(): APIKeyStorage {
   return apiKeyStorageRegistry.getRequired();
 }
 
 /**
  * Sets the global API key storage.
  */
-export function setAPIKeyStorage(storage: MemoryAPIKeyStorage): void {
+export function setAPIKeyStorage(storage: APIKeyStorage): void {
   apiKeyStorageRegistry.set(storage);
 }

@@ -17,6 +17,7 @@ import type {
 } from '../../core/types';
 import type { ModelObject } from '../../endpoints/types';
 import { getStore, loadRelations } from './helpers';
+import { isVisible } from './visibility';
 
 /**
  * Memory-based Create endpoint for testing.
@@ -103,21 +104,8 @@ export abstract class MemoryReadEndpoint<
       return null;
     }
 
-    // Check if soft-deleted
-    if (softDeleteConfig.enabled) {
-      const deletedAt = (record as Record<string, unknown>)[softDeleteConfig.field];
-      if (deletedAt !== null && deletedAt !== undefined) {
-        return null; // Record is soft-deleted
-      }
-    }
-
-    // Check additional filters
-    if (additionalFilters) {
-      for (const [key, value] of Object.entries(additionalFilters)) {
-        if (String((record as Record<string, unknown>)[key]) !== value) {
-          return null;
-        }
-      }
+    if (!isVisible(record, softDeleteConfig, additionalFilters)) {
+      return null;
     }
 
     // Load relations if requested
@@ -149,21 +137,8 @@ export abstract class MemoryUpdateEndpoint<
       return null;
     }
 
-    // Check if soft-deleted
-    if (softDeleteConfig.enabled) {
-      const deletedAt = (existing as Record<string, unknown>)[softDeleteConfig.field];
-      if (deletedAt !== null && deletedAt !== undefined) {
-        return null;
-      }
-    }
-
-    // Check additional filters
-    if (additionalFilters) {
-      for (const [key, value] of Object.entries(additionalFilters)) {
-        if (String((existing as Record<string, unknown>)[key]) !== value) {
-          return null;
-        }
-      }
+    if (!isVisible(existing, softDeleteConfig, additionalFilters)) {
+      return null;
     }
 
     // Return a copy to preserve the state before update
@@ -183,21 +158,8 @@ export abstract class MemoryUpdateEndpoint<
       return null;
     }
 
-    // Check if soft-deleted
-    if (softDeleteConfig.enabled) {
-      const deletedAt = (existing as Record<string, unknown>)[softDeleteConfig.field];
-      if (deletedAt !== null && deletedAt !== undefined) {
-        return null; // Cannot update soft-deleted record
-      }
-    }
-
-    // Check additional filters
-    if (additionalFilters) {
-      for (const [key, value] of Object.entries(additionalFilters)) {
-        if (String((existing as Record<string, unknown>)[key]) !== value) {
-          return null;
-        }
-      }
+    if (!isVisible(existing, softDeleteConfig, additionalFilters)) {
+      return null;
     }
 
     const updated = { ...existing, ...data } as ModelObject<M['model']>;
@@ -355,21 +317,8 @@ export abstract class MemoryDeleteEndpoint<
       return null;
     }
 
-    // Check if already soft-deleted
-    if (softDeleteConfig.enabled) {
-      const deletedAt = (existing as Record<string, unknown>)[softDeleteConfig.field];
-      if (deletedAt !== null && deletedAt !== undefined) {
-        return null; // Already deleted
-      }
-    }
-
-    // Check additional filters
-    if (additionalFilters) {
-      for (const [key, value] of Object.entries(additionalFilters)) {
-        if (String((existing as Record<string, unknown>)[key]) !== value) {
-          return null;
-        }
-      }
+    if (!isVisible(existing, softDeleteConfig, additionalFilters)) {
+      return null;
     }
 
     return existing;
@@ -452,21 +401,8 @@ export abstract class MemoryDeleteEndpoint<
       return null;
     }
 
-    // Check if already soft-deleted
-    if (softDeleteConfig.enabled) {
-      const deletedAt = (existing as Record<string, unknown>)[softDeleteConfig.field];
-      if (deletedAt !== null && deletedAt !== undefined) {
-        return null; // Already deleted
-      }
-    }
-
-    // Check additional filters
-    if (additionalFilters) {
-      for (const [key, value] of Object.entries(additionalFilters)) {
-        if (String((existing as Record<string, unknown>)[key]) !== value) {
-          return null;
-        }
-      }
+    if (!isVisible(existing, softDeleteConfig, additionalFilters)) {
+      return null;
     }
 
     if (softDeleteConfig.enabled) {

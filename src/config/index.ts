@@ -35,6 +35,7 @@
 import type { ZodObject, ZodRawShape } from 'zod';
 import type { MetaInput, HookMode } from '../core/types';
 import type { ModelObject } from '../endpoints/types';
+import { generateEndpointClass } from '../core/generate-endpoint-class';
 
 
 // Import memory adapters for the MemoryAdapters bundle
@@ -348,192 +349,99 @@ export function defineEndpoints<M extends MetaInput>(
 
   // Generate Create endpoint
   if (config.create !== undefined) {
-    const createConfig = config.create;
-    const BaseCreate = adapters.CreateEndpoint;
-
-    // @ts-expect-error - Dynamic class creation: BaseCreate is typed as abstract new () => unknown for flexibility
-    result.create = class extends BaseCreate {
-      _meta = config.meta;
-      schema = createConfig.openapi || {};
-      protected beforeHookMode: HookMode = createConfig.hooks?.beforeMode || 'sequential';
-      protected afterHookMode: HookMode = createConfig.hooks?.afterMode || 'sequential';
-      protected allowNestedCreate = createConfig.nestedCreate || [];
-
-      protected getBodySchema(): ZodObject<ZodRawShape> {
-        if (createConfig.bodySchema) {
-          return createConfig.bodySchema;
-        }
-        return super.getBodySchema();
-      }
-
-      async before(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>> {
-        if (createConfig.hooks?.before) {
-          return createConfig.hooks.before(data, tx);
-        }
-        return super.before(data, tx);
-      }
-
-      async after(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>> {
-        if (createConfig.hooks?.after) {
-          return createConfig.hooks.after(data, tx);
-        }
-        return super.after(data, tx);
-      }
-    };
+    const cfg = config.create;
+    result.create = generateEndpointClass(adapters.CreateEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      bodySchema: cfg.bodySchema,
+      beforeHookMode: cfg.hooks?.beforeMode,
+      afterHookMode: cfg.hooks?.afterMode,
+      allowNestedCreate: cfg.nestedCreate,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+    });
   }
 
   // Generate List endpoint
   if (config.list !== undefined) {
-    const listConfig = config.list;
-    const BaseList = adapters.ListEndpoint;
-
-    // @ts-expect-error - Dynamic class creation: BaseList is typed as abstract new () => unknown for flexibility
-    result.list = class extends BaseList {
-      _meta = config.meta;
-      schema = listConfig.openapi || {};
-      protected filterFields = listConfig.filtering?.fields || [];
-      protected filterConfig = listConfig.filtering?.config;
-      protected searchFields = listConfig.search?.fields || [];
-      protected searchFieldName = listConfig.search?.paramName || 'search';
-      protected sortFields = listConfig.sorting?.fields || [];
-      protected defaultSort = listConfig.sorting?.default
-        ? { field: listConfig.sorting.default, order: listConfig.sorting.defaultOrder || 'asc' as const }
-        : undefined;
-      protected defaultPerPage = listConfig.pagination?.defaultPerPage || 20;
-      protected maxPerPage = listConfig.pagination?.maxPerPage || 100;
-      protected allowedIncludes = listConfig.includes || [];
-      protected fieldSelectionEnabled = listConfig.fieldSelection?.enabled || false;
-      protected allowedSelectFields = listConfig.fieldSelection?.allowed || [];
-      protected blockedSelectFields = listConfig.fieldSelection?.blocked || [];
-      protected alwaysIncludeFields = listConfig.fieldSelection?.alwaysInclude || [];
-      protected defaultSelectFields = listConfig.fieldSelection?.defaults || [];
-
-      async after(items: ModelObject<M['model']>[]): Promise<ModelObject<M['model']>[]> {
-        if (listConfig.hooks?.after) {
-          return listConfig.hooks.after(items);
-        }
-        return super.after(items);
-      }
-
-      protected transform(item: ModelObject<M['model']>): unknown {
-        if (listConfig.hooks?.transform) {
-          return listConfig.hooks.transform(item);
-        }
-        return super.transform(item);
-      }
-    };
+    const cfg = config.list;
+    result.list = generateEndpointClass(adapters.ListEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      filterFields: cfg.filtering?.fields,
+      filterConfig: cfg.filtering?.config,
+      searchFields: cfg.search?.fields,
+      searchFieldName: cfg.search?.paramName,
+      sortFields: cfg.sorting?.fields,
+      defaultSort: cfg.sorting?.default
+        ? { field: cfg.sorting.default, order: cfg.sorting.defaultOrder ?? 'asc' }
+        : undefined,
+      defaultPerPage: cfg.pagination?.defaultPerPage,
+      maxPerPage: cfg.pagination?.maxPerPage,
+      allowedIncludes: cfg.includes,
+      fieldSelectionEnabled: cfg.fieldSelection?.enabled,
+      allowedSelectFields: cfg.fieldSelection?.allowed,
+      blockedSelectFields: cfg.fieldSelection?.blocked,
+      alwaysIncludeFields: cfg.fieldSelection?.alwaysInclude,
+      defaultSelectFields: cfg.fieldSelection?.defaults,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      transform: cfg.hooks?.transform as ((...args: unknown[]) => unknown) | undefined,
+    });
   }
 
   // Generate Read endpoint
   if (config.read !== undefined) {
-    const readConfig = config.read;
-    const BaseRead = adapters.ReadEndpoint;
-
-    // @ts-expect-error - Dynamic class creation: BaseRead is typed as abstract new () => unknown for flexibility
-    result.read = class extends BaseRead {
-      _meta = config.meta;
-      schema = readConfig.openapi || {};
-      protected lookupField = readConfig.lookupField || 'id';
-      protected additionalFilters = readConfig.additionalFilters;
-      protected allowedIncludes = readConfig.includes || [];
-      protected fieldSelectionEnabled = readConfig.fieldSelection?.enabled || false;
-      protected allowedSelectFields = readConfig.fieldSelection?.allowed || [];
-      protected blockedSelectFields = readConfig.fieldSelection?.blocked || [];
-      protected alwaysIncludeFields = readConfig.fieldSelection?.alwaysInclude || [];
-      protected defaultSelectFields = readConfig.fieldSelection?.defaults || [];
-
-      async after(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
-        if (readConfig.hooks?.after) {
-          return readConfig.hooks.after(data);
-        }
-        return super.after(data);
-      }
-
-      protected transform(item: ModelObject<M['model']>): unknown {
-        if (readConfig.hooks?.transform) {
-          return readConfig.hooks.transform(item);
-        }
-        return super.transform(item);
-      }
-    };
+    const cfg = config.read;
+    result.read = generateEndpointClass(adapters.ReadEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      lookupField: cfg.lookupField,
+      additionalFilters: cfg.additionalFilters,
+      allowedIncludes: cfg.includes,
+      fieldSelectionEnabled: cfg.fieldSelection?.enabled,
+      allowedSelectFields: cfg.fieldSelection?.allowed,
+      blockedSelectFields: cfg.fieldSelection?.blocked,
+      alwaysIncludeFields: cfg.fieldSelection?.alwaysInclude,
+      defaultSelectFields: cfg.fieldSelection?.defaults,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      transform: cfg.hooks?.transform as ((...args: unknown[]) => unknown) | undefined,
+    });
   }
 
   // Generate Update endpoint
   if (config.update !== undefined) {
-    const updateConfig = config.update;
-    const BaseUpdate = adapters.UpdateEndpoint;
-
-    // @ts-expect-error - Dynamic class creation: BaseUpdate is typed as abstract new () => unknown for flexibility
-    result.update = class extends BaseUpdate {
-      _meta = config.meta;
-      schema = updateConfig.openapi || {};
-      protected lookupField = updateConfig.lookupField || 'id';
-      protected additionalFilters = updateConfig.additionalFilters;
-      protected allowedUpdateFields = updateConfig.fields?.allowed;
-      protected blockedUpdateFields = updateConfig.fields?.blocked;
-      protected allowNestedWrites = updateConfig.nestedWrites || [];
-      protected beforeHookMode: HookMode = updateConfig.hooks?.beforeMode || 'sequential';
-      protected afterHookMode: HookMode = updateConfig.hooks?.afterMode || 'sequential';
-
-      protected getBodySchema(): ZodObject<ZodRawShape> {
-        if (updateConfig.bodySchema) {
-          return updateConfig.bodySchema;
-        }
-        return super.getBodySchema();
-      }
-
-      async before(data: Partial<ModelObject<M['model']>>, tx?: unknown): Promise<Partial<ModelObject<M['model']>>> {
-        if (updateConfig.hooks?.before) {
-          return updateConfig.hooks.before(data, tx);
-        }
-        return super.before(data, tx);
-      }
-
-      async after(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>> {
-        if (updateConfig.hooks?.after) {
-          return updateConfig.hooks.after(data, tx);
-        }
-        return super.after(data, tx);
-      }
-
-      protected transform(item: ModelObject<M['model']>): unknown {
-        if (updateConfig.hooks?.transform) {
-          return updateConfig.hooks.transform(item);
-        }
-        return super.transform(item);
-      }
-    };
+    const cfg = config.update;
+    result.update = generateEndpointClass(adapters.UpdateEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      bodySchema: cfg.bodySchema,
+      lookupField: cfg.lookupField,
+      additionalFilters: cfg.additionalFilters,
+      allowedUpdateFields: cfg.fields?.allowed,
+      blockedUpdateFields: cfg.fields?.blocked,
+      allowNestedWrites: cfg.nestedWrites,
+      beforeHookMode: cfg.hooks?.beforeMode,
+      afterHookMode: cfg.hooks?.afterMode,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      transform: cfg.hooks?.transform as ((...args: unknown[]) => unknown) | undefined,
+    });
   }
 
   // Generate Delete endpoint
   if (config.delete !== undefined) {
-    const deleteConfig = config.delete;
-    const BaseDelete = adapters.DeleteEndpoint;
-
-    // @ts-expect-error - Dynamic class creation: BaseDelete is typed as abstract new () => unknown for flexibility
-    result.delete = class extends BaseDelete {
-      _meta = config.meta;
-      schema = deleteConfig.openapi || {};
-      protected lookupField = deleteConfig.lookupField || 'id';
-      protected additionalFilters = deleteConfig.additionalFilters;
-      protected includeCascadeResults = deleteConfig.includeCascadeResults || false;
-      protected beforeHookMode: HookMode = deleteConfig.hooks?.beforeMode || 'sequential';
-      protected afterHookMode: HookMode = deleteConfig.hooks?.afterMode || 'sequential';
-
-      async before(lookupValue: string, tx?: unknown): Promise<void> {
-        if (deleteConfig.hooks?.before) {
-          return deleteConfig.hooks.before(lookupValue, tx);
-        }
-        return super.before(lookupValue, tx);
-      }
-
-      async after(deletedItem: ModelObject<M['model']>, cascadeResult?: unknown, tx?: unknown): Promise<void> {
-        if (deleteConfig.hooks?.after) {
-          return deleteConfig.hooks.after(deletedItem, cascadeResult, tx);
-        }
-        return super.after(deletedItem, cascadeResult, tx);
-      }
-    };
+    const cfg = config.delete;
+    result.delete = generateEndpointClass(adapters.DeleteEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      lookupField: cfg.lookupField,
+      additionalFilters: cfg.additionalFilters,
+      includeCascadeResults: cfg.includeCascadeResults,
+      beforeHookMode: cfg.hooks?.beforeMode,
+      afterHookMode: cfg.hooks?.afterMode,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+    });
   }
 
   return result;

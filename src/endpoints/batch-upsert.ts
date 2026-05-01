@@ -1,16 +1,10 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { OpenAPIRoute } from '../core/route';
+import { CrudEndpoint } from './base';
 import { getLogger } from '../core/logger';
-import type {
-  MetaInput,
-  OpenAPIRouteSchema,
-  HookMode,
-  NormalizedAuditConfig,
-} from '../core/types';
-import { applyComputedFields, getAuditConfig } from '../core/types';
+import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
+import {applyComputedFields} from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
-import { createAuditLogger, type AuditLogger } from '../core/audit';
 
 /**
  * Result for a single item in a batch upsert operation.
@@ -75,8 +69,7 @@ export interface BatchUpsertResult<T = Record<string, unknown>> {
 export abstract class BatchUpsertEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   /**
    * Fields used to find existing record for upsert.
@@ -134,56 +127,26 @@ export abstract class BatchUpsertEndpoint<
   protected afterHookMode: HookMode = 'sequential';
 
   // Audit logging
-  private _auditLogger?: AuditLogger;
 
   /**
    * Get the audit logger for this endpoint.
    */
-  protected getAuditLogger(): AuditLogger {
-    if (!this._auditLogger) {
-      this._auditLogger = createAuditLogger(this._meta.model.audit);
-    }
-    return this._auditLogger;
-  }
 
   /**
    * Get the audit configuration for this model.
    */
-  protected getAuditConfig(): NormalizedAuditConfig {
-    return getAuditConfig(this._meta.model.audit);
-  }
 
   /**
    * Check if audit logging is enabled for this model.
    */
-  protected isAuditEnabled(): boolean {
-    return this.getAuditConfig().enabled;
-  }
 
   /**
    * Get the user ID for audit logging.
    */
-  protected getAuditUserId(): string | undefined {
-    const config = this.getAuditConfig();
-    if (config.getUserId && this.context) {
-      return config.getUserId(this.context);
-    }
-    // Try to get userId from context variables
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
-  }
 
   /**
    * Gets the record ID from a record.
    */
-  protected getRecordId(record: ModelObject<M['model']>): string | number | null {
-    const pk = this._meta.model.primaryKeys[0];
-    const id = (record as Record<string, unknown>)[pk];
-    if (typeof id === 'string' || typeof id === 'number') {
-      return id;
-    }
-    return null;
-  }
 
   /**
    * Returns the upsert keys used to find existing records.

@@ -258,6 +258,27 @@ export interface APIKeyEntry {
 export type APIKeyLookupResult = APIKeyEntry | null;
 
 /**
+ * Storage backend for API keys. Implement this to plug in a custom
+ * persistence layer (Redis, D1, Postgres, …).
+ */
+export interface APIKeyStorage {
+  /** Persist an API key entry. */
+  store(entry: APIKeyEntry): Promise<void>;
+  /** Look up an entry by its SHA-256 hash. */
+  lookup(keyHash: string): Promise<APIKeyLookupResult>;
+  /** Look up an entry by its id. */
+  getById(id: string): Promise<APIKeyLookupResult>;
+  /** Get all entries belonging to a user. */
+  getByUserId(userId: string): Promise<APIKeyEntry[]>;
+  /** Mark an entry inactive. Returns true if the entry existed. */
+  revoke(id: string): Promise<boolean>;
+  /** Permanently remove an entry. Returns true if the entry existed. */
+  delete(id: string): Promise<boolean>;
+  /** Update the lastUsedAt timestamp for an entry. */
+  updateLastUsed(id: string): Promise<void>;
+}
+
+/**
  * Configuration for API key authentication middleware.
  */
 export interface APIKeyConfig {

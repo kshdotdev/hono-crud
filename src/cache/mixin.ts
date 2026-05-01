@@ -12,6 +12,23 @@ import { generateCacheKey, createInvalidationPattern, createRelatedPatterns } fr
 import { MemoryCacheStorage } from './storage/memory';
 import { resolveCacheStorage } from '../storage/helpers';
 import { createRegistryWithDefault } from '../storage/registry';
+import { ConfigurationException } from '../core/exceptions';
+
+/**
+ * Read `_meta.model.tableName` off the endpoint instance and throw a clear
+ * `ConfigurationException` if missing. Replaces a `?? 'unknown'` fallback
+ * that silently corrupted cache keys when an endpoint forgot to declare meta.
+ */
+function getTableName(self: unknown): string {
+  const meta = (self as { _meta?: MetaInput })._meta;
+  const tableName = meta?.model?.tableName;
+  if (!tableName) {
+    throw new ConfigurationException(
+      'Cache mixin requires `_meta.model.tableName`. Declare `_meta` on the endpoint or remove the cache mixin.'
+    );
+  }
+  return tableName;
+}
 
 // ============================================================================
 // Global Cache Storage
@@ -149,8 +166,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
       const ctx = this.getContext();
 
       // Get model meta
-      const meta = (this as unknown as { _meta?: MetaInput })._meta;
-      const tableName = meta?.model?.tableName ?? 'unknown';
+      const tableName = getTableName(this);
 
       // Get validated data
       const validatedData = await this.getValidatedData();
@@ -291,8 +307,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
         }
       } else {
         // Invalidate all for this model
-        const meta = (this as unknown as { _meta?: MetaInput })._meta;
-        const tableName = meta?.model?.tableName ?? 'unknown';
+        const tableName = getTableName(this);
         const pattern = createInvalidationPattern(tableName, undefined, config.prefix);
         await storage.deletePattern(pattern);
       }
@@ -354,8 +369,7 @@ export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
         return;
       }
 
-      const meta = (this as unknown as { _meta?: MetaInput })._meta;
-      const tableName = meta?.model?.tableName ?? 'unknown';
+      const tableName = getTableName(this);
 
       const strategy = config.strategy ?? 'all';
 
@@ -422,8 +436,7 @@ export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
         }
 
         // Fire and forget invalidation with context
-        const meta = (this as unknown as { _meta?: MetaInput })._meta;
-        const tableName = meta?.model?.tableName ?? 'unknown';
+        const tableName = getTableName(this);
 
         this.performCacheInvalidation(recordId).catch((err) => {
           getLogger().error('Cache invalidation failed', {

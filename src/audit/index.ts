@@ -3,8 +3,8 @@ import type {
   AuditAction,
   AuditLogEntry,
   NormalizedAuditConfig,
-} from './types';
-import { calculateChanges, getAuditConfig, type AuditConfig } from './types';
+} from '../core/types';
+import { calculateChanges, getAuditConfig, type AuditConfig } from '../core/types';
 import { createRegistryWithDefault } from '../storage/registry';
 
 /**

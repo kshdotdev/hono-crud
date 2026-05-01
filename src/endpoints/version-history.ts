@@ -1,15 +1,9 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { OpenAPIRoute } from '../core/route';
-import type {
-  MetaInput,
-  OpenAPIRouteSchema,
-  NormalizedVersioningConfig,
-} from '../core/types';
-import { getVersioningConfig } from '../core/types';
+import { CrudEndpoint } from './base';
+import type {MetaInput, OpenAPIRouteSchema} from '../core/types';
 import { ApiException, NotFoundException } from '../core/exceptions';
 import type { ModelObject } from './types';
-import { createVersionManager, type VersionManager } from '../core/versioning';
 
 /**
  * Response schema for a single version entry.
@@ -42,8 +36,7 @@ const VersionEntrySchema = z.object({
 export abstract class VersionHistoryEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
-  abstract _meta: M;
+> extends CrudEndpoint<E, M> {
 
   /** The field used to identify the parent record */
   protected lookupField: string = 'id';
@@ -55,34 +48,18 @@ export abstract class VersionHistoryEndpoint<
   protected maxLimit: number = 100;
 
   // Versioning
-  private _versionManager?: VersionManager;
 
   /**
    * Get the version manager for this endpoint.
    */
-  protected getVersionManager(): VersionManager {
-    if (!this._versionManager) {
-      this._versionManager = createVersionManager(
-        this._meta.model.versioning,
-        this._meta.model.tableName
-      );
-    }
-    return this._versionManager;
-  }
 
   /**
    * Get the versioning configuration for this model.
    */
-  protected getVersioningConfig(): NormalizedVersioningConfig {
-    return getVersioningConfig(this._meta.model.versioning, this._meta.model.tableName);
-  }
 
   /**
    * Check if versioning is enabled for this model.
    */
-  protected isVersioningEnabled(): boolean {
-    return this.getVersioningConfig().enabled;
-  }
 
   /**
    * Returns the path parameter schema.
@@ -230,41 +207,25 @@ export abstract class VersionHistoryEndpoint<
 export abstract class VersionReadEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
+> extends CrudEndpoint<E, M> {
   abstract _meta: M;
 
   /** The field used to identify the parent record */
   protected lookupField: string = 'id';
 
   // Versioning
-  private _versionManager?: VersionManager;
 
   /**
    * Get the version manager for this endpoint.
    */
-  protected getVersionManager(): VersionManager {
-    if (!this._versionManager) {
-      this._versionManager = createVersionManager(
-        this._meta.model.versioning,
-        this._meta.model.tableName
-      );
-    }
-    return this._versionManager;
-  }
 
   /**
    * Get the versioning configuration for this model.
    */
-  protected getVersioningConfig(): NormalizedVersioningConfig {
-    return getVersioningConfig(this._meta.model.versioning, this._meta.model.tableName);
-  }
 
   /**
    * Check if versioning is enabled for this model.
    */
-  protected isVersioningEnabled(): boolean {
-    return this.getVersioningConfig().enabled;
-  }
 
   /**
    * Returns the path parameter schema.
@@ -379,41 +340,25 @@ export abstract class VersionReadEndpoint<
 export abstract class VersionCompareEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
+> extends CrudEndpoint<E, M> {
   abstract _meta: M;
 
   /** The field used to identify the parent record */
   protected lookupField: string = 'id';
 
   // Versioning
-  private _versionManager?: VersionManager;
 
   /**
    * Get the version manager for this endpoint.
    */
-  protected getVersionManager(): VersionManager {
-    if (!this._versionManager) {
-      this._versionManager = createVersionManager(
-        this._meta.model.versioning,
-        this._meta.model.tableName
-      );
-    }
-    return this._versionManager;
-  }
 
   /**
    * Get the versioning configuration for this model.
    */
-  protected getVersioningConfig(): NormalizedVersioningConfig {
-    return getVersioningConfig(this._meta.model.versioning, this._meta.model.tableName);
-  }
 
   /**
    * Check if versioning is enabled for this model.
    */
-  protected isVersioningEnabled(): boolean {
-    return this.getVersioningConfig().enabled;
-  }
 
   /**
    * Returns the path parameter schema.
@@ -549,41 +494,25 @@ export abstract class VersionCompareEndpoint<
 export abstract class VersionRollbackEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends OpenAPIRoute<E> {
+> extends CrudEndpoint<E, M> {
   abstract _meta: M;
 
   /** The field used to identify the parent record */
   protected lookupField: string = 'id';
 
   // Versioning
-  private _versionManager?: VersionManager;
 
   /**
    * Get the version manager for this endpoint.
    */
-  protected getVersionManager(): VersionManager {
-    if (!this._versionManager) {
-      this._versionManager = createVersionManager(
-        this._meta.model.versioning,
-        this._meta.model.tableName
-      );
-    }
-    return this._versionManager;
-  }
 
   /**
    * Get the versioning configuration for this model.
    */
-  protected getVersioningConfig(): NormalizedVersioningConfig {
-    return getVersioningConfig(this._meta.model.versioning, this._meta.model.tableName);
-  }
 
   /**
    * Check if versioning is enabled for this model.
    */
-  protected isVersioningEnabled(): boolean {
-    return this.getVersioningConfig().enabled;
-  }
 
   /**
    * Returns the path parameter schema.
