@@ -317,6 +317,24 @@ See [docs/logging.md](./docs/logging.md).
 
 See [docs/advanced-features.md](./docs/advanced-features.md) for examples of every feature.
 
+### Subpath Imports
+
+Every advanced feature is also exposed as a tree-shakeable subpath, so apps that only need one feature can import it directly without pulling in the rest of the library:
+
+```typescript
+import { multiTenant } from 'hono-crud/multi-tenant';
+import { createAuditLogger, MemoryAuditLogStorage } from 'hono-crud/audit';
+import { VersionManager, MemoryVersioningStorage } from 'hono-crud/versioning';
+import { CrudEventEmitter, registerWebhooks } from 'hono-crud/events';
+import { idempotency, MemoryIdempotencyStorage } from 'hono-crud/idempotency';
+import { createHealthEndpoints } from 'hono-crud/health';
+import { encryptFields, decryptFields, StaticKeyProvider } from 'hono-crud/encryption';
+import { applyProfile, type SerializationProfile } from 'hono-crud/serialization';
+import { apiVersion, getApiVersion } from 'hono-crud/api-version';
+```
+
+The same symbols remain available from `'hono-crud'` for convenience.
+
 ## API Documentation
 
 ```typescript
