@@ -119,7 +119,7 @@ class UserDelete extends MemoryDeleteEndpoint {
 }
 
 // Create the app
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // Register CRUD endpoints
 registerCrud(app, '/users', {
@@ -149,8 +149,8 @@ setupScalar(app, '/reference', { specUrl: '/openapi.json', theme: 'default' });
 app.get('/health', (c) => c.json({ status: 'ok', adapter: 'memory' }));
 
 // Start server
-const port = Number(process.env.PORT) || 3456;
-console.log(`
+export function start(port: number = Number(process.env.PORT) || 3456): void {
+  console.log(`
 === Basic CRUD Example (Memory Adapter) ===
 
 Server running at http://localhost:${port}
@@ -174,7 +174,12 @@ Try:
     -d '{"email":"alice@example.com","name":"Alice","role":"admin"}'
 `);
 
-serve({
-  fetch: app.fetch,
-  port,
-});
+  serve({
+    fetch: app.fetch,
+    port,
+  });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start();
+}

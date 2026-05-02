@@ -42,6 +42,16 @@ const PriceSchema = z.object({
 
 type Inventory = z.infer<typeof InventorySchema>;
 type Price = z.infer<typeof PriceSchema>;
+type BatchUpsertResponse<T> = {
+  success: boolean;
+  result: {
+    createdCount: number;
+    updatedCount: number;
+    totalCount: number;
+    items: Array<{ created: boolean; data: T }>;
+  };
+};
+type ListResponse<T> = { success: boolean; result: T[] };
 
 // ============================================================================
 // Model Definitions
@@ -97,7 +107,7 @@ class PriceList extends MemoryListEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 app.put('/inventory/sync', InventoryBatchUpsert);
 app.get('/inventory', InventoryList);
 app.put('/prices/sync', PriceBatchUpsert);
@@ -130,7 +140,7 @@ async function main() {
     body: JSON.stringify(initialInventory),
   });
 
-  const syncResult1 = await syncRes1.json();
+  const syncResult1 = await syncRes1.json() as BatchUpsertResponse<Inventory>;
   console.log('   Initial sync results:');
   console.log(`   - Created: ${syncResult1.result.createdCount}`);
   console.log(`   - Updated: ${syncResult1.result.updatedCount}`);
@@ -156,7 +166,7 @@ async function main() {
     body: JSON.stringify(updatedInventory),
   });
 
-  const syncResult2 = await syncRes2.json();
+  const syncResult2 = await syncRes2.json() as BatchUpsertResponse<Inventory>;
   console.log('   Incremental sync results:');
   console.log(`   - Created: ${syncResult2.result.createdCount} (new locations/products)`);
   console.log(`   - Updated: ${syncResult2.result.updatedCount} (quantity changes)`);
@@ -190,7 +200,7 @@ async function main() {
     body: JSON.stringify(prices),
   });
 
-  const priceResult1 = await priceRes1.json();
+  const priceResult1 = await priceRes1.json() as BatchUpsertResponse<Price>;
   console.log('   Initial price sync:');
   console.log(`   - Created: ${priceResult1.result.createdCount}`);
   console.log(`   - Updated: ${priceResult1.result.updatedCount}`);
@@ -209,7 +219,7 @@ async function main() {
     body: JSON.stringify(priceUpdates),
   });
 
-  const priceResult2 = await priceRes2.json();
+  const priceResult2 = await priceRes2.json() as BatchUpsertResponse<Price>;
   console.log('   Price update sync:');
   console.log(`   - Created: ${priceResult2.result.createdCount} (new regions)`);
   console.log(`   - Updated: ${priceResult2.result.updatedCount} (price changes)`);
@@ -221,7 +231,7 @@ async function main() {
   console.log('4. VIEW SYNCED DATA\n');
 
   const inventoryRes = await app.request('/inventory');
-  const inventoryList = await inventoryRes.json();
+  const inventoryList = await inventoryRes.json() as ListResponse<Inventory>;
   console.log('   Inventory Records:');
   for (const inv of inventoryList.result) {
     console.log(`   - ${inv.sku} @ ${inv.warehouseId}: ${inv.quantity} units (synced: ${inv.lastSyncedAt})`);
@@ -229,7 +239,7 @@ async function main() {
   console.log();
 
   const priceRes = await app.request('/prices');
-  const priceList = await priceRes.json();
+  const priceList = await priceRes.json() as ListResponse<Price>;
   console.log('   Price Records:');
   for (const price of priceList.result) {
     console.log(`   - ${price.productId} [${price.region}]: ${price.price} ${price.currency}`);
@@ -247,4 +257,6 @@ async function main() {
   console.log('=== Demo Complete ===');
 }
 
-main().catch(console.error);
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(console.error);
+}

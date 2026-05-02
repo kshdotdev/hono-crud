@@ -251,7 +251,7 @@ class CommentList extends PrismaListEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 registerCrud(app, '/users', {
   create: UserCreate,
@@ -306,11 +306,9 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 // Start Server
 // ============================================================================
 
-const port = Number(process.env.PORT) || 3456;
-
-initDb()
-  .then(() => {
-    console.log(`
+export async function start(port: number = Number(process.env.PORT) || 3456): Promise<void> {
+  await initDb();
+  console.log(`
 === Relations Example (Prisma + PostgreSQL) ===
 
 Server running at http://localhost:${port}
@@ -349,9 +347,12 @@ Note: Only relations listed in allowedIncludes can be included.
 Requesting an unlisted relation will be silently ignored.
 `);
 
-    serve({ fetch: app.fetch, port });
-  })
-  .catch((err) => {
+  serve({ fetch: app.fetch, port });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start().catch((err) => {
     console.error('Failed to initialize database:', err);
     process.exit(1);
   });
+}

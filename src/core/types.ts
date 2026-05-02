@@ -36,9 +36,11 @@ export type FilterOperator =
   | 'null'    // is null
   | 'between'; // between two values
 
+export type FilterOperatorList = readonly FilterOperator[];
+
 // Filter configuration per field
 export type FilterConfig = {
-  [field: string]: FilterOperator[];
+  [field: string]: FilterOperatorList;
 };
 
 // Parsed filter condition

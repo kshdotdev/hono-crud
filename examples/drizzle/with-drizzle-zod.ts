@@ -99,7 +99,7 @@ async function initDatabase() {
   console.log('Database initialized');
 }
 
-async function main() {
+export async function createApp() {
   await initDatabase();
 
   /**
@@ -258,8 +258,11 @@ async function main() {
     })
   );
 
-  const port = Number(process.env.PORT) || 3456;
+  return app;
+}
 
+export async function start(port: number = Number(process.env.PORT) || 3456): Promise<void> {
+  const app = await createApp();
   console.log(`
 === drizzle-zod Example ===
 
@@ -294,7 +297,9 @@ Try:
   });
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

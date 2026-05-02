@@ -1,7 +1,7 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema, PaginatedResult} from '../core/types';
+import type { FilterConfig, MetaInput, OpenAPIRouteSchema, PaginatedResult } from '../core/types';
 import { applyComputedFieldsToArray } from '../core/types';
 import {
   parseListFilters,
@@ -28,7 +28,7 @@ export abstract class ListEndpoint<
 
   // Filter configuration
   protected filterFields: string[] = [];
-  protected filterConfig?: Record<string, Array<'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'ilike' | 'null' | 'between'>>;
+  protected filterConfig?: FilterConfig;
 
   // Search configuration
   protected searchFields: string[] = [];

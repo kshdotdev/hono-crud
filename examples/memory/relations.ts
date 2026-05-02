@@ -289,7 +289,7 @@ class ProfileRead extends MemoryReadEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // Register endpoints
 registerCrud(app, '/users', {
@@ -423,8 +423,8 @@ app.get('/seed', async (c) => {
 });
 
 // Start server
-const port = Number(process.env.PORT) || 3456;
-console.log(`
+export function start(port: number = Number(process.env.PORT) || 3456): void {
+  console.log(`
 === Relations Example ===
 
 Server running at http://localhost:${port}
@@ -460,7 +460,12 @@ Note: Only relations listed in allowedIncludes can be included.
 Requesting an unlisted relation will be silently ignored.
 `);
 
-serve({
-  fetch: app.fetch,
-  port,
-});
+  serve({
+    fetch: app.fetch,
+    port,
+  });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start();
+}

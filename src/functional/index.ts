@@ -23,13 +23,15 @@
  */
 
 import type { Env, MiddlewareHandler } from 'hono';
-import type { MetaInput, OpenAPIRouteSchema, HookMode } from '../core/types';
+import type { MetaInput, OpenAPIRouteSchema, HookMode, FilterConfig } from '../core/types';
 import type { ModelObject } from '../endpoints/types';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
 
 // ============================================================================
 // Type Definitions
 // ============================================================================
+
+type GeneratedClass<B extends abstract new () => unknown> = B & (new () => InstanceType<B>);
 
 type OpenAPISchema = Partial<OpenAPIRouteSchema> & {
   tags?: string[];
@@ -52,11 +54,14 @@ export interface ListConfig<M extends MetaInput, E extends Env = Env> {
   meta: M;
   schema?: OpenAPISchema;
   filterFields?: string[];
-  filterConfig?: Record<string, Array<'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'ilike' | 'null' | 'between'>>;
+  filterConfig?: FilterConfig;
   searchFields?: string[];
   searchFieldName?: string;
   sortFields?: string[];
+  orderByFields?: string[];
   defaultSort?: { field: string; order: 'asc' | 'desc' };
+  defaultOrderBy?: string;
+  defaultOrderDirection?: 'asc' | 'desc';
   defaultPerPage?: number;
   maxPerPage?: number;
   allowedIncludes?: string[];
@@ -123,7 +128,7 @@ export function createCreate<
   M extends MetaInput,
   E extends Env = Env,
   B extends abstract new () => unknown = abstract new () => unknown,
->(config: CreateConfig<M, E>, BaseClass: B): B {
+>(config: CreateConfig<M, E>, BaseClass: B): GeneratedClass<B> {
   return generateEndpointClass(BaseClass, {
     meta: config.meta,
     schema: config.schema,
@@ -140,7 +145,12 @@ export function createList<
   M extends MetaInput,
   E extends Env = Env,
   B extends abstract new () => unknown = abstract new () => unknown,
->(config: ListConfig<M, E>, BaseClass: B): B {
+>(config: ListConfig<M, E>, BaseClass: B): GeneratedClass<B> {
+  const defaultSort = config.defaultSort ??
+    (config.defaultOrderBy
+      ? { field: config.defaultOrderBy, order: config.defaultOrderDirection ?? 'asc' }
+      : undefined);
+
   return generateEndpointClass(BaseClass, {
     meta: config.meta,
     schema: config.schema,
@@ -151,8 +161,8 @@ export function createList<
     filterConfig: config.filterConfig,
     searchFields: config.searchFields,
     searchFieldName: config.searchFieldName,
-    sortFields: config.sortFields,
-    defaultSort: config.defaultSort,
+    sortFields: config.sortFields ?? config.orderByFields,
+    defaultSort,
     defaultPerPage: config.defaultPerPage,
     maxPerPage: config.maxPerPage,
     allowedIncludes: config.allowedIncludes,
@@ -168,7 +178,7 @@ export function createRead<
   M extends MetaInput,
   E extends Env = Env,
   B extends abstract new () => unknown = abstract new () => unknown,
->(config: ReadConfig<M, E>, BaseClass: B): B {
+>(config: ReadConfig<M, E>, BaseClass: B): GeneratedClass<B> {
   return generateEndpointClass(BaseClass, {
     meta: config.meta,
     schema: config.schema,
@@ -190,7 +200,7 @@ export function createUpdate<
   M extends MetaInput,
   E extends Env = Env,
   B extends abstract new () => unknown = abstract new () => unknown,
->(config: UpdateConfig<M, E>, BaseClass: B): B {
+>(config: UpdateConfig<M, E>, BaseClass: B): GeneratedClass<B> {
   return generateEndpointClass(BaseClass, {
     meta: config.meta,
     schema: config.schema,
@@ -212,7 +222,7 @@ export function createDelete<
   M extends MetaInput,
   E extends Env = Env,
   B extends abstract new () => unknown = abstract new () => unknown,
->(config: DeleteConfig<M, E>, BaseClass: B): B {
+>(config: DeleteConfig<M, E>, BaseClass: B): GeneratedClass<B> {
   return generateEndpointClass(BaseClass, {
     meta: config.meta,
     schema: config.schema,

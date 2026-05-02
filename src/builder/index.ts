@@ -30,9 +30,11 @@
  */
 
 import type { Env, MiddlewareHandler } from 'hono';
-import type { MetaInput, HookMode } from '../core/types';
+import type { MetaInput, HookMode, FilterConfig } from '../core/types';
 import type { ModelObject } from '../endpoints/types';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
+
+type GeneratedClass<B extends abstract new () => unknown> = B & (new () => InstanceType<B>);
 
 // ============================================================================
 // Create Builder
@@ -112,7 +114,7 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
    * @param BaseClass - The adapter-specific base class to extend
    * @returns A class that can be used with registerCrud
    */
-  build<B extends abstract new () => unknown>(BaseClass: B): B {
+  build<B extends abstract new () => unknown>(BaseClass: B): GeneratedClass<B> {
     return generateEndpointClass(BaseClass, {
       meta: this.meta,
       schema: this._schema,
@@ -136,7 +138,7 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
 export class ListBuilder<M extends MetaInput, E extends Env = Env> {
   private _schema: Record<string, unknown> = {};
   private _filterFields: string[] = [];
-  private _filterConfig?: Record<string, Array<'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'ilike' | 'null' | 'between'>>;
+  private _filterConfig?: FilterConfig;
   private _searchFields: string[] = [];
   private _searchFieldName = 'search';
   private _sortFields: string[] = [];
@@ -186,7 +188,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set advanced filter config with operators */
-  filterWith(config: Record<string, Array<'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'ilike' | 'null' | 'between'>>): this {
+  filterWith(config: FilterConfig): this {
     this._filterConfig = config;
     return this;
   }
@@ -209,10 +211,20 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
     return this;
   }
 
+  /** Backward-compatible alias for sortable fields. */
+  orderBy(...fields: string[]): this {
+    return this.sortable(...fields);
+  }
+
   /** Set default sort */
   defaultSort(field: string, order: 'asc' | 'desc' = 'asc'): this {
     this._defaultSort = { field, order };
     return this;
+  }
+
+  /** Backward-compatible alias for default sort. */
+  defaultOrder(field: string, order: 'asc' | 'desc' = 'asc'): this {
+    return this.defaultSort(field, order);
   }
 
   /** Set pagination defaults */
@@ -263,7 +275,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
    * @param BaseClass - The adapter-specific base class to extend
    * @returns A class that can be used with registerCrud
    */
-  build<B extends abstract new () => unknown>(BaseClass: B): B {
+  build<B extends abstract new () => unknown>(BaseClass: B): GeneratedClass<B> {
     return generateEndpointClass(BaseClass, {
       meta: this.meta,
       schema: this._schema,
@@ -386,7 +398,7 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
    * @param BaseClass - The adapter-specific base class to extend
    * @returns A class that can be used with registerCrud
    */
-  build<B extends abstract new () => unknown>(BaseClass: B): B {
+  build<B extends abstract new () => unknown>(BaseClass: B): GeneratedClass<B> {
     return generateEndpointClass(BaseClass, {
       meta: this.meta,
       schema: this._schema,
@@ -518,7 +530,7 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
    * @param BaseClass - The adapter-specific base class to extend
    * @returns A class that can be used with registerCrud
    */
-  build<B extends abstract new () => unknown>(BaseClass: B): B {
+  build<B extends abstract new () => unknown>(BaseClass: B): GeneratedClass<B> {
     return generateEndpointClass(BaseClass, {
       meta: this.meta,
       schema: this._schema,
@@ -629,7 +641,7 @@ export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
    * @param BaseClass - The adapter-specific base class to extend
    * @returns A class that can be used with registerCrud
    */
-  build<B extends abstract new () => unknown>(BaseClass: B): B {
+  build<B extends abstract new () => unknown>(BaseClass: B): GeneratedClass<B> {
     return generateEndpointClass(BaseClass, {
       meta: this.meta,
       schema: this._schema,

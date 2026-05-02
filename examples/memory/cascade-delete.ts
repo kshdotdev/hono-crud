@@ -50,6 +50,19 @@ const ReviewSchema = z.object({
 type Author = z.infer<typeof AuthorSchema>;
 type Book = z.infer<typeof BookSchema>;
 type Review = z.infer<typeof ReviewSchema>;
+type SuccessResponse<T> = { success: true; result: T };
+type DeleteResponse = {
+  success: true;
+  result: {
+    cascade?: unknown;
+  };
+};
+type ErrorResponse = {
+  success: false;
+  error?: {
+    message?: string;
+  };
+};
 
 // ============================================================================
 // Model Definitions with Cascade Configuration
@@ -167,7 +180,7 @@ class AuthorRestrictDelete extends MemoryDeleteEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 app.post('/authors', AuthorCreate);
 app.delete('/authors/:id', AuthorDelete);
 app.delete('/books/:id', BookDelete);
@@ -202,7 +215,7 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: 'J.K. Rowling', email: 'jk@example.com' }),
   });
-  const author = (await authorRes.json()).result;
+  const author = ((await authorRes.json()) as SuccessResponse<Author>).result;
 
   // Add books directly to store
   const book1: Book = {
@@ -243,7 +256,7 @@ async function main() {
 
   // Delete author - cascades to books
   const deleteRes = await app.request(`/authors/${author.id}`, { method: 'DELETE' });
-  const deleteResult = await deleteRes.json();
+  const deleteResult = await deleteRes.json() as DeleteResponse;
 
   console.log('\n   After deleting author:');
   console.log(`   - Authors: ${authorStore.size}`);
@@ -280,7 +293,7 @@ async function main() {
 
   // Delete book - cascades to reviews
   const bookDeleteRes = await app.request(`/books/${book3.id}`, { method: 'DELETE' });
-  const bookDeleteResult = await bookDeleteRes.json();
+  const bookDeleteResult = await bookDeleteRes.json() as DeleteResponse;
 
   console.log('\n   After deleting book:');
   console.log(`   - Books: ${bookStore.size}`);
@@ -299,7 +312,7 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: 'George Orwell', email: 'george@example.com' }),
   });
-  const author2 = (await author2Res.json()).result;
+  const author2 = ((await author2Res.json()) as SuccessResponse<Author>).result;
 
   // Add books
   const book4: Book = {
@@ -324,7 +337,7 @@ async function main() {
 
   // Delete author - sets authorId to null
   const deleteRes2 = await app.request(`/authors-setnull/${author2.id}`, { method: 'DELETE' });
-  const deleteResult2 = await deleteRes2.json();
+  const deleteResult2 = await deleteRes2.json() as DeleteResponse;
 
   console.log('\n   After deleting author:');
   console.log(`   - Authors: ${authorSetNullStore.size}`);
@@ -344,7 +357,7 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: 'Stephen King', email: 'stephen@example.com' }),
   });
-  const author3 = (await author3Res.json()).result;
+  const author3 = ((await author3Res.json()) as SuccessResponse<Author>).result;
 
   // Add a book
   const book6: Book = {
@@ -361,7 +374,7 @@ async function main() {
 
   // Try to delete author - should fail
   const deleteRes3 = await app.request(`/authors-restrict/${author3.id}`, { method: 'DELETE' });
-  const deleteResult3 = await deleteRes3.json();
+  const deleteResult3 = await deleteRes3.json() as ErrorResponse;
 
   console.log('\n   After delete attempt:');
   console.log(`   - Status: ${deleteRes3.status}`);
@@ -373,4 +386,6 @@ async function main() {
   console.log('=== Demo Complete ===');
 }
 
-main().catch(console.error);
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(console.error);
+}

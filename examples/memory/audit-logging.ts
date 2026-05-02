@@ -24,6 +24,12 @@ import {
   MemoryListEndpoint,
 } from '../../src/adapters/memory/index.js';
 
+type AppEnv = {
+  Variables: {
+    userId: string;
+  };
+};
+
 // ============================================================
 // 1. Define your schema
 // ============================================================
@@ -149,24 +155,26 @@ class ConsoleAuditLogStorage implements AuditLogStorage {
 // 4. Create endpoints
 // ============================================================
 
-class UserCreate extends MemoryCreateEndpoint {
-  _meta = defineMeta({ model: UserModel });
+const userMeta = defineMeta({ model: UserModel });
+
+class UserCreate extends MemoryCreateEndpoint<AppEnv, typeof userMeta> {
+  _meta = userMeta;
 }
 
-class UserRead extends MemoryReadEndpoint {
-  _meta = defineMeta({ model: UserModel });
+class UserRead extends MemoryReadEndpoint<AppEnv, typeof userMeta> {
+  _meta = userMeta;
 }
 
-class UserUpdate extends MemoryUpdateEndpoint {
-  _meta = defineMeta({ model: UserModel });
+class UserUpdate extends MemoryUpdateEndpoint<AppEnv, typeof userMeta> {
+  _meta = userMeta;
 }
 
-class UserDelete extends MemoryDeleteEndpoint {
-  _meta = defineMeta({ model: UserModel });
+class UserDelete extends MemoryDeleteEndpoint<AppEnv, typeof userMeta> {
+  _meta = userMeta;
 }
 
-class UserList extends MemoryListEndpoint {
-  _meta = defineMeta({ model: UserModel });
+class UserList extends MemoryListEndpoint<AppEnv, typeof userMeta> {
+  _meta = userMeta;
 }
 
 // ============================================================
@@ -179,7 +187,7 @@ async function main() {
   setAuditStorage(auditStorage);
 
   // Create Hono app
-  const app = new Hono();
+  const app = new Hono<AppEnv>();
 
   // Middleware to set user ID (simulated authentication)
   app.use('*', async (c, next) => {
@@ -191,27 +199,32 @@ async function main() {
   // Register routes
   app.post('/users', async (c) => {
     const endpoint = new UserCreate();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   app.get('/users', async (c) => {
     const endpoint = new UserList();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   app.get('/users/:id', async (c) => {
     const endpoint = new UserRead();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   app.patch('/users/:id', async (c) => {
     const endpoint = new UserUpdate();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   app.delete('/users/:id', async (c) => {
     const endpoint = new UserDelete();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   // Audit log viewer endpoint
@@ -297,4 +310,6 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(console.error);
+}

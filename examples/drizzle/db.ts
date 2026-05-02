@@ -83,6 +83,18 @@ export async function initDb(): Promise<void> {
   `);
 
   await pool.query(`
+    ALTER TABLE users
+      ALTER COLUMN created_at SET DEFAULT NOW(),
+      ALTER COLUMN updated_at SET DEFAULT NOW()
+  `);
+
+  await pool.query(`
+    ALTER TABLE posts
+      ALTER COLUMN created_at SET DEFAULT NOW(),
+      ALTER COLUMN updated_at SET DEFAULT NOW()
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS profiles (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,

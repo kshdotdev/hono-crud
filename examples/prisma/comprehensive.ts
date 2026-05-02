@@ -334,7 +334,7 @@ class CategoryUpsert extends PrismaUpsertEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // Users (full CRUD + batch)
 registerCrud(app, '/users', {
@@ -434,11 +434,9 @@ app.get('/health', (c) => c.json({ status: 'ok', adapter: 'prisma', database: 'p
 // Start Server
 // ============================================================================
 
-const port = Number(process.env.PORT) || 3456;
-
-initDb()
-  .then(() => {
-    console.log(`
+export async function start(port: number = Number(process.env.PORT) || 3456): Promise<void> {
+  await initDb();
+  console.log(`
 === Comprehensive Example (Prisma + PostgreSQL) ===
 
 Server running at http://localhost:${port}
@@ -481,9 +479,12 @@ curl -X PUT http://localhost:${port}/categories -H "Content-Type: application/js
   -d '{"name":"Music","description":"Music posts","sortOrder":4}'
 `);
 
-    serve({ fetch: app.fetch, port });
-  })
-  .catch((err) => {
+  serve({ fetch: app.fetch, port });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start().catch((err) => {
     console.error('Failed to initialize database:', err);
     process.exit(1);
   });
+}

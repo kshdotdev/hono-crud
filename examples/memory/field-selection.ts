@@ -218,7 +218,7 @@ class UserDelete extends MemoryDeleteEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // User CRUD routes
 app.post('/users', UserCreate);
@@ -265,7 +265,7 @@ Use \`?fields=field1,field2,field3\` to select specific fields.
 });
 
 // Swagger UI
-setupSwaggerUI(app, '/docs');
+setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
 
 // ============================================================================
 // Add Sample Data
@@ -318,22 +318,27 @@ function addSampleData() {
 addSampleData();
 
 // Start server
-const port = 3004;
-console.log(`Field Selection Example running at http://localhost:${port}`);
-console.log(`Swagger UI: http://localhost:${port}/docs`);
-console.log(`OpenAPI spec: http://localhost:${port}/openapi.json`);
-console.log('\nTry these requests:');
-console.log(`\n1. Default fields (id, name, email, role):`);
-console.log(`   curl http://localhost:${port}/users | jq`);
-console.log(`\n2. Select specific fields:`);
-console.log(`   curl "http://localhost:${port}/users?fields=id,name" | jq`);
-console.log(`\n3. Include contact info:`);
-console.log(`   curl "http://localhost:${port}/users?fields=id,name,email,phone,address" | jq`);
-console.log(`\n4. Include computed fields:`);
-console.log(`   curl "http://localhost:${port}/users?fields=id,name,displayName,isAdmin" | jq`);
-console.log(`\n5. Single user with field selection:`);
-console.log(`   curl "http://localhost:${port}/users/550e8400-e29b-41d4-a716-446655440001?fields=id,name,bio" | jq`);
-console.log(`\n6. Note: password is NEVER returned (blocked):`);
-console.log(`   curl "http://localhost:${port}/users?fields=id,name,password" | jq`);
+export function start(port: number = Number(process.env.PORT) || 3004): void {
+  console.log(`Field Selection Example running at http://localhost:${port}`);
+  console.log(`Swagger UI: http://localhost:${port}/docs`);
+  console.log(`OpenAPI spec: http://localhost:${port}/openapi.json`);
+  console.log('\nTry these requests:');
+  console.log(`\n1. Default fields (id, name, email, role):`);
+  console.log(`   curl http://localhost:${port}/users | jq`);
+  console.log(`\n2. Select specific fields:`);
+  console.log(`   curl "http://localhost:${port}/users?fields=id,name" | jq`);
+  console.log(`\n3. Include contact info:`);
+  console.log(`   curl "http://localhost:${port}/users?fields=id,name,email,phone,address" | jq`);
+  console.log(`\n4. Include computed fields:`);
+  console.log(`   curl "http://localhost:${port}/users?fields=id,name,displayName,isAdmin" | jq`);
+  console.log(`\n5. Single user with field selection:`);
+  console.log(`   curl "http://localhost:${port}/users/550e8400-e29b-41d4-a716-446655440001?fields=id,name,bio" | jq`);
+  console.log(`\n6. Note: password is NEVER returned (blocked):`);
+  console.log(`   curl "http://localhost:${port}/users?fields=id,name,password" | jq`);
 
-serve({ fetch: app.fetch, port });
+  serve({ fetch: app.fetch, port });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start();
+}

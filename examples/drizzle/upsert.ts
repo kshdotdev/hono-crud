@@ -207,7 +207,7 @@ class InventoryList extends DrizzleListEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // Product endpoints
 app.put('/products', ProductUpsert);
@@ -240,17 +240,15 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 // Start Server
 // ============================================================================
 
-const port = Number(process.env.PORT) || 3456;
-
 async function init() {
   await initDb();
   await createProductsTable();
   await createInventoryTable();
 }
 
-init()
-  .then(() => {
-    console.log(`
+export async function start(port: number = Number(process.env.PORT) || 3456): Promise<void> {
+  await init();
+  console.log(`
 === Upsert Operations Example (Drizzle + PostgreSQL) ===
 
 Server running at http://localhost:${port}
@@ -301,9 +299,12 @@ Response includes:
 - result: The created/updated record
 `);
 
-    serve({ fetch: app.fetch, port });
-  })
-  .catch((err) => {
+  serve({ fetch: app.fetch, port });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start().catch((err) => {
     console.error('Failed to initialize database:', err);
     process.exit(1);
   });
+}

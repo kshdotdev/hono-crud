@@ -254,7 +254,7 @@ const configEndpoints = defineEndpoints(
 // Create App and Register All Patterns
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // Pattern 1: Class-based
 registerCrud(app, '/class/users', {
@@ -353,8 +353,8 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 // Start Server
 // ============================================================================
 
-const port = Number(process.env.PORT) || 3456;
-console.log(`
+export function start(port: number = Number(process.env.PORT) || 3456): void {
+  console.log(`
 === Alternative API Patterns Example ===
 
 Server running at http://localhost:${port}
@@ -402,7 +402,12 @@ Try creating a user:
     -d '{"email":"test@example.com","name":"Test User","role":"user"}'
 `);
 
-serve({
-  fetch: app.fetch,
-  port,
-});
+  serve({
+    fetch: app.fetch,
+    port,
+  });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start();
+}

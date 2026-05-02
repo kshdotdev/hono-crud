@@ -213,7 +213,7 @@ class UserDelete extends MemoryDeleteEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // User CRUD routes
 app.post('/users', UserCreate);
@@ -248,7 +248,7 @@ These fields appear in all responses but are not stored in the database.
 });
 
 // Swagger UI
-setupSwaggerUI(app, '/docs');
+setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
 
 // ============================================================================
 // Add Sample Data
@@ -301,12 +301,17 @@ function addSampleData() {
 addSampleData();
 
 // Start server
-const port = 3003;
-console.log(`Computed Fields Example running at http://localhost:${port}`);
-console.log(`Swagger UI: http://localhost:${port}/docs`);
-console.log(`OpenAPI spec: http://localhost:${port}/openapi.json`);
-console.log('\nSample users loaded. Try:');
-console.log(`  curl http://localhost:${port}/users | jq`);
-console.log(`  curl http://localhost:${port}/users/550e8400-e29b-41d4-a716-446655440001 | jq`);
+export function start(port: number = Number(process.env.PORT) || 3003): void {
+  console.log(`Computed Fields Example running at http://localhost:${port}`);
+  console.log(`Swagger UI: http://localhost:${port}/docs`);
+  console.log(`OpenAPI spec: http://localhost:${port}/openapi.json`);
+  console.log('\nSample users loaded. Try:');
+  console.log(`  curl http://localhost:${port}/users | jq`);
+  console.log(`  curl http://localhost:${port}/users/550e8400-e29b-41d4-a716-446655440001 | jq`);
 
-serve({ fetch: app.fetch, port });
+  serve({ fetch: app.fetch, port });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start();
+}
