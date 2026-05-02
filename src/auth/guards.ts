@@ -17,6 +17,14 @@ import { MemoryApprovalStorage } from './storage/approval-memory';
 import { getLogger } from '../core/logger';
 
 /**
+ * Type predicate: narrows `unknown` to a string-indexed record. Used to
+ * read the request body safely without assuming a specific shape.
+ */
+function isObjectRecord(x: unknown): x is Record<string, unknown> {
+  return x !== null && typeof x === 'object' && !Array.isArray(x);
+}
+
+/**
  * Process-local fallback storage used when `requireApproval(...)` is
  * called without an explicit `approvalStorage`. Lazy-instantiated so
  * apps that always pass storage never construct it.
@@ -466,8 +474,8 @@ export function requireApproval<E extends AuthEnv = AuthEnv>(
     let body: Record<string, unknown> = {};
     try {
       const parsed: unknown = await ctx.req.json();
-      if (parsed !== null && typeof parsed === 'object') {
-        body = parsed as Record<string, unknown>;
+      if (isObjectRecord(parsed)) {
+        body = parsed;
       }
     } catch {
       // Empty body — treat as initial-call with no input. Resume requires

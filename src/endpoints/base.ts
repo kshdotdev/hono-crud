@@ -52,6 +52,35 @@ import { applyProfile, applyProfileToArray } from '../serialization/serialize';
  */
 const RESOLVED_SCHEMA_KEY_PREFIX = '__honoCrudResolvedSchema:';
 
+/**
+ * Extract the static Zod schema generic from a `MetaInput`. Lets the base
+ * class type its schema-related accessors against the actual model schema
+ * type rather than the wide `ZodObject<ZodRawShape>` upper bound, which
+ * eliminates a class of `as ZodObject<ZodRawShape>` widening casts.
+ */
+type SchemaOf<M extends MetaInput> = M['model']['schema'];
+
+/**
+ * Inferred row type for a `MetaInput`'s model schema (i.e. `z.infer<...>`).
+ * Used to type `policies` callbacks and other row-shaped helpers without
+ * collapsing to `unknown`.
+ */
+type RowOf<M extends MetaInput> = z.infer<SchemaOf<M>>;
+
+/**
+ * Type predicate: does `o` expose a `getBodySchema()` method? Endpoints
+ * with a request body (Create / Update / Upsert / Clone / Batch* /
+ * Import) implement it; Read / List / Delete don't. Localising the
+ * structural check here means callers do `if (hasGetBodySchema(this))
+ * { ... this.getBodySchema() ... }` with no per-call cast.
+ */
+function hasGetBodySchema<T extends object>(
+  o: T
+): o is T & { getBodySchema(): ZodObject<ZodRawShape> } {
+  const candidate = o as { getBodySchema?: unknown };
+  return typeof candidate.getBodySchema === 'function';
+}
+
 export abstract class CrudEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
@@ -314,15 +343,21 @@ export abstract class CrudEndpoint<
    * when no policies are configured (endpoint behaviour is unchanged
    * from pre-0.7.0).
    */
-  protected getPolicies(): ModelPolicies<unknown> | undefined {
+  protected getPolicies(): ModelPolicies<RowOf<M>> | undefined {
     if (this.context) {
-      const fromCtx = getContextVar<ModelPolicies<unknown>>(
+      const fromCtx = getContextVar<ModelPolicies<RowOf<M>>>(
         this.context,
         POLICIES_CONTEXT_KEY
       );
       if (fromCtx) return fromCtx;
     }
-    return this._meta.model.policies as ModelPolicies<unknown> | undefined;
+    // `ModelPolicies<X>` is invariant in X (X appears in both input and
+    // output positions of `read`/`write`/`fields`), so the model's
+    // concrete row type doesn't satisfy `RowOf<M>` structurally — even
+    // when they're the same nominal type. The cast is honest at this
+    // narrow boundary; downstream call sites in `applyRead*`/`applyWrite`
+    // use the typed return without further casts.
+    return this._meta.model.policies as ModelPolicies<RowOf<M>> | undefined;
   }
 
   /**
@@ -344,8 +379,11 @@ export abstract class CrudEndpoint<
    * Apply the policy `read` predicate (if any) to a single record. Returns
    * the record if allowed, `null` otherwise. Field masking via
    * `policies.fields(...)` is also applied.
+   *
+   * Typed against `RowOf<M>` so the policies' callbacks see the same row
+   * shape as the model — no cast needed at the call site.
    */
-  protected async applyReadPolicy<T>(record: T): Promise<T | null> {
+  protected async applyReadPolicy(record: RowOf<M>): Promise<RowOf<M> | null> {
     const policies = this.getPolicies();
     if (!policies) return record;
     const policyCtx = this.buildPolicyContext();
@@ -357,7 +395,7 @@ export abstract class CrudEndpoint<
 
     if (policies.fields) {
       const mask = policies.fields(policyCtx, record);
-      return { ...record, ...mask } as T;
+      return { ...record, ...mask };
     }
 
     return record;
@@ -367,10 +405,10 @@ export abstract class CrudEndpoint<
    * Apply the policy `read` predicate to an array of records, dropping
    * disallowed entries and applying any field mask. Used by List endpoints.
    */
-  protected async applyReadPolicyToArray<T>(records: T[]): Promise<T[]> {
+  protected async applyReadPolicyToArray(records: RowOf<M>[]): Promise<RowOf<M>[]> {
     const policies = this.getPolicies();
     if (!policies) return records;
-    const out: T[] = [];
+    const out: RowOf<M>[] = [];
     for (const record of records) {
       const masked = await this.applyReadPolicy(record);
       if (masked !== null) out.push(masked);
@@ -382,7 +420,7 @@ export abstract class CrudEndpoint<
    * Apply the policy `write` predicate (if any) to a record before mutation.
    * Throws `ForbiddenException` when the policy denies the write.
    */
-  protected async applyWritePolicy<T>(record: T): Promise<void> {
+  protected async applyWritePolicy(record: RowOf<M>): Promise<void> {
     const policies = this.getPolicies();
     if (!policies?.write) return;
     const allowed = await policies.write(this.buildPolicyContext(), record);
@@ -443,15 +481,15 @@ export abstract class CrudEndpoint<
    * Sync — safe to call from `getSchema()` paths. Use `resolveModelSchema()`
    * to populate the cache before a sync read is needed at request time.
    */
-  protected getModelSchema(): ZodObject<ZodRawShape> {
+  protected getModelSchema(): SchemaOf<M> {
     if (this.context && this._meta.model.resolveSchema) {
-      const cached = getContextVar<ZodObject<ZodRawShape>>(
+      const cached = getContextVar<SchemaOf<M>>(
         this.context,
         RESOLVED_SCHEMA_KEY_PREFIX + this._meta.model.tableName
       );
       if (cached) return cached;
     }
-    return this._meta.model.schema as ZodObject<ZodRawShape>;
+    return this._meta.model.schema;
   }
 
   /**
@@ -462,13 +500,13 @@ export abstract class CrudEndpoint<
    *
    * Resolver throws surface as a structured 500 (`SCHEMA_RESOLVE_ERROR`).
    */
-  protected async resolveModelSchema(): Promise<ZodObject<ZodRawShape>> {
+  protected async resolveModelSchema(): Promise<SchemaOf<M>> {
     const resolver = this._meta.model.resolveSchema;
     if (!resolver || !this.context) {
-      return this._meta.model.schema as ZodObject<ZodRawShape>;
+      return this._meta.model.schema;
     }
     const cacheKey = RESOLVED_SCHEMA_KEY_PREFIX + this._meta.model.tableName;
-    const cached = getContextVar<ZodObject<ZodRawShape>>(this.context, cacheKey);
+    const cached = getContextVar<SchemaOf<M>>(this.context, cacheKey);
     if (cached) return cached;
 
     // Read tenant/org from the conventional context vars set by the
@@ -483,9 +521,9 @@ export abstract class CrudEndpoint<
       env: this.context.env,
     };
 
-    let resolved: ZodObject<ZodRawShape>;
+    let resolved: SchemaOf<M>;
     try {
-      resolved = (await resolver(resolveCtx)) as ZodObject<ZodRawShape>;
+      resolved = await resolver(resolveCtx);
     } catch (err) {
       throw new ApiException(
         err instanceof Error ? err.message : 'Schema resolution failed',
@@ -518,23 +556,23 @@ export abstract class CrudEndpoint<
     await this.resolveModelSchema();
     const data = await super.getValidatedData<T>();
 
-    if (this.context && data.body !== undefined) {
-      const candidate = this as { getBodySchema?: () => ZodObject<ZodRawShape> };
-      if (typeof candidate.getBodySchema === 'function') {
-        let rawBody: unknown = data.body;
-        try {
-          rawBody = await this.context.req.json();
-        } catch {
-          // Fall back to the static-schema-validated body if the raw JSON
-          // read fails (e.g. body already consumed in an unusual setup).
-        }
-        const bodySchema = candidate.getBodySchema();
-        const parsed = bodySchema.safeParse(rawBody);
-        if (!parsed.success) {
-          throw InputValidationException.fromZodError(parsed.error);
-        }
-        data.body = parsed.data as T;
+    if (this.context && data.body !== undefined && hasGetBodySchema(this)) {
+      let rawBody: unknown = data.body;
+      try {
+        rawBody = await this.context.req.json();
+      } catch {
+        // Fall back to the static-schema-validated body if the raw JSON
+        // read fails (e.g. body already consumed in an unusual setup).
       }
+      const bodySchema = this.getBodySchema();
+      const parsed = bodySchema.safeParse(rawBody);
+      if (!parsed.success) {
+        throw InputValidationException.fromZodError(parsed.error);
+      }
+      // `parsed.data` has the inferred shape of the body schema, but the
+      // generic `T` is the caller's chosen output type; honest erasure at
+      // the Zod-output → caller-type boundary.
+      data.body = parsed.data as T;
     }
 
     return data;

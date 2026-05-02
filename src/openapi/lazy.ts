@@ -11,7 +11,7 @@
 
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { Context } from 'hono';
-import type { ZodObject, ZodRawShape } from 'zod';
+import { z, type ZodObject, type ZodRawShape } from 'zod';
 
 import type { HonoOpenAPIApp } from '../core/openapi';
 import { getHandlerForApp } from '../core/openapi';
@@ -99,11 +99,14 @@ export async function buildPerTenantOpenApi(
 
   for (const route of handler.getRegisteredRoutes().values()) {
     const Ctor = route.routeClass;
-    const instance = new Ctor() as {
-      setContext(c: Context): void;
-      getSchema(): { request?: unknown; responses?: unknown };
+    // The `OpenAPIRouteClass` constructor type already provides
+    // `setContext`/`getSchema`/`handle`. CrudEndpoint subclasses also
+    // expose `resolveModelSchema` (optional here so non-CRUD routes
+    // still match). The intersection avoids the previous duck-typed cast.
+    type RuntimeRoute = InstanceType<typeof Ctor> & {
       resolveModelSchema?: () => Promise<ZodObject<ZodRawShape>>;
     };
+    const instance: RuntimeRoute = new Ctor();
     const synthCtx = makeSyntheticContext(ctx);
     instance.setContext(synthCtx as unknown as Context);
     if (typeof instance.resolveModelSchema === 'function') {
@@ -123,7 +126,7 @@ export async function buildPerTenantOpenApi(
         200: {
           description: 'Success',
           content: {
-            'application/json': { schema: { type: 'object' } as never },
+            'application/json': { schema: z.unknown() },
           },
         },
       },
