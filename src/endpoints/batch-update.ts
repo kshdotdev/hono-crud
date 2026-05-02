@@ -88,7 +88,7 @@ export abstract class BatchUpdateEndpoint<
    * Returns the request body schema for batch updates.
    */
   protected getBodySchema(): ZodObject<ZodRawShape> {
-    const dataSchema = this._meta.fields || this._meta.model.schema;
+    const dataSchema = this._meta.fields || this.getModelSchema();
     return z.object({
       items: z.array(z.object({
         id: z.string(),
@@ -120,7 +120,7 @@ export abstract class BatchUpdateEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.object({
-                  updated: z.array(this._meta.model.schema),
+                  updated: z.array(this.getModelSchema()),
                   count: z.number(),
                   notFound: z.array(z.string()).optional(),
                 }),
@@ -135,7 +135,7 @@ export abstract class BatchUpdateEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.object({
-                  updated: z.array(this._meta.model.schema),
+                  updated: z.array(this.getModelSchema()),
                   count: z.number(),
                   notFound: z.array(z.string()).optional(),
                   errors: z.array(z.object({

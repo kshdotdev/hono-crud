@@ -2,7 +2,7 @@ import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { CrudEndpoint } from './base';
 import { getLogger } from '../core/logger';
-import type {MetaInput, OpenAPIRouteSchema, HookMode, RelationConfig, NestedUpdateInput, NestedWriteResult} from '../core/types';
+import type {MetaInput, OpenAPIRouteSchema, HookMode, HookContext, RelationConfig, NestedUpdateInput, NestedWriteResult} from '../core/types';
 import { applyComputedFields, extractNestedData, isDirectNestedData } from '../core/types';
 import { NotFoundException } from '../core/exceptions';
 import { generateETag, matchesIfMatch } from '../core/etag';
@@ -150,7 +150,7 @@ export abstract class UpdateEndpoint<
         excludeFields = [...excludeFields, ...this.blockedUpdateFields];
       }
 
-      let schema = getSchemaFields(this._meta.model.schema, excludeFields);
+      let schema = getSchemaFields(this.getModelSchema(), excludeFields);
 
       if (this.allowedUpdateFields) {
         // Only include allowed fields
@@ -253,7 +253,7 @@ export abstract class UpdateEndpoint<
             'application/json': {
               schema: z.object({
                 success: z.literal(true),
-                result: this._meta.model.schema,
+                result: this.getModelSchema(),
               }),
             },
           },
@@ -329,22 +329,25 @@ export abstract class UpdateEndpoint<
 
   /**
    * Lifecycle hook: called before update operation.
-   * Override to transform data before saving.
+   *
+   * The optional `hookCtx` carries the in-flight transaction handle
+   * (`hookCtx.db.tx`) plus tenant/org/user/agent identifiers.
    */
   async before(
     data: Partial<ModelObject<M['model']>>,
-    _tx?: unknown
+    _hookCtx?: HookContext
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
 
   /**
-   * Lifecycle hook: called after update operation.
-   * Override to transform result before returning.
+   * Lifecycle hook: called after update operation. Throwing inside this
+   * hook rolls back the parent UPDATE only when `afterHookMode ===
+   * 'sequential'` AND the adapter wraps in a transaction.
    */
   async after(
     data: ModelObject<M['model']>,
-    _tx?: unknown
+    _hookCtx?: HookContext
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -445,10 +448,22 @@ export abstract class UpdateEndpoint<
       rawData as Record<string, unknown>
     );
 
-    // Fetch existing record for audit logging, versioning, and ETag (before update)
+    // Fetch existing record for audit logging, versioning, ETag (before update),
+    // and policy enforcement.
     let previousRecord: ModelObject<M['model']> | null = null;
-    if (this.isAuditEnabled() || this.isVersioningEnabled() || this.etagEnabled) {
+    const policies = this.getPolicies();
+    const needsExisting =
+      this.isAuditEnabled() ||
+      this.isVersioningEnabled() ||
+      this.etagEnabled ||
+      Boolean(policies?.write);
+    if (needsExisting) {
       previousRecord = await this.findExisting(lookupValue, additionalFilters);
+    }
+
+    // Run write-policy gate before any mutation. Throws 403 on denial.
+    if (previousRecord && policies?.write) {
+      await this.applyWritePolicy(previousRecord);
     }
 
     // ETag: Check If-Match for optimistic concurrency control
@@ -490,10 +505,11 @@ export abstract class UpdateEndpoint<
       (data as Record<string, unknown>)[versionField] = newVersion;
     }
 
-    data = await this.before(data);
+    const hookCtx = this.buildHookContext();
+    data = await this.before(data, hookCtx);
     data = await this.encryptOnWrite(data as Record<string, unknown>) as Partial<ModelObject<M['model']>>;
 
-    let obj = await this.update(lookupValue, data, additionalFilters);
+    let obj = await this.update(lookupValue, data, additionalFilters, hookCtx.db.tx);
 
     if (!obj) {
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
@@ -552,11 +568,12 @@ export abstract class UpdateEndpoint<
       }
     }
 
-    // Handle after hook based on mode
+    // Fire-and-forget cannot trigger rollback. Use 'sequential' to opt
+    // into transactional rollback when the adapter wraps in a tx.
     if (this.afterHookMode === 'fire-and-forget') {
-      this.runAfterResponse(Promise.resolve(this.after(obj)));
+      this.runAfterResponse(Promise.resolve(this.after(obj, hookCtx)));
     } else {
-      obj = await this.after(obj);
+      obj = await this.after(obj, hookCtx);
     }
 
     // Audit logging

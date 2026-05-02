@@ -182,7 +182,7 @@ export abstract class ImportEndpoint<
    * Returns the schema for import request body.
    */
   protected getImportSchema(): ZodObject<ZodRawShape> {
-    const baseSchema = this._meta.fields || this._meta.model.schema;
+    const baseSchema = this._meta.fields || this.getModelSchema();
 
     // Make all fields optional for partial validation
     // The actual validation will be done per-row with detailed errors
@@ -428,7 +428,7 @@ export abstract class ImportEndpoint<
     }
 
     // Validate headers against schema
-    const schema = this._meta.fields || this._meta.model.schema;
+    const schema = this._meta.fields || this.getModelSchema();
     const validation = validateCsvHeaders(result.headers, schema, {
       allowUnknownFields: true,
       optionalFields: this.optionalImportFields,
@@ -450,7 +450,7 @@ export abstract class ImportEndpoint<
     data: Partial<ModelObject<M['model']>>,
     _rowNumber: number
   ): { valid: boolean; errors?: Array<{ path: string; message: string }> } {
-    const schema = this._meta.fields || this._meta.model.schema;
+    const schema = this._meta.fields || this.getModelSchema();
 
     // Make primary keys optional for create (they can be auto-generated)
     const primaryKeys = this._meta.model.primaryKeys;

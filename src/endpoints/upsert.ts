@@ -168,7 +168,7 @@ export abstract class UpsertEndpoint<
       // For upsert, we need upsert keys to be required
       // Other fields can be optional (for partial updates)
       const upsertKeys = this.getUpsertKeys();
-      const allFields = getSchemaFields(this._meta.model.schema, []);
+      const allFields = getSchemaFields(this.getModelSchema(), []);
 
       // Make non-upsert-key fields optional
       const shape: Record<string, z.ZodTypeAny> = {};
@@ -278,7 +278,7 @@ export abstract class UpsertEndpoint<
             'application/json': {
               schema: z.object({
                 success: z.literal(true),
-                result: this._meta.model.schema,
+                result: this.getModelSchema(),
                 created: z.literal(false),
               }),
             },
@@ -290,7 +290,7 @@ export abstract class UpsertEndpoint<
             'application/json': {
               schema: z.object({
                 success: z.literal(true),
-                result: this._meta.model.schema,
+                result: this.getModelSchema(),
                 created: z.literal(true),
               }),
             },

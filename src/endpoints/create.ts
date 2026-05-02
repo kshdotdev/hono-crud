@@ -2,7 +2,7 @@ import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { CrudEndpoint } from './base';
 import { getLogger } from '../core/logger';
-import type {MetaInput, OpenAPIRouteSchema, HookMode, RelationConfig} from '../core/types';
+import type {MetaInput, OpenAPIRouteSchema, HookMode, HookContext, RelationConfig} from '../core/types';
 import { applyComputedFields, extractNestedData } from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
 
@@ -109,7 +109,7 @@ export abstract class CreateEndpoint<
     if (this._meta.fields) {
       baseSchema = this._meta.fields;
     } else {
-      baseSchema = getSchemaFields(this._meta.model.schema, excludeFields);
+      baseSchema = getSchemaFields(this.getModelSchema(), excludeFields);
     }
 
     // Add nested relation schemas
@@ -200,7 +200,7 @@ export abstract class CreateEndpoint<
             'application/json': {
               schema: z.object({
                 success: z.literal(true),
-                result: this._meta.model.schema,
+                result: this.getModelSchema(),
               }),
             },
           },
@@ -234,22 +234,29 @@ export abstract class CreateEndpoint<
 
   /**
    * Lifecycle hook: called before create operation.
-   * Override to transform data before saving.
+   *
+   * The optional `hookCtx` carries the in-flight transaction handle
+   * (`hookCtx.db.tx`) plus tenant/org/user/agent identifiers. Existing
+   * overrides typed as `(data, tx?: unknown)` continue to compile because
+   * the second param is widened to `HookContext` — `tx` becomes the
+   * `HookContext` value but is typed loosely enough to be ignored.
    */
   async before(
     data: ModelObject<M['model']>,
-    _tx?: unknown
+    _hookCtx?: HookContext
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
 
   /**
-   * Lifecycle hook: called after create operation.
-   * Override to transform result before returning.
+   * Lifecycle hook: called after create operation. When `afterHookMode ===
+   * 'sequential'` AND the adapter wraps in a transaction, throwing here
+   * rolls back the parent INSERT. The default `fire-and-forget` mode runs
+   * after the response is sent and cannot trigger rollback.
    */
   async after(
     data: ModelObject<M['model']>,
-    _tx?: unknown
+    _hookCtx?: HookContext
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -325,9 +332,10 @@ export abstract class CreateEndpoint<
     // Inject tenant ID if multi-tenancy is enabled
     obj = this.injectTenantId(obj as Record<string, unknown>) as ModelObject<M['model']>;
 
-    obj = await this.before(obj);
+    const hookCtx = this.buildHookContext();
+    obj = await this.before(obj, hookCtx);
     obj = await this.encryptOnWrite(obj as Record<string, unknown>) as ModelObject<M['model']>;
-    obj = await this.create(obj);
+    obj = await this.create(obj, hookCtx.db.tx);
     obj = await this.decryptOnRead(obj as Record<string, unknown>) as ModelObject<M['model']>;
 
     // Get the parent ID for nested writes
@@ -370,12 +378,14 @@ export abstract class CreateEndpoint<
       obj = { ...obj, ...formattedResults } as ModelObject<M['model']>;
     }
 
-    // Handle after hook based on mode
+    // Handle after hook based on mode.
+    // Fire-and-forget cannot trigger rollback because the response has
+    // already been queued. Sequential mode runs inside the parent tx
+    // (when the adapter wraps in one) — throwing rolls back the INSERT.
     if (this.afterHookMode === 'fire-and-forget') {
-      // Fire and forget - don't await
-      this.runAfterResponse(Promise.resolve(this.after(obj)));
+      this.runAfterResponse(Promise.resolve(this.after(obj, hookCtx)));
     } else {
-      obj = await this.after(obj);
+      obj = await this.after(obj, hookCtx);
     }
 
     // Audit logging

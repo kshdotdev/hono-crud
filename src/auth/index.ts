@@ -77,7 +77,28 @@ export {
   denyAll,
   allowAll,
   requireAuthenticated,
+  // Policy guard (row-level / field-level — Model.policies)
+  requirePolicy,
+  POLICIES_CONTEXT_KEY,
+  // Approval guard (Human-in-the-Loop deferred execution)
+  requireApproval,
 } from './guards';
+
+// Approval storage
+export { MemoryApprovalStorage } from './storage/approval-memory';
+export { parseIso8601Duration } from './utils/duration';
+
+// ============================================================================
+// Approval Type Exports
+// ============================================================================
+
+export type {
+  ApprovalConfig,
+  ApprovalStorage,
+  PendingAction,
+  PendingActionStatus,
+  ActionSource,
+} from './types';
 
 // ============================================================================
 // Endpoint Exports

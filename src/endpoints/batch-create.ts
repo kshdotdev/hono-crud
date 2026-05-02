@@ -52,7 +52,7 @@ export abstract class BatchCreateEndpoint<
    * Makes primary keys optional since they can be auto-generated.
    */
   protected getBodySchema(): ZodObject<ZodRawShape> {
-    const baseSchema = this._meta.fields || this._meta.model.schema;
+    const baseSchema = this._meta.fields || this.getModelSchema();
 
     // Make primary keys optional for creation
     const primaryKeys = this._meta.model.primaryKeys;
@@ -92,7 +92,7 @@ export abstract class BatchCreateEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.object({
-                  created: z.array(this._meta.model.schema),
+                  created: z.array(this.getModelSchema()),
                   count: z.number(),
                 }),
               }),
@@ -106,7 +106,7 @@ export abstract class BatchCreateEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.object({
-                  created: z.array(this._meta.model.schema),
+                  created: z.array(this.getModelSchema()),
                   count: z.number(),
                   errors: z.array(z.object({
                     index: z.number(),

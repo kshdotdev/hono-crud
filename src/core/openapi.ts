@@ -35,6 +35,35 @@ type OpenAPIRouteConstructor = new () => OpenAPIRoute<Env>;
 type OpenAPIRouteClass = new () => { getSchema(): OpenAPIRouteSchema; handle(): Promise<Response>; setContext(ctx: Context<Env>): void };
 
 /**
+ * Per-route registration data. The `routeClass` reference is what
+ * `buildPerTenantOpenApi(...)` needs to re-instantiate the route under a
+ * synthetic tenant context and re-emit per-tenant OpenAPI.
+ */
+export interface RegisteredRoute {
+  method: RouteMethod;
+  path: string;
+  schema: OpenAPIRouteSchema;
+  routeClass: OpenAPIRouteClass;
+}
+
+/**
+ * Maps a proxied `HonoOpenAPIApp` back to the `HonoOpenAPIHandler` that
+ * powers it, so `buildPerTenantOpenApi(app, ctx)` can locate the handler
+ * (and its registered routes) without requiring callers to thread the
+ * handler reference through their app construction.
+ */
+const HANDLER_REGISTRY = new WeakMap<object, HonoOpenAPIHandler<Env>>();
+
+/**
+ * Look up the `HonoOpenAPIHandler` associated with a proxied app. Internal
+ * helper for `buildPerTenantOpenApi`. Returns `undefined` for any app not
+ * created via `fromHono(...)`.
+ */
+export function getHandlerForApp(app: object): HonoOpenAPIHandler<Env> | undefined {
+  return HANDLER_REGISTRY.get(app);
+}
+
+/**
  * Type for the proxied Hono app that accepts both regular handlers and OpenAPIRoute classes.
  * This extends OpenAPIHono with method overloads for class-based routing.
  */
@@ -107,7 +136,7 @@ export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
 export class HonoOpenAPIHandler<E extends Env = Env> {
   private app: OpenAPIHono<E>;
   private options: RouterOptions;
-  private routes: Map<string, { method: RouteMethod; schema: OpenAPIRouteSchema }> = new Map();
+  protected routes: Map<string, RegisteredRoute> = new Map();
 
   constructor(app: OpenAPIHono<E>, options: RouterOptions = {}) {
     this.app = app;
@@ -135,7 +164,12 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
     const instance = new RouteConstructor();
     const schema = instance.getSchema();
 
-    this.routes.set(routeKey, { method, schema });
+    this.routes.set(routeKey, {
+      method,
+      path,
+      schema,
+      routeClass: RouteClass as unknown as OpenAPIRouteClass,
+    });
 
     // Create the zod-openapi route config
     const routeConfig = createRoute({
@@ -213,6 +247,23 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
 
   getApp(): OpenAPIHono<E> {
     return this.app;
+  }
+
+  /**
+   * Returns the routes registered with this handler. `buildPerTenantOpenApi`
+   * uses this to walk every route and re-emit the OpenAPI document under a
+   * specific tenant context.
+   */
+  getRegisteredRoutes(): ReadonlyMap<string, RegisteredRoute> {
+    return this.routes;
+  }
+
+  /**
+   * Internal helper used by `convertPath`. Exposed as protected so
+   * `buildPerTenantOpenApi` can produce identical OpenAPI paths.
+   */
+  toOpenApiPath(path: string): string {
+    return this.convertPath(path);
   }
 }
 
@@ -295,5 +346,6 @@ export function fromHono<E extends Env = Env>(
     },
   });
 
+  HANDLER_REGISTRY.set(proxy, handler as unknown as HonoOpenAPIHandler<Env>);
   return proxy as HonoOpenAPIApp<E>;
 }

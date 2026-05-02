@@ -438,3 +438,119 @@ export interface EndpointAuthConfig {
    */
   authorize?: AuthorizationCheck;
 }
+
+// ============================================================================
+// Approval (Human-in-the-Loop deferred execution)
+// ============================================================================
+
+/**
+ * Origin of an action that triggered an approval request. Distinguishes
+ * "human user via HTTP" from "agent acting on behalf of a user via MCP",
+ * etc., so audit logs and approver UIs can render the right context.
+ */
+export type ActionSource =
+  | 'http'
+  | 'agent-mcp'
+  | 'agent-code-mode'
+  | 'workflow'
+  | 'job'
+  | 'system';
+
+/**
+ * Lifecycle state of a pending action.
+ */
+export type PendingActionStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+
+/**
+ * A deferred-execution record written by `requireApproval(...)` on the
+ * first call. The middleware looks it up on the resume call (when the
+ * client re-invokes the same handler with `body[resumeMarker] = id`),
+ * verifies status === 'approved' AND not expired, then replays the
+ * original `input` into the handler.
+ *
+ * Carries full actor identity so audit logs can distinguish human vs.
+ * agent vs. agent-on-behalf-of-user.
+ */
+export interface PendingAction {
+  /** Unique ID, UUID v4 (Web Crypto). */
+  id: string;
+  /** Tenant scope, when the request was tenant-scoped. */
+  tenantId?: string;
+  /** Organization scope. */
+  organizationId?: string;
+  /** Convenience copy of `actorUserId`. */
+  userId?: string;
+  /** The human user who *initiated* the action (or null for system). */
+  actorUserId?: string;
+  /** When an agent runs on behalf of a user, the user it represents. */
+  onBehalfOfUserId?: string;
+  /** Identifier of the agent that produced the action, when applicable. */
+  agentId?: string;
+  /** Identifier of the agent-run / conversation, when applicable. */
+  agentRunId?: string;
+  /** MCP tool-call identifier, when the action came through MCP. */
+  toolCallId?: string;
+  /** Origin of the action (HTTP, agent, workflow, …). */
+  source: ActionSource;
+  /** Endpoint or tool name being approved. */
+  toolName: string;
+  /**
+   * Original request input (typed `unknown` because it varies per tool —
+   * `requireApproval` doesn't constrain it). Replayed verbatim on resume.
+   */
+  input: unknown;
+  /** Lifecycle state. */
+  status: PendingActionStatus;
+  /** ISO 8601 — when the request was logged. */
+  createdAt: string;
+  /** ISO 8601 — when the request expires. After this it should not be replayed. */
+  expiresAt: string;
+  /** Reason shown to the approver. */
+  reason: string;
+  /** Identifier of the user who approved (if any). */
+  approvedBy?: string;
+  /** ISO 8601 — when the action was approved. */
+  approvedAt?: string;
+  /** Identifier of the user who rejected (if any). */
+  rejectedBy?: string;
+  /** Reason given for rejection. */
+  rejectedReason?: string;
+}
+
+/**
+ * Pluggable storage interface for pending actions. Ship a Memory backend
+ * for prototyping; downstream consumers provide their own
+ * Postgres / D1 / Durable Object backed implementation.
+ */
+export interface ApprovalStorage {
+  /** Persist a freshly-created PendingAction. */
+  create(action: PendingAction): Promise<void>;
+  /** Look up a PendingAction by id. Returns null if missing OR expired. */
+  get(actionId: string): Promise<PendingAction | null>;
+  /** Mark approved. Throws / rejects if the action is missing or terminal. */
+  approve(actionId: string, by: string): Promise<void>;
+  /** Mark rejected with a reason. */
+  reject(actionId: string, by: string, reason: string): Promise<void>;
+}
+
+/**
+ * Configuration for `requireApproval(...)`.
+ */
+export interface ApprovalConfig {
+  /** Reason text shown to the approver in the inbox UI. */
+  reason: string;
+  /** ISO 8601 duration string (e.g. `'P1D'`, `'PT2H'`). @default 'P1D' */
+  expiresAfter?: string;
+  /** Storage backend. @default `new MemoryApprovalStorage()` */
+  approvalStorage?: ApprovalStorage;
+  /**
+   * Body field whose presence flags a resume call. The value is the
+   * actionId to look up. @default '_resume_'
+   */
+  resumeMarker?: string;
+  /**
+   * Optional human-readable name for the action (defaults to the request
+   * method + path). Surfaces on `PendingAction.toolName`.
+   */
+  toolName?: string;
+}

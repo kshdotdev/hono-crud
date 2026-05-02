@@ -172,7 +172,7 @@ export abstract class ListEndpoint<
    * Gets the list of fields available for selection.
    */
   protected getAvailableSelectFields(): string[] {
-    const schemaFields = Object.keys(this._meta.model.schema.shape);
+    const schemaFields = Object.keys(this.getModelSchema().shape);
     const computedFields = this._meta.model.computedFields
       ? Object.keys(this._meta.model.computedFields)
       : [];
@@ -211,7 +211,7 @@ export abstract class ListEndpoint<
             'application/json': {
               schema: z.object({
                 success: z.literal(true),
-                result: z.array(this._meta.model.schema),
+                result: z.array(this.getModelSchema()),
                 result_info: z.object({
                   page: z.number(),
                   per_page: z.number(),
@@ -316,6 +316,10 @@ export abstract class ListEndpoint<
       });
     }
 
+    // Inject policy `readPushdown` filters (cheap perf opt-in: lets the
+    // adapter exclude rows at the SQL level rather than post-fetch).
+    this.applyReadPushdown(filters);
+
     const paginatedResult = await this.list(filters);
 
     // Decrypt encrypted fields on each record before further processing
@@ -323,7 +327,13 @@ export abstract class ListEndpoint<
       paginatedResult.result.map((r) => this.decryptOnRead(r as Record<string, unknown>))
     );
 
-    let items = await this.after(decrypted as ModelObject<M['model']>[]);
+    // Apply policy `read` predicate post-fetch (catches whatever the
+    // pushdown couldn't express) and `fields` mask. No-op when no policies.
+    const policyFiltered = await this.applyReadPolicyToArray(
+      decrypted as ModelObject<M['model']>[]
+    );
+
+    let items = await this.after(policyFiltered);
 
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {

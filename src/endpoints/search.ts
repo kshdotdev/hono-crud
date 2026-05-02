@@ -184,7 +184,7 @@ export abstract class SearchEndpoint<
     }
 
     // Default to all string fields in the schema
-    const schemaShape = this._meta.model.schema.shape;
+    const schemaShape = this.getModelSchema().shape;
     const fields: Record<string, SearchFieldConfig> = {};
 
     for (const [key, zodType] of Object.entries(schemaShape)) {
@@ -278,7 +278,7 @@ export abstract class SearchEndpoint<
    * Gets the list of fields available for selection.
    */
   protected getAvailableSelectFields(): string[] {
-    const schemaFields = Object.keys(this._meta.model.schema.shape);
+    const schemaFields = Object.keys(this.getModelSchema().shape);
     const computedFields = this._meta.model.computedFields
       ? Object.keys(this._meta.model.computedFields)
       : [];
@@ -304,7 +304,7 @@ export abstract class SearchEndpoint<
    */
   getSchema(): OpenAPIRouteSchema {
     const searchResultItemSchema = z.object({
-      item: this._meta.model.schema,
+      item: this.getModelSchema(),
       score: z.number().min(0).max(1),
       highlights: z.record(z.string(), z.array(z.string())).optional(),
       matchedFields: z.array(z.string()),
