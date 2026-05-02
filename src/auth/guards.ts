@@ -12,7 +12,6 @@ import type {
 import { ForbiddenException, UnauthorizedException } from '../core/exceptions';
 import { getContextVar, setContextVar } from '../utils/context';
 import type { ModelPolicies } from '../core/types';
-import { MemoryApprovalStorage } from './storage/approval-memory';
 import { parseIso8601Duration } from './utils/duration';
 
 /**
@@ -402,12 +401,6 @@ export function requirePolicy<T = unknown, E extends AuthEnv = AuthEnv>(
 // ============================================================================
 
 /**
- * Default storage instance — process-local Map. Consumers should pass their
- * own (Postgres / Durable Object backed) `ApprovalStorage` for production.
- */
-const defaultApprovalStorage = new MemoryApprovalStorage();
-
-/**
  * Build a `requireApproval(...)` middleware for human-in-the-loop deferred
  * execution.
  *
@@ -439,7 +432,7 @@ const defaultApprovalStorage = new MemoryApprovalStorage();
 export function requireApproval<E extends AuthEnv = AuthEnv>(
   config: ApprovalConfig
 ): MiddlewareHandler<E> {
-  const storage: ApprovalStorage = config.approvalStorage ?? defaultApprovalStorage;
+  const storage: ApprovalStorage = config.approvalStorage;
   const resumeMarker = config.resumeMarker ?? '_resume_';
   const expireMs = parseIso8601Duration(config.expiresAfter ?? 'P1D');
 

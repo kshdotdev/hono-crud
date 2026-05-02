@@ -256,7 +256,7 @@ export abstract class DeleteEndpoint<
    */
   async before(
     _lookupValue: string,
-    _hookCtx?: HookContext
+    _hookCtx: HookContext
   ): Promise<void> {
     // Override in subclass
   }
@@ -265,11 +265,14 @@ export abstract class DeleteEndpoint<
    * Lifecycle hook: called after delete operation. Throwing inside this
    * hook rolls back the parent DELETE only when `afterHookMode ===
    * 'sequential'` AND the adapter wraps in a transaction.
+   *
+   * `cascadeResult` is `undefined` when the deleted record had no
+   * primary-key value (cascade processing was skipped).
    */
   async after(
     _deletedItem: ModelObject<M['model']>,
-    _cascadeResult?: CascadeResult,
-    _hookCtx?: HookContext
+    _cascadeResult: CascadeResult | undefined,
+    _hookCtx: HookContext
   ): Promise<void> {
     // Override in subclass
   }

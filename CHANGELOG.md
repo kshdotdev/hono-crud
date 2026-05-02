@@ -53,14 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Hooks `before(data, _tx?)` / `after(data, _tx?)` on Create / Update /
-  Delete now receive a `HookContext` as the second argument instead of a
-  bare tx handle. Existing overrides typed as `(data, _tx?: unknown)`
-  remain compile-compatible — the second param is widened to `HookContext`.
-  When `useTransaction === true` (Drizzle adapter) AND `afterHookMode ===
-  'sequential'` (the default), throwing in an `after*` hook rolls back the
-  parent INSERT / UPDATE / DELETE — enables event-outbox patterns where
-  hook-emitted side effects must rollback alongside the parent write.
+- Hooks `before` / `after` on Create / Update / Delete receive a required
+  `HookContext` as the second argument carrying the in-flight tx handle
+  plus actor identity. When `useTransaction === true` (Drizzle adapter)
+  AND `afterHookMode === 'sequential'` (the default), throwing in an
+  `after*` hook rolls back the parent INSERT / UPDATE / DELETE — enables
+  event-outbox patterns where hook-emitted side effects must rollback
+  alongside the parent write.
 - `CrudEventPayload` adds optional `tenantId` and `organizationId`. The
   emitter populates both from the conventional `c.var` slots so subscribers
   can fan out per-tenant without re-deriving identity from the record body.
@@ -91,11 +90,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `OpenAPIRoute.getValidatedData()` (via `CrudEndpoint`) now resolves the
-  per-tenant schema (if configured) and re-validates request bodies against
-  the resolved schema. The resolver runs at most once per request — results
-  are memoized on the Hono context. Endpoints with no resolver behave
-  identically to 0.5.x.
+- `OpenAPIRoute.getValidatedData()` (via `CrudEndpoint`) resolves the
+  per-tenant schema (if configured) and re-validates request bodies
+  against the endpoint's `getBodySchema()` on every request — single
+  code path regardless of whether a resolver is set. Resolver invocation
+  is memoized on the Hono context (at most once per request).
 - Schema-emission paths in every CRUD endpoint route through a new
   `getModelSchema()` accessor instead of reading `_meta.model.schema`
   directly, so per-tenant schemas surface in body validation, OpenAPI

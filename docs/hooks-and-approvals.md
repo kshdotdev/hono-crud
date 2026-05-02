@@ -168,13 +168,21 @@ override async after(order, hookCtx) {
 }
 ```
 
-### Backwards compatibility
+### Override signature
 
-The `before(data, _tx?)` / `after(data, _tx?)` signatures pre-0.7.0
-accepted a bare `_tx?: unknown` as the second argument. Existing
-overrides typed that way **continue to compile** — the second parameter
-widened to `HookContext`, which still satisfies `unknown`. New code
-should type the parameter explicitly as `HookContext`.
+Hooks accept the `HookContext` as a **required** second parameter:
+
+```ts
+override async after(data: User, hookCtx: HookContext): Promise<User> {
+  await drizzle(hookCtx.db.tx).insert(audit).values({...});
+  return data;
+}
+```
+
+There's no optional / "legacy without ctx" form — the lib is pre-1.0
+and the API was designed with the context in place rather than added as
+an afterthought. Override authors should always declare the parameter,
+even if they only use it in some branches.
 
 ---
 
@@ -213,7 +221,10 @@ The middleware intercepts BEFORE the handler runs:
 2. Detects no `_resume_` field → fresh request.
 3. Pulls actor identity from `c.var.*` (`userId`, `agentId`,
    `agentRunId`, `toolCallId`, optional `actionSource`).
-4. Persists a `PendingAction` to the configured `ApprovalStorage`:
+4. Persists a `PendingAction` to the **required** `ApprovalStorage`
+   (the lib does not default to in-memory — consumers must construct
+   their backend explicitly to avoid silent process-local state in
+   multi-instance deploys):
 
    ```ts
    {

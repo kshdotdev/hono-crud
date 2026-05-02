@@ -243,7 +243,7 @@ export abstract class CreateEndpoint<
    */
   async before(
     data: ModelObject<M['model']>,
-    _hookCtx?: HookContext
+    _hookCtx: HookContext
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -256,7 +256,7 @@ export abstract class CreateEndpoint<
    */
   async after(
     data: ModelObject<M['model']>,
-    _hookCtx?: HookContext
+    _hookCtx: HookContext
   ): Promise<ModelObject<M['model']>> {
     return data;
   }

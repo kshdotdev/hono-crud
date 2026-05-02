@@ -541,8 +541,13 @@ export interface ApprovalConfig {
   reason: string;
   /** ISO 8601 duration string (e.g. `'P1D'`, `'PT2H'`). @default 'P1D' */
   expiresAfter?: string;
-  /** Storage backend. @default `new MemoryApprovalStorage()` */
-  approvalStorage?: ApprovalStorage;
+  /**
+   * Storage backend. **Required** — pass `new MemoryApprovalStorage()`
+   * for tests or your own durable implementation for production.
+   * Deliberately not defaulted so consumers can't accidentally end up
+   * with process-local in-memory storage in a multi-instance deploy.
+   */
+  approvalStorage: ApprovalStorage;
   /**
    * Body field whose presence flags a resume call. The value is the
    * actionId to look up. @default '_resume_'

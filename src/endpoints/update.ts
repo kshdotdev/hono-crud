@@ -335,7 +335,7 @@ export abstract class UpdateEndpoint<
    */
   async before(
     data: Partial<ModelObject<M['model']>>,
-    _hookCtx?: HookContext
+    _hookCtx: HookContext
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -347,7 +347,7 @@ export abstract class UpdateEndpoint<
    */
   async after(
     data: ModelObject<M['model']>,
-    _hookCtx?: HookContext
+    _hookCtx: HookContext
   ): Promise<ModelObject<M['model']>> {
     return data;
   }

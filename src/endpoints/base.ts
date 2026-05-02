@@ -500,32 +500,32 @@ export abstract class CrudEndpoint<
 
   /**
    * Override of `OpenAPIRoute.getValidatedData()` that resolves the
-   * per-tenant schema (if `Model.resolveSchema` is configured) before
-   * reading validated request data, then re-validates the body against the
-   * endpoint's `getBodySchema()` so per-tenant fields are enforced beyond
-   * zod-openapi's static-schema pre-validation.
+   * per-tenant schema (`Model.resolveSchema` if configured), then
+   * re-validates the body against the endpoint's `getBodySchema()`.
    *
-   * Reads body from the raw request (`ctx.req.json()`) when the resolver
-   * is active so fields the static body schema would have stripped are
-   * preserved for the resolved-schema parse. Hono caches the parsed JSON
-   * body, so repeated calls don't re-consume the request stream.
+   * Single code path — runs whether or not a resolver is configured.
+   * For the static-schema case the re-parse is a no-op against the same
+   * Zod instance zod-openapi already validated against; the cost is a
+   * few hundred nanoseconds and buys one consistent path to test.
    *
-   * When no resolver is set this is a thin pass-through to the parent
-   * implementation — same behavior as before 0.6.0.
+   * Reads body from the raw request (`ctx.req.json()`) so fields the
+   * static body schema would have stripped survive into the
+   * resolved-schema parse. Hono caches the parsed JSON body, so repeated
+   * calls don't re-consume the request stream.
    */
   override async getValidatedData<T = unknown>(): Promise<ValidatedData<T>> {
     await this.resolveModelSchema();
     const data = await super.getValidatedData<T>();
 
-    if (this._meta.model.resolveSchema && this.context && data.body !== undefined) {
+    if (this.context && data.body !== undefined) {
       const candidate = this as { getBodySchema?: () => ZodObject<ZodRawShape> };
       if (typeof candidate.getBodySchema === 'function') {
         let rawBody: unknown = data.body;
         try {
           rawBody = await this.context.req.json();
         } catch {
-          // Fall back to the static-schema-validated body if raw JSON read
-          // fails (e.g. body already consumed in an unusual middleware setup).
+          // Fall back to the static-schema-validated body if the raw JSON
+          // read fails (e.g. body already consumed in an unusual setup).
         }
         const bodySchema = candidate.getBodySchema();
         const parsed = bodySchema.safeParse(rawBody);
