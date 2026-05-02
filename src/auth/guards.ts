@@ -13,6 +13,32 @@ import { ForbiddenException, UnauthorizedException } from '../core/exceptions';
 import { getContextVar, setContextVar } from '../utils/context';
 import type { ModelPolicies } from '../core/types';
 import { parseIso8601Duration } from './utils/duration';
+import { MemoryApprovalStorage } from './storage/approval-memory';
+import { getLogger } from '../core/logger';
+
+/**
+ * Process-local fallback storage used when `requireApproval(...)` is
+ * called without an explicit `approvalStorage`. Lazy-instantiated so
+ * apps that always pass storage never construct it.
+ */
+let _defaultApprovalStorage: MemoryApprovalStorage | undefined;
+let _warnedAboutDefaultApprovalStorage = false;
+
+function getDefaultApprovalStorage(): MemoryApprovalStorage {
+  if (!_defaultApprovalStorage) {
+    _defaultApprovalStorage = new MemoryApprovalStorage();
+  }
+  if (!_warnedAboutDefaultApprovalStorage) {
+    _warnedAboutDefaultApprovalStorage = true;
+    getLogger().warn(
+      'requireApproval: no approvalStorage configured — using process-local in-memory storage. ' +
+      'NOT safe for multi-instance / serverless / edge-isolate deployments where phase 1 and ' +
+      'phase 2 may hit different processes. Pass an explicit approvalStorage (e.g. ' +
+      'PostgresApprovalStorage) for production. This warning is logged once per process.'
+    );
+  }
+  return _defaultApprovalStorage;
+}
 
 /**
  * Storage key under `c.var` for the policies object set by `requirePolicy`.
@@ -432,7 +458,7 @@ export function requirePolicy<T = unknown, E extends AuthEnv = AuthEnv>(
 export function requireApproval<E extends AuthEnv = AuthEnv>(
   config: ApprovalConfig
 ): MiddlewareHandler<E> {
-  const storage: ApprovalStorage = config.approvalStorage;
+  const storage: ApprovalStorage = config.approvalStorage ?? getDefaultApprovalStorage();
   const resumeMarker = config.resumeMarker ?? '_resume_';
   const expireMs = parseIso8601Duration(config.expiresAfter ?? 'P1D');
 

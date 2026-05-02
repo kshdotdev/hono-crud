@@ -542,12 +542,16 @@ export interface ApprovalConfig {
   /** ISO 8601 duration string (e.g. `'P1D'`, `'PT2H'`). @default 'P1D' */
   expiresAfter?: string;
   /**
-   * Storage backend. **Required** — pass `new MemoryApprovalStorage()`
-   * for tests or your own durable implementation for production.
-   * Deliberately not defaulted so consumers can't accidentally end up
-   * with process-local in-memory storage in a multi-instance deploy.
+   * Storage backend. Optional — when omitted, the lib uses a
+   * process-local `MemoryApprovalStorage` singleton so single-server
+   * POCs and tutorials work zero-config. **First use of the default
+   * emits a one-time warning via `getLogger()`** to surface the fact
+   * that pending actions live in process memory and won't survive a
+   * restart or load-balancer hop. For production multi-instance
+   * deployments, pass a durable `ApprovalStorage` (Postgres, D1,
+   * Durable Objects, etc.) explicitly.
    */
-  approvalStorage: ApprovalStorage;
+  approvalStorage?: ApprovalStorage;
   /**
    * Body field whose presence flags a resume call. The value is the
    * actionId to look up. @default '_resume_'

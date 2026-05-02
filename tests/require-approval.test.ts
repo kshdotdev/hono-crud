@@ -197,6 +197,32 @@ describe('requireApproval middleware', () => {
   });
 });
 
+describe('requireApproval default storage', () => {
+  it('falls back to a process-local in-memory store when approvalStorage is omitted', async () => {
+    const app = new Hono();
+    app.onError((err, c) => {
+      if (err instanceof ApiException) return c.json(err.toJSON(), err.status);
+      return c.json({ error: err.message }, 500);
+    });
+    app.post(
+      '/quick',
+      // No approvalStorage — POC path. Lib uses an internal singleton.
+      requireApproval({ reason: 'POC' }),
+      (c) => c.json({ ok: true })
+    );
+
+    // First call → 202 + actionId (handler does NOT run)
+    const res1 = await app.request('/quick', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload: 'data' }),
+    });
+    expect(res1.status).toBe(202);
+    const json = await res1.json() as { actionId: string };
+    expect(json.actionId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
 describe('parseIso8601Duration', () => {
   it.each([
     ['P1D', 86_400_000],

@@ -31,7 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the action's `_resume_<id>` field in the body, after approval,
   replays the original input into the handler.
 - `MemoryApprovalStorage` — reference `ApprovalStorage` implementation
-  with lazy expiry on `get()` (no `setInterval` — edge-safe).
+  with lazy expiry on `get()` (no `setInterval` — edge-safe). Used as
+  the process-local fallback when `requireApproval` is called without
+  an explicit `approvalStorage` (POC / single-server use). First use
+  of the fallback emits a one-time warning via `getLogger()` so
+  deploying it to multi-instance prod isn't silent.
 - `PendingAction` carries full actor identity (`actorUserId`,
   `onBehalfOfUserId`, `agentId`, `agentRunId`, `toolCallId`, `source`)
   pulled from `c.var` so audit logs distinguish human vs. agent vs.
