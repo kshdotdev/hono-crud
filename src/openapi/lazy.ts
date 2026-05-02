@@ -126,6 +126,10 @@ export async function buildPerTenantOpenApi(
         200: {
           description: 'Success',
           content: {
+            // `z.unknown()` is the placeholder that satisfies the
+            // edge-safety static scan (`z.any()` is banned in
+            // `tests/edge-safety.test.ts`). Both serialize to the same
+            // unconstrained OpenAPI schema for documentation purposes.
             'application/json': { schema: z.unknown() },
           },
         },

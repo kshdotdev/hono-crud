@@ -471,51 +471,60 @@ export type PendingActionStatus = 'pending' | 'approved' | 'rejected' | 'expired
  * Carries full actor identity so audit logs can distinguish human vs.
  * agent vs. agent-on-behalf-of-user.
  */
-export interface PendingAction {
+/**
+ * Zod schema for `PendingAction`. Use this in storage adapters to
+ * validate rows read from durable backends (Postgres / D1 / Durable
+ * Object) — protects against schema drift between adapter versions.
+ *
+ * The TypeScript `PendingAction` type below is **derived from this
+ * schema** (`z.infer<typeof PendingActionSchema>`) so the schema is
+ * the single source of truth: you can't add a field to the interface
+ * without also adding it to the validator (and vice versa).
+ */
+export const PendingActionSchema = z.object({
   /** Unique ID, UUID v4 (Web Crypto). */
-  id: string;
+  id: z.string(),
   /** Tenant scope, when the request was tenant-scoped. */
-  tenantId?: string;
+  tenantId: z.string().optional(),
   /** Organization scope. */
-  organizationId?: string;
+  organizationId: z.string().optional(),
   /** Convenience copy of `actorUserId`. */
-  userId?: string;
+  userId: z.string().optional(),
   /** The human user who *initiated* the action (or null for system). */
-  actorUserId?: string;
+  actorUserId: z.string().optional(),
   /** When an agent runs on behalf of a user, the user it represents. */
-  onBehalfOfUserId?: string;
+  onBehalfOfUserId: z.string().optional(),
   /** Identifier of the agent that produced the action, when applicable. */
-  agentId?: string;
+  agentId: z.string().optional(),
   /** Identifier of the agent-run / conversation, when applicable. */
-  agentRunId?: string;
+  agentRunId: z.string().optional(),
   /** MCP tool-call identifier, when the action came through MCP. */
-  toolCallId?: string;
+  toolCallId: z.string().optional(),
   /** Origin of the action (HTTP, agent, workflow, …). */
-  source: ActionSource;
+  source: z.enum(['http', 'agent-mcp', 'agent-code-mode', 'workflow', 'job', 'system']),
   /** Endpoint or tool name being approved. */
-  toolName: string;
-  /**
-   * Original request input (typed `unknown` because it varies per tool —
-   * `requireApproval` doesn't constrain it). Replayed verbatim on resume.
-   */
-  input: unknown;
+  toolName: z.string(),
+  /** Original request input — varies per tool, replayed verbatim on resume. */
+  input: z.unknown(),
   /** Lifecycle state. */
-  status: PendingActionStatus;
+  status: z.enum(['pending', 'approved', 'rejected', 'expired']),
   /** ISO 8601 — when the request was logged. */
-  createdAt: string;
+  createdAt: z.iso.datetime(),
   /** ISO 8601 — when the request expires. After this it should not be replayed. */
-  expiresAt: string;
+  expiresAt: z.iso.datetime(),
   /** Reason shown to the approver. */
-  reason: string;
+  reason: z.string(),
   /** Identifier of the user who approved (if any). */
-  approvedBy?: string;
+  approvedBy: z.string().optional(),
   /** ISO 8601 — when the action was approved. */
-  approvedAt?: string;
+  approvedAt: z.iso.datetime().optional(),
   /** Identifier of the user who rejected (if any). */
-  rejectedBy?: string;
+  rejectedBy: z.string().optional(),
   /** Reason given for rejection. */
-  rejectedReason?: string;
-}
+  rejectedReason: z.string().optional(),
+});
+
+export type PendingAction = z.infer<typeof PendingActionSchema>;
 
 /**
  * Pluggable storage interface for pending actions. Ship a Memory backend

@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
+import { z } from 'zod';
 import type {
   AuthEnv,
   AuthorizationCheck,
@@ -470,6 +471,12 @@ export function requireApproval<E extends AuthEnv = AuthEnv>(
   const resumeMarker = config.resumeMarker ?? '_resume_';
   const expireMs = parseIso8601Duration(config.expiresAfter ?? 'P1D');
 
+  // Tiny per-marker schema: the resume body must be `{ [resumeMarker]:
+  // string, ...rest }`. `.loose()` keeps unknown fields in the parsed
+  // output (we only read `[resumeMarker]` here) so callers that submit
+  // additional metadata aren't silently stripped.
+  const ResumeBodySchema = z.object({ [resumeMarker]: z.string() }).loose();
+
   return async (ctx, next) => {
     let body: Record<string, unknown> = {};
     try {
@@ -482,8 +489,8 @@ export function requireApproval<E extends AuthEnv = AuthEnv>(
       // a marker, so missing body means not a resume.
     }
 
-    const resumeCandidate = body[resumeMarker];
-    const resumeId = typeof resumeCandidate === 'string' ? resumeCandidate : undefined;
+    // Validate the resume marker via Zod — single line, narrowed type.
+    const resumeId = ResumeBodySchema.safeParse(body).data?.[resumeMarker];
 
     // -------- Resume path ---------------------------------------------------
     if (resumeId) {
