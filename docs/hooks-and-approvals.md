@@ -1,7 +1,6 @@
 # Transactional hooks, approvals, and event delivery
 
-This guide covers three orthogonal-but-composable mechanisms added in 0.6.0
-+ 0.7.0:
+This guide covers three orthogonal-but-composable mechanisms:
 
 1. **Transactional hooks** (`HookContext.db.tx`) — make `before`/`after`
    hooks participate in the same DB transaction as the parent write.
@@ -134,7 +133,8 @@ Three conditions, all required:
 1. The adapter wraps in a real transaction. **Drizzle adapter** does this
    when `useTransaction = true`. **Memory adapter** does NOT (no real
    transactions — see sentinel below). **Prisma adapter** does not auto-
-   wrap as of 0.7.0; if you need this for Prisma, override `handle()` to
+   wrap (the `useTransaction` flag exists but `handle()` is not overridden);
+   if you need this for Prisma, override `handle()` to
    wrap with `prisma.$transaction(...)`.
 2. `afterHookMode === 'sequential'` (the default). The `after()` hook
    runs INSIDE the transaction.
@@ -1067,14 +1067,14 @@ addition would be a 5th method on `ApprovalStorage`:
 markConsumed(id: string): Promise<void>;
 ```
 
-Not in 0.7.0 — left as a deliberate extension point for v0.8 once
+Not in this release — left as a deliberate extension point until
 consumption semantics are exercised in practice.
 
 ### Multi-approver flows ("requires 2 of 3 senior managers")
 
 The current `approve(id, by)` is single-approver. Multi-party would
 need a new method (`recordApproval(id, by)` that aggregates) and a
-configurable quorum on `ApprovalConfig`. Out of scope for 0.7.0;
+configurable quorum on `ApprovalConfig`. Out of scope for this release;
 achievable as an additive interface evolution because consumers
 implement the storage themselves.
 
