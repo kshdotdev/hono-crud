@@ -58,9 +58,9 @@ const UserModel = defineModel({
   table: users,
   softDelete: true,
   relations: {
-    posts: { type: 'hasMany', model: 'posts', foreignKey: 'authorId' },
-    profile: { type: 'hasOne', model: 'profiles', foreignKey: 'userId' },
-    comments: { type: 'hasMany', model: 'comments', foreignKey: 'authorId' },
+    posts: { type: 'hasMany', model: 'posts', table: posts, foreignKey: 'authorId' },
+    profile: { type: 'hasOne', model: 'profiles', table: profiles, foreignKey: 'userId' },
+    comments: { type: 'hasMany', model: 'comments', table: comments, foreignKey: 'authorId' },
   },
 });
 
@@ -71,8 +71,8 @@ const PostModel = defineModel({
   table: posts,
   softDelete: true,
   relations: {
-    author: { type: 'belongsTo', model: 'users', foreignKey: 'authorId', localKey: 'id' },
-    comments: { type: 'hasMany', model: 'comments', foreignKey: 'postId' },
+    author: { type: 'belongsTo', model: 'users', table: users, foreignKey: 'authorId', localKey: 'id' },
+    comments: { type: 'hasMany', model: 'comments', table: comments, foreignKey: 'postId' },
   },
 });
 
@@ -82,7 +82,7 @@ const ProfileModel = defineModel({
   primaryKeys: ['id'],
   table: profiles,
   relations: {
-    user: { type: 'belongsTo', model: 'users', foreignKey: 'userId', localKey: 'id' },
+    user: { type: 'belongsTo', model: 'users', table: users, foreignKey: 'userId', localKey: 'id' },
   },
 });
 
@@ -92,8 +92,8 @@ const CommentModel = defineModel({
   primaryKeys: ['id'],
   table: comments,
   relations: {
-    post: { type: 'belongsTo', model: 'posts', foreignKey: 'postId', localKey: 'id' },
-    author: { type: 'belongsTo', model: 'users', foreignKey: 'authorId', localKey: 'id' },
+    post: { type: 'belongsTo', model: 'posts', table: posts, foreignKey: 'postId', localKey: 'id' },
+    author: { type: 'belongsTo', model: 'users', table: users, foreignKey: 'authorId', localKey: 'id' },
   },
 });
 
@@ -340,7 +340,7 @@ class CategoryUpsert extends DrizzleUpsertEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // Users (full CRUD + batch)
 registerCrud(app, '/users', {
@@ -484,11 +484,9 @@ app.get('/health', (c) => c.json({ status: 'ok', adapter: 'drizzle', database: '
 // Start Server
 // ============================================================================
 
-const port = Number(process.env.PORT) || 3456;
-
-initDb()
-  .then(() => {
-    console.log(`
+export async function start(port: number = Number(process.env.PORT) || 3456): Promise<void> {
+  await initDb();
+  console.log(`
 === Comprehensive Example (Drizzle + PostgreSQL) ===
 
 Server running at http://localhost:${port}
@@ -534,9 +532,12 @@ curl -X PUT http://localhost:${port}/categories -H "Content-Type: application/js
   -d '{"name":"Music","description":"Music posts","sortOrder":4}'
 `);
 
-    serve({ fetch: app.fetch, port });
-  })
-  .catch((err) => {
+  serve({ fetch: app.fetch, port });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start().catch((err) => {
     console.error('Failed to initialize database:', err);
     process.exit(1);
   });
+}

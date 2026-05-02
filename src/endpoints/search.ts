@@ -1,7 +1,7 @@
 import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema, SearchOptions, SearchResult, SearchResultItem, SearchMode, SearchFieldConfig} from '../core/types';
+import type { FilterConfig, MetaInput, OpenAPIRouteSchema, SearchOptions, SearchResult, SearchResultItem, SearchMode, SearchFieldConfig } from '../core/types';
 import { parseSearchMode } from '../core/types';
 import {
   parseListFilters,
@@ -109,7 +109,7 @@ export abstract class SearchEndpoint<
   protected filterFields: string[] = [];
 
   /** Filter configuration with allowed operators per field */
-  protected filterConfig?: Record<string, Array<'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'ilike' | 'null' | 'between'>>;
+  protected filterConfig?: FilterConfig;
 
   /** Fields that can be used for sorting. Use with ?sort=fieldName */
   protected sortFields: string[] = [];

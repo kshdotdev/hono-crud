@@ -84,8 +84,8 @@ const TaskSchema = z.object({
   description: z.string().nullable().optional(),
   status: z.enum(['todo', 'in_progress', 'done']).default('todo'),
   priority: z.number().int().min(0).max(5).default(0),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
 });
 
 const TaskModel = defineModel({
@@ -96,6 +96,7 @@ const TaskModel = defineModel({
 });
 
 const taskMeta = defineMeta({ model: TaskModel });
+type Task = z.infer<typeof TaskSchema>;
 
 // ============================================================================
 // Cloudflare Workers Bindings
@@ -118,16 +119,25 @@ type Env = { Bindings: Bindings };
  * so we use a placeholder here and override in `before()`.
  */
 
-class TaskCreate extends createDrizzleCrud(null as unknown as DrizzleDatabase, taskMeta).Create {
+const TaskCrud = createDrizzleCrud<typeof taskMeta, Env>(
+  undefined as unknown as DrizzleDatabase,
+  taskMeta
+);
+
+class TaskCreate extends TaskCrud.Create {
   schema = {
     tags: ['Tasks'],
     summary: 'Create a task',
   };
 
+  protected override getDb(): DrizzleDatabase {
+    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabase;
+  }
+
   /**
    * Generate UUID and timestamps since D1/SQLite lacks gen_random_uuid().
    */
-  async before(data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async before(data: Task): Promise<Task> {
     const now = new Date().toISOString();
     return {
       ...data,
@@ -138,7 +148,7 @@ class TaskCreate extends createDrizzleCrud(null as unknown as DrizzleDatabase, t
   }
 }
 
-class TaskList extends createDrizzleCrud(null as unknown as DrizzleDatabase, taskMeta).List {
+class TaskList extends TaskCrud.List {
   schema = {
     tags: ['Tasks'],
     summary: 'List tasks',
@@ -157,16 +167,24 @@ class TaskList extends createDrizzleCrud(null as unknown as DrizzleDatabase, tas
 
   defaultPerPage = 20;
   maxPerPage = 100;
+
+  protected override getDb(): DrizzleDatabase {
+    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabase;
+  }
 }
 
-class TaskRead extends createDrizzleCrud(null as unknown as DrizzleDatabase, taskMeta).Read {
+class TaskRead extends TaskCrud.Read {
   schema = {
     tags: ['Tasks'],
     summary: 'Get a task by ID',
   };
+
+  protected override getDb(): DrizzleDatabase {
+    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabase;
+  }
 }
 
-class TaskUpdate extends createDrizzleCrud(null as unknown as DrizzleDatabase, taskMeta).Update {
+class TaskUpdate extends TaskCrud.Update {
   schema = {
     tags: ['Tasks'],
     summary: 'Update a task',
@@ -174,7 +192,11 @@ class TaskUpdate extends createDrizzleCrud(null as unknown as DrizzleDatabase, t
 
   allowedUpdateFields = ['title', 'description', 'status', 'priority'];
 
-  async before(data: Record<string, unknown>): Promise<Record<string, unknown>> {
+  protected override getDb(): DrizzleDatabase {
+    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabase;
+  }
+
+  async before(data: Partial<Task>): Promise<Partial<Task>> {
     return {
       ...data,
       updatedAt: new Date().toISOString(),
@@ -182,11 +204,15 @@ class TaskUpdate extends createDrizzleCrud(null as unknown as DrizzleDatabase, t
   }
 }
 
-class TaskDelete extends createDrizzleCrud(null as unknown as DrizzleDatabase, taskMeta).Delete {
+class TaskDelete extends TaskCrud.Delete {
   schema = {
     tags: ['Tasks'],
     summary: 'Delete a task',
   };
+
+  protected override getDb(): DrizzleDatabase {
+    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabase;
+  }
 }
 
 // ============================================================================
@@ -204,7 +230,7 @@ app.use('*', async (c, next) => {
   const db = drizzle(c.env.DB);
 
   // Store db in context so endpoints can access it
-  c.set('drizzleDb' as never, db);
+  c.set('db' as never, db);
 
   // Optional: inject KV-backed cache if binding exists
   if (c.env.CACHE_KV) {
@@ -216,7 +242,7 @@ app.use('*', async (c, next) => {
 });
 
 // Wrap with OpenAPI handler
-const openApiApp = fromHono(app);
+export const openApiApp = fromHono(app);
 
 // Register CRUD endpoints
 registerCrud(openApiApp, '/tasks', {

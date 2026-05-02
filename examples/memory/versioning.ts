@@ -27,6 +27,12 @@ import {
   MemoryVersionRollbackEndpoint,
 } from '../../src/adapters/memory/index.js';
 
+type AppEnv = {
+  Variables: {
+    userId: string;
+  };
+};
+
 // ============================================================
 // 1. Define your schema with a version field
 // ============================================================
@@ -162,37 +168,39 @@ class ConsoleVersioningStorage implements VersioningStorage {
 // 4. Create endpoints
 // ============================================================
 
-class DocumentCreate extends MemoryCreateEndpoint {
-  _meta = defineMeta({ model: DocumentModel });
+const documentMeta = defineMeta({ model: DocumentModel });
+
+class DocumentCreate extends MemoryCreateEndpoint<AppEnv, typeof documentMeta> {
+  _meta = documentMeta;
 }
 
-class DocumentRead extends MemoryReadEndpoint {
-  _meta = defineMeta({ model: DocumentModel });
+class DocumentRead extends MemoryReadEndpoint<AppEnv, typeof documentMeta> {
+  _meta = documentMeta;
 }
 
-class DocumentUpdate extends MemoryUpdateEndpoint {
-  _meta = defineMeta({ model: DocumentModel });
+class DocumentUpdate extends MemoryUpdateEndpoint<AppEnv, typeof documentMeta> {
+  _meta = documentMeta;
 }
 
-class DocumentList extends MemoryListEndpoint {
-  _meta = defineMeta({ model: DocumentModel });
+class DocumentList extends MemoryListEndpoint<AppEnv, typeof documentMeta> {
+  _meta = documentMeta;
 }
 
 // Version history endpoints
-class DocumentVersionHistory extends MemoryVersionHistoryEndpoint {
-  _meta = defineMeta({ model: DocumentModel });
+class DocumentVersionHistory extends MemoryVersionHistoryEndpoint<AppEnv, typeof documentMeta> {
+  _meta = documentMeta;
 }
 
-class DocumentVersionRead extends MemoryVersionReadEndpoint {
-  _meta = defineMeta({ model: DocumentModel });
+class DocumentVersionRead extends MemoryVersionReadEndpoint<AppEnv, typeof documentMeta> {
+  _meta = documentMeta;
 }
 
-class DocumentVersionCompare extends MemoryVersionCompareEndpoint {
-  _meta = defineMeta({ model: DocumentModel });
+class DocumentVersionCompare extends MemoryVersionCompareEndpoint<AppEnv, typeof documentMeta> {
+  _meta = documentMeta;
 }
 
-class DocumentVersionRollback extends MemoryVersionRollbackEndpoint {
-  _meta = defineMeta({ model: DocumentModel });
+class DocumentVersionRollback extends MemoryVersionRollbackEndpoint<AppEnv, typeof documentMeta> {
+  _meta = documentMeta;
 }
 
 // ============================================================
@@ -205,7 +213,7 @@ async function main() {
   // setVersioningStorage(customStorage);
 
   // Create Hono app
-  const app = new Hono();
+  const app = new Hono<AppEnv>();
 
   // Middleware to set user ID (simulated authentication)
   app.use('*', async (c, next) => {
@@ -227,43 +235,51 @@ async function main() {
   // Register CRUD routes
   app.post('/documents', async (c) => {
     const endpoint = new DocumentCreate();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   app.get('/documents', async (c) => {
     const endpoint = new DocumentList();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   app.get('/documents/:id', async (c) => {
     const endpoint = new DocumentRead();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   app.patch('/documents/:id', async (c) => {
     const endpoint = new DocumentUpdate();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   // Version history routes (order matters - more specific first)
   app.get('/documents/:id/versions/compare', async (c) => {
     const endpoint = new DocumentVersionCompare();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   app.get('/documents/:id/versions', async (c) => {
     const endpoint = new DocumentVersionHistory();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   app.get('/documents/:id/versions/:version', async (c) => {
     const endpoint = new DocumentVersionRead();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   app.post('/documents/:id/versions/:version/rollback', async (c) => {
     const endpoint = new DocumentVersionRollback();
-    return endpoint.handle(c);
+    endpoint.setContext(c);
+    return endpoint.handle();
   });
 
   // ============================================================
@@ -358,4 +374,6 @@ async function main() {
   console.log('=== Demo Complete ===');
 }
 
-main().catch(console.error);
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(console.error);
+}

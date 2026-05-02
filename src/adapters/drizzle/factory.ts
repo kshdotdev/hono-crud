@@ -25,19 +25,24 @@ import {
  * Return type of createDrizzleCrud factory function.
  * Provides type-safe base classes for all CRUD operations.
  */
-export interface DrizzleCrudClasses<M extends MetaInput> {
-  Create: typeof DrizzleCreateEndpoint<Env, M>;
-  Read: typeof DrizzleReadEndpoint<Env, M>;
-  Update: typeof DrizzleUpdateEndpoint<Env, M>;
-  Delete: typeof DrizzleDeleteEndpoint<Env, M>;
-  List: typeof DrizzleListEndpoint<Env, M>;
-  Restore: typeof DrizzleRestoreEndpoint<Env, M>;
-  Upsert: typeof DrizzleUpsertEndpoint<Env, M>;
-  BatchCreate: typeof DrizzleBatchCreateEndpoint<Env, M>;
-  BatchUpdate: typeof DrizzleBatchUpdateEndpoint<Env, M>;
-  BatchDelete: typeof DrizzleBatchDeleteEndpoint<Env, M>;
-  BatchRestore: typeof DrizzleBatchRestoreEndpoint<Env, M>;
-  BatchUpsert: typeof DrizzleBatchUpsertEndpoint<Env, M>;
+type ConfiguredDrizzleEndpoint<TEndpoint, M extends MetaInput> = new () => TEndpoint & {
+  _meta: M;
+  db: DrizzleDatabaseConstraint;
+};
+
+export interface DrizzleCrudClasses<M extends MetaInput, E extends Env = Env> {
+  Create: ConfiguredDrizzleEndpoint<DrizzleCreateEndpoint<E, M>, M>;
+  Read: ConfiguredDrizzleEndpoint<DrizzleReadEndpoint<E, M>, M>;
+  Update: ConfiguredDrizzleEndpoint<DrizzleUpdateEndpoint<E, M>, M>;
+  Delete: ConfiguredDrizzleEndpoint<DrizzleDeleteEndpoint<E, M>, M>;
+  List: ConfiguredDrizzleEndpoint<DrizzleListEndpoint<E, M>, M>;
+  Restore: ConfiguredDrizzleEndpoint<DrizzleRestoreEndpoint<E, M>, M>;
+  Upsert: ConfiguredDrizzleEndpoint<DrizzleUpsertEndpoint<E, M>, M>;
+  BatchCreate: ConfiguredDrizzleEndpoint<DrizzleBatchCreateEndpoint<E, M>, M>;
+  BatchUpdate: ConfiguredDrizzleEndpoint<DrizzleBatchUpdateEndpoint<E, M>, M>;
+  BatchDelete: ConfiguredDrizzleEndpoint<DrizzleBatchDeleteEndpoint<E, M>, M>;
+  BatchRestore: ConfiguredDrizzleEndpoint<DrizzleBatchRestoreEndpoint<E, M>, M>;
+  BatchUpsert: ConfiguredDrizzleEndpoint<DrizzleBatchUpsertEndpoint<E, M>, M>;
 }
 
 /**
@@ -67,61 +72,61 @@ export interface DrizzleCrudClasses<M extends MetaInput> {
  * }
  * ```
  */
-export function createDrizzleCrud<M extends MetaInput>(
+export function createDrizzleCrud<M extends MetaInput, E extends Env = Env>(
   db: DrizzleDatabaseConstraint,
   meta: M
-): DrizzleCrudClasses<M> {
+): DrizzleCrudClasses<M, E> {
   // Use type assertion to avoid TypeScript's anonymous class protected member restriction
   return {
-    Create: class extends DrizzleCreateEndpoint<Env, M> {
+    Create: class extends DrizzleCreateEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    Read: class extends DrizzleReadEndpoint<Env, M> {
+    Read: class extends DrizzleReadEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    Update: class extends DrizzleUpdateEndpoint<Env, M> {
+    Update: class extends DrizzleUpdateEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    Delete: class extends DrizzleDeleteEndpoint<Env, M> {
+    Delete: class extends DrizzleDeleteEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    List: class extends DrizzleListEndpoint<Env, M> {
+    List: class extends DrizzleListEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    Restore: class extends DrizzleRestoreEndpoint<Env, M> {
+    Restore: class extends DrizzleRestoreEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    Upsert: class extends DrizzleUpsertEndpoint<Env, M> {
+    Upsert: class extends DrizzleUpsertEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    BatchCreate: class extends DrizzleBatchCreateEndpoint<Env, M> {
+    BatchCreate: class extends DrizzleBatchCreateEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    BatchUpdate: class extends DrizzleBatchUpdateEndpoint<Env, M> {
+    BatchUpdate: class extends DrizzleBatchUpdateEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    BatchDelete: class extends DrizzleBatchDeleteEndpoint<Env, M> {
+    BatchDelete: class extends DrizzleBatchDeleteEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    BatchRestore: class extends DrizzleBatchRestoreEndpoint<Env, M> {
+    BatchRestore: class extends DrizzleBatchRestoreEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-    BatchUpsert: class extends DrizzleBatchUpsertEndpoint<Env, M> {
+    BatchUpsert: class extends DrizzleBatchUpsertEndpoint<E, M> {
       _meta = meta;
       db = db;
     },
-  } as DrizzleCrudClasses<M>;
+  } as DrizzleCrudClasses<M, E>;
 }
 
 // ============================================================================

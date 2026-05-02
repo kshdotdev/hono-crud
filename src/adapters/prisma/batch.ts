@@ -14,6 +14,8 @@ import {
   type PrismaModelOperations,
   getPrismaModel,
   getModelName,
+  getPrismaModelByName,
+  getPrismaTransaction,
 } from './helpers';
 
 /**
@@ -94,8 +96,11 @@ export abstract class PrismaBatchCreateEndpoint<
     // individual creates or a transaction with creates
     const created: ModelObject<M['model']>[] = [];
 
-    await this.prisma.$transaction(async (tx) => {
-      const txModel = tx[await getModelName(this._meta.model.tableName)];
+    await getPrismaTransaction(this.prisma)(async (tx) => {
+      const txModel = getPrismaModelByName(tx, await getModelName(this._meta.model.tableName));
+      if (!txModel) {
+        throw new Error(`Model '${this._meta.model.tableName}' not found in Prisma transaction client`);
+      }
       for (const record of records) {
         const result = await txModel.create({ data: record });
         created.push(result as ModelObject<M['model']>);
@@ -423,7 +428,10 @@ export abstract class PrismaBatchUpsertEndpoint<
     const primaryKey = this._meta.model.primaryKeys[0];
 
     const executeUpserts = async (prismaClient: PrismaClient) => {
-      const model = prismaClient[await getModelName(this._meta.model.tableName)];
+      const model = getPrismaModelByName(prismaClient, await getModelName(this._meta.model.tableName));
+      if (!model) {
+        throw new Error(`Model '${this._meta.model.tableName}' not found in Prisma client`);
+      }
       const results: Array<{ data: ModelObject<M['model']>; created: boolean; index: number }> = [];
       const errors: Array<{ index: number; error: string }> = [];
 
@@ -485,7 +493,7 @@ export abstract class PrismaBatchUpsertEndpoint<
     let outcome: { results: typeof items extends unknown[] ? Array<{ data: ModelObject<M['model']>; created: boolean; index: number }> : never; errors: Array<{ index: number; error: string }> };
 
     if (this.useTransaction) {
-      outcome = await this.prisma.$transaction(executeUpserts);
+      outcome = await getPrismaTransaction(this.prisma)(executeUpserts);
     } else {
       outcome = await executeUpserts(this.prisma);
     }

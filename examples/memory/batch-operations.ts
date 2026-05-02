@@ -166,7 +166,7 @@ class UserBatchRestore extends MemoryBatchRestoreEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // Register all CRUD endpoints including batch operations
 registerCrud(app, '/users', {
@@ -199,8 +199,8 @@ setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
 // Start server
-const port = Number(process.env.PORT) || 3456;
-console.log(`
+export function start(port: number = Number(process.env.PORT) || 3456): void {
+  console.log(`
 === Batch Operations Example ===
 
 Server running at http://localhost:${port}
@@ -269,7 +269,12 @@ Partial Success Example (207 response):
 }
 `);
 
-serve({
-  fetch: app.fetch,
-  port,
-});
+  serve({
+    fetch: app.fetch,
+    port,
+  });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start();
+}

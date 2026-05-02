@@ -36,11 +36,40 @@ export interface PrismaModelOperations {
   createMany: (args: { data: unknown[]; skipDuplicates?: boolean }) => Promise<{ count: number }>;
 }
 
-// Type for Prisma client - we use a Record type with explicit model access
-// Dynamic model access requires flexibility since model names are determined at runtime
-export type PrismaClient = Record<string, PrismaModelOperations> & {
-  $transaction: <T>(fn: (tx: PrismaClient) => Promise<T>) => Promise<T>;
+// Public Prisma clients do not expose a string index signature, even though
+// model delegates are available as runtime properties. Keep the accepted
+// client shape broad and centralize dynamic access behind helpers.
+export type PrismaClient = object & {
+  $transaction?: <T>(fn: (tx: PrismaClient) => Promise<T>) => Promise<T>;
 };
+
+function getClientProperty(prisma: PrismaClient, key: string): unknown {
+  return (prisma as unknown as Record<string, unknown>)[key];
+}
+
+function isPrismaModelOperations(value: unknown): value is PrismaModelOperations {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'create' in value &&
+    typeof (value as { create?: unknown }).create === 'function'
+  );
+}
+
+export function getPrismaModelByName(
+  prisma: PrismaClient,
+  modelName: string
+): PrismaModelOperations | undefined {
+  const model = getClientProperty(prisma, modelName);
+  return isPrismaModelOperations(model) ? model : undefined;
+}
+
+export function getPrismaTransaction(prisma: PrismaClient): NonNullable<PrismaClient['$transaction']> {
+  if (typeof prisma.$transaction !== 'function') {
+    throw new Error('Prisma client does not support $transaction');
+  }
+  return prisma.$transaction.bind(prisma);
+}
 
 /**
  * Coerces a value to the appropriate type for Prisma.
@@ -239,7 +268,7 @@ function getAvailablePrismaModels(prisma: PrismaClient): string[] {
     if (key.startsWith('$') || key.startsWith('_')) {
       continue;
     }
-    const value = prisma[key];
+    const value = getClientProperty(prisma, key);
     // Check if it looks like a model (has create method)
     if (value && typeof value === 'object' && 'create' in value) {
       models.push(key);
@@ -280,9 +309,9 @@ async function findSimilarModelNames(target: string, available: string[], maxSug
  */
 export async function getPrismaModel(prisma: PrismaClient, tableName: string): Promise<PrismaModelOperations> {
   const modelName = await getModelName(tableName);
-  const model = prisma[modelName];
+  const model = getPrismaModelByName(prisma, modelName);
 
-  if (!model || typeof model.create !== 'function') {
+  if (!model) {
     const availableModels = getAvailablePrismaModels(prisma);
     const suggestions = await findSimilarModelNames(modelName, availableModels);
 
@@ -315,7 +344,7 @@ export async function loadPrismaRelation<T extends Record<string, unknown>>(
   relationConfig: RelationConfig
 ): Promise<T> {
   const relatedModelName = await getModelName(relationConfig.model);
-  const relatedModel = prisma[relatedModelName];
+  const relatedModel = getPrismaModelByName(prisma, relatedModelName);
 
   if (!relatedModel) {
     // Can't load relation without the related model
@@ -412,7 +441,7 @@ export async function batchLoadPrismaRelations<T extends Record<string, unknown>
     }
 
     const relatedModelName = await getModelName(relationConfig.model);
-    const relatedModel = prisma[relatedModelName];
+    const relatedModel = getPrismaModelByName(prisma, relatedModelName);
 
     if (!relatedModel) {
       continue;

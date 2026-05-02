@@ -135,7 +135,7 @@ class UserRestore extends MemoryRestoreEndpoint {
 }
 
 // Create the app
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // Register CRUD endpoints (including restore for soft delete)
 registerCrud(app, '/users', {
@@ -164,8 +164,8 @@ setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
 // Start server
-const port = Number(process.env.PORT) || 3456;
-console.log(`
+export function start(port: number = Number(process.env.PORT) || 3456): void {
+  console.log(`
 === Soft Delete Example ===
 
 Server running at http://localhost:${port}
@@ -205,7 +205,12 @@ Try these commands:
     curl http://localhost:${port}/users
 `);
 
-serve({
-  fetch: app.fetch,
-  port,
-});
+  serve({
+    fetch: app.fetch,
+    port,
+  });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start();
+}

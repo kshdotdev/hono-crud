@@ -51,6 +51,15 @@ const CommentSchema = z.object({
   content: z.string(),
 });
 
+type UserWithNested = z.infer<typeof UserSchema> & {
+  profile?: z.infer<typeof ProfileSchema>;
+  posts: Array<z.infer<typeof PostSchema>>;
+};
+type PostWithNested = z.infer<typeof PostSchema> & {
+  comments?: Array<z.infer<typeof CommentSchema>>;
+};
+type SuccessResponse<T> = { success: boolean; result: T };
+
 // ============================================================================
 // Model Definitions with Nested Writes
 // ============================================================================
@@ -138,7 +147,7 @@ class PostCreate extends MemoryCreateEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 app.post('/users', UserCreate);
 app.get('/users/:id', UserRead);
 app.patch('/users/:id', UserUpdate);
@@ -172,7 +181,7 @@ async function main() {
     }),
   });
 
-  const createResult = await createRes.json();
+  const createResult = await createRes.json() as SuccessResponse<UserWithNested>;
   console.log('Created:', JSON.stringify(createResult.result, null, 2));
   const userId = createResult.result.id;
   const postId = createResult.result.posts[0].id;
@@ -194,14 +203,14 @@ async function main() {
     }),
   });
 
-  const updateResult = await updateRes.json();
+  const updateResult = await updateRes.json() as SuccessResponse<UserWithNested>;
   console.log('Updated:', JSON.stringify(updateResult.result, null, 2));
   console.log();
 
   // 3. Read user with includes
   console.log('3. Reading user with profile and posts...');
   const readRes = await app.request(`/users/${userId}?include=profile,posts`);
-  const readResult = await readRes.json();
+  const readResult = await readRes.json() as SuccessResponse<UserWithNested>;
   console.log('User with relations:', JSON.stringify(readResult.result, null, 2));
   console.log();
 
@@ -223,11 +232,13 @@ async function main() {
     }),
   });
 
-  const postResult = await postRes.json();
+  const postResult = await postRes.json() as SuccessResponse<PostWithNested>;
   console.log('Created post:', JSON.stringify(postResult.result, null, 2));
   console.log();
 
   console.log('=== Demo Complete ===');
 }
 
-main().catch(console.error);
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(console.error);
+}

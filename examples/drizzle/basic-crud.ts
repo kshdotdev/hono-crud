@@ -125,7 +125,7 @@ class UserDelete extends DrizzleDeleteEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // Register CRUD endpoints
 registerCrud(app, '/users', {
@@ -156,11 +156,9 @@ app.get('/health', (c) => c.json({ status: 'ok', adapter: 'drizzle', database: '
 // Start Server
 // ============================================================================
 
-const port = Number(process.env.PORT) || 3456;
-
-initDb()
-  .then(() => {
-    console.log(`
+export async function start(port: number = Number(process.env.PORT) || 3456): Promise<void> {
+  await initDb();
+  console.log(`
 === Basic CRUD Example (Drizzle + PostgreSQL) ===
 
 Server running at http://localhost:${port}
@@ -190,9 +188,12 @@ Try:
     -d '{"email":"alice@example.com","name":"Alice","role":"admin"}'
 `);
 
-    serve({ fetch: app.fetch, port });
-  })
-  .catch((err) => {
+  serve({ fetch: app.fetch, port });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start().catch((err) => {
     console.error('Failed to initialize database:', err);
     process.exit(1);
   });
+}

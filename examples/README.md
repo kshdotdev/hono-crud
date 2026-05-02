@@ -1,202 +1,174 @@
 # hono-crud Examples
 
-This directory contains comprehensive examples demonstrating all features of hono-crud with different database adapters.
+The examples are both documentation and regression coverage. They compile under
+`tsconfig.examples.json`, and the comprehensive Memory, Drizzle/Postgres,
+Prisma/Postgres, and Drizzle D1 examples are imported directly by Vitest so
+tests exercise the same apps shown here.
 
-## Directory Structure
+## Prerequisites
 
-```
-examples/
-├── docker-compose.yml     # PostgreSQL for Drizzle and Prisma examples
-├── shared/
-│   └── schemas.ts         # Shared Zod schemas used across adapters
-│
-├── memory/                # In-memory adapter (no database required)
-│   ├── basic-crud.ts
-│   ├── soft-delete.ts
-│   ├── batch-operations.ts
-│   ├── upsert.ts
-│   ├── relations.ts
-│   ├── comprehensive.ts   # All features combined
-│   └── ...
-│
-├── drizzle/               # Drizzle ORM + PostgreSQL
-│   ├── schema.ts          # Drizzle table definitions
-│   ├── db.ts              # Database connection
-│   ├── basic-crud.ts
-│   ├── filtering.ts
-│   ├── soft-delete.ts
-│   ├── batch-operations.ts
-│   ├── upsert.ts
-│   ├── relations.ts
-│   └── comprehensive.ts   # All features combined
-│
-└── prisma/                # Prisma ORM + PostgreSQL
-    ├── schema.prisma      # Prisma schema
-    ├── db.ts              # Prisma client setup
-    ├── basic-crud.ts
-    ├── filtering.ts
-    ├── soft-delete.ts
-    ├── batch-operations.ts
-    ├── upsert.ts
-    ├── relations.ts
-    └── comprehensive.ts   # All features combined
-```
-
-## Quick Start
-
-### Memory Adapter (No Database Required)
+Memory examples require no external services. Database-backed examples use the
+Postgres service in `examples/docker-compose.yml`.
 
 ```bash
-# Run any memory example directly
-npx tsx examples/memory/basic-crud.ts
-npx tsx examples/memory/comprehensive.ts
+pnpm install
+pnpm run db:up
+pnpm run prisma:generate
+pnpm run prisma:push
 ```
 
-### Drizzle Adapter (PostgreSQL)
-
-```bash
-# 1. Start PostgreSQL
-cd examples && docker compose up -d
-
-# 2. Run any Drizzle example
-npx tsx examples/drizzle/basic-crud.ts
-npx tsx examples/drizzle/comprehensive.ts
-```
-
-### Prisma Adapter (PostgreSQL)
-
-```bash
-# 1. Start PostgreSQL
-cd examples && docker compose up -d
-
-# 2. Generate Prisma client
-npx prisma generate --schema=examples/prisma/schema.prisma
-
-# 3. Push schema to database
-npx prisma db push --schema=examples/prisma/schema.prisma
-
-# 4. Run any Prisma example
-npx tsx examples/prisma/basic-crud.ts
-npx tsx examples/prisma/comprehensive.ts
-```
-
-## Database Setup
-
-The examples use PostgreSQL with the following default settings:
+Default Postgres settings:
 
 | Setting | Value |
-|---------|-------|
-| Host | localhost |
-| Port | 5432 |
-| User | postgres |
-| Password | postgres |
-| Database | hono_crud |
+| --- | --- |
+| Host | `localhost` |
+| Port | `5432` |
+| User | `postgres` |
+| Password | `postgres` |
+| Database | `hono_crud` |
 
-You can override these with environment variables:
+Override them with `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, or
+`DATABASE_URL`.
+
+## Verification
 
 ```bash
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_USER=postgres
-export DB_PASSWORD=postgres
-export DB_NAME=hono_crud
-
-# Or for Prisma:
-export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/hono_crud?schema=public"
+pnpm run typecheck
+pnpm run typecheck:examples
+pnpm run test:unit
+pnpm run test:package-example
+pnpm run test:examples
+pnpm run test:workers
+pnpm test
 ```
 
-## Available Examples
+`pnpm test` runs the full suite and expects Postgres to be reachable. The
+Workers/D1 examples run through `vitest.config.workers.ts`.
 
-| Example | Description | Features Demonstrated |
-|---------|-------------|----------------------|
-| `basic-crud.ts` | Getting started | Create, Read, Update, Delete, List |
-| `filtering.ts` | Advanced filtering | eq, gt, gte, lt, lte, in, between, like, ilike, null |
-| `soft-delete.ts` | Soft delete & restore | deletedAt, withDeleted, onlyDeleted, restore |
-| `batch-operations.ts` | Bulk operations | Batch create, update, delete, restore |
-| `upsert.ts` | Create or update | Single upsert, batch upsert, upsert keys |
-| `relations.ts` | Related data | hasMany, hasOne, belongsTo, ?include= |
-| `comprehensive.ts` | All features | Complete API with all features |
+The old `scripts/test-api.ts` entrypoint now delegates to `pnpm run
+test:examples`; it no longer writes JSON response snapshots.
 
-Memory adapter also includes:
-- `cascade-delete.ts` - Cascading deletes with relations
-- `nested-writes.ts` - Creating nested records in one request
-- `field-selection.ts` - Selecting specific fields
-- `computed-fields.ts` - Virtual computed fields
-- `audit-logging.ts` - Track all changes
-- `versioning.ts` - Version history and rollback
-- `rate-limiting.ts` - API rate limiting
-
-## Testing Examples
-
-Once an example is running, you can test it with curl:
+## Running Demos
 
 ```bash
-# Create a user
+pnpm run dev:memory
+pnpm run dev:drizzle
+pnpm run dev:prisma
+```
+
+Most examples expose OpenAPI JSON at `/openapi.json`, Swagger UI at `/docs`, and
+a health check at `/health`.
+
+## Local File Install Simulation
+
+`examples/local-consumer` is the consumer-style example. It installs this
+library as `"hono-crud": "file:../.."`, imports from `hono-crud` and
+`hono-crud/adapters/memory`, and runs a real Hono HTTP server. This is the
+closest local simulation of installing the package from npm.
+
+Spin up the API from the repo root:
+
+```bash
+pnpm run example:local:dev
+```
+
+Then hit it:
+
+```bash
+curl http://localhost:3456/health
+curl -X POST http://localhost:3456/users \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","name":"Alice","role":"admin"}'
+curl "http://localhost:3456/users?role=admin"
+```
+
+Run the automated installed-package feature test. It builds the package,
+installs it through `file:../..`, starts the Hono API, and drives the routes
+over HTTP:
+
+```bash
+pnpm run example:local:test
+```
+
+## Public API Matrix
+
+| Feature family | Examples | Runtime coverage |
+| --- | --- | --- |
+| Basic CRUD, read, update, delete, list | `memory/basic-crud.ts`, `drizzle/basic-crud.ts`, `prisma/basic-crud.ts`, all `comprehensive.ts` files | Memory, Drizzle/Postgres, Prisma/Postgres |
+| Filtering, sorting, pagination, search | `memory/comprehensive.ts`, `drizzle/filtering.ts`, `prisma/filtering.ts`, adapter `comprehensive.ts` files | Memory, Drizzle/Postgres, Prisma/Postgres, D1 filtering/search |
+| Soft delete and restore | `memory/soft-delete.ts`, `drizzle/soft-delete.ts`, `prisma/soft-delete.ts`, adapter `comprehensive.ts` files | Memory, Drizzle/Postgres, Prisma/Postgres |
+| Batch create, update, delete, restore | `memory/batch-operations.ts`, `drizzle/batch-operations.ts`, `prisma/batch-operations.ts`, adapter `comprehensive.ts` files | Memory, Drizzle/Postgres, Prisma/Postgres |
+| Upsert and batch upsert | `memory/upsert.ts`, `memory/batch-upsert.ts`, `drizzle/upsert.ts`, `prisma/upsert.ts`, adapter `comprehensive.ts` files | Memory, Drizzle/Postgres, Prisma/Postgres |
+| Bulk patch and clone | `local-consumer`, public endpoint classes in `src/endpoints/bulk-patch.ts` and `src/endpoints/clone.ts` | Installed-package HTTP coverage plus unit coverage |
+| Relations and includes | `memory/relations.ts`, `drizzle/relations.ts`, `prisma/relations.ts`, adapter `comprehensive.ts` files | Memory, Drizzle/Postgres, Prisma/Postgres |
+| Cascade delete and nested writes | `memory/cascade-delete.ts`, `memory/nested-writes.ts` | Typechecked examples plus unit coverage |
+| Field selection and computed fields | `memory/field-selection.ts`, `memory/computed-fields.ts` | Typechecked examples plus unit coverage |
+| Aggregate, import, export | `local-consumer`, public endpoint classes in `src/endpoints/aggregate.ts`, `src/endpoints/import.ts`, `src/endpoints/export.ts` | Installed-package HTTP coverage plus unit coverage |
+| Auth and guards | `local-consumer`, public auth helpers from `src/auth` | Installed-package HTTP coverage plus unit coverage |
+| Cache and invalidation | `local-consumer`, public cache helpers from `src/cache` plus D1 KV cache wiring in `drizzle/d1-crud.ts` | Installed-package HTTP coverage, unit coverage, and Workers KV coverage |
+| Logging and storage middleware | Public logging and storage helpers from `src/logging` and `src/storage` | Unit and Workers storage middleware coverage |
+| Idempotency and health | `local-consumer`, public helpers from `src/idempotency` and `src/health`; health routes in adapter `comprehensive.ts` files | Installed-package HTTP coverage, unit coverage, and runtime health checks |
+| Audit logging and versioning | `local-consumer`, `memory/audit-logging.ts`, `memory/versioning.ts` | Installed-package HTTP coverage, typechecked examples, and unit coverage |
+| Multi-tenant, serialization, encryption | `local-consumer`, public helpers from `src/multi-tenant`, `src/serialization`, `src/encryption` | Installed-package HTTP coverage plus unit coverage |
+| API versioning and events/webhooks | `local-consumer`, public helpers from `src/api-version` and `src/events` | Installed-package HTTP coverage plus unit coverage |
+| Rate limiting, health, OpenAPI UI | `memory/rate-limiting.ts`, `memory/basic-crud.ts`, all `comprehensive.ts` files | Typechecked examples, Workers coverage for KV rate-limit, runtime health checks |
+| Class, functional, builder, config APIs | `memory/alternative-apis.ts` | Memory alternative API app imported by Vitest |
+| Local file install consumer app | `local-consumer` | Builds the package, installs it via `file:../..`, starts a Hono server, and runs a feature test over HTTP |
+| Memory adapter | `memory/*.ts` | Memory comprehensive app imported by Vitest |
+| Drizzle/Postgres adapter | `drizzle/*.ts` | Drizzle comprehensive app imported by Vitest |
+| Prisma/Postgres adapter | `prisma/*.ts` | Prisma comprehensive app imported by Vitest |
+| Drizzle D1/Workers adapter | `drizzle/d1-crud.ts` | Workers Vitest imports the D1 app and drives D1 requests |
+| Drizzle schema generation | `drizzle/with-drizzle-zod.ts` | Typechecked example |
+
+## Importable Example Contract
+
+Examples that are used by tests export stable app instances or factories. Demo
+server startup is kept behind `start()` or a main guard so importing the example
+does not bind a port.
+
+The tested comprehensive examples expose:
+
+| Adapter | Export |
+| --- | --- |
+| Memory | `examples/memory/comprehensive.ts` exports `app` and `start()` |
+| Drizzle/Postgres | `examples/drizzle/comprehensive.ts` exports `app` and `start()` |
+| Prisma/Postgres | `examples/prisma/comprehensive.ts` exports `app` and `start()` |
+| Drizzle D1/Workers | `examples/drizzle/d1-crud.ts` exports `openApiApp` and a Worker default export |
+
+## Direct Request Examples
+
+```bash
 curl -X POST http://localhost:3456/users \
   -H "Content-Type: application/json" \
   -d '{"email":"alice@example.com","name":"Alice","role":"admin"}'
 
-# List users with filtering
 curl "http://localhost:3456/users?role=admin"
-
-# List users with relations
 curl "http://localhost:3456/users?include=posts,profile"
-
-# Search users
 curl "http://localhost:3456/users?search=alice"
-
-# Advanced filtering
 curl "http://localhost:3456/users?age[gte]=18&age[lte]=65"
-
-# Pagination
 curl "http://localhost:3456/users?page=1&per_page=20"
 ```
 
-## Swagger UI
-
-All examples include Swagger UI at `http://localhost:3456/docs` for interactive API exploration.
-
-## Verification Checklist
-
-For each adapter, the comprehensive example tests:
-
-- [ ] Basic CRUD (create, read, update, delete, list)
-- [ ] Filtering (eq, gt, gte, lt, lte, in, between, like, ilike, null)
-- [ ] Soft delete & restore
-- [ ] Batch operations (create, update, delete, restore)
-- [ ] Upsert operations
-- [ ] Relations (?include=)
-- [ ] Pagination & sorting
-- [ ] Search functionality
-
 ## Troubleshooting
 
-### PostgreSQL Connection Issues
+Check Postgres:
 
 ```bash
-# Check if PostgreSQL is running
+cd examples
 docker compose ps
-
-# View PostgreSQL logs
 docker compose logs postgres
-
-# Restart PostgreSQL
-docker compose restart
+docker compose restart postgres
 ```
 
-### Prisma Issues
+Reset Prisma schema:
 
 ```bash
-# Regenerate Prisma client
-npx prisma generate --schema=examples/prisma/schema.prisma
-
-# Reset database
-npx prisma db push --schema=examples/prisma/schema.prisma --force-reset
-
-# View Prisma Studio
-npx prisma studio --schema=examples/prisma/schema.prisma
+pnpm run prisma:generate
+pnpm exec prisma db push --schema=examples/prisma/schema.prisma --config=examples/prisma/prisma.config.ts --force-reset
 ```
 
-### Memory Adapter
+Stop the local database:
 
-The memory adapter stores data in memory, so data is lost when the server restarts. This is intentional for quick development and testing.
+```bash
+pnpm run db:down
+```

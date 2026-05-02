@@ -42,6 +42,8 @@ const UserSettingsSchema = z.object({
 
 type Product = z.infer<typeof ProductSchema>;
 type UserSettings = z.infer<typeof UserSettingsSchema>;
+type UpsertResponse<T> = { success: boolean; created: boolean; result: T };
+type ListResponse<T> = { success: boolean; result: T[] };
 
 // ============================================================================
 // Model Definitions
@@ -101,7 +103,7 @@ class UserSettingsList extends MemoryListEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 app.put('/products', ProductUpsert);
 app.get('/products', ProductList);
 app.put('/settings', UserSettingsUpsert);
@@ -127,7 +129,7 @@ async function main() {
     }),
   });
 
-  const result1 = await res1.json();
+  const result1 = await res1.json() as UpsertResponse<Product>;
   console.log(`  Status: ${res1.status} (${result1.created ? 'Created' : 'Updated'})`);
   console.log('  Product:', JSON.stringify(result1.result, null, 2));
   console.log();
@@ -145,7 +147,7 @@ async function main() {
     }),
   });
 
-  const result2 = await res2.json();
+  const result2 = await res2.json() as UpsertResponse<Product>;
   console.log(`  Status: ${res2.status} (${result2.created ? 'Created' : 'Updated'})`);
   console.log(`  Same ID: ${result2.result.id === result1.result.id}`);
   console.log('  Product:', JSON.stringify(result2.result, null, 2));
@@ -164,7 +166,7 @@ async function main() {
     }),
   });
 
-  const result3 = await res3.json();
+  const result3 = await res3.json() as UpsertResponse<Product>;
   console.log(`  Status: ${res3.status} (${result3.created ? 'Created' : 'Updated'})`);
   console.log();
 
@@ -180,7 +182,7 @@ async function main() {
     }),
   });
 
-  const result4 = await res4.json();
+  const result4 = await res4.json() as UpsertResponse<UserSettings>;
   console.log(`  Status: ${res4.status} (${result4.created ? 'Created' : 'Updated'})`);
   console.log('  Settings:', JSON.stringify(result4.result, null, 2));
   console.log();
@@ -197,7 +199,7 @@ async function main() {
     }),
   });
 
-  const result5 = await res5.json();
+  const result5 = await res5.json() as UpsertResponse<UserSettings>;
   console.log(`  Status: ${res5.status} (${result5.created ? 'Created' : 'Updated'})`);
   console.log(`  Same ID: ${result5.result.id === result4.result.id}`);
   console.log('  Settings:', JSON.stringify(result5.result, null, 2));
@@ -206,7 +208,7 @@ async function main() {
   // 6. List all products
   console.log('6. Listing all products...');
   const listRes = await app.request('/products');
-  const listResult = await listRes.json();
+  const listResult = await listRes.json() as ListResponse<Product>;
   console.log(`  Total products: ${listResult.result.length}`);
   for (const product of listResult.result) {
     console.log(`    - ${product.sku}: ${product.name} ($${product.price})`);
@@ -216,4 +218,6 @@ async function main() {
   console.log('=== Demo Complete ===');
 }
 
-main().catch(console.error);
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(console.error);
+}

@@ -13,7 +13,7 @@
  * - Callback for exceeded limits
  */
 
-import { Hono, type Env } from 'hono';
+import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { z } from 'zod';
 import {
@@ -85,17 +85,17 @@ const UserModel = defineModel({
 
 const userMeta = defineMeta({ model: UserModel });
 
-class UserCreate extends MemoryCreateEndpoint {
+class UserCreate extends MemoryCreateEndpoint<AppEnv, typeof userMeta> {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Create a new user' };
 }
 
-class UserRead extends MemoryReadEndpoint {
+class UserRead extends MemoryReadEndpoint<AppEnv, typeof userMeta> {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Get a user by ID' };
 }
 
-class UserList extends MemoryListEndpoint {
+class UserList extends MemoryListEndpoint<AppEnv, typeof userMeta> {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'List all users' };
   filterFields = ['tier'];
@@ -105,7 +105,7 @@ class UserList extends MemoryListEndpoint {
 // Create the App
 // ============================================================================
 
-const app = fromHono(new Hono<AppEnv>());
+export const app = fromHono(new Hono<AppEnv>());
 
 // Error handler to convert exceptions to proper HTTP responses
 app.onError((err, c) => {
@@ -298,9 +298,8 @@ setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
 // Start Server
 // ============================================================================
 
-const port = Number(process.env.PORT) || 3456;
-
-console.log(`
+export function start(port: number = Number(process.env.PORT) || 3456): void {
+  console.log(`
 Rate Limiting Example Server
 ============================
 
@@ -327,7 +326,12 @@ Test with:
   curl http://localhost:${port}/api/rate-limit-status | jq
 `);
 
-serve({
-  fetch: app.fetch,
-  port,
-});
+  serve({
+    fetch: app.fetch,
+    port,
+  });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start();
+}

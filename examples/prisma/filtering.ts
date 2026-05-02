@@ -134,7 +134,7 @@ class CategoryList extends PrismaListEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 registerCrud(app, '/users', {
   create: UserCreate,
@@ -200,11 +200,9 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 // Start Server
 // ============================================================================
 
-const port = Number(process.env.PORT) || 3456;
-
-initDb()
-  .then(() => {
-    console.log(`
+export async function start(port: number = Number(process.env.PORT) || 3456): Promise<void> {
+  await initDb();
+  console.log(`
 === Advanced Filtering Example (Prisma + PostgreSQL) ===
 
 Server running at http://localhost:${port}
@@ -245,9 +243,12 @@ CATEGORIES:
   curl "http://localhost:${port}/categories?description[null]=true"
 `);
 
-    serve({ fetch: app.fetch, port });
-  })
-  .catch((err) => {
+  serve({ fetch: app.fetch, port });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start().catch((err) => {
     console.error('Failed to initialize database:', err);
     process.exit(1);
   });
+}

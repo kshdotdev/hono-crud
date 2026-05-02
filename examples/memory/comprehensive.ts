@@ -376,7 +376,7 @@ class CategoryUpsert extends MemoryUpsertEndpoint {
 // App Setup
 // ============================================================================
 
-const app = fromHono(new Hono());
+export const app = fromHono(new Hono());
 
 // Users (full CRUD + batch)
 registerCrud(app, '/users', {
@@ -520,9 +520,8 @@ app.get('/health', (c) => c.json({ status: 'ok', adapter: 'memory' }));
 // Start Server
 // ============================================================================
 
-const port = Number(process.env.PORT) || 3456;
-
-console.log(`
+export function start(port: number = Number(process.env.PORT) || 3456): void {
+  console.log(`
 === Comprehensive Example (Memory Adapter) ===
 
 Server running at http://localhost:${port}
@@ -565,4 +564,9 @@ curl -X PUT http://localhost:${port}/categories -H "Content-Type: application/js
   -d '{"name":"Music","description":"Music posts","sortOrder":4}'
 `);
 
-serve({ fetch: app.fetch, port });
+  serve({ fetch: app.fetch, port });
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  start();
+}

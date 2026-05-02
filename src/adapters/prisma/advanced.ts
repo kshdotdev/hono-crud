@@ -27,6 +27,7 @@ import {
   type PrismaModelOperations,
   getPrismaModel,
   getModelName,
+  getPrismaModelByName,
   buildPrismaWhere,
   batchLoadPrismaRelations,
   executePrismaQuery,
@@ -689,9 +690,12 @@ export abstract class PrismaAggregateEndpoint<
 
     // Execute native aggregation
     const modelName = await getModelName(this._meta.model.tableName);
-    const prismaModel = this.prisma[modelName] as unknown as {
+    const prismaModel = getPrismaModelByName(this.prisma, modelName) as unknown as {
       aggregate: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
-    };
+    } | undefined;
+    if (!prismaModel) {
+      throw new Error(`Model '${modelName}' not found in Prisma client`);
+    }
 
     try {
       const result = await prismaModel.aggregate(aggregateArgs);
@@ -788,9 +792,12 @@ export abstract class PrismaAggregateEndpoint<
 
     // Execute native groupBy
     const modelName = await getModelName(this._meta.model.tableName);
-    const prismaModel = this.prisma[modelName] as unknown as {
+    const prismaModel = getPrismaModelByName(this.prisma, modelName) as unknown as {
       groupBy: (args: Record<string, unknown>) => Promise<Record<string, unknown>[]>;
-    };
+    } | undefined;
+    if (!prismaModel) {
+      throw new Error(`Model '${modelName}' not found in Prisma client`);
+    }
 
     try {
       const results = await prismaModel.groupBy(groupByArgs);

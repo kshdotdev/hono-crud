@@ -32,8 +32,12 @@
  * ```
  */
 
+import type { Env } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
 import type { MetaInput, HookMode } from '../core/types';
+import type { FilterConfig } from '../core/types';
+import type { OpenAPIRoute } from '../core/route';
+import type { EndpointClass } from '../utils';
 import type { ModelObject } from '../endpoints/types';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
 
@@ -102,7 +106,7 @@ export interface CreateEndpointConfig<M extends MetaInput> {
  */
 interface FilteringConfig {
   fields?: string[];
-  config?: Record<string, Array<'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'ilike' | 'null' | 'between'>>;
+  config?: FilterConfig;
 }
 
 /**
@@ -123,6 +127,8 @@ interface SortingConfig {
   default?: string;
   /** Default sort direction */
   defaultOrder?: 'asc' | 'desc';
+  /** Backward-compatible alias for defaultOrder */
+  defaultDirection?: 'asc' | 'desc';
 }
 
 /**
@@ -265,23 +271,23 @@ export interface EndpointsConfig<M extends MetaInput> {
 /**
  * Adapter bundle containing base classes for all CRUD operations.
  */
-export interface AdapterBundle {
-  CreateEndpoint: abstract new () => unknown;
-  ListEndpoint: abstract new () => unknown;
-  ReadEndpoint: abstract new () => unknown;
-  UpdateEndpoint: abstract new () => unknown;
-  DeleteEndpoint: abstract new () => unknown;
+export interface AdapterBundle<E extends Env = Env> {
+  CreateEndpoint: abstract new () => OpenAPIRoute<E>;
+  ListEndpoint: abstract new () => OpenAPIRoute<E>;
+  ReadEndpoint: abstract new () => OpenAPIRoute<E>;
+  UpdateEndpoint: abstract new () => OpenAPIRoute<E>;
+  DeleteEndpoint: abstract new () => OpenAPIRoute<E>;
 }
 
 /**
  * Generated endpoints object compatible with registerCrud.
  */
-export interface GeneratedEndpoints {
-  create?: new () => unknown;
-  list?: new () => unknown;
-  read?: new () => unknown;
-  update?: new () => unknown;
-  delete?: new () => unknown;
+export interface GeneratedEndpoints<E extends Env = Env> {
+  create?: EndpointClass<E>;
+  list?: EndpointClass<E>;
+  read?: EndpointClass<E>;
+  update?: EndpointClass<E>;
+  delete?: EndpointClass<E>;
 }
 
 // ============================================================================
@@ -341,11 +347,11 @@ export const MemoryAdapters: AdapterBundle = {
  * registerCrud(app, '/users', userEndpoints);
  * ```
  */
-export function defineEndpoints<M extends MetaInput>(
+export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
   config: EndpointsConfig<M>,
-  adapters: AdapterBundle
-): GeneratedEndpoints {
-  const result: GeneratedEndpoints = {};
+  adapters: AdapterBundle<E>
+): GeneratedEndpoints<E> {
+  const result: GeneratedEndpoints<E> = {};
 
   // Generate Create endpoint
   if (config.create !== undefined) {
@@ -374,7 +380,7 @@ export function defineEndpoints<M extends MetaInput>(
       searchFieldName: cfg.search?.paramName,
       sortFields: cfg.sorting?.fields,
       defaultSort: cfg.sorting?.default
-        ? { field: cfg.sorting.default, order: cfg.sorting.defaultOrder ?? 'asc' }
+        ? { field: cfg.sorting.default, order: cfg.sorting.defaultOrder ?? cfg.sorting.defaultDirection ?? 'asc' }
         : undefined,
       defaultPerPage: cfg.pagination?.defaultPerPage,
       maxPerPage: cfg.pagination?.maxPerPage,
