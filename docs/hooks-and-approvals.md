@@ -309,6 +309,16 @@ middleware:
 When the handler then calls `c.req.json()`, Hono returns the cached
 value — the original body.
 
+> **⚠️ Maintainer note: Hono-internal coupling.** The body-replay
+> mechanism reads and writes Hono's internal `req.bodyCache.text` slot
+> (a `Promise<string>`). This is intentional — Hono 4.x has no public
+> API for "set the request body" — but it means the implementation is
+> coupled to Hono's request internals. The lib pins
+> `peerDependencies.hono` to `>=4.11.7 <5` to bound the surface; any
+> Hono 5.x bump must re-verify that `bodyCache.text` is still the
+> canonical slot driving `req.json()`. If it changes, update
+> `replayRequestBody` in `src/auth/guards.ts` to match the new shape.
+
 ### Actor identity matrix
 
 `PendingAction` carries enough fields to distinguish every realistic
