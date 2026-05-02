@@ -311,13 +311,48 @@ value — the original body.
 
 > **⚠️ Maintainer note: Hono-internal coupling.** The body-replay
 > mechanism reads and writes Hono's internal `req.bodyCache.text` slot
-> (a `Promise<string>`). This is intentional — Hono 4.x has no public
-> API for "set the request body" — but it means the implementation is
-> coupled to Hono's request internals. The lib pins
-> `peerDependencies.hono` to `>=4.11.7 <5` to bound the surface; any
-> Hono 5.x bump must re-verify that `bodyCache.text` is still the
-> canonical slot driving `req.json()`. If it changes, update
-> `replayRequestBody` in `src/auth/guards.ts` to match the new shape.
+> (a `Promise<string>`). This is intentional but unsupported.
+>
+> **Upstream context** (verified against [honojs/hono#2467](https://github.com/honojs/hono/issues/2467)):
+> the Hono maintainer explicitly closed the "Transform request body"
+> feature request with:
+> *"Basically, the Request body should be immutable, and we don't want
+> to add more methods to the c.req."* The recommended workaround is to
+> use `c.set('foo', transformedBody)` / `c.get('foo')` so the handler
+> reads from a context var instead of the body. **That doesn't fit
+> `requireApproval`** — the entire UX is that the handler is unchanged
+> and unaware of the resume. Asking every approval-gated handler to
+> switch from `c.req.json()` to `c.get('input')` defeats the
+> abstraction.
+>
+> So we use the discouraged-but-working `bodyCache` approach — the same
+> code shape the maintainer themselves posted as a workaround in that
+> issue's comments.
+>
+> **Risk bounding:**
+> - `peerDependencies.hono` is pinned to `>=4.11.7 <5` so any Hono 5.x
+>   bump becomes an explicit major-version decision.
+> - The bodyCache layout has churned recently (e.g.
+>   [honojs/hono#4806](https://github.com/honojs/hono/issues/4806)
+>   changed `parseBody()` to write a resolved object to
+>   `bodyCache.parsedBody` rather than a Promise). Our `replayRequestBody`
+>   defensively clears `bodyCache.parsedBody` and `bodyCache.json`
+>   alongside the `bodyCache.text` write so we don't read stale state
+>   from earlier middleware.
+>
+> **If a Hono 5.x bump is needed**, re-verify these properties before
+> widening the peer-dep:
+> 1. `req.bodyCache.text` (or its successor) is still the canonical
+>    slot consulted by `req.json()` / `req.text()`.
+> 2. `#cachedBody(key)` (or its successor) still derives non-text reads
+>    (`arrayBuffer`, `blob`, `formData`) from the cached text when a
+>    different format is requested.
+> 3. The replay shape (write `Promise<string>` to the canonical slot,
+>    delete derived caches) still produces the correct downstream read.
+>
+> If any of those fail, update `replayRequestBody` in
+> `src/auth/guards.ts` to match the new shape, OR — if Hono ever ships
+> a public body-injection API — switch to that.
 
 ### Actor identity matrix
 
