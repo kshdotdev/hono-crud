@@ -465,15 +465,17 @@ export function requireApproval<E extends AuthEnv = AuthEnv>(
   return async (ctx, next) => {
     let body: Record<string, unknown> = {};
     try {
-      body = await ctx.req.json() as Record<string, unknown>;
+      const parsed: unknown = await ctx.req.json();
+      if (parsed !== null && typeof parsed === 'object') {
+        body = parsed as Record<string, unknown>;
+      }
     } catch {
       // Empty body — treat as initial-call with no input. Resume requires
       // a marker, so missing body means not a resume.
     }
 
-    const resumeId = typeof body[resumeMarker] === 'string'
-      ? body[resumeMarker] as string
-      : undefined;
+    const resumeCandidate = body[resumeMarker];
+    const resumeId = typeof resumeCandidate === 'string' ? resumeCandidate : undefined;
 
     // -------- Resume path ---------------------------------------------------
     if (resumeId) {

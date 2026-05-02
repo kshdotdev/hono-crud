@@ -24,6 +24,7 @@ import {
   extractTenantId,
   getSoftDeleteConfig,
   getVersioningConfig,
+  type FilterCondition,
   type HookContext,
   type MetaInput,
   type ModelPolicies,
@@ -396,12 +397,12 @@ export abstract class CrudEndpoint<
    * provided filters array so the adapter never returns rows the policy
    * would have stripped post-fetch. No-op when no pushdown is set.
    */
-  protected applyReadPushdown(filters: { filters: unknown[] }): void {
+  protected applyReadPushdown(filters: { filters: FilterCondition[] }): void {
     const policies = this.getPolicies();
     if (!policies?.readPushdown) return;
     const extra = policies.readPushdown(this.buildPolicyContext());
     if (extra && extra.length > 0) {
-      filters.filters.push(...(extra as unknown[]));
+      filters.filters.push(...extra);
     }
   }
 
@@ -479,7 +480,7 @@ export abstract class CrudEndpoint<
       tenantId: getContextVar<string>(this.context, 'tenantId'),
       organizationId: getContextVar<string>(this.context, 'organizationId'),
       request: this.context.req?.raw,
-      env: this.context.env as unknown,
+      env: this.context.env,
     };
 
     let resolved: ZodObject<ZodRawShape>;

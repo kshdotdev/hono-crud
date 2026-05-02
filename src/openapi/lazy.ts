@@ -10,10 +10,10 @@
  */
 
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import type { Context, Env } from 'hono';
+import type { Context } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
 
-import type { HonoOpenAPIApp, HonoOpenAPIHandler } from '../core/openapi';
+import type { HonoOpenAPIApp } from '../core/openapi';
 import { getHandlerForApp } from '../core/openapi';
 import type { SchemaResolveContext } from '../core/types';
 
@@ -79,9 +79,7 @@ export async function buildPerTenantOpenApi(
   ctx: SchemaResolveContext,
   options: PerTenantOpenApiOptions = {}
 ): Promise<unknown> {
-  const handler = getHandlerForApp(app as unknown as object) as
-    | HonoOpenAPIHandler<Env>
-    | undefined;
+  const handler = getHandlerForApp(app);
   if (!handler) {
     throw new Error(
       'buildPerTenantOpenApi: app was not produced by fromHono(...). Cannot find route registry.'
@@ -111,6 +109,10 @@ export async function buildPerTenantOpenApi(
     if (typeof instance.resolveModelSchema === 'function') {
       await instance.resolveModelSchema();
     }
+    // Cast to widen `OpenAPIRouteSchema` (the lib's wrapper) into the
+    // `RouteConfig` shape `createRoute` expects. `OpenAPIRouteSchema` is
+    // a structural subset (no required `method`/`path`) — we add those
+    // below — but TS can't unify the responses union without the cast.
     const schema = instance.getSchema() as Parameters<typeof createRoute>[0];
 
     const routeConfig = createRoute({

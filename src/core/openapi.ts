@@ -51,15 +51,21 @@ export interface RegisteredRoute {
  * powers it, so `buildPerTenantOpenApi(app, ctx)` can locate the handler
  * (and its registered routes) without requiring callers to thread the
  * handler reference through their app construction.
+ *
+ * Keyed by `WeakKey` (any object) because `HonoOpenAPIApp<E>` varies in
+ * `E` and TS rejects covariant narrowing of the proxy reference; the map
+ * itself is opaque storage so the lack of generic propagation is fine.
  */
-const HANDLER_REGISTRY = new WeakMap<object, HonoOpenAPIHandler<Env>>();
+const HANDLER_REGISTRY: WeakMap<WeakKey, HonoOpenAPIHandler<Env>> = new WeakMap();
 
 /**
  * Look up the `HonoOpenAPIHandler` associated with a proxied app. Internal
  * helper for `buildPerTenantOpenApi`. Returns `undefined` for any app not
  * created via `fromHono(...)`.
  */
-export function getHandlerForApp(app: object): HonoOpenAPIHandler<Env> | undefined {
+export function getHandlerForApp<E extends Env = Env>(
+  app: HonoOpenAPIApp<E>
+): HonoOpenAPIHandler<Env> | undefined {
   return HANDLER_REGISTRY.get(app);
 }
 
