@@ -118,7 +118,7 @@
     "test:examples": "pnpm run prisma:generate && pnpm run prisma:push && vitest run tests/examples",
     "test:workers": "vitest run --config vitest.config.workers.ts",
     "typecheck": "tsc --noEmit",
-    "typecheck:examples": "tsc -p tsconfig.examples.json",
+    "typecheck:examples": "pnpm run prisma:generate && tsc -p tsconfig.examples.json",
     "prepare": "tsup",
     "prepublishOnly": "pnpm test"
   },
