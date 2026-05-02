@@ -22,6 +22,25 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hono_crud
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hono_crud?schema=public
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,7 +63,7 @@ jobs:
         run: pnpm run typecheck
 
       - name: Run tests
-        run: pnpm test run
+        run: pnpm test
 
       - name: Build
         run: pnpm run build
