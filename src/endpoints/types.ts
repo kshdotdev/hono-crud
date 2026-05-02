@@ -270,27 +270,18 @@ export function parseListFilters(
   return { filters, options };
 }
 
-// Helper to extract schema fields for create/update
+// Helper to extract schema fields for create/update.
+// Thin wrapper over Zod v4's native `ZodObject.omit(...)`. Kept as a
+// helper because every call site passes a `string[]` of field names and
+// `omit` wants a `{ name: true }` mask object — the helper handles that
+// translation in one place.
 export function getSchemaFields<T extends ZodObject<ZodRawShape>>(
   schema: T,
   exclude: string[] = []
 ): ZodObject<ZodRawShape> {
-  const shape = schema.shape;
-  // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4)
-  const filteredShape: Record<string, z.ZodTypeAny> = {};
-
-  for (const [key, value] of Object.entries(shape)) {
-    if (!exclude.includes(key)) {
-      filteredShape[key] = value as z.ZodTypeAny;
-    }
-  }
-
-  return schema.pick(
-    Object.keys(filteredShape).reduce(
-      (acc, key) => ({ ...acc, [key]: true }),
-      {}
-    )
-  ) as unknown as ZodObject<ZodRawShape>;
+  if (exclude.length === 0) return schema as ZodObject<ZodRawShape>;
+  const mask = Object.fromEntries(exclude.map((k) => [k, true as const]));
+  return schema.omit(mask) as unknown as ZodObject<ZodRawShape>;
 }
 
 // Infer the object type from a model

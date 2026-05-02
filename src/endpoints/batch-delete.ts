@@ -108,7 +108,7 @@ export abstract class BatchDeleteEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.object({
-                  deleted: z.array(this._meta.model.schema),
+                  deleted: z.array(this.getModelSchema()),
                   count: z.number(),
                   notFound: z.array(z.string()).optional(),
                 }),
@@ -123,7 +123,7 @@ export abstract class BatchDeleteEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.object({
-                  deleted: z.array(this._meta.model.schema),
+                  deleted: z.array(this.getModelSchema()),
                   count: z.number(),
                   notFound: z.array(z.string()).optional(),
                   errors: z.array(z.object({

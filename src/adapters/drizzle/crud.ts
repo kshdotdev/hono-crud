@@ -77,7 +77,7 @@ export abstract class DrizzleCreateEndpoint<
   protected useTransaction: boolean = false;
 
   /** Current transaction context (set during transaction execution) */
-  protected _tx?: DrizzleDatabase;
+  protected declare _tx?: DrizzleDatabase;
 
   /**
    * Gets the database instance to use. Checks in order:
@@ -277,7 +277,7 @@ export abstract class DrizzleUpdateEndpoint<
   protected useTransaction: boolean = false;
 
   /** Current transaction context (set during transaction execution) */
-  protected _tx?: DrizzleDatabase;
+  protected declare _tx?: DrizzleDatabase;
 
   /** Gets the database instance from property, transaction, or context */
   protected getDb(): DrizzleDatabase {
@@ -545,7 +545,7 @@ export abstract class DrizzleDeleteEndpoint<
   protected useTransaction: boolean = false;
 
   /** Current transaction context (set during transaction execution) */
-  protected _tx?: DrizzleDatabase;
+  protected declare _tx?: DrizzleDatabase;
 
   /** Gets the database instance from property, transaction, or context */
   protected getDb(): DrizzleDatabase {
@@ -879,7 +879,7 @@ export abstract class DrizzleRestoreEndpoint<
   protected useTransaction: boolean = false;
 
   /** Current transaction context (set during transaction execution) */
-  protected _tx?: DrizzleDatabase;
+  protected declare _tx?: DrizzleDatabase;
 
   /** Gets the database instance from property, transaction, or context */
   protected getDb(): DrizzleDatabase {

@@ -20,6 +20,17 @@ import { getStore, loadRelations } from './helpers';
 import { isVisible } from './visibility';
 
 /**
+ * Sentinel placed on `HookContext.db.tx` for memory-adapter writes. The
+ * memory adapter has no real transaction machinery, so throwing inside an
+ * `after*` hook does NOT roll back the parent write — the sentinel makes
+ * that explicit so downstream code can feature-detect.
+ */
+export const MEMORY_NOOP_TX = Object.freeze({
+  __memoryNoopTx: true as const,
+  rolledBack: false as const,
+});
+
+/**
  * Memory-based Create endpoint for testing.
  * Supports nested writes for creating related records.
  */
@@ -27,6 +38,8 @@ export abstract class MemoryCreateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CreateEndpoint<E, M> {
+  protected override _tx: unknown = MEMORY_NOOP_TX;
+
   /**
    * Generates a unique ID for new records.
    * Override to customize ID generation.
@@ -122,6 +135,8 @@ export abstract class MemoryUpdateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends UpdateEndpoint<E, M> {
+  protected override _tx: unknown = MEMORY_NOOP_TX;
+
   /**
    * Finds an existing record for audit logging (before update).
    */
@@ -302,6 +317,8 @@ export abstract class MemoryDeleteEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends DeleteEndpoint<E, M> {
+  protected override _tx: unknown = MEMORY_NOOP_TX;
+
   /**
    * Finds a record without deleting it.
    */

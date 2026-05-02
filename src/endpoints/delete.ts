@@ -2,7 +2,7 @@ import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { CrudEndpoint } from './base';
 import { getLogger } from '../core/logger';
-import type {MetaInput, OpenAPIRouteSchema, HookMode, RelationConfig, CascadeAction} from '../core/types';
+import type {MetaInput, OpenAPIRouteSchema, HookMode, HookContext, RelationConfig, CascadeAction} from '../core/types';
 import { NotFoundException, ConflictException } from '../core/exceptions';
 import type { ModelObject } from './types';
 
@@ -250,23 +250,29 @@ export abstract class DeleteEndpoint<
 
   /**
    * Lifecycle hook: called before delete operation.
-   * Override to perform checks or side effects before deleting.
+   *
+   * The optional `hookCtx` carries the in-flight transaction handle
+   * (`hookCtx.db.tx`) plus tenant/org/user/agent identifiers.
    */
   async before(
     _lookupValue: string,
-    _tx?: unknown
+    _hookCtx: HookContext
   ): Promise<void> {
     // Override in subclass
   }
 
   /**
-   * Lifecycle hook: called after delete operation.
-   * Override to perform cleanup or side effects after deleting.
+   * Lifecycle hook: called after delete operation. Throwing inside this
+   * hook rolls back the parent DELETE only when `afterHookMode ===
+   * 'sequential'` AND the adapter wraps in a transaction.
+   *
+   * `cascadeResult` is `undefined` when the deleted record had no
+   * primary-key value (cascade processing was skipped).
    */
   async after(
     _deletedItem: ModelObject<M['model']>,
-    _cascadeResult?: CascadeResult,
-    _tx?: unknown
+    _cascadeResult: CascadeResult | undefined,
+    _hookCtx: HookContext
   ): Promise<void> {
     // Override in subclass
   }
@@ -437,10 +443,14 @@ export abstract class DeleteEndpoint<
       await this.checkRestrictConstraints(parentId, isSoftDelete);
     }
 
-    await this.before(lookupValue);
+    // Run write-policy gate before deletion. Throws 403 on denial.
+    await this.applyWritePolicy(existingItem);
+
+    const hookCtx = this.buildHookContext();
+    await this.before(lookupValue, hookCtx);
 
     // Now perform the actual delete
-    const deletedItem = await this.delete(lookupValue, additionalFilters);
+    const deletedItem = await this.delete(lookupValue, additionalFilters, hookCtx.db.tx);
 
     if (!deletedItem) {
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
@@ -453,11 +463,12 @@ export abstract class DeleteEndpoint<
       cascadeResult = await this.processCascade(parentId, isSoftDelete);
     }
 
-    // Handle after hook based on mode
+    // Fire-and-forget cannot trigger rollback. Use 'sequential' to opt
+    // into transactional rollback when the adapter wraps in a tx.
     if (this.afterHookMode === 'fire-and-forget') {
-      this.runAfterResponse(Promise.resolve(this.after(deletedItem, cascadeResult)));
+      this.runAfterResponse(Promise.resolve(this.after(deletedItem, cascadeResult, hookCtx)));
     } else {
-      await this.after(deletedItem, cascadeResult);
+      await this.after(deletedItem, cascadeResult, hookCtx);
     }
 
     // Audit logging

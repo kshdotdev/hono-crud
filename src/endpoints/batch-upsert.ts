@@ -166,7 +166,7 @@ export abstract class BatchUpsertEndpoint<
 
     // For upsert, upsert keys are required, other fields optional
     const upsertKeys = this.getUpsertKeys();
-    const allFields = getSchemaFields(this._meta.model.schema, []);
+    const allFields = getSchemaFields(this.getModelSchema(), []);
 
     const shape: Record<string, z.ZodTypeAny> = {};
     for (const [key, value] of Object.entries(allFields.shape)) {
@@ -192,7 +192,7 @@ export abstract class BatchUpsertEndpoint<
    */
   getSchema(): OpenAPIRouteSchema {
     const itemResultSchema = z.object({
-      data: this._meta.model.schema,
+      data: this.getModelSchema(),
       created: z.boolean(),
       index: z.number(),
     });

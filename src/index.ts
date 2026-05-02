@@ -9,8 +9,14 @@ export type HonoCrudEnv = AuthEnv & LoggingEnv & RateLimitEnv & StorageEnv;
 
 // Core exports
 export { OpenAPIRoute, isRouteClass } from './core/route';
-export { fromHono, HonoOpenAPIHandler } from './core/openapi';
-export type { OpenAPIConfig, RouterOptions } from './core/openapi';
+export { fromHono, HonoOpenAPIHandler, getHandlerForApp } from './core/openapi';
+export type { OpenAPIConfig, RouterOptions, RegisteredRoute } from './core/openapi';
+export { buildPerTenantOpenApi, wrapCacheStorageForOpenApi } from './openapi/lazy';
+export type {
+  PerTenantOpenApiCache,
+  PerTenantOpenApiConfig,
+  PerTenantOpenApiOptions,
+} from './openapi/lazy';
 export {
   ApiException,
   InputValidationException,
@@ -115,6 +121,10 @@ export type {
   HookMode,
   HookFn,
   HookConfig,
+  HookContext,
+  SchemaResolveContext,
+  ModelPolicies,
+  PolicyContext,
   OpenAPIRouteSchema,
   RouteOptions,
   ValidatedData,
@@ -314,6 +324,13 @@ export {
   requireAuth,
   requireOwnership,
   requireOwnershipOrRole,
+  requirePolicy,
+  POLICIES_CONTEXT_KEY,
+  // Approval guard (HIL)
+  requireApproval,
+  // Approval storage
+  MemoryApprovalStorage,
+  parseIso8601Duration,
   allOf,
   anyOf,
   denyAll,
@@ -356,6 +373,12 @@ export type {
   EndpointAuthConfig,
   AuthEndpointMethods,
   JWTClaimsValidationOptions,
+  // Approval types
+  ApprovalConfig,
+  ApprovalStorage,
+  PendingAction,
+  PendingActionStatus,
+  ActionSource,
 } from './auth/index';
 
 // Cache exports

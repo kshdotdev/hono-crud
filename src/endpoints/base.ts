@@ -13,27 +13,73 @@
 
 import type { Env } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { z, type ZodObject } from 'zod';
+import { z, type ZodObject, type ZodRawShape } from 'zod';
 
 import { OpenAPIRoute } from '../core/route';
+import { ApiException, InputValidationException } from '../core/exceptions';
+import { getContextVar, setContextVar } from '../utils/context';
 import {
   getAuditConfig,
   getMultiTenantConfig,
   extractTenantId,
   getSoftDeleteConfig,
   getVersioningConfig,
+  type FilterCondition,
+  type HookContext,
   type MetaInput,
+  type ModelPolicies,
   type NormalizedAuditConfig,
   type NormalizedMultiTenantConfig,
   type NormalizedSoftDeleteConfig,
   type NormalizedVersioningConfig,
+  type PolicyContext,
+  type SchemaResolveContext,
+  type ValidatedData,
 } from '../core/types';
+import { POLICIES_CONTEXT_KEY } from '../auth/guards';
+import type { AuthUser } from '../auth/types';
 import { createAuditLogger, type AuditLogger } from '../audit';
 import { createVersionManager, type VersionManager } from '../versioning';
 import { resolveEventEmitter } from '../events/emitter';
 import type { CrudEventType } from '../events/types';
 import { encryptFields, decryptFields } from '../encryption/crypto';
 import { applyProfile, applyProfileToArray } from '../serialization/serialize';
+
+/**
+ * Per-request memoization key for `Model.resolveSchema(ctx)` results.
+ * Per-table so a handler that touches multiple models keeps each cache hit
+ * independent.
+ */
+const RESOLVED_SCHEMA_KEY_PREFIX = '__honoCrudResolvedSchema:';
+
+/**
+ * Extract the static Zod schema generic from a `MetaInput`. Lets the base
+ * class type its schema-related accessors against the actual model schema
+ * type rather than the wide `ZodObject<ZodRawShape>` upper bound, which
+ * eliminates a class of `as ZodObject<ZodRawShape>` widening casts.
+ */
+type SchemaOf<M extends MetaInput> = M['model']['schema'];
+
+/**
+ * Inferred row type for a `MetaInput`'s model schema (i.e. `z.infer<...>`).
+ * Used to type `policies` callbacks and other row-shaped helpers without
+ * collapsing to `unknown`.
+ */
+type RowOf<M extends MetaInput> = z.infer<SchemaOf<M>>;
+
+/**
+ * Type predicate: does `o` expose a `getBodySchema()` method? Endpoints
+ * with a request body (Create / Update / Upsert / Clone / Batch* /
+ * Import) implement it; Read / List / Delete don't. Localising the
+ * structural check here means callers do `if (hasGetBodySchema(this))
+ * { ... this.getBodySchema() ... }` with no per-call cast.
+ */
+function hasGetBodySchema<T extends object>(
+  o: T
+): o is T & { getBodySchema(): ZodObject<ZodRawShape> } {
+  const candidate = o as { getBodySchema?: unknown };
+  return typeof candidate.getBodySchema === 'function';
+}
 
 export abstract class CrudEndpoint<
   E extends Env = Env,
@@ -44,6 +90,15 @@ export abstract class CrudEndpoint<
   // Per-instance caches. Lazily populated by getAuditLogger / getVersionManager.
   protected _auditLogger?: AuditLogger;
   protected _versionManager?: VersionManager;
+
+  /**
+   * Adapter-specific transaction handle for the in-flight write. Adapter
+   * subclasses (e.g. `DrizzleCreateEndpoint`) populate this inside their
+   * `handle()` override when `useTransaction === true`. Lifecycle hooks
+   * read it via `buildHookContext()` so they can participate in the same
+   * transaction as the parent INSERT/UPDATE/DELETE.
+   */
+  protected _tx?: unknown;
 
   // ============================================================================
   // Audit logging
@@ -196,6 +251,10 @@ export abstract class CrudEndpoint<
       data: payload.data ?? null,
       previousData: payload.previousData,
       userId: this.getAuditUserId(),
+      tenantId: this.context ? this.getTenantId() : undefined,
+      organizationId: this.context
+        ? getContextVar<string>(this.context, 'organizationId')
+        : undefined,
       timestamp: new Date().toISOString(),
       metadata: payload.metadata,
     });
@@ -271,6 +330,252 @@ export abstract class CrudEndpoint<
    */
   protected getParentId(record: unknown): string | number | null {
     return this.getRecordId(record);
+  }
+
+  // ============================================================================
+  // Policies (Model.policies + requirePolicy(...) middleware)
+  // ============================================================================
+
+  /**
+   * Resolve the effective `ModelPolicies` for the current request.
+   * Route-scoped policies attached via `requirePolicy(...)` middleware win
+   * over the model-level `Model.policies` default. Returns `undefined`
+   * when no policies are configured (endpoint behaviour is unchanged
+   * from pre-0.7.0).
+   */
+  protected getPolicies(): ModelPolicies<RowOf<M>> | undefined {
+    if (this.context) {
+      const fromCtx = getContextVar<ModelPolicies<RowOf<M>>>(
+        this.context,
+        POLICIES_CONTEXT_KEY
+      );
+      if (fromCtx) return fromCtx;
+    }
+    // `ModelPolicies<X>` is invariant in X (X appears in both input and
+    // output positions of `read`/`write`/`fields`), so the model's
+    // concrete row type doesn't satisfy `RowOf<M>` structurally — even
+    // when they're the same nominal type. The cast is honest at this
+    // narrow boundary; downstream call sites in `applyRead*`/`applyWrite`
+    // use the typed return without further casts.
+    return this._meta.model.policies as ModelPolicies<RowOf<M>> | undefined;
+  }
+
+  /**
+   * Build the `PolicyContext` passed to `ModelPolicies` callbacks. Sourced
+   * from `c.var.user`, `c.var.tenantId`, etc.
+   */
+  protected buildPolicyContext(): PolicyContext {
+    const ctx = this.context;
+    return {
+      user: ctx ? getContextVar<AuthUser>(ctx, 'user') : undefined,
+      userId: ctx ? getContextVar<string>(ctx, 'userId') : undefined,
+      tenantId: ctx ? getContextVar<string>(ctx, 'tenantId') : undefined,
+      organizationId: ctx ? getContextVar<string>(ctx, 'organizationId') : undefined,
+      request: ctx?.req?.raw ?? new Request('http://localhost/'),
+    };
+  }
+
+  /**
+   * Apply the policy `read` predicate (if any) to a single record. Returns
+   * the record if allowed, `null` otherwise. Field masking via
+   * `policies.fields(...)` is also applied.
+   *
+   * Typed against `RowOf<M>` so the policies' callbacks see the same row
+   * shape as the model — no cast needed at the call site.
+   */
+  protected async applyReadPolicy(record: RowOf<M>): Promise<RowOf<M> | null> {
+    const policies = this.getPolicies();
+    if (!policies) return record;
+    const policyCtx = this.buildPolicyContext();
+
+    if (policies.read) {
+      const allowed = await policies.read(policyCtx, record);
+      if (!allowed) return null;
+    }
+
+    if (policies.fields) {
+      const mask = policies.fields(policyCtx, record);
+      return { ...record, ...mask };
+    }
+
+    return record;
+  }
+
+  /**
+   * Apply the policy `read` predicate to an array of records, dropping
+   * disallowed entries and applying any field mask. Used by List endpoints.
+   */
+  protected async applyReadPolicyToArray(records: RowOf<M>[]): Promise<RowOf<M>[]> {
+    const policies = this.getPolicies();
+    if (!policies) return records;
+    const out: RowOf<M>[] = [];
+    for (const record of records) {
+      const masked = await this.applyReadPolicy(record);
+      if (masked !== null) out.push(masked);
+    }
+    return out;
+  }
+
+  /**
+   * Apply the policy `write` predicate (if any) to a record before mutation.
+   * Throws `ForbiddenException` when the policy denies the write.
+   */
+  protected async applyWritePolicy(record: RowOf<M>): Promise<void> {
+    const policies = this.getPolicies();
+    if (!policies?.write) return;
+    const allowed = await policies.write(this.buildPolicyContext(), record);
+    if (!allowed) {
+      // Use a generic 403 message — don't leak which field tripped the policy.
+      throw new HTTPException(403, { message: 'Forbidden by policy' });
+    }
+  }
+
+  /**
+   * Inject `policies.readPushdown(ctx)` filter conditions into the
+   * provided filters array so the adapter never returns rows the policy
+   * would have stripped post-fetch. No-op when no pushdown is set.
+   */
+  protected applyReadPushdown(filters: { filters: FilterCondition[] }): void {
+    const policies = this.getPolicies();
+    if (!policies?.readPushdown) return;
+    const extra = policies.readPushdown(this.buildPolicyContext());
+    if (extra && extra.length > 0) {
+      filters.filters.push(...extra);
+    }
+  }
+
+  // ============================================================================
+  // Hook context (HookContext.db.tx + actor identity)
+  // ============================================================================
+
+  /**
+   * Build the `HookContext` passed to lifecycle hooks (`before`/`after`).
+   * Reads the current transaction handle from `this._tx` (adapter-set) and
+   * pulls tenant/org/user/agent identifiers from the conventional Hono
+   * context vars. Safe to call even when no context is set — fields are
+   * left undefined when their source is absent.
+   */
+  protected buildHookContext(): HookContext {
+    const ctx = this.context;
+    return {
+      db: { tx: this._tx },
+      request: ctx?.req?.raw,
+      tenantId: ctx ? this.getTenantId() : undefined,
+      organizationId: ctx ? getContextVar<string>(ctx, 'organizationId') : undefined,
+      userId: ctx ? getContextVar<string>(ctx, 'userId') : undefined,
+      agentId: ctx ? getContextVar<string>(ctx, 'agentId') : undefined,
+      agentRunId: ctx ? getContextVar<string>(ctx, 'agentRunId') : undefined,
+    };
+  }
+
+  // ============================================================================
+  // Per-request schema resolution (Model.resolveSchema)
+  // ============================================================================
+
+  /**
+   * Returns the effective Zod schema for the current request: the result of
+   * `Model.resolveSchema(ctx)` if it was already awaited via
+   * `resolveModelSchema()` and cached on the Hono context, otherwise the
+   * static `Model.schema`.
+   *
+   * Sync — safe to call from `getSchema()` paths. Use `resolveModelSchema()`
+   * to populate the cache before a sync read is needed at request time.
+   */
+  protected getModelSchema(): SchemaOf<M> {
+    if (this.context && this._meta.model.resolveSchema) {
+      const cached = getContextVar<SchemaOf<M>>(
+        this.context,
+        RESOLVED_SCHEMA_KEY_PREFIX + this._meta.model.tableName
+      );
+      if (cached) return cached;
+    }
+    return this._meta.model.schema;
+  }
+
+  /**
+   * Awaits `Model.resolveSchema(ctx)` and caches the result on the Hono
+   * context. No-op when no resolver is configured. Idempotent within a
+   * single request — subsequent calls return the cached schema without
+   * re-invoking the resolver.
+   *
+   * Resolver throws surface as a structured 500 (`SCHEMA_RESOLVE_ERROR`).
+   */
+  protected async resolveModelSchema(): Promise<SchemaOf<M>> {
+    const resolver = this._meta.model.resolveSchema;
+    if (!resolver || !this.context) {
+      return this._meta.model.schema;
+    }
+    const cacheKey = RESOLVED_SCHEMA_KEY_PREFIX + this._meta.model.tableName;
+    const cached = getContextVar<SchemaOf<M>>(this.context, cacheKey);
+    if (cached) return cached;
+
+    // Read tenant/org from the conventional context vars set by the
+    // `multiTenant()` middleware (or by `buildPerTenantOpenApi`'s synthetic
+    // context). This deliberately does NOT require `Model.multiTenant` to
+    // be configured — the resolver hook is independent of the per-model
+    // tenant-injection feature.
+    const resolveCtx: SchemaResolveContext = {
+      tenantId: getContextVar<string>(this.context, 'tenantId'),
+      organizationId: getContextVar<string>(this.context, 'organizationId'),
+      request: this.context.req?.raw,
+      env: this.context.env,
+    };
+
+    let resolved: SchemaOf<M>;
+    try {
+      resolved = await resolver(resolveCtx);
+    } catch (err) {
+      throw new ApiException(
+        err instanceof Error ? err.message : 'Schema resolution failed',
+        500,
+        'SCHEMA_RESOLVE_ERROR',
+        err instanceof Error ? { cause: err.message } : undefined
+      );
+    }
+
+    setContextVar(this.context, cacheKey, resolved);
+    return resolved;
+  }
+
+  /**
+   * Override of `OpenAPIRoute.getValidatedData()` that resolves the
+   * per-tenant schema (`Model.resolveSchema` if configured), then
+   * re-validates the body against the endpoint's `getBodySchema()`.
+   *
+   * Single code path — runs whether or not a resolver is configured.
+   * For the static-schema case the re-parse is a no-op against the same
+   * Zod instance zod-openapi already validated against; the cost is a
+   * few hundred nanoseconds and buys one consistent path to test.
+   *
+   * Reads body from the raw request (`ctx.req.json()`) so fields the
+   * static body schema would have stripped survive into the
+   * resolved-schema parse. Hono caches the parsed JSON body, so repeated
+   * calls don't re-consume the request stream.
+   */
+  override async getValidatedData<T = unknown>(): Promise<ValidatedData<T>> {
+    await this.resolveModelSchema();
+    const data = await super.getValidatedData<T>();
+
+    if (this.context && data.body !== undefined && hasGetBodySchema(this)) {
+      let rawBody: unknown = data.body;
+      try {
+        rawBody = await this.context.req.json();
+      } catch {
+        // Fall back to the static-schema-validated body if the raw JSON
+        // read fails (e.g. body already consumed in an unusual setup).
+      }
+      const bodySchema = this.getBodySchema();
+      const parsed = bodySchema.safeParse(rawBody);
+      if (!parsed.success) {
+        throw InputValidationException.fromZodError(parsed.error);
+      }
+      // `parsed.data` has the inferred shape of the body schema, but the
+      // generic `T` is the caller's chosen output type; honest erasure at
+      // the Zod-output → caller-type boundary.
+      data.body = parsed.data as T;
+    }
+
+    return data;
   }
 }
 

@@ -990,6 +990,23 @@ export interface SoftDeleteConfig {
 // ============================================================================
 
 /**
+ * Context passed to `Model.resolveSchema` so the resolver can return a
+ * tenant-, organization-, or request-specific Zod schema.
+ *
+ * `request` and `env` come straight from the underlying Hono request when
+ * the resolver is invoked at request time. They may be undefined when the
+ * resolver is invoked from offline tooling (e.g. per-tenant OpenAPI
+ * pre-generation against a `cacheKey`).
+ */
+export interface SchemaResolveContext {
+  tenantId?: string;
+  organizationId?: string;
+  request?: Request;
+  env?: unknown;
+  cacheKey?: string;
+}
+
+/**
  * Model definition with strong typing.
  * @template T - The Zod schema type for this model
  * @template TTable - Optional ORM table type (Drizzle Table, Prisma model, etc.)
@@ -1002,6 +1019,18 @@ export interface Model<
   tableName: string;
   /** Zod schema for validation and type inference */
   schema: T;
+  /**
+   * Optional per-request schema resolver.
+   *
+   * When set, the returned schema is used in place of `schema` for body
+   * validation and OpenAPI emission for the current request (or the current
+   * `buildPerTenantOpenApi(...)` call). The static `schema` is always required
+   * and acts as the fallback when no resolver is configured.
+   *
+   * The resolver is invoked at most once per request per model — results are
+   * memoized on the Hono context.
+   */
+  resolveSchema?: (ctx: SchemaResolveContext) => T | Promise<T>;
   /** Primary key field names - must be keys of the schema */
   primaryKeys: Array<SchemaKeys<T> & string>;
   /** Optional serializer to transform objects before response */
@@ -1195,6 +1224,51 @@ export interface Model<
    * ```
    */
   serializationProfile?: import('../serialization/types').SerializationProfile;
+
+  /**
+   * Optional row-level / field-level policies applied automatically by
+   * List, Read, Update, and Delete endpoints. See `ModelPolicies` for the
+   * full surface.
+   */
+  policies?: ModelPolicies<z.infer<T>>;
+}
+
+/**
+ * Row-level / field-level access policies for a model. When set on
+ * `Model.policies`, the lib applies them automatically in the relevant
+ * endpoints — no per-endpoint wiring needed.
+ *
+ * - `read(ctx, record)` — predicate run after fetch in List/Read. Records
+ *   that return false are filtered (List) or yield a 404 (Read, to avoid
+ *   leaking existence).
+ * - `write(ctx, record)` — predicate run before Update/Delete. Returning
+ *   false yields a 403.
+ * - `fields(ctx, record)` — returns a partial record to merge over the
+ *   raw record on read; use to mask fields (e.g. `{ ssn: undefined }`).
+ * - `readPushdown(ctx)` — optional perf opt-in. Returns extra
+ *   `FilterCondition[]` AND'd into List queries at the query level so the
+ *   adapter never returns rows the policy would have stripped post-fetch.
+ *   Useful when the policy is expressible as a WHERE condition (most
+ *   tenant-scoped policies are).
+ */
+export interface ModelPolicies<T = unknown> {
+  read?: (ctx: PolicyContext, record: T) => boolean | Promise<boolean>;
+  write?: (ctx: PolicyContext, record: T) => boolean | Promise<boolean>;
+  fields?: (ctx: PolicyContext, record: T) => Partial<T>;
+  readPushdown?: (ctx: PolicyContext) => FilterCondition[];
+}
+
+/**
+ * Context passed to `ModelPolicies` callbacks. Sourced from the in-flight
+ * Hono context — `user` from `c.var.user`, tenant/org from
+ * `c.var.tenantId`/`c.var.organizationId`, request from `c.req.raw`.
+ */
+export interface PolicyContext {
+  user?: import('../auth/types').AuthUser;
+  tenantId?: string;
+  organizationId?: string;
+  userId?: string;
+  request: Request;
 }
 
 /**
@@ -1395,6 +1469,38 @@ export function extractTenantId(
     default:
       return undefined;
   }
+}
+
+/**
+ * Context passed to lifecycle hooks (`before`/`after` on Create/Update/Delete
+ * endpoints). Carries the underlying transaction handle (when the adapter
+ * wraps in one) plus the request-scoped tenancy and actor identifiers, so
+ * hooks can do work that participates in the same tx as the parent write
+ * and observes the same tenant/agent context.
+ *
+ * `db.tx` is the adapter-specific transaction handle. For Drizzle it's the
+ * Drizzle transaction (when `useTransaction === true`). For the in-memory
+ * adapter it's a no-op sentinel. Throwing inside an `after*` hook only
+ * rolls back the parent write when the adapter is operating inside a real
+ * transaction AND `afterHookMode === 'sequential'`. The default
+ * `fire-and-forget` mode runs after the response is sent and cannot
+ * trigger rollback — opt into `sequential` to get rollback semantics.
+ */
+export interface HookContext {
+  /** Adapter-specific transaction handle (Drizzle tx, Prisma client, sentinel for memory). */
+  db: { tx: unknown };
+  /** The underlying Hono request, when available. */
+  request?: Request;
+  /** Tenant identifier as resolved by the multi-tenant middleware. */
+  tenantId?: string;
+  /** Organization identifier from `c.var.organizationId`. */
+  organizationId?: string;
+  /** Authenticated user identifier from `c.var.userId`. */
+  userId?: string;
+  /** Optional agent identifier (set by upstream agent middleware). */
+  agentId?: string;
+  /** Optional agent run identifier (set by upstream agent middleware). */
+  agentRunId?: string;
 }
 
 // Hook execution modes

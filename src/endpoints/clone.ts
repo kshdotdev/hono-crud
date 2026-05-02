@@ -65,7 +65,7 @@ export abstract class CloneEndpoint<
       ...this._meta.model.primaryKeys,
       ...this.excludeFromClone,
     ];
-    const schema = getSchemaFields(this._meta.model.schema, excludeFields);
+    const schema = getSchemaFields(this.getModelSchema(), excludeFields);
     return schema.partial() as ZodObject<ZodRawShape>;
   }
 
@@ -93,7 +93,7 @@ export abstract class CloneEndpoint<
             'application/json': {
               schema: z.object({
                 success: z.literal(true),
-                result: this._meta.model.schema,
+                result: this.getModelSchema(),
               }),
             },
           },

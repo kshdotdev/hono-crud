@@ -122,7 +122,7 @@ export abstract class ReadEndpoint<
    * Gets the list of fields available for selection.
    */
   protected getAvailableSelectFields(): string[] {
-    const schemaFields = Object.keys(this._meta.model.schema.shape);
+    const schemaFields = Object.keys(this.getModelSchema().shape);
     const computedFields = this._meta.model.computedFields
       ? Object.keys(this._meta.model.computedFields)
       : [];
@@ -163,7 +163,7 @@ export abstract class ReadEndpoint<
             'application/json': {
               schema: z.object({
                 success: z.literal(true),
-                result: this._meta.model.schema,
+                result: this.getModelSchema(),
               }),
             },
           },
@@ -340,6 +340,15 @@ export abstract class ReadEndpoint<
     }
 
     obj = await this.decryptOnRead(obj as Record<string, unknown>) as ModelObject<M['model']>;
+
+    // Apply policy `read` predicate. Treat denial as 404 to avoid leaking
+    // resource existence to callers that aren't allowed to see it.
+    const allowed = await this.applyReadPolicy(obj as ModelObject<M['model']>);
+    if (allowed === null) {
+      throw new NotFoundException(this._meta.model.tableName, lookupValue);
+    }
+    obj = allowed;
+
     obj = await this.after(obj);
 
     // Apply computed fields if defined

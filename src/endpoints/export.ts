@@ -122,7 +122,7 @@ export abstract class ExportEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.object({
-                  data: z.array(this._meta.model.schema),
+                  data: z.array(this.getModelSchema()),
                   count: z.number(),
                   format: z.enum(['json', 'csv']),
                   exportedAt: z.string(),

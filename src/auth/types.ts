@@ -438,3 +438,137 @@ export interface EndpointAuthConfig {
    */
   authorize?: AuthorizationCheck;
 }
+
+// ============================================================================
+// Approval (Human-in-the-Loop deferred execution)
+// ============================================================================
+
+/**
+ * Origin of an action that triggered an approval request. Distinguishes
+ * "human user via HTTP" from "agent acting on behalf of a user via MCP",
+ * etc., so audit logs and approver UIs can render the right context.
+ */
+export type ActionSource =
+  | 'http'
+  | 'agent-mcp'
+  | 'agent-code-mode'
+  | 'workflow'
+  | 'job'
+  | 'system';
+
+/**
+ * Lifecycle state of a pending action.
+ */
+export type PendingActionStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+
+/**
+ * A deferred-execution record written by `requireApproval(...)` on the
+ * first call. The middleware looks it up on the resume call (when the
+ * client re-invokes the same handler with `body[resumeMarker] = id`),
+ * verifies status === 'approved' AND not expired, then replays the
+ * original `input` into the handler.
+ *
+ * Carries full actor identity so audit logs can distinguish human vs.
+ * agent vs. agent-on-behalf-of-user.
+ */
+/**
+ * Zod schema for `PendingAction`. Use this in storage adapters to
+ * validate rows read from durable backends (Postgres / D1 / Durable
+ * Object) — protects against schema drift between adapter versions.
+ *
+ * The TypeScript `PendingAction` type below is **derived from this
+ * schema** (`z.infer<typeof PendingActionSchema>`) so the schema is
+ * the single source of truth: you can't add a field to the interface
+ * without also adding it to the validator (and vice versa).
+ */
+export const PendingActionSchema = z.object({
+  /** Unique ID, UUID v4 (Web Crypto). */
+  id: z.string(),
+  /** Tenant scope, when the request was tenant-scoped. */
+  tenantId: z.string().optional(),
+  /** Organization scope. */
+  organizationId: z.string().optional(),
+  /** Convenience copy of `actorUserId`. */
+  userId: z.string().optional(),
+  /** The human user who *initiated* the action (or null for system). */
+  actorUserId: z.string().optional(),
+  /** When an agent runs on behalf of a user, the user it represents. */
+  onBehalfOfUserId: z.string().optional(),
+  /** Identifier of the agent that produced the action, when applicable. */
+  agentId: z.string().optional(),
+  /** Identifier of the agent-run / conversation, when applicable. */
+  agentRunId: z.string().optional(),
+  /** MCP tool-call identifier, when the action came through MCP. */
+  toolCallId: z.string().optional(),
+  /** Origin of the action (HTTP, agent, workflow, …). */
+  source: z.enum(['http', 'agent-mcp', 'agent-code-mode', 'workflow', 'job', 'system']),
+  /** Endpoint or tool name being approved. */
+  toolName: z.string(),
+  /** Original request input — varies per tool, replayed verbatim on resume. */
+  input: z.unknown(),
+  /** Lifecycle state. */
+  status: z.enum(['pending', 'approved', 'rejected', 'expired']),
+  /** ISO 8601 — when the request was logged. */
+  createdAt: z.iso.datetime(),
+  /** ISO 8601 — when the request expires. After this it should not be replayed. */
+  expiresAt: z.iso.datetime(),
+  /** Reason shown to the approver. */
+  reason: z.string(),
+  /** Identifier of the user who approved (if any). */
+  approvedBy: z.string().optional(),
+  /** ISO 8601 — when the action was approved. */
+  approvedAt: z.iso.datetime().optional(),
+  /** Identifier of the user who rejected (if any). */
+  rejectedBy: z.string().optional(),
+  /** Reason given for rejection. */
+  rejectedReason: z.string().optional(),
+});
+
+export type PendingAction = z.infer<typeof PendingActionSchema>;
+
+/**
+ * Pluggable storage interface for pending actions. Ship a Memory backend
+ * for prototyping; downstream consumers provide their own
+ * Postgres / D1 / Durable Object backed implementation.
+ */
+export interface ApprovalStorage {
+  /** Persist a freshly-created PendingAction. */
+  create(action: PendingAction): Promise<void>;
+  /** Look up a PendingAction by id. Returns null if missing OR expired. */
+  get(actionId: string): Promise<PendingAction | null>;
+  /** Mark approved. Throws / rejects if the action is missing or terminal. */
+  approve(actionId: string, by: string): Promise<void>;
+  /** Mark rejected with a reason. */
+  reject(actionId: string, by: string, reason: string): Promise<void>;
+}
+
+/**
+ * Configuration for `requireApproval(...)`.
+ */
+export interface ApprovalConfig {
+  /** Reason text shown to the approver in the inbox UI. */
+  reason: string;
+  /** ISO 8601 duration string (e.g. `'P1D'`, `'PT2H'`). @default 'P1D' */
+  expiresAfter?: string;
+  /**
+   * Storage backend. Optional — when omitted, the lib uses a
+   * process-local `MemoryApprovalStorage` singleton so single-server
+   * POCs and tutorials work zero-config. **First use of the default
+   * emits a one-time warning via `getLogger()`** to surface the fact
+   * that pending actions live in process memory and won't survive a
+   * restart or load-balancer hop. For production multi-instance
+   * deployments, pass a durable `ApprovalStorage` (Postgres, D1,
+   * Durable Objects, etc.) explicitly.
+   */
+  approvalStorage?: ApprovalStorage;
+  /**
+   * Body field whose presence flags a resume call. The value is the
+   * actionId to look up. @default '_resume_'
+   */
+  resumeMarker?: string;
+  /**
+   * Optional human-readable name for the action (defaults to the request
+   * method + path). Surfaces on `PendingAction.toolName`.
+   */
+  toolName?: string;
+}

@@ -106,7 +106,7 @@ export abstract class BatchRestoreEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.object({
-                  restored: z.array(this._meta.model.schema),
+                  restored: z.array(this.getModelSchema()),
                   count: z.number(),
                   notFound: z.array(z.string()).optional(),
                 }),
@@ -121,7 +121,7 @@ export abstract class BatchRestoreEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.object({
-                  restored: z.array(this._meta.model.schema),
+                  restored: z.array(this.getModelSchema()),
                   count: z.number(),
                   notFound: z.array(z.string()).optional(),
                   errors: z.array(z.object({

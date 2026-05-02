@@ -540,7 +540,7 @@ export abstract class VersionRollbackEndpoint<
             'application/json': {
               schema: z.object({
                 success: z.literal(true),
-                result: this._meta.model.schema,
+                result: this.getModelSchema(),
               }),
             },
           },

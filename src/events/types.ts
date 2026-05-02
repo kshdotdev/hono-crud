@@ -19,6 +19,18 @@ export interface CrudEventPayload<T = unknown> {
   previousData?: T | null;
   /** The user who triggered the operation */
   userId?: string;
+  /**
+   * Tenant identifier resolved by the multi-tenant middleware
+   * (`c.var.tenantId`). Surfaced so subscribers can fan out per-tenant
+   * without re-deriving it from the record. Optional — populated only when
+   * the request was tenant-scoped.
+   */
+  tenantId?: string;
+  /**
+   * Organization identifier from `c.var.organizationId`. Optional —
+   * populated only when an upstream middleware set it.
+   */
+  organizationId?: string;
   /** ISO 8601 timestamp */
   timestamp: string;
   /** Additional metadata */
