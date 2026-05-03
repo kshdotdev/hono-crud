@@ -33,6 +33,7 @@ import {
   PrismaBatchDeleteEndpoint,
   PrismaBatchRestoreEndpoint,
   PrismaUpsertEndpoint,
+  PrismaCloneEndpoint,
 } from '../../src/adapters/prisma/index.js';
 import {
   UserSchema,
@@ -196,6 +197,21 @@ class UserBatchRestore extends PrismaBatchRestoreEndpoint {
   maxBatchSize = 100;
 }
 
+class UserClone extends PrismaCloneEndpoint {
+  _meta = userMeta;
+  prisma = prisma;
+  schema = {
+    tags: ['Users'],
+    summary: 'Clone a user',
+    description:
+      'Duplicates the source user, generating a fresh primary key. ' +
+      'The body must supply a unique `email` (the column has a UNIQUE constraint); ' +
+      'name/role/age/status default to the source row unless overridden in the body. ' +
+      '`createdAt`, `updatedAt`, and `deletedAt` are stripped so the new row picks up DB defaults.',
+  };
+  excludeFromClone = ['createdAt', 'updatedAt', 'deletedAt'];
+}
+
 // ============================================================================
 // Post Endpoints
 // ============================================================================
@@ -336,7 +352,7 @@ class CategoryUpsert extends PrismaUpsertEndpoint {
 
 export const app = fromHono(new Hono());
 
-// Users (full CRUD + batch)
+// Users (full CRUD + batch + clone)
 registerCrud(app, '/users', {
   create: UserCreate,
   list: UserList,
@@ -348,6 +364,7 @@ registerCrud(app, '/users', {
   batchUpdate: UserBatchUpdate,
   batchDelete: UserBatchDelete,
   batchRestore: UserBatchRestore,
+  clone: UserClone,
 });
 
 // Posts

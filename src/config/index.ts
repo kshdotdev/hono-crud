@@ -49,6 +49,18 @@ import {
   MemoryReadEndpoint,
   MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
+  MemoryRestoreEndpoint,
+  MemoryBatchCreateEndpoint,
+  MemoryBatchUpdateEndpoint,
+  MemoryBatchDeleteEndpoint,
+  MemoryBatchRestoreEndpoint,
+  MemoryBatchUpsertEndpoint,
+  MemorySearchEndpoint,
+  MemoryAggregateEndpoint,
+  MemoryExportEndpoint,
+  MemoryImportEndpoint,
+  MemoryUpsertEndpoint,
+  MemoryCloneEndpoint,
 } from '../adapters/memory/index';
 
 // ============================================================================
@@ -250,6 +262,236 @@ export interface DeleteEndpointConfig<M extends MetaInput> {
   hooks?: DeleteHooks<M>;
 }
 
+// ----------------------------------------------------------------------------
+// Extended-verb endpoint configs (search, aggregate, restore, batch.*, export,
+// import, upsert, clone). All optional via EndpointsConfig<M>; the dispatch
+// arms below only fire when the slot is present.
+// ----------------------------------------------------------------------------
+
+/**
+ * Search endpoint hooks.
+ *
+ * The dedicated `/search` endpoint (SearchEndpoint) is read-only and only
+ * supports an `after` callback for post-processing results.
+ */
+interface SearchHooks<M extends MetaInput> {
+  after?: (items: ModelObject<M['model']>[]) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+}
+
+/**
+ * Search endpoint configuration.
+ *
+ * Note: `paramName` is reserved in the briefed shape but not currently wired —
+ * the SearchEndpoint reads its query from a fixed `q` param. Override via a
+ * subclass for now; first-class config will follow if there's demand.
+ */
+export interface SearchEndpointConfig<M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  /** Fields included in the search index (maps to SearchEndpoint.searchFields). */
+  fields?: string[];
+  /** Reserved — currently unused; SearchEndpoint reads `q` by default. */
+  paramName?: string;
+  /** Default search mode: 'any' | 'all' | 'phrase'. Maps to SearchEndpoint.defaultMode. */
+  mode?: 'any' | 'all' | 'phrase';
+  hooks?: SearchHooks<M>;
+}
+
+/**
+ * Aggregate endpoint hooks.
+ */
+interface AggregateHooks {
+  after?: (result: unknown) => Promise<unknown> | unknown;
+}
+
+/**
+ * Aggregate endpoint configuration.
+ */
+export interface AggregateEndpointConfig<_M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  /** Fields the client may filter aggregations by (maps to AggregateEndpoint.filterFields). */
+  fields?: string[];
+  hooks?: AggregateHooks;
+}
+
+/**
+ * Restore endpoint hooks.
+ */
+interface RestoreHooks<M extends MetaInput> extends HookConfig {
+  before?: (lookupValue: string, tx?: unknown) => Promise<void> | void;
+  after?: (restoredItem: ModelObject<M['model']>, tx?: unknown) => Promise<void> | void;
+}
+
+/**
+ * Restore endpoint configuration.
+ */
+export interface RestoreEndpointConfig<M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  hooks?: RestoreHooks<M>;
+}
+
+/**
+ * Batch-create endpoint hooks.
+ */
+interface BatchCreateHooks<M extends MetaInput> extends HookConfig {
+  before?: (data: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  after?: (data: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+}
+
+/**
+ * Batch-create endpoint configuration.
+ */
+export interface BatchCreateEndpointConfig<M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  hooks?: BatchCreateHooks<M>;
+  bodySchema?: ZodObject<ZodRawShape>;
+  maxBatchSize?: number;
+}
+
+/**
+ * Batch-update endpoint hooks.
+ */
+interface BatchUpdateHooks<M extends MetaInput> extends HookConfig {
+  before?: (data: Partial<ModelObject<M['model']>>[], tx?: unknown) => Promise<Partial<ModelObject<M['model']>>[]> | Partial<ModelObject<M['model']>>[];
+  after?: (data: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+}
+
+/**
+ * Batch-update endpoint configuration.
+ */
+export interface BatchUpdateEndpointConfig<M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  hooks?: BatchUpdateHooks<M>;
+  maxBatchSize?: number;
+}
+
+/**
+ * Batch-delete endpoint hooks.
+ */
+interface BatchDeleteHooks<M extends MetaInput> extends HookConfig {
+  before?: (lookupValues: string[], tx?: unknown) => Promise<void> | void;
+  after?: (deletedItems: ModelObject<M['model']>[], tx?: unknown) => Promise<void> | void;
+}
+
+/**
+ * Batch-delete endpoint configuration.
+ */
+export interface BatchDeleteEndpointConfig<M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  hooks?: BatchDeleteHooks<M>;
+  maxBatchSize?: number;
+}
+
+/**
+ * Batch-restore endpoint hooks.
+ */
+interface BatchRestoreHooks<M extends MetaInput> extends HookConfig {
+  before?: (lookupValues: string[], tx?: unknown) => Promise<void> | void;
+  after?: (restoredItems: ModelObject<M['model']>[], tx?: unknown) => Promise<void> | void;
+}
+
+/**
+ * Batch-restore endpoint configuration.
+ */
+export interface BatchRestoreEndpointConfig<M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  hooks?: BatchRestoreHooks<M>;
+  maxBatchSize?: number;
+}
+
+/**
+ * Batch-upsert endpoint hooks.
+ */
+interface BatchUpsertHooks<M extends MetaInput> extends HookConfig {
+  before?: (data: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  after?: (data: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+}
+
+/**
+ * Batch-upsert endpoint configuration.
+ */
+export interface BatchUpsertEndpointConfig<M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  hooks?: BatchUpsertHooks<M>;
+  bodySchema?: ZodObject<ZodRawShape>;
+  /** Conflict-target column(s) for the upsert. String is normalized to single-element array. */
+  conflictTarget?: string | string[];
+  maxBatchSize?: number;
+}
+
+/**
+ * Export endpoint configuration.
+ *
+ * Note: `formats` is accepted as a whitelist hint but only the first element
+ * is wired through to `defaultFormat`. Full whitelist semantics (rejecting
+ * non-listed formats) require an `allowedFormats` field on ExportEndpoint —
+ * deferred.
+ */
+export interface ExportEndpointConfig<_M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  formats?: ('csv' | 'json')[];
+  /** Maximum rows to export (maps to ExportEndpoint.maxExportRecords). */
+  maxRows?: number;
+}
+
+/**
+ * Import endpoint hooks.
+ *
+ * Hook callbacks delegate via `super.before/after`; ImportEndpoint does not
+ * declare hook-mode protected fields, so `beforeMode`/`afterMode` are not part
+ * of this surface.
+ */
+interface ImportHooks<M extends MetaInput> {
+  before?: (rows: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  after?: (rows: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+}
+
+/**
+ * Import endpoint configuration.
+ */
+export interface ImportEndpointConfig<M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  hooks?: ImportHooks<M>;
+  /** Maximum rows accepted per request (maps to ImportEndpoint.maxBatchSize). */
+  maxRows?: number;
+}
+
+/**
+ * Upsert endpoint hooks.
+ */
+interface UpsertHooks<M extends MetaInput> extends HookConfig {
+  before?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  after?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+}
+
+/**
+ * Upsert endpoint configuration.
+ */
+export interface UpsertEndpointConfig<M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  hooks?: UpsertHooks<M>;
+  bodySchema?: ZodObject<ZodRawShape>;
+  /** Conflict-target column(s) for the upsert. String is normalized to single-element array. */
+  conflictTarget?: string | string[];
+}
+
+/**
+ * Clone endpoint hooks.
+ */
+interface CloneHooks<M extends MetaInput> {
+  before?: (sourceId: string, tx?: unknown) => Promise<void> | void;
+  after?: (cloned: ModelObject<M['model']>, tx?: unknown) => Promise<void> | void;
+}
+
+/**
+ * Clone endpoint configuration.
+ */
+export interface CloneEndpointConfig<M extends MetaInput> {
+  openapi?: OpenAPIConfig;
+  hooks?: CloneHooks<M>;
+  /** Field names to strip from the cloned record (maps to CloneEndpoint.excludeFromClone). */
+  fieldsToReset?: string[];
+}
+
 /**
  * Complete endpoints configuration object.
  */
@@ -266,6 +508,30 @@ export interface EndpointsConfig<M extends MetaInput> {
   update?: UpdateEndpointConfig<M>;
   /** Delete endpoint configuration */
   delete?: DeleteEndpointConfig<M>;
+  /** Search endpoint configuration */
+  search?: SearchEndpointConfig<M>;
+  /** Aggregate endpoint configuration */
+  aggregate?: AggregateEndpointConfig<M>;
+  /** Restore endpoint configuration (un-delete soft-deleted records) */
+  restore?: RestoreEndpointConfig<M>;
+  /** Batch-create endpoint configuration */
+  batchCreate?: BatchCreateEndpointConfig<M>;
+  /** Batch-update endpoint configuration */
+  batchUpdate?: BatchUpdateEndpointConfig<M>;
+  /** Batch-delete endpoint configuration */
+  batchDelete?: BatchDeleteEndpointConfig<M>;
+  /** Batch-restore endpoint configuration */
+  batchRestore?: BatchRestoreEndpointConfig<M>;
+  /** Batch-upsert endpoint configuration */
+  batchUpsert?: BatchUpsertEndpointConfig<M>;
+  /** Export endpoint configuration */
+  export?: ExportEndpointConfig<M>;
+  /** Import endpoint configuration */
+  import?: ImportEndpointConfig<M>;
+  /** Upsert endpoint configuration */
+  upsert?: UpsertEndpointConfig<M>;
+  /** Clone endpoint configuration */
+  clone?: CloneEndpointConfig<M>;
 }
 
 /**
@@ -277,6 +543,20 @@ export interface AdapterBundle<E extends Env = Env> {
   ReadEndpoint: abstract new () => OpenAPIRoute<E>;
   UpdateEndpoint: abstract new () => OpenAPIRoute<E>;
   DeleteEndpoint: abstract new () => OpenAPIRoute<E>;
+  // Optional extended-verb slots — adapters populate what they implement;
+  // dispatch arms gate on both `config.<verb>` and adapter presence.
+  SearchEndpoint?: abstract new () => OpenAPIRoute<E>;
+  AggregateEndpoint?: abstract new () => OpenAPIRoute<E>;
+  RestoreEndpoint?: abstract new () => OpenAPIRoute<E>;
+  BatchCreateEndpoint?: abstract new () => OpenAPIRoute<E>;
+  BatchUpdateEndpoint?: abstract new () => OpenAPIRoute<E>;
+  BatchDeleteEndpoint?: abstract new () => OpenAPIRoute<E>;
+  BatchRestoreEndpoint?: abstract new () => OpenAPIRoute<E>;
+  BatchUpsertEndpoint?: abstract new () => OpenAPIRoute<E>;
+  ExportEndpoint?: abstract new () => OpenAPIRoute<E>;
+  ImportEndpoint?: abstract new () => OpenAPIRoute<E>;
+  UpsertEndpoint?: abstract new () => OpenAPIRoute<E>;
+  CloneEndpoint?: abstract new () => OpenAPIRoute<E>;
 }
 
 /**
@@ -288,6 +568,18 @@ export interface GeneratedEndpoints<E extends Env = Env> {
   read?: EndpointClass<E>;
   update?: EndpointClass<E>;
   delete?: EndpointClass<E>;
+  search?: EndpointClass<E>;
+  aggregate?: EndpointClass<E>;
+  restore?: EndpointClass<E>;
+  batchCreate?: EndpointClass<E>;
+  batchUpdate?: EndpointClass<E>;
+  batchDelete?: EndpointClass<E>;
+  batchRestore?: EndpointClass<E>;
+  batchUpsert?: EndpointClass<E>;
+  export?: EndpointClass<E>;
+  import?: EndpointClass<E>;
+  upsert?: EndpointClass<E>;
+  clone?: EndpointClass<E>;
 }
 
 // ============================================================================
@@ -308,6 +600,18 @@ export const MemoryAdapters: AdapterBundle = {
   ReadEndpoint: MemoryReadEndpoint,
   UpdateEndpoint: MemoryUpdateEndpoint,
   DeleteEndpoint: MemoryDeleteEndpoint,
+  SearchEndpoint: MemorySearchEndpoint,
+  AggregateEndpoint: MemoryAggregateEndpoint,
+  RestoreEndpoint: MemoryRestoreEndpoint,
+  BatchCreateEndpoint: MemoryBatchCreateEndpoint,
+  BatchUpdateEndpoint: MemoryBatchUpdateEndpoint,
+  BatchDeleteEndpoint: MemoryBatchDeleteEndpoint,
+  BatchRestoreEndpoint: MemoryBatchRestoreEndpoint,
+  BatchUpsertEndpoint: MemoryBatchUpsertEndpoint,
+  ExportEndpoint: MemoryExportEndpoint,
+  ImportEndpoint: MemoryImportEndpoint,
+  UpsertEndpoint: MemoryUpsertEndpoint,
+  CloneEndpoint: MemoryCloneEndpoint,
 };
 
 // ============================================================================
@@ -447,6 +751,201 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+    });
+  }
+
+  // ----- Extended-verb dispatch arms -----
+  // Each arm fires only when both the config slot is present AND the adapter
+  // bundle ships the matching endpoint base class.
+
+  // Generate Search endpoint
+  if (config.search !== undefined && adapters.SearchEndpoint) {
+    const cfg = config.search;
+    result.search = generateEndpointClass(adapters.SearchEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      extras: {
+        ...(cfg.fields !== undefined ? { searchFields: cfg.fields } : {}),
+        ...(cfg.mode !== undefined ? { defaultMode: cfg.mode } : {}),
+      },
+    });
+  }
+
+  // Generate Aggregate endpoint
+  if (config.aggregate !== undefined && adapters.AggregateEndpoint) {
+    const cfg = config.aggregate;
+    result.aggregate = generateEndpointClass(adapters.AggregateEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      extras: {
+        ...(cfg.fields !== undefined ? { filterFields: cfg.fields } : {}),
+      },
+    });
+  }
+
+  // Generate Restore endpoint
+  if (config.restore !== undefined && adapters.RestoreEndpoint) {
+    const cfg = config.restore;
+    result.restore = generateEndpointClass(adapters.RestoreEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      beforeHookMode: cfg.hooks?.beforeMode,
+      afterHookMode: cfg.hooks?.afterMode,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+    });
+  }
+
+  // Generate BatchCreate endpoint
+  if (config.batchCreate !== undefined && adapters.BatchCreateEndpoint) {
+    const cfg = config.batchCreate;
+    result.batchCreate = generateEndpointClass(adapters.BatchCreateEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      bodySchema: cfg.bodySchema,
+      beforeHookMode: cfg.hooks?.beforeMode,
+      afterHookMode: cfg.hooks?.afterMode,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      extras: {
+        ...(cfg.maxBatchSize !== undefined ? { maxBatchSize: cfg.maxBatchSize } : {}),
+      },
+    });
+  }
+
+  // Generate BatchUpdate endpoint
+  if (config.batchUpdate !== undefined && adapters.BatchUpdateEndpoint) {
+    const cfg = config.batchUpdate;
+    result.batchUpdate = generateEndpointClass(adapters.BatchUpdateEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      beforeHookMode: cfg.hooks?.beforeMode,
+      afterHookMode: cfg.hooks?.afterMode,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      extras: {
+        ...(cfg.maxBatchSize !== undefined ? { maxBatchSize: cfg.maxBatchSize } : {}),
+      },
+    });
+  }
+
+  // Generate BatchDelete endpoint
+  if (config.batchDelete !== undefined && adapters.BatchDeleteEndpoint) {
+    const cfg = config.batchDelete;
+    result.batchDelete = generateEndpointClass(adapters.BatchDeleteEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      beforeHookMode: cfg.hooks?.beforeMode,
+      afterHookMode: cfg.hooks?.afterMode,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      extras: {
+        ...(cfg.maxBatchSize !== undefined ? { maxBatchSize: cfg.maxBatchSize } : {}),
+      },
+    });
+  }
+
+  // Generate BatchRestore endpoint
+  if (config.batchRestore !== undefined && adapters.BatchRestoreEndpoint) {
+    const cfg = config.batchRestore;
+    result.batchRestore = generateEndpointClass(adapters.BatchRestoreEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      beforeHookMode: cfg.hooks?.beforeMode,
+      afterHookMode: cfg.hooks?.afterMode,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      extras: {
+        ...(cfg.maxBatchSize !== undefined ? { maxBatchSize: cfg.maxBatchSize } : {}),
+      },
+    });
+  }
+
+  // Generate BatchUpsert endpoint
+  if (config.batchUpsert !== undefined && adapters.BatchUpsertEndpoint) {
+    const cfg = config.batchUpsert;
+    const upsertKeys =
+      typeof cfg.conflictTarget === 'string'
+        ? [cfg.conflictTarget]
+        : cfg.conflictTarget;
+    result.batchUpsert = generateEndpointClass(adapters.BatchUpsertEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      bodySchema: cfg.bodySchema,
+      beforeHookMode: cfg.hooks?.beforeMode,
+      afterHookMode: cfg.hooks?.afterMode,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      extras: {
+        ...(cfg.maxBatchSize !== undefined ? { maxBatchSize: cfg.maxBatchSize } : {}),
+        ...(upsertKeys !== undefined ? { upsertKeys } : {}),
+      },
+    });
+  }
+
+  // Generate Export endpoint
+  if (config.export !== undefined && adapters.ExportEndpoint) {
+    const cfg = config.export;
+    result.export = generateEndpointClass(adapters.ExportEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      extras: {
+        ...(cfg.maxRows !== undefined ? { maxExportRecords: cfg.maxRows } : {}),
+        ...(cfg.formats !== undefined && cfg.formats.length > 0
+          ? { defaultFormat: cfg.formats[0] }
+          : {}),
+      },
+    });
+  }
+
+  // Generate Import endpoint
+  if (config.import !== undefined && adapters.ImportEndpoint) {
+    const cfg = config.import;
+    result.import = generateEndpointClass(adapters.ImportEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      extras: {
+        ...(cfg.maxRows !== undefined ? { maxBatchSize: cfg.maxRows } : {}),
+      },
+    });
+  }
+
+  // Generate Upsert endpoint
+  if (config.upsert !== undefined && adapters.UpsertEndpoint) {
+    const cfg = config.upsert;
+    const upsertKeys =
+      typeof cfg.conflictTarget === 'string'
+        ? [cfg.conflictTarget]
+        : cfg.conflictTarget;
+    result.upsert = generateEndpointClass(adapters.UpsertEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      bodySchema: cfg.bodySchema,
+      beforeHookMode: cfg.hooks?.beforeMode,
+      afterHookMode: cfg.hooks?.afterMode,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      extras: {
+        ...(upsertKeys !== undefined ? { upsertKeys } : {}),
+      },
+    });
+  }
+
+  // Generate Clone endpoint
+  if (config.clone !== undefined && adapters.CloneEndpoint) {
+    const cfg = config.clone;
+    result.clone = generateEndpointClass(adapters.CloneEndpoint, {
+      meta: config.meta,
+      schema: cfg.openapi,
+      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      extras: {
+        ...(cfg.fieldsToReset !== undefined ? { excludeFromClone: cfg.fieldsToReset } : {}),
+      },
     });
   }
 

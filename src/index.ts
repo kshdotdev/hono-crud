@@ -651,12 +651,26 @@ export {
   defineEndpoints,
   MemoryAdapters,
 } from './config/index';
+export { DrizzleAdapters } from './adapters/drizzle/index';
+export { PrismaAdapters } from './adapters/prisma/index';
 export type {
   CreateEndpointConfig as ConfigCreateEndpoint,
   ListEndpointConfig as ConfigListEndpoint,
   ReadEndpointConfig as ConfigReadEndpoint,
   UpdateEndpointConfig as ConfigUpdateEndpoint,
   DeleteEndpointConfig as ConfigDeleteEndpoint,
+  SearchEndpointConfig as ConfigSearchEndpoint,
+  AggregateEndpointConfig as ConfigAggregateEndpoint,
+  RestoreEndpointConfig as ConfigRestoreEndpoint,
+  BatchCreateEndpointConfig as ConfigBatchCreateEndpoint,
+  BatchUpdateEndpointConfig as ConfigBatchUpdateEndpoint,
+  BatchDeleteEndpointConfig as ConfigBatchDeleteEndpoint,
+  BatchRestoreEndpointConfig as ConfigBatchRestoreEndpoint,
+  BatchUpsertEndpointConfig as ConfigBatchUpsertEndpoint,
+  ExportEndpointConfig as ConfigExportEndpoint,
+  ImportEndpointConfig as ConfigImportEndpoint,
+  UpsertEndpointConfig as ConfigUpsertEndpoint,
+  CloneEndpointConfig as ConfigCloneEndpoint,
   EndpointsConfig,
   AdapterBundle,
   GeneratedEndpoints,

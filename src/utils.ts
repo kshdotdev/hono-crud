@@ -27,10 +27,13 @@ export type CrudEndpointName =
   | 'batchUpdate'
   | 'batchDelete'
   | 'batchRestore'
+  | 'batchUpsert'
   | 'search'
   | 'aggregate'
   | 'export'
-  | 'import';
+  | 'import'
+  | 'upsert'
+  | 'clone';
 
 /**
  * Per-endpoint middleware configuration.
@@ -69,6 +72,8 @@ export interface CrudEndpoints<E extends Env = Env> {
   batchDelete?: EndpointClass<E>;
   /** Batch restore endpoint for un-deleting multiple soft-deleted records */
   batchRestore?: EndpointClass<E>;
+  /** Batch upsert endpoint for bulk insert-or-update */
+  batchUpsert?: EndpointClass<E>;
   /** Search endpoint for full-text search with relevance scoring */
   search?: EndpointClass<E>;
   /** Aggregate endpoint for computing aggregations */
@@ -77,6 +82,10 @@ export interface CrudEndpoints<E extends Env = Env> {
   export?: EndpointClass<E>;
   /** Import endpoint for bulk data import from CSV/JSON */
   import?: EndpointClass<E>;
+  /** Upsert endpoint for single insert-or-update */
+  upsert?: EndpointClass<E>;
+  /** Clone endpoint for duplicating a record by id */
+  clone?: EndpointClass<E>;
 }
 
 /**
@@ -230,6 +239,10 @@ export function registerCrud<E extends Env = Env>(
     registerRoute('post', `${normalizedPath}/batch/restore`, 'batchRestore', endpoints.batchRestore);
   }
 
+  if (endpoints.batchUpsert) {
+    registerRoute('post', `${normalizedPath}/batch/upsert`, 'batchUpsert', endpoints.batchUpsert);
+  }
+
   // Search endpoint - must be registered BEFORE :id routes
   if (endpoints.search) {
     registerRoute('get', `${normalizedPath}/search`, 'search', endpoints.search);
@@ -250,7 +263,12 @@ export function registerCrud<E extends Env = Env>(
     registerRoute('post', `${normalizedPath}/import`, 'import', endpoints.import);
   }
 
-  // Item-level routes (with :id parameter) - must be registered AFTER /batch, /search, /export, /import routes
+  // Upsert endpoint - must be registered BEFORE :id routes
+  if (endpoints.upsert) {
+    registerRoute('post', `${normalizedPath}/upsert`, 'upsert', endpoints.upsert);
+  }
+
+  // Item-level routes (with :id parameter) - must be registered AFTER /batch, /search, /export, /import, /upsert routes
   if (endpoints.read) {
     registerRoute('get', `${normalizedPath}/:id`, 'read', endpoints.read);
   }
@@ -265,6 +283,10 @@ export function registerCrud<E extends Env = Env>(
 
   if (endpoints.restore) {
     registerRoute('post', `${normalizedPath}/:id/restore`, 'restore', endpoints.restore);
+  }
+
+  if (endpoints.clone) {
+    registerRoute('post', `${normalizedPath}/:id/clone`, 'clone', endpoints.clone);
   }
 }
 

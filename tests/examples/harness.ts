@@ -129,3 +129,76 @@ export async function exerciseComprehensiveCrud(app: ExampleApp): Promise<void> 
   response = await app.request('/openapi.json');
   await expectOk(response);
 }
+
+/**
+ * Exercises the clone endpoint against a comprehensive example app.
+ * Assumes /seed has populated the DB with the standard fixture (alice, bob, charlie).
+ */
+export async function exerciseClone(app: ExampleApp): Promise<void> {
+  await seed(app);
+
+  const sourceUserId = 'a0000000-0000-0000-0000-000000000001';
+
+  // Read the source so we can compare against the clone.
+  let response = await app.request(`/users/${sourceUserId}`);
+  await expectOk(response);
+  const source = await json<SuccessResponse<{ id: string; name: string; email: string; role: string; age?: number }>>(response);
+  expect(source.result.email).toBe('alice@example.com');
+
+  // 1. Basic clone with body override for the unique email + role passthrough.
+  // Note: zod schema defaults on the body (role: .default('user')) clobber the
+  // source value when the field is absent from the request, so callers must
+  // explicitly forward fields they want to preserve from the source.
+  const newEmail = `clone-${crypto.randomUUID()}@example.com`;
+  response = await app.request(`/users/${sourceUserId}/clone`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: newEmail, role: source.result.role, status: 'active' }),
+  });
+  await expectOk(response);
+  const cloned = await json<SuccessResponse<{ id: string; name: string; email: string; role: string; age?: number }>>(response);
+  expect(cloned.success).toBe(true);
+  expect(cloned.result.id).toBeDefined();
+  expect(cloned.result.id).not.toBe(sourceUserId);
+  expect(cloned.result.email).toBe(newEmail);
+  expect(cloned.result.name).toBe(source.result.name);
+  expect(cloned.result.role).toBe(source.result.role);
+
+  // 2. Source row remains intact in the DB.
+  response = await app.request(`/users/${sourceUserId}`);
+  await expectOk(response);
+  const reReadSource = await json<SuccessResponse<{ email: string }>>(response);
+  expect(reReadSource.result.email).toBe('alice@example.com');
+
+  // 3. Body overrides win — name + email both replaced.
+  const overrideEmail = `clone-${crypto.randomUUID()}@example.com`;
+  response = await app.request(`/users/${sourceUserId}/clone`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: overrideEmail, name: 'Cloned Alice' }),
+  });
+  await expectOk(response);
+  const overridden = await json<SuccessResponse<{ name: string; email: string }>>(response);
+  expect(overridden.result.name).toBe('Cloned Alice');
+  expect(overridden.result.email).toBe(overrideEmail);
+
+  // 4. Unknown source id — should not succeed.
+  response = await app.request(`/users/00000000-0000-0000-0000-000000000999/clone`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: `clone-${crypto.randomUUID()}@example.com` }),
+  });
+  expect(response.status).toBeGreaterThanOrEqual(400);
+  expect(response.status).toBeLessThan(500);
+
+  // 5. Soft-deleted source — should also not be cloneable.
+  response = await app.request(`/users/${sourceUserId}`, { method: 'DELETE' });
+  await expectOk(response);
+  response = await app.request(`/users/${sourceUserId}/clone`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: `clone-${crypto.randomUUID()}@example.com` }),
+  });
+  expect(response.status).toBeGreaterThanOrEqual(400);
+  expect(response.status).toBeLessThan(500);
+}

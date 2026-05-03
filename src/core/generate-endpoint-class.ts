@@ -66,6 +66,14 @@ export interface NormalizedEndpointConfig {
   blockedSelectFields?: string[];
   alwaysIncludeFields?: string[];
   defaultSelectFields?: string[];
+
+  // Verb-specific protected field overrides for endpoints whose
+  // configuration shape isn't part of the shared 5-verb surface
+  // (search, aggregate, batch.*, export, import, upsert, clone).
+  // Spread onto the generated subclass instance via Object.assign in
+  // the constructor; absent keys leave the endpoint base-class default
+  // in place.
+  extras?: Record<string, unknown>;
 }
 
 /**
@@ -83,9 +91,18 @@ export function generateEndpointClass<
 >(BaseClass: B, config: NormalizedEndpointConfig): B & (new () => InstanceType<B>) {
   const middlewares = config.middlewares ?? [];
 
+  const extras = config.extras;
+
   // @ts-expect-error - TS cannot resolve members of a dynamically-provided abstract base class (TS#4628)
   const Generated = class extends BaseClass {
     static _middlewares = middlewares;
+
+    constructor() {
+      super();
+      if (extras) {
+        Object.assign(this, extras);
+      }
+    }
 
     _meta = config.meta;
     schema = (config.schema ?? {}) as OpenAPIRouteSchema;
