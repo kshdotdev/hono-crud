@@ -194,11 +194,15 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
       },
     });
 
-    // Apply middleware for this specific path+method before route handler
+    // Apply middleware for this specific path+method before route handler.
+    // NOTE: `app.use(...)` uses Hono's `:id` route-syntax, NOT the OpenAPI
+    // `{id}` form produced by `convertPath`. Passing the converted form
+    // here results in middleware that never matches dynamic-segment routes
+    // (e.g. `/widgets/:id`) — the literal `{id}` segment never appears in
+    // an actual request. Use the raw path so `:id` matches at runtime.
     if (middlewares.length > 0) {
-      const pathPattern = this.convertPath(path);
       for (const mw of middlewares) {
-        this.app.use(pathPattern, async (c, next) => {
+        this.app.use(path, async (c, next) => {
           // Only apply middleware if the HTTP method matches
           if (c.req.method.toLowerCase() === method) {
             return mw(c as Context<E>, next);
