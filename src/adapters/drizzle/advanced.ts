@@ -985,27 +985,95 @@ export abstract class DrizzleImportEndpoint<
 }
 
 /**
- * Drizzle Clone endpoint — stub.
+ * Drizzle Clone endpoint.
  *
- * A real Drizzle clone implementation requires per-database conflict semantics
- * for the new record's primary key. Until that lands, instantiating this stub
- * and serving a request throws so misconfiguration is loud rather than silent.
- * Subclass directly and implement `findSource` / `createClone` to ship a real
- * version.
+ * Reads the source row by `lookupField`, lets the base `CloneEndpoint`
+ * strip primary keys + `excludeFromClone` fields and apply body overrides,
+ * then inserts the result with a freshly-generated primary key.
+ *
+ * Soft-deleted source rows are not cloneable — the SELECT predicate adds
+ * `IS NULL` on the soft-delete column when the model has soft-delete
+ * configured.
+ *
+ * Composite-PK note: the base class strips ALL primary keys but this
+ * implementation only fills `primaryKeys[0]` via `generateId()`. Models with
+ * composite primary keys must subclass and override `createClone` to fill the
+ * remaining columns.
+ *
+ * Override `generateId()` to swap UUIDv4 for ULID/snowflake/etc.
  */
 export abstract class DrizzleCloneEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CloneEndpoint<E, M> {
-  async findSource(): Promise<ModelObject<M['model']> | null> {
-    throw new Error(
-      'DrizzleCloneEndpoint is a stub — subclass and implement findSource()'
-    );
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DrizzleDatabase;
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DrizzleDatabase {
+    return getDrizzleDb(this);
   }
 
-  async createClone(): Promise<ModelObject<M['model']>> {
-    throw new Error(
-      'DrizzleCloneEndpoint is a stub — subclass and implement createClone()'
-    );
+  protected getTable(): Table {
+    return getTable(this._meta);
+  }
+
+  protected getColumn(field: string): Column {
+    return getColumn(this.getTable(), field);
+  }
+
+  /** Generates the primary-key value for the cloned row. Defaults to UUIDv4. */
+  protected generateId(): string {
+    return crypto.randomUUID();
+  }
+
+  override async findSource(
+    lookupValue: string,
+    additionalFilters?: Record<string, string>
+  ): Promise<ModelObject<M['model']> | null> {
+    const table = this.getTable();
+    const lookupColumn = this.getColumn(this.lookupField);
+    const softDeleteConfig = this.getSoftDeleteConfig();
+
+    const conditions: SQL[] = [eq(lookupColumn, lookupValue)];
+
+    if (additionalFilters) {
+      for (const [field, value] of Object.entries(additionalFilters)) {
+        conditions.push(eq(this.getColumn(field), value));
+      }
+    }
+
+    if (softDeleteConfig.enabled) {
+      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
+    }
+
+    const result = await cast(this.getDb())
+      .select()
+      .from(table)
+      .where(and(...conditions))
+      .limit(1);
+
+    if (!result[0]) return null;
+
+    return result[0] as ModelObject<M['model']>;
+  }
+
+  override async createClone(
+    data: ModelObject<M['model']>
+  ): Promise<ModelObject<M['model']>> {
+    const table = this.getTable();
+    const primaryKey = this._meta.model.primaryKeys[0];
+
+    const record = {
+      ...data,
+      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || this.generateId(),
+    };
+
+    const result = await cast(this.getDb())
+      .insert(table)
+      .values(record as Record<string, unknown>)
+      .returning();
+
+    return result[0] as ModelObject<M['model']>;
   }
 }

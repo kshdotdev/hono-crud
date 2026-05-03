@@ -24,6 +24,7 @@ import {
   PrismaBatchRestoreEndpoint,
   PrismaSearchEndpoint,
   PrismaAggregateEndpoint,
+  PrismaCloneEndpoint,
   registerPrismaModelMapping,
   registerPrismaModelMappings,
   clearPrismaModelMappings,
@@ -374,6 +375,11 @@ class UserSearch extends PrismaSearchEndpoint {
   fieldWeights = { name: 2.0, email: 1.0 };
 }
 
+class UserClone extends PrismaCloneEndpoint {
+  _meta = { model: UserModel };
+  get prisma() { return mockPrisma; }
+}
+
 class PostCreate extends PrismaCreateEndpoint {
   _meta = { model: PostModel };
   get prisma() { return mockPrisma; }
@@ -445,6 +451,7 @@ function createApp() {
   app.patch('/users/:id', withContext(UserUpdate));
   app.delete('/users/:id', withContext(UserDelete));
   app.post('/users/:id/restore', withContext(UserRestore));
+  app.post('/users/:id/clone', withContext(UserClone));
 
   // Post endpoints
   app.get('/posts/aggregate', withContext(PostAggregate));
@@ -871,6 +878,86 @@ describe('Prisma Adapter', () => {
       const result = await response.json() as { result: { groups: unknown[] } };
 
       expect(result.result.groups).toHaveLength(2);
+    });
+  });
+
+  describe('Clone', () => {
+    it('clones a record with a fresh primary key, copying source data', async () => {
+      const sourceId = crypto.randomUUID();
+      userStorage.push({
+        id: sourceId,
+        name: 'Clone Source',
+        email: 'source@example.com',
+        role: 'user',
+      });
+
+      const response = await app.request(`/users/${sourceId}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(201);
+      const result = await response.json() as { success: boolean; result: { id: string; name: string; email: string; role: string } };
+      expect(result.success).toBe(true);
+      expect(result.result.id).toBeDefined();
+      expect(result.result.id).not.toBe(sourceId);
+      expect(result.result.name).toBe('Clone Source');
+      expect(result.result.email).toBe('source@example.com');
+      expect(result.result.role).toBe('user');
+
+      expect(userStorage).toHaveLength(2);
+    });
+
+    it('applies body overrides on top of the cloned data', async () => {
+      const sourceId = crypto.randomUUID();
+      userStorage.push({
+        id: sourceId,
+        name: 'Original Name',
+        email: 'orig@example.com',
+        role: 'user',
+      });
+
+      const response = await app.request(`/users/${sourceId}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Override Name', email: 'new@example.com' }),
+      });
+
+      expect(response.status).toBe(201);
+      const result = await response.json() as { success: boolean; result: { name: string; email: string; role: string } };
+      expect(result.result.name).toBe('Override Name');
+      expect(result.result.email).toBe('new@example.com');
+      expect(result.result.role).toBe('user');
+    });
+
+    it('returns 404 when the source id does not exist', async () => {
+      const response = await app.request(`/users/${crypto.randomUUID()}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it('returns 404 when the source row is soft-deleted', async () => {
+      const sourceId = crypto.randomUUID();
+      userStorage.push({
+        id: sourceId,
+        name: 'Soft Deleted',
+        email: 'sd@example.com',
+        role: 'user',
+        deletedAt: new Date().toISOString(),
+      });
+
+      const response = await app.request(`/users/${sourceId}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(404);
     });
   });
 });

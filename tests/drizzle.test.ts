@@ -25,6 +25,7 @@ import {
   DrizzleBatchCreateEndpoint,
   DrizzleBatchDeleteEndpoint,
   DrizzleAggregateEndpoint,
+  DrizzleCloneEndpoint,
   type DrizzleDatabase,
 } from '../src/adapters/drizzle/index.js';
 
@@ -164,6 +165,11 @@ class UserBatchDelete extends DrizzleBatchDeleteEndpoint {
   db = db as unknown as DrizzleDatabase;
 }
 
+class UserClone extends DrizzleCloneEndpoint {
+  _meta = { model: UserModel };
+  db = db as unknown as DrizzleDatabase;
+}
+
 class PostCreate extends DrizzleCreateEndpoint {
   _meta = { model: PostModel };
   db = db as unknown as DrizzleDatabase;
@@ -227,6 +233,7 @@ function createApp() {
   app.put('/users/upsert', withContext(UserUpsert));
   app.post('/users/batch', withContext(UserBatchCreate));
   app.post('/users/batch-delete', withContext(UserBatchDelete));
+  app.post('/users/:id/clone', withContext(UserClone));
 
   // Post endpoints
   // Note: aggregate must be before :id to avoid conflict
@@ -639,6 +646,91 @@ describe('Drizzle Adapter', () => {
       const result = await response.json() as { result: { groups: unknown[] } };
 
       expect(result.result.groups).toHaveLength(2);
+    });
+  });
+
+  describe('Clone', () => {
+    it('should clone a record with a fresh primary key, copying source data', async () => {
+      const seed = await db.insert(usersTable).values({
+        id: crypto.randomUUID(),
+        name: 'Clone Source',
+        email: 'source@example.com',
+        role: 'user',
+      }).returning();
+
+      const response = await app.request(`/users/${seed[0].id}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(201);
+      const result = await response.json() as { success: boolean; result: { id: string; name: string; email: string; role: string } };
+      expect(result.success).toBe(true);
+      expect(result.result.id).toBeDefined();
+      expect(result.result.id).not.toBe(seed[0].id);
+      expect(result.result.name).toBe('Clone Source');
+      expect(result.result.email).toBe('source@example.com');
+      expect(result.result.role).toBe('user');
+
+      // Original row remains intact in the database.
+      const all = await db.select().from(usersTable);
+      expect(all).toHaveLength(2);
+    });
+
+    it('applies body overrides on top of the cloned data', async () => {
+      const seed = await db.insert(usersTable).values({
+        id: crypto.randomUUID(),
+        name: 'Original Name',
+        email: 'orig@example.com',
+        role: 'user',
+      }).returning();
+
+      const response = await app.request(`/users/${seed[0].id}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Override Name', email: 'new@example.com' }),
+      });
+
+      expect(response.status).toBe(201);
+      const result = await response.json() as { success: boolean; result: { name: string; email: string; role: string } };
+      expect(result.result.name).toBe('Override Name');
+      expect(result.result.email).toBe('new@example.com');
+      expect(result.result.role).toBe('user');
+    });
+
+    it('returns NotFound when the source id does not exist', async () => {
+      const response = await app.request(`/users/${crypto.randomUUID()}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      // The test's app.onError handler converts every error to 400 — the
+      // production error is a NotFoundException (status 404).
+      expect(response.status).toBe(400);
+      const result = await response.json() as { error: { message: string } };
+      expect(result.error.message).toMatch(/not found/i);
+    });
+
+    it('returns NotFound when the source row is soft-deleted', async () => {
+      const seed = await db.insert(usersTable).values({
+        id: crypto.randomUUID(),
+        name: 'Soft Deleted',
+        email: 'sd@example.com',
+        role: 'user',
+        deletedAt: new Date().toISOString(),
+      }).returning();
+
+      const response = await app.request(`/users/${seed[0].id}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(400);
+      const result = await response.json() as { error: { message: string } };
+      expect(result.error.message).toMatch(/not found/i);
     });
   });
 

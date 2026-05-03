@@ -865,27 +865,71 @@ export abstract class PrismaAggregateEndpoint<
 }
 
 /**
- * Prisma Clone endpoint — stub.
+ * Prisma Clone endpoint.
  *
- * A real Prisma clone implementation requires per-model conflict semantics for
- * the new record's primary key. Until that lands, instantiating this stub and
- * serving a request throws so misconfiguration is loud rather than silent.
- * Subclass directly and implement `findSource` / `createClone` to ship a real
- * version.
+ * Reads the source row by `lookupField`, lets the base `CloneEndpoint`
+ * strip primary keys + `excludeFromClone` fields and apply body overrides,
+ * then inserts the result with a freshly-generated primary key.
+ *
+ * Soft-deleted source rows are not cloneable — the WHERE clause adds a
+ * `<field>: null` predicate when the model has soft-delete configured.
+ *
+ * Composite-PK note: the base class strips ALL primary keys but this
+ * implementation only fills `primaryKeys[0]` via `generateId()`. Models with
+ * composite primary keys must subclass and override `createClone` to fill the
+ * remaining columns.
+ *
+ * Override `generateId()` to swap UUIDv4 for ULID/snowflake/etc.
  */
 export abstract class PrismaCloneEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CloneEndpoint<E, M> {
-  async findSource(): Promise<ModelObject<M['model']> | null> {
-    throw new Error(
-      'PrismaCloneEndpoint is a stub — subclass and implement findSource()'
-    );
+  abstract prisma: PrismaClient;
+
+  protected async getModel(): Promise<PrismaModelOperations> {
+    return getPrismaModel(this.prisma, this._meta.model.tableName);
   }
 
-  async createClone(): Promise<ModelObject<M['model']>> {
-    throw new Error(
-      'PrismaCloneEndpoint is a stub — subclass and implement createClone()'
-    );
+  /** Generates the primary-key value for the cloned row. Defaults to UUIDv4. */
+  protected generateId(): string {
+    return crypto.randomUUID();
+  }
+
+  override async findSource(
+    lookupValue: string,
+    additionalFilters?: Record<string, string>
+  ): Promise<ModelObject<M['model']> | null> {
+    const model = await this.getModel();
+    const softDeleteConfig = this.getSoftDeleteConfig();
+
+    const where: Record<string, unknown> = {
+      [this.lookupField]: lookupValue,
+      ...additionalFilters,
+    };
+
+    if (softDeleteConfig.enabled) {
+      where[softDeleteConfig.field] = null;
+    }
+
+    const result = await model.findFirst({ where });
+    if (!result) return null;
+
+    return result as ModelObject<M['model']>;
+  }
+
+  override async createClone(
+    data: ModelObject<M['model']>
+  ): Promise<ModelObject<M['model']>> {
+    const model = await this.getModel();
+    const primaryKey = this._meta.model.primaryKeys[0];
+
+    const record = {
+      ...data,
+      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || this.generateId(),
+    };
+
+    const result = await model.create({ data: record });
+    return result as ModelObject<M['model']>;
   }
 }
