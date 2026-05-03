@@ -3,6 +3,7 @@ import { eq, and, isNull, isNotNull, or, asc, desc, sql } from 'drizzle-orm';
 import type { SQL, Table, Column } from 'drizzle-orm';
 import { UpsertEndpoint } from '../../endpoints/upsert';
 import { BatchUpsertEndpoint } from '../../endpoints/batch-upsert';
+import { CloneEndpoint } from '../../endpoints/clone';
 import {
   VersionHistoryEndpoint,
   VersionReadEndpoint,
@@ -980,5 +981,31 @@ export abstract class DrizzleImportEndpoint<
       .returning();
 
     return result[0] as ModelObject<M['model']>;
+  }
+}
+
+/**
+ * Drizzle Clone endpoint — stub.
+ *
+ * A real Drizzle clone implementation requires per-database conflict semantics
+ * for the new record's primary key. Until that lands, instantiating this stub
+ * and serving a request throws so misconfiguration is loud rather than silent.
+ * Subclass directly and implement `findSource` / `createClone` to ship a real
+ * version.
+ */
+export abstract class DrizzleCloneEndpoint<
+  E extends Env = Env,
+  M extends MetaInput = MetaInput,
+> extends CloneEndpoint<E, M> {
+  async findSource(): Promise<ModelObject<M['model']> | null> {
+    throw new Error(
+      'DrizzleCloneEndpoint is a stub — subclass and implement findSource()'
+    );
+  }
+
+  async createClone(): Promise<ModelObject<M['model']>> {
+    throw new Error(
+      'DrizzleCloneEndpoint is a stub — subclass and implement createClone()'
+    );
   }
 }

@@ -1,5 +1,6 @@
 import type { Env } from 'hono';
 import { UpsertEndpoint } from '../../endpoints/upsert';
+import { CloneEndpoint } from '../../endpoints/clone';
 import {
   VersionHistoryEndpoint,
   VersionReadEndpoint,
@@ -860,5 +861,31 @@ export abstract class PrismaAggregateEndpoint<
       const records = await model.findMany({ where });
       return computeAggregations(records as Record<string, unknown>[], options);
     }
+  }
+}
+
+/**
+ * Prisma Clone endpoint — stub.
+ *
+ * A real Prisma clone implementation requires per-model conflict semantics for
+ * the new record's primary key. Until that lands, instantiating this stub and
+ * serving a request throws so misconfiguration is loud rather than silent.
+ * Subclass directly and implement `findSource` / `createClone` to ship a real
+ * version.
+ */
+export abstract class PrismaCloneEndpoint<
+  E extends Env = Env,
+  M extends MetaInput = MetaInput,
+> extends CloneEndpoint<E, M> {
+  async findSource(): Promise<ModelObject<M['model']> | null> {
+    throw new Error(
+      'PrismaCloneEndpoint is a stub — subclass and implement findSource()'
+    );
+  }
+
+  async createClone(): Promise<ModelObject<M['model']>> {
+    throw new Error(
+      'PrismaCloneEndpoint is a stub — subclass and implement createClone()'
+    );
   }
 }
