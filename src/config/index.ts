@@ -32,7 +32,7 @@
  * ```
  */
 
-import type { Env } from 'hono';
+import type { Env, MiddlewareHandler } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
 import type { MetaInput, HookMode } from '../core/types';
 import type { FilterConfig } from '../core/types';
@@ -97,6 +97,8 @@ interface CreateHooks<M extends MetaInput> extends HookConfig {
  */
 export interface CreateEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   hooks?: CreateHooks<M>;
   nestedCreate?: string[];
   /**
@@ -175,6 +177,8 @@ interface ListHooks<M extends MetaInput> {
  */
 export interface ListEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   filtering?: FilteringConfig;
   search?: SearchConfig;
   sorting?: SortingConfig;
@@ -197,6 +201,8 @@ interface ReadHooks<M extends MetaInput> {
  */
 export interface ReadEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   lookupField?: string;
   additionalFilters?: string[];
   includes?: string[];
@@ -226,6 +232,8 @@ interface UpdateHooks<M extends MetaInput> extends HookConfig {
  */
 export interface UpdateEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   lookupField?: string;
   additionalFilters?: string[];
   fields?: UpdateFieldConfig;
@@ -256,6 +264,8 @@ interface DeleteHooks<M extends MetaInput> extends HookConfig {
  */
 export interface DeleteEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   lookupField?: string;
   additionalFilters?: string[];
   includeCascadeResults?: boolean;
@@ -287,6 +297,8 @@ interface SearchHooks<M extends MetaInput> {
  */
 export interface SearchEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   /** Fields included in the search index (maps to SearchEndpoint.searchFields). */
   fields?: string[];
   /** Reserved — currently unused; SearchEndpoint reads `q` by default. */
@@ -308,6 +320,8 @@ interface AggregateHooks {
  */
 export interface AggregateEndpointConfig<_M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   /** Fields the client may filter aggregations by (maps to AggregateEndpoint.filterFields). */
   fields?: string[];
   hooks?: AggregateHooks;
@@ -326,6 +340,8 @@ interface RestoreHooks<M extends MetaInput> extends HookConfig {
  */
 export interface RestoreEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   hooks?: RestoreHooks<M>;
 }
 
@@ -342,6 +358,8 @@ interface BatchCreateHooks<M extends MetaInput> extends HookConfig {
  */
 export interface BatchCreateEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   hooks?: BatchCreateHooks<M>;
   bodySchema?: ZodObject<ZodRawShape>;
   maxBatchSize?: number;
@@ -360,6 +378,8 @@ interface BatchUpdateHooks<M extends MetaInput> extends HookConfig {
  */
 export interface BatchUpdateEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   hooks?: BatchUpdateHooks<M>;
   maxBatchSize?: number;
 }
@@ -377,6 +397,8 @@ interface BatchDeleteHooks<M extends MetaInput> extends HookConfig {
  */
 export interface BatchDeleteEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   hooks?: BatchDeleteHooks<M>;
   maxBatchSize?: number;
 }
@@ -394,6 +416,8 @@ interface BatchRestoreHooks<M extends MetaInput> extends HookConfig {
  */
 export interface BatchRestoreEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   hooks?: BatchRestoreHooks<M>;
   maxBatchSize?: number;
 }
@@ -411,6 +435,8 @@ interface BatchUpsertHooks<M extends MetaInput> extends HookConfig {
  */
 export interface BatchUpsertEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   hooks?: BatchUpsertHooks<M>;
   bodySchema?: ZodObject<ZodRawShape>;
   /** Conflict-target column(s) for the upsert. String is normalized to single-element array. */
@@ -428,6 +454,8 @@ export interface BatchUpsertEndpointConfig<M extends MetaInput> {
  */
 export interface ExportEndpointConfig<_M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   formats?: ('csv' | 'json')[];
   /** Maximum rows to export (maps to ExportEndpoint.maxExportRecords). */
   maxRows?: number;
@@ -450,6 +478,8 @@ interface ImportHooks<M extends MetaInput> {
  */
 export interface ImportEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   hooks?: ImportHooks<M>;
   /** Maximum rows accepted per request (maps to ImportEndpoint.maxBatchSize). */
   maxRows?: number;
@@ -468,6 +498,8 @@ interface UpsertHooks<M extends MetaInput> extends HookConfig {
  */
 export interface UpsertEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   hooks?: UpsertHooks<M>;
   bodySchema?: ZodObject<ZodRawShape>;
   /** Conflict-target column(s) for the upsert. String is normalized to single-element array. */
@@ -487,6 +519,8 @@ interface CloneHooks<M extends MetaInput> {
  */
 export interface CloneEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler[];
   hooks?: CloneHooks<M>;
   /** Field names to strip from the cloned record (maps to CloneEndpoint.excludeFromClone). */
   fieldsToReset?: string[];
@@ -663,6 +697,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.create = generateEndpointClass(adapters.CreateEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       bodySchema: cfg.bodySchema,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
@@ -678,6 +713,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.list = generateEndpointClass(adapters.ListEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       filterFields: cfg.filtering?.fields,
       filterConfig: cfg.filtering?.config,
       searchFields: cfg.search?.fields,
@@ -705,6 +741,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.read = generateEndpointClass(adapters.ReadEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       lookupField: cfg.lookupField,
       additionalFilters: cfg.additionalFilters,
       allowedIncludes: cfg.includes,
@@ -724,6 +761,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.update = generateEndpointClass(adapters.UpdateEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       bodySchema: cfg.bodySchema,
       lookupField: cfg.lookupField,
       additionalFilters: cfg.additionalFilters,
@@ -744,6 +782,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.delete = generateEndpointClass(adapters.DeleteEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       lookupField: cfg.lookupField,
       additionalFilters: cfg.additionalFilters,
       includeCascadeResults: cfg.includeCascadeResults,
@@ -764,6 +803,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.search = generateEndpointClass(adapters.SearchEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
       extras: {
         ...(cfg.fields !== undefined ? { searchFields: cfg.fields } : {}),
@@ -778,6 +818,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.aggregate = generateEndpointClass(adapters.AggregateEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
       extras: {
         ...(cfg.fields !== undefined ? { filterFields: cfg.fields } : {}),
@@ -791,6 +832,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.restore = generateEndpointClass(adapters.RestoreEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
@@ -804,6 +846,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.batchCreate = generateEndpointClass(adapters.BatchCreateEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       bodySchema: cfg.bodySchema,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
@@ -821,6 +864,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.batchUpdate = generateEndpointClass(adapters.BatchUpdateEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
@@ -837,6 +881,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.batchDelete = generateEndpointClass(adapters.BatchDeleteEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
@@ -853,6 +898,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.batchRestore = generateEndpointClass(adapters.BatchRestoreEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
@@ -873,6 +919,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.batchUpsert = generateEndpointClass(adapters.BatchUpsertEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       bodySchema: cfg.bodySchema,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
@@ -891,6 +938,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.export = generateEndpointClass(adapters.ExportEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       extras: {
         ...(cfg.maxRows !== undefined ? { maxExportRecords: cfg.maxRows } : {}),
         ...(cfg.formats !== undefined && cfg.formats.length > 0
@@ -906,6 +954,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.import = generateEndpointClass(adapters.ImportEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
       extras: {
@@ -924,6 +973,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.upsert = generateEndpointClass(adapters.UpsertEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       bodySchema: cfg.bodySchema,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
@@ -941,6 +991,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.clone = generateEndpointClass(adapters.CloneEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
+      middlewares: cfg.middlewares,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
       extras: {
