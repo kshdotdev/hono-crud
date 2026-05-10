@@ -1,9 +1,13 @@
 import type { Hono, Env, Context, MiddlewareHandler } from 'hono';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { OpenAPIRoute } from './route';
-import { isRouteClass } from './route';
+import { isRouteClass, jsonResponse } from './route';
 import { ApiException } from './exceptions';
-import type { OpenAPIRouteSchema } from './types';
+import {
+  RESPONSE_ENVELOPE_CONTEXT_KEY,
+  type OpenAPIRouteSchema,
+  type ResponseEnvelope,
+} from './types';
 
 export interface OpenAPIConfig {
   openapi?: string;
@@ -224,7 +228,20 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
         return response;
       } catch (error) {
         if (error instanceof ApiException) {
-          return c.json(error.toJSON(), error.status as 200);
+          // Compose the per-route `responseEnvelope` (set by
+          // `registerCrud(...)` via the envelope-stash middleware) with
+          // the structured `{ code, message, details? }` object built by
+          // `ApiException.toJSON()`. This keeps the per-resource shape
+          // override observable even when the endpoint short-circuits
+          // before reaching `app.onError`.
+          const body = error.toJSON();
+          const envelope = (c as unknown as { var?: Record<string, unknown> })?.var?.[
+            RESPONSE_ENVELOPE_CONTEXT_KEY
+          ] as ResponseEnvelope | undefined;
+          if (envelope) {
+            return jsonResponse(c, envelope.error(body.error), error.status);
+          }
+          return jsonResponse(c, body, error.status);
         }
         throw error;
       }

@@ -4,6 +4,7 @@ import {
   StaticKeyProvider,
   applyProfile,
   apiVersion,
+  createErrorHandler,
   createHealthEndpoints,
   createRateLimitMiddleware,
   decryptValue,
@@ -31,6 +32,7 @@ import {
   type AuthEnv,
   type AuthUser,
   type CrudEventPayload,
+  type ResponseEnvelope,
   type SerializationProfile,
 } from 'hono-crud';
 import {
@@ -495,6 +497,30 @@ export function createApp() {
     list: PostList,
     read: PostRead,
   });
+
+  // 0.10.0: exercise the new `responseEnvelope` option on a separate
+  // resource path. The envelope flips the entire response shape from
+  // the default `{ success, result, result_info? }` to a JSON:API-ish
+  // `{ data, meta?, errors? }` — proves library composability with a
+  // house API standard from a real-installed-package consumer.
+  const apiEnvelope: ResponseEnvelope = {
+    success: (result, info) =>
+      info ? { data: result, meta: info } : { data: result },
+    error: (err) => ({
+      errors: [{ status: 'error', code: err.code, title: err.message, source: err.details }],
+    }),
+  };
+  app.onError(createErrorHandler({ logUnmappedErrors: false }));
+  registerCrud(
+    app,
+    '/v2/posts',
+    {
+      create: PostCreate,
+      list: PostList,
+      read: PostRead,
+    },
+    { responseEnvelope: apiEnvelope }
+  );
 
   registerCrud(app, '/documents', {
     create: DocumentCreate,

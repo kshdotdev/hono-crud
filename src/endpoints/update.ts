@@ -341,15 +341,29 @@ export abstract class UpdateEndpoint<
   }
 
   /**
-   * Lifecycle hook: called after update operation. Throwing inside this
-   * hook rolls back the parent UPDATE only when `afterHookMode ===
-   * 'sequential'` AND the adapter wraps in a transaction.
+   * Lifecycle hook: called after update operation.
+   *
+   * **0.10.0 — BREAKING:** the signature now exposes the **pre-mutation
+   * row** as the first argument. Both `prior` and `current` are observed
+   * inside the same DB transaction as the parent UPDATE (when the adapter
+   * wraps in one), so consumers can compute field-level diffs server-side
+   * — audit logs, change-data-capture, event payloads — without forcing
+   * a re-fetch in `before`.
+   *
+   * Returning a value replaces the row used for the response and any
+   * downstream after-actions (events, audit, computed fields). Returning
+   * `void` preserves `current` unchanged.
+   *
+   * Throwing inside this hook rolls back the parent UPDATE only when
+   * `afterHookMode === 'sequential'` AND the adapter wraps in a real
+   * transaction.
    */
   async after(
-    data: ModelObject<M['model']>,
+    _prior: ModelObject<M['model']>,
+    current: ModelObject<M['model']>,
     _hookCtx: HookContext
-  ): Promise<ModelObject<M['model']>> {
-    return data;
+  ): Promise<ModelObject<M['model']> | void> {
+    return current;
   }
 
   /**
@@ -448,18 +462,18 @@ export abstract class UpdateEndpoint<
       rawData as Record<string, unknown>
     );
 
-    // Fetch existing record for audit logging, versioning, ETag (before update),
-    // and policy enforcement.
-    let previousRecord: ModelObject<M['model']> | null = null;
+    // Fetch the pre-mutation row inside the same tx as the parent UPDATE.
+    // As of 0.10.0 this read is unconditional: `after(prior, current,
+    // ctx)` requires the snapshot, and audit / versioning / ETag / write
+    // policies can keep using the same single read. The fetch flows
+    // through `findExisting(lookup, filters, tx)` so the adapter sees the
+    // tx handle when one is active (Drizzle `useTransaction = true`).
     const policies = this.getPolicies();
-    const needsExisting =
-      this.isAuditEnabled() ||
-      this.isVersioningEnabled() ||
-      this.etagEnabled ||
-      Boolean(policies?.write);
-    if (needsExisting) {
-      previousRecord = await this.findExisting(lookupValue, additionalFilters);
-    }
+    const previousRecord = await this.findExisting(
+      lookupValue,
+      additionalFilters,
+      this._tx
+    );
 
     // Run write-policy gate before any mutation. Throws 403 on denial.
     if (previousRecord && policies?.write) {
@@ -570,10 +584,21 @@ export abstract class UpdateEndpoint<
 
     // Fire-and-forget cannot trigger rollback. Use 'sequential' to opt
     // into transactional rollback when the adapter wraps in a tx.
+    //
+    // 0.10.0: pass the pre-mutation snapshot (`previousRecord`) as the
+    // first argument. When the lookup didn't return a row (memory adapter
+    // mid-test, no existing record) we fall back to the post-update row
+    // for `prior` — preserves the historical "after sees the row" shape
+    // for that edge case rather than passing `null` and forcing every
+    // override to handle it.
+    const priorForHook = (previousRecord ?? obj) as ModelObject<M['model']>;
     if (this.afterHookMode === 'fire-and-forget') {
-      this.runAfterResponse(Promise.resolve(this.after(obj, hookCtx)));
+      this.runAfterResponse(Promise.resolve(this.after(priorForHook, obj, hookCtx)));
     } else {
-      obj = await this.after(obj, hookCtx);
+      const afterResult = await this.after(priorForHook, obj, hookCtx);
+      if (afterResult !== undefined && afterResult !== null) {
+        obj = afterResult;
+      }
     }
 
     // Audit logging

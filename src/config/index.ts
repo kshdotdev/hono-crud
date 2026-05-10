@@ -220,10 +220,19 @@ interface UpdateFieldConfig {
 
 /**
  * Update endpoint hooks.
+ *
+ * **0.10.0 — BREAKING:** `after` now receives `(prior, current, ctx)`
+ * instead of `(current, tx)`. The pre-mutation snapshot is observed
+ * inside the same transaction as the parent UPDATE, so diff-based
+ * audit/CDC pipelines no longer have to re-fetch in `before`.
  */
 interface UpdateHooks<M extends MetaInput> extends HookConfig {
   before?: (data: Partial<ModelObject<M['model']>>, tx?: unknown) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
-  after?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  after?: (
+    prior: ModelObject<M['model']>,
+    current: ModelObject<M['model']>,
+    ctx: unknown
+  ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void;
   transform?: (item: ModelObject<M['model']>) => unknown;
 }
 
@@ -253,10 +262,16 @@ export interface UpdateEndpointConfig<M extends MetaInput> {
 
 /**
  * Delete endpoint hooks.
+ *
+ * **0.10.0 — BREAKING:** `after` now receives `(prior, ctx)` instead of
+ * `(deletedItem, cascadeResult, tx)`. `prior` is the pre-mutation row,
+ * observed inside the same transaction as the parent DELETE — for
+ * soft-delete, the row before `deletedAt` was set. Cascade results are
+ * still emitted in the response body when `includeCascadeResults: true`.
  */
 interface DeleteHooks<M extends MetaInput> extends HookConfig {
   before?: (lookupValue: string, tx?: unknown) => Promise<void> | void;
-  after?: (deletedItem: ModelObject<M['model']>, cascadeResult?: unknown, tx?: unknown) => Promise<void> | void;
+  after?: (prior: ModelObject<M['model']>, ctx: unknown) => Promise<void> | void;
 }
 
 /**

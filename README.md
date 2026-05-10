@@ -294,6 +294,71 @@ app.use('*', createLoggingMiddleware({
 
 See [docs/logging.md](./docs/logging.md).
 
+## Response shape
+
+Every CRUD endpoint defaults to a small, predictable response envelope so consumers always know where to find `result` and `error`:
+
+```jsonc
+// Success — single item (Create / Read / Update / Restore / Upsert / Clone / …)
+{ "success": true, "result": { "id": "…", … } }
+
+// Success — list / search (with pagination metadata)
+{ "success": true, "result": [ … ], "result_info": { "page": 1, "per_page": 20, … } }
+
+// Error — produced by `ApiException`s thrown from the endpoint or by
+// `createErrorHandler` for everything else
+{ "success": false, "error": { "code": "NOT_FOUND", "message": "…", "details": … } }
+```
+
+### Pluggable envelope (`responseEnvelope`)
+
+If your house API standard prefers a different shape — RFC 7807 Problem Details, JSON:API `{ data, meta }`, or any custom envelope — pass `responseEnvelope` to `registerCrud`. The two functions are the **final formatting step** before the response body is serialised:
+
+```typescript
+import { registerCrud, type ResponseEnvelope } from 'hono-crud';
+
+const envelope: ResponseEnvelope = {
+  success: (result, info) =>
+    info ? { data: result, meta: info } : { data: result },
+  error: (err) => ({
+    errors: [{ status: err.code, title: err.message, source: err.details }],
+  }),
+};
+
+registerCrud(app, '/users', endpoints, { responseEnvelope: envelope });
+```
+
+The `info` argument is the pagination metadata for list/search responses; it's `undefined` for single-item responses, so a single envelope works across the whole CRUD surface.
+
+### Composition with `createErrorHandler`
+
+For errors, the envelope composes with the existing `mappers` chain on `createErrorHandler`. The order is fixed:
+
+1. `mappers[]` (and the built-in `zodErrorMapper`) transform the raw `Error` into a structured `ApiException` (`{ code, message, details? }`).
+2. `responseEnvelope.error(...)` wraps that structured object into the final response body.
+
+```typescript
+import { createErrorHandler, type ErrorMapper } from 'hono-crud';
+
+const prismaMapper: ErrorMapper = (err) => {
+  if ((err as { code?: string }).code === 'P2002') {
+    return new ConflictException('Duplicate key', { /* … */ });
+  }
+};
+
+app.onError(createErrorHandler({
+  mappers: [prismaMapper],
+  // Handler-level default — applies to errors that propagate to onError
+  // (i.e. anything that's not already an ApiException). Per-route envelope
+  // set via `registerCrud({ responseEnvelope })` always wins.
+  responseEnvelope: envelope,
+}));
+```
+
+This split lets you keep your domain-error mappers (Prisma codes, Drizzle constraint violations, …) unchanged and layer a custom shape on top — no response-rewriting middleware required.
+
+When `responseEnvelope` is omitted (the default), the response body is byte-identical to pre-0.10.0 — existing consumers see no behaviour change.
+
 ## Advanced Features
 
 - **Soft Delete & Restore** - `softDelete: true` in model, `?withDeleted=true`, restore endpoint

@@ -687,6 +687,68 @@ async function exercisePostFeatures(baseUrl: string): Promise<void> {
   assert(read.result.title === 'Local Consumer Post', 'Post read returned the wrong record');
 }
 
+/**
+ * 0.10.0 — exercise the configurable response envelope on /v2/posts.
+ * Confirms the published surface (`responseEnvelope` on
+ * `RegisterCrudOptions`) flips the response shape to a JSON:API-ish
+ * `{ data, meta?, errors? }` end-to-end, including the error path.
+ */
+async function exerciseResponseEnvelope(baseUrl: string): Promise<void> {
+  type Envelope<T> = { data: T; meta?: { page: number } };
+  type EnvelopeError = { errors: Array<{ code: string; title: string }> };
+
+  const user = await requestJson<SuccessResponse<User>>(
+    baseUrl,
+    '/users',
+    'envelope: create post owner',
+    jsonRequest('POST', {
+      email: `envelope-owner-${crypto.randomUUID()}@example.com`,
+      name: 'Envelope Owner',
+      role: 'user',
+      status: 'active',
+    })
+  );
+
+  const created = await requestJson<Envelope<Post>>(
+    baseUrl,
+    '/v2/posts',
+    'envelope: create post',
+    jsonRequest('POST', {
+      authorId: user.result.id,
+      title: 'Envelope Post',
+      content: 'Wrapped in the custom response envelope',
+      status: 'published',
+    })
+  );
+  assert(
+    'data' in created && created.data.title === 'Envelope Post',
+    'Custom envelope did not wrap created post in { data }'
+  );
+  assert(
+    !('success' in (created as unknown as Record<string, unknown>)),
+    'Custom envelope must replace the legacy { success, result } shape'
+  );
+
+  const listed = await requestJson<Envelope<Post[]>>(
+    baseUrl,
+    '/v2/posts',
+    'envelope: list posts'
+  );
+  assert(Array.isArray(listed.data), 'Envelope list did not produce an array under data');
+  assert(
+    typeof listed.meta?.page === 'number',
+    'Envelope list did not surface pagination meta'
+  );
+
+  const errResponse = await fetch(`${baseUrl}/v2/posts/missing`);
+  assert(errResponse.status === 404, `Envelope error: expected 404, got ${errResponse.status}`);
+  const errBody = (await errResponse.json()) as EnvelopeError;
+  assert(
+    Array.isArray(errBody.errors) && errBody.errors[0]?.code === 'NOT_FOUND',
+    'Custom error envelope did not wrap a 404 into the { errors: [...] } shape'
+  );
+}
+
 async function main(): Promise<void> {
   const port = Number(process.env.PORT) || 4567;
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -704,6 +766,7 @@ async function main(): Promise<void> {
 
     await exerciseCrudFeatures(baseUrl);
     await exercisePostFeatures(baseUrl);
+    await exerciseResponseEnvelope(baseUrl);
     await exerciseDocumentFeatures(baseUrl);
     await exerciseSupportFeatures(baseUrl);
 

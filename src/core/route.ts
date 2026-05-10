@@ -2,10 +2,13 @@ import type { Context, Env } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { getLogger } from './logger';
-import type {
-  OpenAPIRouteSchema,
-  RouteOptions,
-  ValidatedData,
+import {
+  RESPONSE_ENVELOPE_CONTEXT_KEY,
+  type OpenAPIRouteSchema,
+  type ResponseEnvelope,
+  type ResponseEnvelopeInfo,
+  type RouteOptions,
+  type ValidatedData,
 } from './types';
 
 type ValidationTarget = 'json' | 'query' | 'param';
@@ -25,13 +28,30 @@ function readValidated(ctx: Context, target: ValidationTarget): unknown {
 }
 
 /**
- * Cast through `unknown` to satisfy the `Response` return contract of
- * `handle()`. Hono's `c.json()` returns `TypedResponse<T>` which extends
- * `Response` at runtime but TypeScript sees a generic mismatch. Centralised
- * here so the cast lives in exactly one place.
+ * Emit a JSON response from a generic context.
+ *
+ * Hono's `c.json` is constrained `<T extends JSONValue>` — a recursive
+ * union that pegs TypeScript's inference budget when threaded through
+ * `OpenAPIRoute<T>`'s base-class generic. The `ResponseEnvelope`
+ * contract (`types.ts`) intentionally returns `unknown` so consumers
+ * can produce any JSON-serialisable shape; that doesn't structurally
+ * satisfy `JSONValue`, and constraining the library's `T` to
+ * `JSONValue` everywhere would force every entity row through a
+ * recursive type check.
+ *
+ * The honest fix is a single **function-signature cast**: we widen
+ * `c.json`'s shape to `(unknown, ContentfulStatusCode) => Response`
+ * here, once. This subsumes both the legacy input cast
+ * (`body as Record<string, unknown>`) and the legacy output cast
+ * (the old `asResponse` helper). Every call site is now cast-free.
  */
-function asResponse<T>(typed: T): Response {
-  return typed as unknown as Response;
+export function jsonResponse<E extends Env>(
+  ctx: Context<E>,
+  body: unknown,
+  status: ContentfulStatusCode,
+): Response {
+  type WideJson = (b: unknown, s: ContentfulStatusCode) => Response;
+  return (ctx.json as unknown as WideJson)(body, status);
 }
 
 /**
@@ -136,14 +156,54 @@ export abstract class OpenAPIRoute<
    * Creates a JSON response using Hono's c.json() helper.
    */
   protected json<T>(data: T, status: ContentfulStatusCode = 200): Response {
-    return asResponse(this.getContext().json(data, status));
+    return jsonResponse(this.getContext(), data, status);
+  }
+
+  /**
+   * Resolve the active `ResponseEnvelope` (if any) from the request
+   * context. `registerCrud(...)` installs a thin middleware that stashes
+   * the envelope here; endpoints attached outside `registerCrud` simply
+   * see `undefined` and fall through to the default shape.
+   */
+  protected getResponseEnvelope(): ResponseEnvelope | undefined {
+    if (!this.context) return undefined;
+    const ctx = this.context as unknown as { var?: Record<string, unknown> };
+    const envelope = ctx?.var?.[RESPONSE_ENVELOPE_CONTEXT_KEY];
+    return (envelope as ResponseEnvelope | undefined) ?? undefined;
   }
 
   /**
    * Creates a success response.
+   *
+   * When a `ResponseEnvelope` is configured (via `registerCrud`'s
+   * `responseEnvelope` option), the result is passed through
+   * `envelope.success(result)` as the **final formatting step** before
+   * serialisation. Default shape is `{ success: true, result }`.
    */
   protected success<T>(result: T, status: ContentfulStatusCode = 200): Response {
-    return asResponse(this.getContext().json({ success: true, result }, status));
+    const envelope = this.getResponseEnvelope();
+    const body = envelope ? envelope.success(result) : { success: true, result };
+    return jsonResponse(this.getContext(), body, status);
+  }
+
+  /**
+   * Creates a success response for paginated/list endpoints.
+   *
+   * Identical to `success()` except that the pagination metadata is
+   * threaded into `envelope.success(result, info)` as the second arg, or
+   * emitted as `{ success: true, result, result_info }` in the default
+   * shape.
+   */
+  protected successPaginated<T>(
+    result: T,
+    info: ResponseEnvelopeInfo,
+    status: ContentfulStatusCode = 200
+  ): Response {
+    const envelope = this.getResponseEnvelope();
+    const body = envelope
+      ? envelope.success(result, info)
+      : { success: true, result, result_info: info };
+    return jsonResponse(this.getContext(), body, status);
   }
 
   /**
@@ -172,6 +232,16 @@ export abstract class OpenAPIRoute<
 
   /**
    * Creates an error response.
+   *
+   * When a `ResponseEnvelope` is configured (via `registerCrud`'s
+   * `responseEnvelope` option), the structured error object is passed
+   * through `envelope.error(...)` as the final formatting step. Default
+   * shape is `{ success: false, error: { code, message, details? } }`.
+   *
+   * Note: this helper is for endpoint-side short-circuit errors. Errors
+   * thrown out of `handle()` flow through Hono's `app.onError(...)` and
+   * are formatted by `createErrorHandler`, which composes the same
+   * envelope with any registered `ErrorMapper`s.
    */
   protected error(
     message: string,
@@ -183,7 +253,9 @@ export abstract class OpenAPIRoute<
     if (details) {
       errorObj.details = details;
     }
-    return asResponse(this.getContext().json({ success: false, error: errorObj }, status));
+    const envelope = this.getResponseEnvelope();
+    const body = envelope ? envelope.error(errorObj) : { success: false, error: errorObj };
+    return jsonResponse(this.getContext(), body, status);
   }
 }
 

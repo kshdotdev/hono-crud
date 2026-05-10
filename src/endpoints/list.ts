@@ -362,10 +362,6 @@ export abstract class ListEndpoint<
         )
       : transformedItems;
 
-    return this.json({
-      success: true,
-      result,
-      result_info: paginatedResult.result_info,
-    });
+    return this.successPaginated(result, paginatedResult.result_info);
   }
 }
