@@ -262,16 +262,32 @@ export abstract class DeleteEndpoint<
   }
 
   /**
-   * Lifecycle hook: called after delete operation. Throwing inside this
-   * hook rolls back the parent DELETE only when `afterHookMode ===
-   * 'sequential'` AND the adapter wraps in a transaction.
+   * Lifecycle hook: called after delete operation.
    *
-   * `cascadeResult` is `undefined` when the deleted record had no
-   * primary-key value (cascade processing was skipped).
+   * **0.10.0 — BREAKING:** the signature now exposes the **pre-mutation
+   * row** as `prior`, observed inside the same DB transaction as the
+   * parent DELETE (when the adapter wraps in one). For soft-delete this
+   * is the row as it existed before `deletedAt` was set — i.e. with the
+   * configured deletion field still null.
+   *
+   * The two-arg shape is intentional: the post-mutation row is either
+   * gone (hard delete) or differs only in the deletion-timestamp field
+   * (soft delete), neither of which is interesting to a downstream
+   * audit / CDC / outbox payload. The pre-mutation snapshot is what
+   * lets those pipelines emit a full record for the row that just
+   * disappeared instead of a bare id.
+   *
+   * Cascade results — when needed by the response — are still available
+   * via the response body when `includeCascadeResults = true`. Override
+   * `processCascade(...)` for hooks that need to participate in the
+   * cascade itself.
+   *
+   * Throwing inside this hook rolls back the parent DELETE only when
+   * `afterHookMode === 'sequential'` AND the adapter wraps in a real
+   * transaction.
    */
   async after(
-    _deletedItem: ModelObject<M['model']>,
-    _cascadeResult: CascadeResult | undefined,
+    _prior: ModelObject<M['model']>,
     _hookCtx: HookContext
   ): Promise<void> {
     // Override in subclass
@@ -429,8 +445,17 @@ export abstract class DeleteEndpoint<
 
     const isSoftDelete = this.isSoftDeleteEnabled();
 
-    // First, find the record to get its ID for constraint checks
-    const existingItem = await this.findForDelete(lookupValue, additionalFilters);
+    // First, find the record to get its ID for constraint checks. Threaded
+    // through `this._tx` so the read participates in the same transaction
+    // as the upcoming DELETE (when the adapter wraps in one). This is the
+    // **pre-mutation snapshot** that `after(prior, ctx)` receives in
+    // 0.10.0+ — for soft-delete, it's the row before `deletedAt` is set,
+    // exactly what diff-based audit/CDC pipelines need.
+    const existingItem = await this.findForDelete(
+      lookupValue,
+      additionalFilters,
+      this._tx
+    );
 
     if (!existingItem) {
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
@@ -465,10 +490,14 @@ export abstract class DeleteEndpoint<
 
     // Fire-and-forget cannot trigger rollback. Use 'sequential' to opt
     // into transactional rollback when the adapter wraps in a tx.
+    //
+    // 0.10.0: hand the pre-mutation snapshot to the after-hook so
+    // diff-based audit/CDC consumers see the row that disappeared, not
+    // the (possibly soft-deleted) post-mutation shadow.
     if (this.afterHookMode === 'fire-and-forget') {
-      this.runAfterResponse(Promise.resolve(this.after(deletedItem, cascadeResult, hookCtx)));
+      this.runAfterResponse(Promise.resolve(this.after(existingItem, hookCtx)));
     } else {
-      await this.after(deletedItem, cascadeResult, hookCtx);
+      await this.after(existingItem, hookCtx);
     }
 
     // Audit logging
@@ -477,7 +506,7 @@ export abstract class DeleteEndpoint<
       this.runAfterResponse(auditLogger.logDelete(
         this._meta.model.tableName,
         parentId,
-        deletedItem as Record<string, unknown>,
+        existingItem as Record<string, unknown>,
         this.getAuditUserId()
       ));
     }
@@ -485,7 +514,7 @@ export abstract class DeleteEndpoint<
     // Emit deleted event
     if (parentId !== null) {
       this.runAfterResponse(
-        this.emitEvent('deleted', { recordId: parentId, previousData: deletedItem })
+        this.emitEvent('deleted', { recordId: parentId, previousData: existingItem })
       );
     }
 

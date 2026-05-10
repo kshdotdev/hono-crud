@@ -525,17 +525,13 @@ export abstract class SearchEndpoint<
     const perPage = filters.options.per_page || this.defaultPerPage;
     const totalPages = Math.ceil(searchResult.totalCount / perPage);
 
-    return this.json({
-      success: true,
-      result,
-      result_info: {
-        page,
-        per_page: perPage,
-        total_count: searchResult.totalCount,
-        total_pages: totalPages,
-        query: searchOptions.query,
-        searchedFields: searchOptions.fields || Object.keys(this.getSearchableFields()),
-      },
+    return this.successPaginated(result, {
+      page,
+      per_page: perPage,
+      total_count: searchResult.totalCount,
+      total_pages: totalPages,
+      query: searchOptions.query,
+      searchedFields: searchOptions.fields || Object.keys(this.getSearchableFields()),
     });
   }
 }

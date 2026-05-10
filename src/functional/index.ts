@@ -100,7 +100,19 @@ export interface UpdateConfig<M extends MetaInput, E extends Env = Env> {
   blockedUpdateFields?: string[];
   allowNestedWrites?: string[];
   before?: (data: Partial<ModelObject<M['model']>>, tx?: unknown) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
-  after?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  /**
+   * Update after-hook.
+   *
+   * **0.10.0 — BREAKING:** signature is now `(prior, current, ctx)`. The
+   * pre-mutation snapshot is observed inside the parent UPDATE's
+   * transaction so consumers can compute field-level diffs without a
+   * re-fetch in `before`.
+   */
+  after?: (
+    prior: ModelObject<M['model']>,
+    current: ModelObject<M['model']>,
+    ctx: unknown
+  ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void;
   beforeHookMode?: HookMode;
   afterHookMode?: HookMode;
   transform?: (item: ModelObject<M['model']>) => unknown;
@@ -114,7 +126,14 @@ export interface DeleteConfig<M extends MetaInput, E extends Env = Env> {
   additionalFilters?: string[];
   includeCascadeResults?: boolean;
   before?: (lookupValue: string, tx?: unknown) => Promise<void> | void;
-  after?: (deletedItem: ModelObject<M['model']>, cascadeResult?: unknown, tx?: unknown) => Promise<void> | void;
+  /**
+   * Delete after-hook.
+   *
+   * **0.10.0 — BREAKING:** signature is now `(prior, ctx)`. `prior` is
+   * the pre-mutation row (for soft-delete, before `deletedAt` was set),
+   * observed inside the parent DELETE's transaction.
+   */
+  after?: (prior: ModelObject<M['model']>, ctx: unknown) => Promise<void> | void;
   beforeHookMode?: HookMode;
   afterHookMode?: HookMode;
   middlewares?: MiddlewareHandler<E>[];

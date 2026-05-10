@@ -1518,6 +1518,52 @@ export interface HookConfig<T = unknown, Tx = unknown> {
   hooks: Array<HookFn<T, Tx>>;
 }
 
+/**
+ * Signature for the `after`/`afterUpdate` hook on Update endpoints.
+ *
+ * Receives the **pre-mutation** row as `prior` plus the post-mutation row as
+ * `current`, both observed inside the same DB transaction as the parent
+ * UPDATE (when the adapter wraps in one). The two-snapshot shape lets
+ * downstream consumers compute field-level diffs server-side — audit logs,
+ * change-data-capture payloads, event bodies — without a re-fetch in
+ * `before` and without a separate read after the mutation that would race
+ * concurrent writers.
+ *
+ * Returning a value replaces the row used for the response and downstream
+ * after-actions (events, audit, computed fields). Returning `void`
+ * preserves `current` unchanged.
+ *
+ * Throwing inside this hook rolls back the parent UPDATE only when
+ * `afterHookMode === 'sequential'` AND the adapter wraps in a real
+ * transaction. See `HookContext.db.tx`.
+ */
+export type AfterUpdateHook<T = unknown> = (
+  prior: T,
+  current: T,
+  ctx: HookContext
+) => Promise<void | T> | void | T;
+
+/**
+ * Signature for the `after`/`afterDelete` hook on Delete endpoints.
+ *
+ * Receives the **pre-mutation** row as `prior`, observed inside the same
+ * DB transaction as the parent DELETE (when the adapter wraps in one).
+ * For soft-delete, `prior` is the row as it existed before `deletedAt`
+ * was set — i.e. with `deletedAt: null` (or whatever the configured
+ * field's null-state is).
+ *
+ * The pre-mutation snapshot lets diff-based audit/CDC pipelines emit a
+ * full payload of the row that just disappeared, instead of the bare id.
+ *
+ * Throwing inside this hook rolls back the parent DELETE only when
+ * `afterHookMode === 'sequential'` AND the adapter wraps in a real
+ * transaction. See `HookContext.db.tx`.
+ */
+export type AfterDeleteHook<T = unknown> = (
+  prior: T,
+  ctx: HookContext
+) => Promise<void> | void;
+
 // OpenAPI route schema
 export interface OpenAPIRouteSchema {
   request?: RouteConfig['request'];
@@ -1556,6 +1602,92 @@ export interface ErrorResponse {
     details?: unknown;
   };
 }
+
+/**
+ * Standardised structured error object passed to `ResponseEnvelope.error`.
+ *
+ * This is the output of the error-handler pipeline (`ApiException.toJSON`
+ * + any `ErrorMapper`s + optional `requestId` / `stack` enrichment), prior
+ * to being wrapped in the response envelope. Custom envelopes can format
+ * this shape into RFC 7807, JSON:API, a house standard, etc.
+ */
+export interface StructuredError {
+  /** Stable error code (`'NOT_FOUND'`, `'VALIDATION_ERROR'`, …). */
+  code: string;
+  /** Human-readable error message. */
+  message: string;
+  /** Optional structured details (validation issues, conflict info, etc.). */
+  details?: unknown;
+  /** Request id, if logging middleware is active and surfacing it. */
+  requestId?: string;
+  /** Stack trace, if `includeStackTrace` is enabled (development only!). */
+  stack?: string;
+  /** Open-ended for forward compatibility. */
+  [key: string]: unknown;
+}
+
+/**
+ * Pagination metadata shape passed to `ResponseEnvelope.success` for list
+ * and search responses. Mirrors `PaginatedResult.result_info` so envelope
+ * authors don't have to re-import the wider type.
+ */
+export type ResponseEnvelopeInfo = PaginatedResult<unknown>['result_info'] | Record<string, unknown>;
+
+/**
+ * Pluggable response envelope. When provided on `RegisterCrudOptions` (or
+ * resolved off the request context), the two functions are the **final
+ * formatting step** before the response body is serialised.
+ *
+ * - `success(result, info?)` is invoked for every 2xx CRUD response. `info`
+ *   is the pagination metadata for list/search endpoints; `undefined` for
+ *   single-item responses (read/create/update/delete/etc.).
+ * - `error(err)` is invoked for every error response. Composition order:
+ *   any `ErrorMapper`s registered on `createErrorHandler` run **first** and
+ *   transform the raw `Error` into a `StructuredError`; the envelope's
+ *   `error()` then wraps that structured object into the final response
+ *   body. This means consumers can keep their existing mappers (e.g.
+ *   Prisma `P2002` → `ConflictException`) and layer a custom envelope on
+ *   top.
+ *
+ * Default behaviour (when no envelope is configured) is byte-identical to
+ * pre-0.10.0 — `{ success: true, result, result_info? }` for success and
+ * `{ success: false, error: <StructuredError> }` for errors.
+ *
+ * @example RFC 7807 Problem Details
+ * ```ts
+ * const envelope: ResponseEnvelope = {
+ *   success: (result, info) => info ? { data: result, meta: info } : { data: result },
+ *   error: (err) => ({
+ *     type: `https://example.com/errors/${err.code}`,
+ *     title: err.message,
+ *     status: err.details ? 422 : 400,
+ *     detail: err.message,
+ *     instance: err.requestId,
+ *   }),
+ * };
+ * ```
+ */
+export interface ResponseEnvelope {
+  /**
+   * Format a successful CRUD response body.
+   * @param result - The endpoint's result payload (single item, array, or batch object).
+   * @param info - Pagination metadata for list/search responses; undefined otherwise.
+   */
+  success: (result: unknown, info?: ResponseEnvelopeInfo) => unknown;
+  /**
+   * Format an error response body. Receives the `StructuredError` produced
+   * by `ApiException.toJSON()` after any `ErrorMapper`s have run.
+   */
+  error: (err: StructuredError) => unknown;
+}
+
+/**
+ * Hono context-var key under which the active `ResponseEnvelope` is
+ * stashed by `registerCrud(...)` and read by `OpenAPIRoute.success` /
+ * `createErrorHandler`. Internal — exported for adapter authors who need
+ * to read the same envelope from custom endpoints.
+ */
+export const RESPONSE_ENVELOPE_CONTEXT_KEY = '__honoCrudResponseEnvelope__' as const;
 
 // Route handler arguments
 export type HandleArgs<E extends Env = Env> = [Context<E>];

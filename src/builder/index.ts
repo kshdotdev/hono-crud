@@ -432,7 +432,11 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
   private _blockedUpdateFields?: string[];
   private _allowNestedWrites: string[] = [];
   private _before?: (data: Partial<ModelObject<M['model']>>, tx?: unknown) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
-  private _after?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  private _after?: (
+    prior: ModelObject<M['model']>,
+    current: ModelObject<M['model']>,
+    ctx: unknown
+  ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void;
   private _beforeHookMode: HookMode = 'sequential';
   private _afterHookMode: HookMode = 'sequential';
   private _transform?: (item: ModelObject<M['model']>) => unknown;
@@ -500,8 +504,19 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
     return this;
   }
 
-  /** Set after hook */
-  after(fn: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>): this {
+  /**
+   * Set after hook.
+   *
+   * **0.10.0 — BREAKING:** signature is now `(prior, current, ctx)`. The
+   * pre-mutation snapshot is observed inside the parent UPDATE's
+   * transaction so consumers can compute field-level diffs without a
+   * re-fetch in `before`.
+   */
+  after(fn: (
+    prior: ModelObject<M['model']>,
+    current: ModelObject<M['model']>,
+    ctx: unknown
+  ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void): this {
     this._after = fn;
     return this;
   }
@@ -562,7 +577,7 @@ export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
   private _additionalFilters?: string[];
   private _includeCascadeResults = false;
   private _before?: (lookupValue: string, tx?: unknown) => Promise<void> | void;
-  private _after?: (deletedItem: ModelObject<M['model']>, cascadeResult?: unknown, tx?: unknown) => Promise<void> | void;
+  private _after?: (prior: ModelObject<M['model']>, ctx: unknown) => Promise<void> | void;
   private _beforeHookMode: HookMode = 'sequential';
   private _afterHookMode: HookMode = 'sequential';
   private _middlewares: MiddlewareHandler<E>[] = [];
@@ -617,8 +632,16 @@ export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
     return this;
   }
 
-  /** Set after hook */
-  after(fn: (deletedItem: ModelObject<M['model']>, cascadeResult?: unknown, tx?: unknown) => Promise<void> | void): this {
+  /**
+   * Set after hook.
+   *
+   * **0.10.0 — BREAKING:** signature is now `(prior, ctx)`. `prior` is
+   * the pre-mutation row (for soft-delete, the row before `deletedAt`
+   * was set), observed inside the parent DELETE's transaction. Cascade
+   * results are still emitted in the response body when
+   * `includeCascade(true)` is configured.
+   */
+  after(fn: (prior: ModelObject<M['model']>, ctx: unknown) => Promise<void> | void): this {
     this._after = fn;
     return this;
   }

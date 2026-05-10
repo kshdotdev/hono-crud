@@ -170,9 +170,10 @@ override async after(order, hookCtx) {
 
 ### Override signature
 
-Hooks accept the `HookContext` as a **required** second parameter:
+Hooks accept the `HookContext` as a **required** trailing parameter:
 
 ```ts
+// Create
 override async after(data: User, hookCtx: HookContext): Promise<User> {
   await drizzle(hookCtx.db.tx).insert(audit).values({...});
   return data;
@@ -183,6 +184,99 @@ There's no optional / "legacy without ctx" form — the lib is pre-1.0
 and the API was designed with the context in place rather than added as
 an afterthought. Override authors should always declare the parameter,
 even if they only use it in some branches.
+
+### Update / Delete: the `prior` snapshot (0.10.0)
+
+`afterUpdate` and `afterDelete` receive the **pre-mutation row** as the
+first argument so hooks can compute field-level diffs server-side
+without forcing a re-fetch in `before`:
+
+```ts
+// Update — see the row before AND after the UPDATE
+override async after(prior: User, current: User, hookCtx: HookContext): Promise<User | void> {
+  const diff = Object.keys(current).filter(k => prior[k] !== current[k]);
+  await drizzle(hookCtx.db.tx).insert(audit).values({
+    table: 'users',
+    recordId: current.id,
+    changedFields: diff,
+    before: prior,
+    after: current,
+  });
+}
+
+// Delete — see the row that just disappeared
+override async after(prior: User, hookCtx: HookContext): Promise<void> {
+  await drizzle(hookCtx.db.tx).insert(audit).values({
+    table: 'users',
+    recordId: prior.id,
+    payload: prior,
+    action: 'delete',
+  });
+}
+```
+
+#### Transactional consistency of `prior`
+
+The pre-mutation row is fetched inside the **same transaction** as the
+parent UPDATE / DELETE — i.e. with `useTransaction = true` on the
+Drizzle adapter, the `findExisting` / `findForDelete` query that
+produces `prior` reads through the same `tx` handle that the upcoming
+mutation will use. Two concrete consequences:
+
+1. **`prior` is a true point-in-time snapshot at transaction start.**
+   Concurrent writers can't mutate the row between the snapshot read
+   and the parent write — both reads happen under the same transaction's
+   isolation level (default REPEATABLE READ on Postgres, SERIALIZABLE on
+   SQLite when SERIALIZABLE pragma is set).
+2. **Throwing inside `after()` rolls back the snapshot read too.** The
+   snapshot was observed but the transaction never committed — externally
+   the database is unchanged. This means a downstream audit / outbox row
+   written from inside the hook can include the diff and still be
+   atomically rolled back if anything later throws.
+
+For soft-delete, `prior` is the row **before `deletedAt` was set** —
+i.e. with `deletedAt: null`. This is what diff-based audit / CDC
+pipelines need: a full payload of the row that just disappeared, not
+the post-soft-delete shadow that differs only in the deletion-timestamp
+field.
+
+#### Memory adapter
+
+The memory adapter has no real transactions, so `prior` is observed via
+a defensive copy taken just before the mutation lands. Throwing in
+`after()` does not roll back (consistent with the broader
+`MEMORY_NOOP_TX` semantics documented above), but `prior` is still the
+pre-mutation row — so unit tests can exercise the diff-computation logic
+without a real DB.
+
+#### Migration from pre-0.10.0
+
+The new signature is a hard breaking change — there's no fallback that
+preserves the old shape:
+
+```ts
+// BEFORE (0.9.x)
+override async after(data: User, ctx: HookContext): Promise<User> {
+  // had to re-fetch in before() and stash on c.var to compute a diff
+  return data;
+}
+override async after(deletedItem: User, _cascade, ctx: HookContext): Promise<void> {
+  // only the post-mutation shadow was available
+}
+
+// AFTER (0.10.0)
+override async after(prior: User, current: User, ctx: HookContext): Promise<User | void> {
+  // diff is one line away
+}
+override async after(prior: User, ctx: HookContext): Promise<void> {
+  // full pre-mutation row
+}
+```
+
+Cascade results — when needed by the response — are still available via
+the response body when `includeCascadeResults = true`. Override
+`processCascade(...)` for hooks that need to participate in the
+cascade itself.
 
 ---
 

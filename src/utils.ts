@@ -1,6 +1,11 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import type { Env, MiddlewareHandler } from 'hono';
 import type { OpenAPIRoute } from './core/route';
+import {
+  RESPONSE_ENVELOPE_CONTEXT_KEY,
+  type ResponseEnvelope,
+} from './core/types';
+import { setContextVar } from './utils/context';
 
 /**
  * Type for an OpenAPIRoute class constructor.
@@ -50,6 +55,41 @@ export interface RegisterCrudOptions<E extends Env = Env> {
   middlewares?: MiddlewareHandler<E>[];
   /** Middleware applied to specific endpoints */
   endpointMiddlewares?: EndpointMiddlewares<E>;
+  /**
+   * Pluggable response envelope for the endpoints registered by this call.
+   *
+   * When provided, the two functions are the **final formatting step**
+   * before the response body is serialised. The default (no override) is
+   * byte-identical to pre-0.10.0:
+   *
+   * - Success: `{ success: true, result, result_info? }`
+   * - Error:   `{ success: false, error: { code, message, details? } }`
+   *
+   * Error composition: any `ErrorMapper`s registered on
+   * `createErrorHandler(...)` run **first** and transform the raw `Error`
+   * into a structured object; the envelope's `error()` then wraps that
+   * object into the final body. This lets consumers keep their existing
+   * domain-error mappers (Prisma codes, Drizzle constraint violations,
+   * etc.) and layer a custom envelope (RFC 7807, JSON:API, a house
+   * standard) on top without writing a response-rewriting middleware.
+   *
+   * The envelope is propagated to the request via a tiny middleware
+   * installed by `registerCrud` and read by `OpenAPIRoute.success` /
+   * `OpenAPIRoute.error` / the global error handler. It is therefore
+   * scoped to the routes registered by this single `registerCrud(...)`
+   * call — different resources can ship different envelopes if needed.
+   *
+   * @example
+   * ```ts
+   * registerCrud(app, '/users', endpoints, {
+   *   responseEnvelope: {
+   *     success: (result, info) => info ? { data: result, meta: info } : { data: result },
+   *     error: (err) => ({ error: { code: err.code, message: err.message } }),
+   *   },
+   * });
+   * ```
+   */
+  responseEnvelope?: ResponseEnvelope;
 }
 
 /**
@@ -177,13 +217,29 @@ export function registerCrud<E extends Env = Env>(
     ? basePath.slice(0, -1)
     : basePath;
   const typedApp = app as HonoOpenAPIApp<E>;
-  const { middlewares = [], endpointMiddlewares = {} } = options;
+  const { middlewares = [], endpointMiddlewares = {}, responseEnvelope } = options;
+
+  /**
+   * Stash the configured `ResponseEnvelope` on the request context so the
+   * endpoint base class (`OpenAPIRoute.success` / `error`) and the global
+   * error handler (`createErrorHandler`) can read it without coupling to
+   * the registration call site. Built once per `registerCrud(...)`; the
+   * function-identity is captured by the closure so middleware stays
+   * cheap.
+   */
+  const envelopeMiddleware: MiddlewareHandler<E> | undefined = responseEnvelope
+    ? async (c, next) => {
+        setContextVar(c, RESPONSE_ENVELOPE_CONTEXT_KEY, responseEnvelope);
+        await next();
+      }
+    : undefined;
 
   /**
    * Get combined middleware for an endpoint:
-   * 1. Global middleware (from options.middlewares)
-   * 2. Per-endpoint middleware (from options.endpointMiddlewares)
-   * 3. Class-level middleware (from static _middlewares property)
+   * 1. ResponseEnvelope stash (if configured)
+   * 2. Global middleware (from options.middlewares)
+   * 3. Per-endpoint middleware (from options.endpointMiddlewares)
+   * 4. Class-level middleware (from static _middlewares property)
    */
   const getMiddleware = (name: CrudEndpointName): MiddlewareHandler<E>[] => {
     const endpoint = endpoints[name];
@@ -193,7 +249,12 @@ export function registerCrud<E extends Env = Env>(
           []
         : [];
 
-    return [...middlewares, ...(endpointMiddlewares[name] || []), ...classMiddlewares];
+    return [
+      ...(envelopeMiddleware ? [envelopeMiddleware] : []),
+      ...middlewares,
+      ...(endpointMiddlewares[name] || []),
+      ...classMiddlewares,
+    ];
   };
 
   // Helper to register route with middleware

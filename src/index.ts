@@ -31,6 +31,7 @@ export {
 export {
   createErrorHandler,
   zodErrorMapper,
+  resolveErrorEnvelope,
 } from './core/error-handler';
 export type {
   ErrorMapper,
@@ -71,6 +72,7 @@ export {
   extractTenantId,
   encodeCursor,
   decodeCursor,
+  RESPONSE_ENVELOPE_CONTEXT_KEY,
 } from './core/types';
 export { multiTenant } from './multi-tenant';
 export type {
@@ -122,6 +124,11 @@ export type {
   HookFn,
   HookConfig,
   HookContext,
+  AfterUpdateHook,
+  AfterDeleteHook,
+  ResponseEnvelope,
+  ResponseEnvelopeInfo,
+  StructuredError,
   SchemaResolveContext,
   ModelPolicies,
   PolicyContext,

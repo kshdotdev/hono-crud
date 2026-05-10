@@ -4,6 +4,12 @@ import { ZodError } from 'zod';
 import { ApiException, InputValidationException } from './exceptions';
 import { getRequestId } from '../logging/middleware';
 import { getLogger } from './logger';
+import { jsonResponse } from './route';
+import {
+  RESPONSE_ENVELOPE_CONTEXT_KEY,
+  type ResponseEnvelope,
+  type StructuredError,
+} from './types';
 
 /**
  * Error mapper: transforms unknown errors to ApiException.
@@ -44,6 +50,26 @@ export interface ErrorHandlerConfig<E extends Env = Env> {
   logUnmappedErrors?: boolean;
   /** Called when a hook throws an error */
   onHookError?: (hookError: Error, originalError: Error, ctx: Context<E>) => void;
+  /**
+   * Default response envelope for error responses.
+   *
+   * When set, every error body is run through `responseEnvelope.error(...)`
+   * as the **final formatting step** before serialisation. Composition
+   * order is fixed:
+   *
+   * 1. `ApiException` / `HTTPException` / `mappers[]` produce a structured
+   *    error object (`{ code, message, details?, requestId?, stack? }`).
+   * 2. The envelope's `error()` wraps that object into the final response
+   *    body shape.
+   *
+   * This decoupling lets consumers keep their domain-error mappers
+   * unchanged and layer a custom shape (RFC 7807, JSON:API, …) on top.
+   *
+   * If a per-route envelope was set via `registerCrud({ responseEnvelope })`,
+   * that one wins over the handler-level default — so global JSON:API
+   * shape with one resource opting into RFC 7807 is straightforward.
+   */
+  responseEnvelope?: ResponseEnvelope;
 }
 
 /**
@@ -100,6 +126,7 @@ export function createErrorHandler<E extends Env = Env>(
     defaultErrorMessage = 'An internal error occurred',
     logUnmappedErrors = true,
     onHookError,
+    responseEnvelope: defaultEnvelope,
   } = config;
 
   // Combine custom mappers with built-in mappers
@@ -168,7 +195,7 @@ export function createErrorHandler<E extends Env = Env>(
       }
     }
 
-    // Step 5: Build response
+    // Step 5: Build the structured error object (mapper output).
     const responseBody = apiException!.toJSON();
 
     // Add requestId if logging middleware is active
@@ -184,7 +211,37 @@ export function createErrorHandler<E extends Env = Env>(
       responseBody.error.stack = err.stack;
     }
 
-    // Step 6: Return JSON response
-    return ctx.json(responseBody, apiException!.status as 200);
+    // Step 6: Resolve the response envelope. A per-route envelope set by
+    // `registerCrud(...)` (stashed on the request context) takes priority
+    // over the handler-level default; this keeps the per-resource
+    // override useful even when a single global error handler is wired
+    // to the app.
+    const envelope = resolveErrorEnvelope(ctx, defaultEnvelope);
+
+    // Step 7: Either pass the structured error through the envelope, or
+    // emit the legacy `{ success: false, error: <StructuredError> }`
+    // shape verbatim.
+    const finalBody = envelope
+      ? envelope.error(responseBody.error as StructuredError)
+      : responseBody;
+
+    return jsonResponse(ctx, finalBody, apiException!.status);
   };
+}
+
+/**
+ * Resolve the active `ResponseEnvelope` for an error response. A per-route
+ * envelope set via `registerCrud({ responseEnvelope })` wins over the
+ * handler-level default, falling back to `undefined` (legacy shape) when
+ * neither is configured. Exported for adapter authors who want to bridge
+ * a custom global error path through the same composition rule.
+ */
+export function resolveErrorEnvelope<E extends Env = Env>(
+  ctx: Context<E>,
+  fallback?: ResponseEnvelope
+): ResponseEnvelope | undefined {
+  const fromCtx = (ctx as unknown as { var?: Record<string, unknown> })?.var?.[
+    RESPONSE_ENVELOPE_CONTEXT_KEY
+  ] as ResponseEnvelope | undefined;
+  return fromCtx ?? fallback;
 }
