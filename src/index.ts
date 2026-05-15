@@ -17,6 +17,8 @@ export type {
   PerTenantOpenApiConfig,
   PerTenantOpenApiOptions,
 } from './openapi/lazy';
+export { toOpenApiPaths } from './openapi/paths';
+export type { OpenApiPathItem, ToOpenApiPathsOptions } from './openapi/paths';
 export {
   ApiException,
   InputValidationException,

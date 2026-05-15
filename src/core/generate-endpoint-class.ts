@@ -93,6 +93,23 @@ export function generateEndpointClass<
 
   const extras = config.extras;
 
+  // Resolve the effective OpenAPI schema for this endpoint, defaulting
+  // `tags` from the model's `tag` (or `tableName` when unset). A
+  // per-endpoint `openapi.tags` override always wins — when the caller
+  // already supplied a non-empty `tags` array we leave the schema
+  // untouched, so existing behaviour for explicitly-tagged endpoints is
+  // byte-identical. Only endpoints that previously had *no* tag now
+  // inherit the resource-level group, which is the whole point of
+  // `Model.tag`.
+  const baseSchema = (config.schema ?? {}) as OpenAPIRouteSchema;
+  const hasExplicitTags =
+    Array.isArray(baseSchema.tags) && baseSchema.tags.length > 0;
+  const resolvedTag =
+    config.meta.model.tag ?? config.meta.model.tableName;
+  const resolvedSchema: OpenAPIRouteSchema = hasExplicitTags
+    ? baseSchema
+    : { ...baseSchema, tags: [resolvedTag] };
+
   // @ts-expect-error - TS cannot resolve members of a dynamically-provided abstract base class (TS#4628)
   const Generated = class extends BaseClass {
     static _middlewares = middlewares;
@@ -105,7 +122,7 @@ export function generateEndpointClass<
     }
 
     _meta = config.meta;
-    schema = (config.schema ?? {}) as OpenAPIRouteSchema;
+    schema = resolvedSchema;
 
     // Hook modes (Create / Update / Delete)
     protected beforeHookMode: HookMode = config.beforeHookMode ?? 'sequential';

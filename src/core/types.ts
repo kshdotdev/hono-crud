@@ -1017,6 +1017,23 @@ export interface Model<
 > {
   /** Database table name */
   tableName: string;
+  /**
+   * Optional OpenAPI tag / API group for this resource.
+   *
+   * This is the canonical "what API group does this resource belong to"
+   * home. It flows into every generated endpoint's
+   * `OpenAPIRouteSchema.tags` (and therefore the emitted OpenAPI
+   * operations) unless a per-endpoint `openapi.tags` override is set,
+   * which always wins. When unset, the effective tag falls back to
+   * `tableName`, so consumers that never set explicit tags get stable,
+   * resource-grouped documentation by default.
+   *
+   * @example
+   * ```ts
+   * defineModel({ tableName: 'users', tag: 'Accounts', schema, primaryKeys: ['id'] });
+   * ```
+   */
+  tag?: string;
   /** Zod schema for validation and type inference */
   schema: T;
   /**
