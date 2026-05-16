@@ -37,13 +37,12 @@ export abstract class PrismaCreateEndpoint<
 
   override async create(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate UUID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    };
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'prisma'
+    );
 
     const result = await model.create({ data: record });
     return result as ModelObject<M['model']>;
@@ -129,7 +128,7 @@ export abstract class PrismaUpdateEndpoint<
     const primaryKey = this._meta.model.primaryKeys[0];
     const result = await model.update({
       where: { [primaryKey]: (existing as Record<string, unknown>)[primaryKey] },
-      data,
+      data: this.applyManagedUpdateFields(data as Record<string, unknown>),
     });
 
     return result as ModelObject<M['model']>;

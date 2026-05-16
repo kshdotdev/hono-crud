@@ -98,13 +98,12 @@ export abstract class DrizzleUpsertEndpoint<
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate UUID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    };
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'drizzle'
+    );
 
     const result = await cast(this.getDb())
       .insert(table)
@@ -124,7 +123,7 @@ export abstract class DrizzleUpsertEndpoint<
 
     const result = await cast(this.getDb())
       .update(table)
-      .set(data as Record<string, unknown>)
+      .set(this.applyManagedUpdateFields(data as Record<string, unknown>))
       .where(eq(this.getColumn(pk), pkValue))
       .returning();
 
@@ -147,12 +146,14 @@ export abstract class DrizzleUpsertEndpoint<
     const upsertKeys = this.getUpsertKeys();
     const primaryKey = this._meta.model.primaryKeys[0];
     const softDeleteConfig = this.getSoftDeleteConfig();
+    const timestamps = this.getTimestampsConfig();
 
-    // Generate UUID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    };
+    // Resolve managed write-time fields for the INSERT branch
+    // (Model.id strategy + createdAt/updatedAt).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'drizzle'
+    );
 
     // Build the set clause for update - exclude upsert keys and primary key
     const updateSet: Record<string, unknown> = {};
@@ -163,6 +164,11 @@ export abstract class DrizzleUpsertEndpoint<
           updateSet[key] = value;
         }
       }
+    }
+    // `updatedAt` is server-managed on the DO UPDATE branch — always bump it,
+    // ignoring any client-supplied value, and never touch `createdAt`.
+    if (timestamps.enabled) {
+      updateSet[timestamps.updatedAt] = Date.now();
     }
 
     // Get the target columns for conflict detection
@@ -270,12 +276,12 @@ export abstract class DrizzleBatchUpsertEndpoint<
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    };
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'drizzle'
+    );
 
     const result = await cast(this.getDb())
       .insert(table)
@@ -295,7 +301,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
 
     const result = await cast(this.getDb())
       .update(table)
-      .set(data as Record<string, unknown>)
+      .set(this.applyManagedUpdateFields(data as Record<string, unknown>))
       .where(eq(this.getColumn(pk), pkValue))
       .returning();
 
@@ -332,12 +338,13 @@ export abstract class DrizzleBatchUpsertEndpoint<
     const table = this.getTable();
     const upsertKeys = this.getUpsertKeys();
     const primaryKey = this._meta.model.primaryKeys[0];
+    const timestamps = this.getTimestampsConfig();
 
-    // Prepare all records with generated UUIDs
-    const records = items.map((item) => ({
-      ...item,
-      [primaryKey]: (item as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    }));
+    // Resolve managed write-time fields for the INSERT branch of every row
+    // (Model.id strategy + createdAt/updatedAt).
+    const records = items.map((item) =>
+      this.applyManagedInsertFields(item as Record<string, unknown>, 'drizzle')
+    );
 
     // Build the set clause for update - exclude upsert keys and primary key
     // Use the first item as template for update fields
@@ -351,6 +358,11 @@ export abstract class DrizzleBatchUpsertEndpoint<
           updateSet[key] = sql`excluded.${sql.identifier(key)}`;
         }
       }
+    }
+    // `updatedAt` is server-managed on the DO UPDATE branch — always bump it
+    // to a fresh server timestamp, never touch `createdAt`.
+    if (timestamps.enabled) {
+      updateSet[timestamps.updatedAt] = Date.now();
     }
 
     // Get the target columns for conflict detection
@@ -947,13 +959,12 @@ export abstract class DrizzleImportEndpoint<
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate UUID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    };
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'drizzle'
+    );
 
     const result = await cast(this.getDb())
       .insert(table)
@@ -976,7 +987,7 @@ export abstract class DrizzleImportEndpoint<
 
     const result = await cast(this.getDb())
       .update(table)
-      .set(data as Record<string, unknown>)
+      .set(this.applyManagedUpdateFields(data as Record<string, unknown>))
       .where(eq(this.getColumn(pk), pkValue))
       .returning();
 
@@ -1062,12 +1073,16 @@ export abstract class DrizzleCloneEndpoint<
     data: ModelObject<M['model']>
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || this.generateId(),
-    };
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    // The long-standing overridable `generateId()` remains the default-branch
+    // generator for the `'uuid'`/unset strategy; a `function`/`'database'`
+    // strategy takes precedence.
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'drizzle',
+      () => this.generateId()
+    );
 
     const result = await cast(this.getDb())
       .insert(table)

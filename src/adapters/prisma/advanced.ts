@@ -244,13 +244,12 @@ export abstract class PrismaImportEndpoint<
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate UUID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    };
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'prisma'
+    );
 
     const result = await model.create({ data: record });
     return result as ModelObject<M['model']>;
@@ -268,7 +267,7 @@ export abstract class PrismaImportEndpoint<
 
     const result = await model.update({
       where: { [primaryKey]: (existing as Record<string, unknown>)[primaryKey] },
-      data,
+      data: this.applyManagedUpdateFields(data as Record<string, unknown>),
     });
 
     return result as ModelObject<M['model']>;
@@ -325,13 +324,12 @@ export abstract class PrismaUpsertEndpoint<
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate UUID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    };
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'prisma'
+    );
 
     const result = await model.create({ data: record });
     return result as ModelObject<M['model']>;
@@ -349,7 +347,7 @@ export abstract class PrismaUpsertEndpoint<
 
     const result = await model.update({
       where: { [primaryKey]: (existing as Record<string, unknown>)[primaryKey] },
-      data,
+      data: this.applyManagedUpdateFields(data as Record<string, unknown>),
     });
 
     return result as ModelObject<M['model']>;
@@ -365,6 +363,7 @@ export abstract class PrismaUpsertEndpoint<
     const model = await this.getModel();
     const upsertKeys = this.getUpsertKeys();
     const primaryKey = this._meta.model.primaryKeys[0];
+    const timestamps = this.getTimestampsConfig();
 
     // Build where clause from upsert keys
     const where: Record<string, unknown> = {};
@@ -375,11 +374,12 @@ export abstract class PrismaUpsertEndpoint<
       }
     }
 
-    // Build create data with generated UUID
-    const createData = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    };
+    // Resolve managed write-time fields for the CREATE branch
+    // (Model.id strategy + createdAt/updatedAt).
+    const createData = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'prisma'
+    );
 
     // Build update data - exclude upsert keys and primary key, filter create-only fields
     const updateData: Record<string, unknown> = {};
@@ -389,6 +389,11 @@ export abstract class PrismaUpsertEndpoint<
           updateData[key] = value;
         }
       }
+    }
+    // `updatedAt` is server-managed on the UPDATE branch — always bump it,
+    // ignoring any client-supplied value, and never touch `createdAt`.
+    if (timestamps.enabled) {
+      updateData[timestamps.updatedAt] = Date.now();
     }
 
     const result = await model.upsert({
@@ -922,12 +927,15 @@ export abstract class PrismaCloneEndpoint<
     data: ModelObject<M['model']>
   ): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || this.generateId(),
-    };
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    // `generateId()` remains the overridable default-branch generator for
+    // the `'uuid'`/unset strategy; `function`/`'database'` take precedence.
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'prisma',
+      () => this.generateId()
+    );
 
     const result = await model.create({ data: record });
     return result as ModelObject<M['model']>;

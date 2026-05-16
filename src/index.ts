@@ -57,6 +57,16 @@ export {
 } from './versioning';
 export type { VersioningStorage } from './versioning';
 export {
+  getTimestampsConfig,
+  applyManagedInsertFields,
+  applyManagedUpdateFields,
+  assertIdStrategySupported,
+} from './core/managed-fields';
+export type {
+  AdapterKind,
+  NormalizedTimestampsConfig,
+} from './core/managed-fields';
+export {
   defineModel,
   defineMeta,
   getSoftDeleteConfig,
@@ -90,6 +100,7 @@ export type {
   PaginatedResult,
   Model,
   MetaInput,
+  IdStrategy,
   SoftDeleteConfig,
   NormalizedSoftDeleteConfig,
   MultiTenantConfig,

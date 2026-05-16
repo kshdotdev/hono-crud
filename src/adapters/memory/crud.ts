@@ -52,11 +52,14 @@ export abstract class MemoryCreateEndpoint<
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate ID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || this.generateId(),
-    } as ModelObject<M['model']>;
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    // `generateId()` stays the overridable default-branch generator;
+    // `id:'database'` throws here (memory has no database).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'memory',
+      () => this.generateId()
+    ) as ModelObject<M['model']>;
 
     const id = String((record as Record<string, unknown>)[primaryKey]);
     store.set(id, record);
@@ -177,7 +180,10 @@ export abstract class MemoryUpdateEndpoint<
       return null;
     }
 
-    const updated = { ...existing, ...data } as ModelObject<M['model']>;
+    const updated = {
+      ...existing,
+      ...this.applyManagedUpdateFields(data as Record<string, unknown>),
+    } as ModelObject<M['model']>;
     store.set(lookupValue, updated);
 
     return updated;
