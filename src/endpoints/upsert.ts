@@ -5,6 +5,7 @@ import { getLogger } from '../core/logger';
 import type {MetaInput, OpenAPIRouteSchema, HookMode, RelationConfig, NestedWriteResult, NestedUpdateInput} from '../core/types';
 import {applyComputedFields, extractNestedData, isDirectNestedData} from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
+import { getManagedInputExclusions } from '../core/managed-fields';
 
 /**
  * Result of an upsert operation indicating whether it was a create or update.
@@ -168,7 +169,24 @@ export abstract class UpsertEndpoint<
       // For upsert, we need upsert keys to be required
       // Other fields can be optional (for partial updates)
       const upsertKeys = this.getUpsertKeys();
-      const allFields = getSchemaFields(this.getModelSchema(), []);
+
+      // Exclude the engine-managed / server-owned write fields. Any
+      // configured `Model.timestamps` are always stamped by the engine
+      // (`applyManagedInsertFields` on create, `applyManagedUpdateFields`
+      // on the update branch), so the client must never be forced to
+      // send them. Primary keys follow the single-create rule too —
+      // EXCEPT when a PK is itself an upsert/matching key, where the
+      // existing code intentionally keeps it required so the record can
+      // be found. Computed centrally so the precedence is not duplicated.
+      const exclude = getManagedInputExclusions(this._meta.model, {
+        includePrimaryKeys: false,
+      });
+      for (const pk of this._meta.model.primaryKeys) {
+        if (!upsertKeys.includes(pk)) {
+          exclude.push(pk);
+        }
+      }
+      const allFields = getSchemaFields(this.getModelSchema(), exclude);
 
       // Make non-upsert-key fields optional
       const shape: Record<string, z.ZodTypeAny> = {};

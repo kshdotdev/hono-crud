@@ -5,6 +5,7 @@ import { getLogger } from '../core/logger';
 import type {MetaInput, OpenAPIRouteSchema, HookMode, HookContext, RelationConfig} from '../core/types';
 import { applyComputedFields, extractNestedData } from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
+import { getManagedInputExclusions } from '../core/managed-fields';
 
 /**
  * Base endpoint for creating resources.
@@ -97,8 +98,12 @@ export abstract class CreateEndpoint<
   protected getBodySchema(): ZodObject<ZodRawShape> {
     let baseSchema: ZodObject<ZodRawShape>;
 
-    // Build list of fields to exclude from input
-    const excludeFields = [...this._meta.model.primaryKeys];
+    // Build list of fields to exclude from input. Primary keys and any
+    // configured `Model.timestamps` are engine-managed at the write site
+    // (`applyManagedInsertFields`), so the client must never be forced to
+    // send them — the exclusion set is computed centrally so the
+    // precedence is never duplicated per endpoint.
+    const excludeFields = getManagedInputExclusions(this._meta.model);
 
     // Exclude multi-tenant field if enabled (it's injected automatically)
     const mtConfig = this.getMultiTenantConfig();

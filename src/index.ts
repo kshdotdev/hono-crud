@@ -58,6 +58,7 @@ export {
 export type { VersioningStorage } from './versioning';
 export {
   getTimestampsConfig,
+  getManagedInputExclusions,
   applyManagedInsertFields,
   applyManagedUpdateFields,
   assertIdStrategySupported,

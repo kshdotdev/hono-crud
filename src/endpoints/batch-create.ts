@@ -2,7 +2,8 @@ import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { CrudEndpoint } from './base';
 import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
-import type { ModelObject } from './types';
+import { getSchemaFields, type ModelObject } from './types';
+import { getManagedInputExclusions } from '../core/managed-fields';
 
 /**
  * Base endpoint for batch creating resources.
@@ -49,20 +50,23 @@ export abstract class BatchCreateEndpoint<
 
   /**
    * Returns the request body schema for batch creation.
-   * Makes primary keys optional since they can be auto-generated.
+   *
+   * The per-item schema is the model schema minus the engine-managed /
+   * server-owned write fields — primary keys (per the `Model.id`
+   * strategy) and any configured `Model.timestamps` — exactly as the
+   * single-create derivation does. This keeps batch-create consistent
+   * with single-create: the engine generates the id and stamps the
+   * timestamps (`applyManagedInsertFields`), so a caller is never forced
+   * to send placeholders. A consumer-supplied per-endpoint body schema
+   * (`this._meta.fields`) still wins and is never rewritten.
    */
   protected getBodySchema(): ZodObject<ZodRawShape> {
-    const baseSchema = this._meta.fields || this.getModelSchema();
-
-    // Make primary keys optional for creation
-    const primaryKeys = this._meta.model.primaryKeys;
-    const partialKeys: Record<string, true> = {};
-    for (const pk of primaryKeys) {
-      partialKeys[pk] = true;
-    }
-
-    // Use partial for primary keys only
-    const itemSchema = baseSchema.partial(partialKeys);
+    const itemSchema = this._meta.fields
+      ? this._meta.fields
+      : getSchemaFields(
+          this.getModelSchema(),
+          getManagedInputExclusions(this._meta.model)
+        );
 
     return z.object({
       items: z.array(itemSchema).min(1).max(this.maxBatchSize),

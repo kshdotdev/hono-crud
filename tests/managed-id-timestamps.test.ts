@@ -541,7 +541,12 @@ describe('Model.timestamps', () => {
     });
   });
 
-  it('client-supplied createdAt on create is respected (only fills when absent)', async () => {
+  it('createdAt is engine-managed: stripped from the model-derived create input, server-stamped', async () => {
+    // As of 0.12.1 the configured timestamp fields are excluded from the
+    // model-derived create input schema (the engine owns them at the
+    // write site). A client-supplied `createdAt` over the HTTP body is
+    // therefore dropped at validation and the server value is used.
+    const before = Date.now();
     const app = memoryApp({ timestamps: true });
     const res = await app.request('/items', {
       method: 'POST',
@@ -549,7 +554,28 @@ describe('Model.timestamps', () => {
       body: JSON.stringify({ name: 'a', createdAt: 12345 }),
     });
     const body = (await res.json()) as { result: Item };
-    expect(body.result.createdAt).toBe(12345);
+    expect(body.result.createdAt).not.toBe(12345);
+    expect(typeof body.result.createdAt).toBe('number');
+    expect(body.result.createdAt!).toBeGreaterThanOrEqual(before);
     expect(typeof body.result.updatedAt).toBe('number');
+  });
+
+  it('resolver still respects a caller-supplied createdAt when present (only fills when absent)', () => {
+    // The write-site resolver contract is unchanged: when `createdAt` is
+    // already on the record it is preserved; only an absent field is
+    // filled. (Reaching it with a value now requires a consumer body
+    // schema or a `before` hook, since the model-derived input strips it.)
+    const model = { id: 'uuid' as const, primaryKeys: ['id'] as string[], timestamps: true };
+    const kept = applyManagedInsertFields(
+      { id: 'x', name: 'a', createdAt: 12345 },
+      model,
+      'memory'
+    );
+    expect(kept.createdAt).toBe(12345);
+    expect(typeof kept.updatedAt).toBe('number');
+
+    const filled = applyManagedInsertFields({ id: 'x', name: 'a' }, model, 'memory');
+    expect(typeof filled.createdAt).toBe('number');
+    expect(filled.createdAt).toBe(filled.updatedAt);
   });
 });

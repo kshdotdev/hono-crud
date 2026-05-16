@@ -5,6 +5,7 @@ import type {MetaInput, OpenAPIRouteSchema} from '../core/types';
 import { applyComputedFields } from '../core/types';
 import { NotFoundException } from '../core/exceptions';
 import { getSchemaFields, type ModelObject } from './types';
+import { getManagedInputExclusions } from '../core/managed-fields';
 
 /**
  * Base endpoint for cloning/duplicating a resource.
@@ -61,8 +62,13 @@ export abstract class CloneEndpoint<
    * Returns the body schema for overrides (all fields optional).
    */
   protected getBodySchema(): ZodObject<ZodRawShape> {
+    // Primary keys + any configured `Model.timestamps` are
+    // engine-managed at the clone write site (`applyManagedInsertFields`
+    // generates the new id and stamps fresh timestamps), so the override
+    // body must never be forced to send them. Computed centrally so the
+    // precedence is never duplicated per endpoint.
     const excludeFields = [
-      ...this._meta.model.primaryKeys,
+      ...getManagedInputExclusions(this._meta.model),
       ...this.excludeFromClone,
     ];
     const schema = getSchemaFields(this.getModelSchema(), excludeFields);

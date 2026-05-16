@@ -275,12 +275,23 @@ export function parseListFilters(
 // helper because every call site passes a `string[]` of field names and
 // `omit` wants a `{ name: true }` mask object — the helper handles that
 // translation in one place.
+//
+// Names that are not actually present in the schema are filtered out
+// before calling `omit`: Zod v4's `.omit()` THROWS on an unknown key,
+// and the engine-managed exclusion set (`getManagedInputExclusions`)
+// can legitimately reference renamed timestamp field names that a given
+// model's schema doesn't declare as columns. Omitting an absent key is
+// a semantic no-op anyway, so filtering is safe and keeps every derived
+// input-schema site robust.
 export function getSchemaFields<T extends ZodObject<ZodRawShape>>(
   schema: T,
   exclude: string[] = []
 ): ZodObject<ZodRawShape> {
   if (exclude.length === 0) return schema as ZodObject<ZodRawShape>;
-  const mask = Object.fromEntries(exclude.map((k) => [k, true as const]));
+  const present = new Set(Object.keys(schema.shape));
+  const applicable = exclude.filter((k) => present.has(k));
+  if (applicable.length === 0) return schema as ZodObject<ZodRawShape>;
+  const mask = Object.fromEntries(applicable.map((k) => [k, true as const]));
   return schema.omit(mask) as unknown as ZodObject<ZodRawShape>;
 }
 
