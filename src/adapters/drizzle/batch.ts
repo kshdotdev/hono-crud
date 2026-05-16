@@ -41,13 +41,11 @@ export abstract class DrizzleBatchCreateEndpoint<
     items: Partial<ModelObject<M['model']>>[]
   ): Promise<ModelObject<M['model']>[]> {
     const table = this.getTable();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate IDs for items that don't have them
-    const records = items.map((item) => ({
-      ...item,
-      [primaryKey]: (item as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    }));
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    const records = items.map((item) =>
+      this.applyManagedInsertFields(item as Record<string, unknown>, 'drizzle')
+    );
 
     const result = await cast(this.getDb())
       .insert(table)
@@ -104,7 +102,7 @@ export abstract class DrizzleBatchUpdateEndpoint<
 
       const result = await cast(this.getDb())
         .update(table)
-        .set(item.data as Record<string, unknown>)
+        .set(this.applyManagedUpdateFields(item.data as Record<string, unknown>))
         .where(and(...conditions))
         .returning();
 

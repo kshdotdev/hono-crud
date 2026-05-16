@@ -1007,6 +1007,23 @@ export interface SchemaResolveContext {
 }
 
 /**
+ * Primary-key generation strategy for {@link Model.id}.
+ *
+ * - `'uuid'` — DEFAULT (also the behavior when `Model.id` is unset):
+ *   `crypto.randomUUID()`, byte-identical to the historical behavior.
+ * - `'database'` — the adapter omits the PK from the insert payload so the
+ *   DB/ORM column default fills it; the generated value is read back via the
+ *   adapter's existing RETURNING / create-return. Drizzle + Prisma only;
+ *   invalid for the memory adapter.
+ * - `() => string | number` — a custom JS generator (ulid / nanoid / ksuid /
+ *   snowflake), invoked at every write site by every adapter.
+ */
+export type IdStrategy =
+  | 'uuid'
+  | 'database'
+  | (() => string | number);
+
+/**
  * Model definition with strong typing.
  * @template T - The Zod schema type for this model
  * @template TTable - Optional ORM table type (Drizzle Table, Prisma model, etc.)
@@ -1248,6 +1265,60 @@ export interface Model<
    * full surface.
    */
   policies?: ModelPolicies<z.infer<T>>;
+
+  /**
+   * Primary-key generation strategy. Applied at every write site
+   * (create / batchCreate / upsert / clone) when the PK is not supplied
+   * by the caller. Member of the engine-managed write-field family
+   * alongside `softDelete` / `audit` / `versioning` / `multiTenant`, and
+   * enforced uniformly by every adapter.
+   *
+   * - `'uuid'` (or unset) — `crypto.randomUUID()`, the unchanged historical
+   *   default. Fully backward compatible.
+   * - `'database'` — the adapter omits the PK from the insert payload so
+   *   the DB/ORM column default fills it (Drizzle `$defaultFn`, SQL
+   *   `DEFAULT`/sequence, Prisma `@default`); the generated value is read
+   *   back via the adapter's existing RETURNING / create-return. Supported
+   *   by the drizzle and prisma adapters only — the memory adapter has no
+   *   database and throws a `ConfigurationException` at first write.
+   * - `() => string | number` — a custom JS generator (ulid / nanoid /
+   *   ksuid / snowflake), invoked at every write site by every adapter.
+   *
+   * @example
+   * ```ts
+   * import { ulid } from 'ulid';
+   * defineModel({ tableName: 'users', schema, primaryKeys: ['id'], id: ulid });
+   * defineModel({ tableName: 'orders', schema, primaryKeys: ['id'], id: 'database' });
+   * ```
+   */
+  id?: IdStrategy;
+
+  /**
+   * Auto-managed timestamp columns. `true` ⇒ fields named `createdAt`
+   * and `updatedAt`. Object form renames either field. Values are epoch
+   * milliseconds (`Date.now()`, a `number`), matching the common
+   * edge/SQLite-integer convention — schemas using non-numeric timestamp
+   * columns (e.g. ISO strings or SQL `timestamp`) should NOT enable this.
+   * Unset ⇒ OFF (no stamping — unchanged, fully backward compatible).
+   *
+   * Enforced uniformly by every adapter:
+   * - INSERT paths (create / batchCreate / upsert-insert / clone): when
+   *   the field is not explicitly supplied by the caller, both
+   *   `createdAt` and `updatedAt` are set to `Date.now()`.
+   * - UPDATE paths (update / batchUpdate / upsert-update): `updatedAt` is
+   *   ALWAYS set to `Date.now()` (server-managed; any client-supplied
+   *   value is ignored). `createdAt` is never touched on update.
+   *
+   * @example
+   * ```ts
+   * defineModel({ tableName: 'users', schema, primaryKeys: ['id'], timestamps: true });
+   * defineModel({
+   *   tableName: 'events', schema, primaryKeys: ['id'],
+   *   timestamps: { createdAt: 'created_ms', updatedAt: 'updated_ms' },
+   * });
+   * ```
+   */
+  timestamps?: boolean | { createdAt?: string; updatedAt?: string };
 }
 
 /**

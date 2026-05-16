@@ -66,13 +66,17 @@ export abstract class MemoryCloneEndpoint<
   ): Promise<ModelObject<M['model']>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const pk = this._meta.model.primaryKeys[0];
-    const id = this.generateId();
 
-    const record = {
-      ...data,
-      [pk]: id,
-    } as ModelObject<M['model']>;
+    // Base CloneEndpoint already stripped the source PK, so the managed
+    // resolver always fills it. `generateId()` stays the overridable
+    // default-branch generator; `id:'database'` throws (memory has no DB).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'memory',
+      () => this.generateId()
+    ) as ModelObject<M['model']>;
 
+    const id = String((record as Record<string, unknown>)[pk]);
     store.set(id, record);
     return record;
   }
@@ -141,11 +145,14 @@ export abstract class MemoryUpsertEndpoint<
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate ID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || this.generateId(),
-    } as ModelObject<M['model']>;
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    // `generateId()` stays the overridable default-branch generator;
+    // `id:'database'` throws here (memory has no database).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'memory',
+      () => this.generateId()
+    ) as ModelObject<M['model']>;
 
     store.set(String((record as Record<string, unknown>)[primaryKey]), record);
     return record;
@@ -162,10 +169,10 @@ export abstract class MemoryUpsertEndpoint<
     const primaryKey = this._meta.model.primaryKeys[0];
     const id = String((existing as Record<string, unknown>)[primaryKey]);
 
-    // Merge existing with new data
+    // Merge existing with new data (+ managed updatedAt bump).
     const updated = {
       ...existing,
-      ...data,
+      ...this.applyManagedUpdateFields(data as Record<string, unknown>),
     } as ModelObject<M['model']>;
 
     store.set(id, updated);
@@ -228,7 +235,7 @@ export abstract class MemoryUpsertEndpoint<
       const id = String((existingRecord as Record<string, unknown>)[primaryKey]);
       const updated = {
         ...existingRecord,
-        ...updateData,
+        ...this.applyManagedUpdateFields(updateData as Record<string, unknown>),
       } as ModelObject<M['model']>;
 
       store.set(id, updated);
@@ -242,10 +249,12 @@ export abstract class MemoryUpsertEndpoint<
         }
       }
 
-      const record = {
-        ...createData,
-        [primaryKey]: (data as Record<string, unknown>)[primaryKey] || this.generateId(),
-      } as ModelObject<M['model']>;
+      // Resolve managed write-time fields (Model.id strategy + timestamps).
+      const record = this.applyManagedInsertFields(
+        createData as Record<string, unknown>,
+        'memory',
+        () => this.generateId()
+      ) as ModelObject<M['model']>;
 
       const id = String((record as Record<string, unknown>)[primaryKey]);
       store.set(id, record);
@@ -803,11 +812,14 @@ export abstract class MemoryImportEndpoint<
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate ID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || this.generateId(),
-    } as ModelObject<M['model']>;
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    // `generateId()` stays the overridable default-branch generator;
+    // `id:'database'` throws here (memory has no database).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'memory',
+      () => this.generateId()
+    ) as ModelObject<M['model']>;
 
     store.set(String((record as Record<string, unknown>)[primaryKey]), record);
     return record;
@@ -824,10 +836,10 @@ export abstract class MemoryImportEndpoint<
     const primaryKey = this._meta.model.primaryKeys[0];
     const id = String((existing as Record<string, unknown>)[primaryKey]);
 
-    // Merge existing with new data
+    // Merge existing with new data (+ managed updatedAt bump).
     const updated = {
       ...existing,
-      ...data,
+      ...this.applyManagedUpdateFields(data as Record<string, unknown>),
     } as ModelObject<M['model']>;
 
     store.set(id, updated);

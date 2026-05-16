@@ -103,13 +103,12 @@ export abstract class DrizzleCreateEndpoint<
   override async create(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate UUID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    };
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'drizzle'
+    );
 
     const result = await cast(db)
       .insert(table)
@@ -362,7 +361,7 @@ export abstract class DrizzleUpdateEndpoint<
 
     const result = await cast(db)
       .update(table)
-      .set(data as Record<string, unknown>)
+      .set(this.applyManagedUpdateFields(data as Record<string, unknown>))
       .where(and(...conditions))
       .returning();
 

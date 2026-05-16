@@ -36,6 +36,14 @@ import {
   type SchemaResolveContext,
   type ValidatedData,
 } from '../core/types';
+import {
+  applyManagedInsertFields,
+  applyManagedUpdateFields,
+  assertIdStrategySupported,
+  getTimestampsConfig,
+  type AdapterKind,
+  type NormalizedTimestampsConfig,
+} from '../core/managed-fields';
 import { POLICIES_CONTEXT_KEY } from '../auth/guards';
 import type { AuthUser } from '../auth/types';
 import { createAuditLogger, type AuditLogger } from '../audit';
@@ -185,6 +193,62 @@ export abstract class CrudEndpoint<
 
   protected isMultiTenantEnabled(): boolean {
     return this.getMultiTenantConfig().enabled;
+  }
+
+  // ============================================================================
+  // Engine-managed write-time fields (Model.id strategy + Model.timestamps)
+  //
+  // Thin pass-throughs to the single centralized resolver in
+  // ../core/managed-fields — the PK-resolution precedence and timestamp
+  // stamping live in exactly ONE place and are shared by every adapter at
+  // every write site. The adapter kind is passed by the calling adapter so
+  // `id:'database'` can be rejected for the memory adapter.
+  // ============================================================================
+
+  /**
+   * Resolve managed write-time fields for a single INSERT record:
+   * primary-key strategy (`Model.id`) plus timestamp stamping
+   * (`Model.timestamps`). See {@link applyManagedInsertFields}.
+   */
+  protected applyManagedInsertFields<T extends Record<string, unknown>>(
+    record: T,
+    adapter: AdapterKind,
+    defaultIdFactory?: () => string | number
+  ): T {
+    return applyManagedInsertFields(
+      record,
+      this._meta.model,
+      adapter,
+      defaultIdFactory
+    );
+  }
+
+  /**
+   * Resolve managed write-time fields for an UPDATE payload: always bumps
+   * `updatedAt` (server-managed) when timestamps are enabled, never touches
+   * `createdAt`. See {@link applyManagedUpdateFields}.
+   */
+  protected applyManagedUpdateFields<T extends Record<string, unknown>>(
+    data: T
+  ): T {
+    return applyManagedUpdateFields(data, this._meta.model);
+  }
+
+  /**
+   * Fail fast on an unsupported `id` strategy for this adapter (currently
+   * only the memory adapter + `id:'database'`).
+   */
+  protected assertIdStrategySupported(adapter: AdapterKind): void {
+    assertIdStrategySupported(this._meta.model, adapter);
+  }
+
+  /**
+   * Normalized timestamps config (resolved field names + enabled flag).
+   * Used by native-upsert paths that build their own UPDATE set clause and
+   * need to inject the server-managed `updatedAt` column directly.
+   */
+  protected getTimestampsConfig(): NormalizedTimestampsConfig {
+    return getTimestampsConfig(this._meta.model.timestamps);
   }
 
   protected getTenantId(): string | undefined {

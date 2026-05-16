@@ -84,13 +84,10 @@ export abstract class PrismaBatchCreateEndpoint<
   override async batchCreate(
     items: Partial<ModelObject<M['model']>>[]
   ): Promise<ModelObject<M['model']>[]> {
-    const primaryKey = this._meta.model.primaryKeys[0];
-
-    // Generate IDs for items that don't have them
-    const records = items.map((item) => ({
-      ...item,
-      [primaryKey]: (item as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    }));
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    const records = items.map((item) =>
+      this.applyManagedInsertFields(item as Record<string, unknown>, 'prisma')
+    );
 
     // Prisma's createMany doesn't return the created records, so we need to use
     // individual creates or a transaction with creates
@@ -170,7 +167,7 @@ export abstract class PrismaBatchUpdateEndpoint<
       // Update using primary key
       const result = await model.update({
         where: { [primaryKey]: existing[primaryKey] },
-        data: item.data as Record<string, unknown>,
+        data: this.applyManagedUpdateFields(item.data as Record<string, unknown>),
       });
 
       updated.push(result as ModelObject<M['model']>);
@@ -372,13 +369,12 @@ export abstract class PrismaBatchUpsertEndpoint<
     data: Partial<ModelObject<M['model']>>
   ): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
-    const primaryKey = this._meta.model.primaryKeys[0];
 
-    // Generate UUID if not provided
-    const record = {
-      ...data,
-      [primaryKey]: (data as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-    };
+    // Resolve managed write-time fields (Model.id strategy + timestamps).
+    const record = this.applyManagedInsertFields(
+      data as Record<string, unknown>,
+      'prisma'
+    );
 
     const result = await model.create({ data: record });
     return result as ModelObject<M['model']>;
@@ -396,7 +392,7 @@ export abstract class PrismaBatchUpsertEndpoint<
 
     const result = await model.update({
       where: { [primaryKey]: (existing as Record<string, unknown>)[primaryKey] },
-      data,
+      data: this.applyManagedUpdateFields(data as Record<string, unknown>),
     });
 
     return result as ModelObject<M['model']>;
@@ -426,6 +422,7 @@ export abstract class PrismaBatchUpsertEndpoint<
 
     const upsertKeys = this.getUpsertKeys();
     const primaryKey = this._meta.model.primaryKeys[0];
+    const timestamps = this.getTimestampsConfig();
 
     const executeUpserts = async (prismaClient: PrismaClient) => {
       const model = getPrismaModelByName(prismaClient, await getModelName(this._meta.model.tableName));
@@ -448,11 +445,12 @@ export abstract class PrismaBatchUpsertEndpoint<
             }
           }
 
-          // Build create data with generated UUID
-          const createData = {
-            ...item,
-            [primaryKey]: (item as Record<string, unknown>)[primaryKey] || crypto.randomUUID(),
-          };
+          // Resolve managed write-time fields for the CREATE branch
+          // (Model.id strategy + createdAt/updatedAt).
+          const createData = this.applyManagedInsertFields(
+            item as Record<string, unknown>,
+            'prisma'
+          );
 
           // Build update data - exclude upsert keys and primary key, filter create-only fields
           const updateData: Record<string, unknown> = {};
@@ -462,6 +460,11 @@ export abstract class PrismaBatchUpsertEndpoint<
                 updateData[key] = value;
               }
             }
+          }
+          // `updatedAt` is server-managed on the UPDATE branch — always bump
+          // it, ignoring any client value, and never touch `createdAt`.
+          if (timestamps.enabled) {
+            updateData[timestamps.updatedAt] = Date.now();
           }
 
           const result = await model.upsert({
