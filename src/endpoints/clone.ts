@@ -5,7 +5,11 @@ import type {MetaInput, OpenAPIRouteSchema} from '../core/types';
 import { applyComputedFields } from '../core/types';
 import { NotFoundException } from '../core/exceptions';
 import { getSchemaFields, type ModelObject } from './types';
-import { getManagedInputExclusions } from '../core/managed-fields';
+import {
+  getManagedInputExclusions,
+  mapUniqueViolation,
+  stripManagedInsertFields,
+} from '../core/managed-fields';
 
 /**
  * Base endpoint for cloning/duplicating a resource.
@@ -118,6 +122,20 @@ export abstract class CloneEndpoint<
             },
           },
         },
+        409: {
+          description: 'Unique-constraint violation (e.g. natural-key collision)',
+          content: {
+            'application/json': {
+              schema: z.object({
+                success: z.literal(false),
+                error: z.object({
+                  code: z.string(),
+                  message: z.string(),
+                }),
+              }),
+            },
+          },
+        },
       },
     };
   }
@@ -197,13 +215,19 @@ export abstract class CloneEndpoint<
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
     }
 
-    // Build clone data: source minus PKs and excluded fields, plus overrides
-    const cloneData = { ...source } as Record<string, unknown>;
-
-    // Remove primary keys
-    for (const pk of this._meta.model.primaryKeys) {
-      delete cloneData[pk];
-    }
+    // Build clone data: source minus engine-managed write fields
+    // (primary keys + any configured `Model.timestamps`) and minus
+    // any `excludeFromClone` fields, plus overrides. The managed-field
+    // strip ensures the new row is a brand-new write site —
+    // `applyManagedInsertFields` (called by the adapter `createClone`)
+    // will generate a fresh primary key and stamp fresh
+    // `createdAt` / `updatedAt`, instead of copying the source's
+    // values. Computed centrally so the precedence is never
+    // duplicated.
+    const cloneData = stripManagedInsertFields(
+      source as Record<string, unknown>,
+      this._meta.model
+    );
 
     // Remove excluded fields
     for (const field of this.excludeFromClone) {
@@ -216,8 +240,20 @@ export abstract class CloneEndpoint<
     // Run before hook
     let data = await this.before(cloneData as ModelObject<M['model']>);
 
-    // Create the clone
-    let obj = await this.createClone(data);
+    // Create the clone. A clone shares the source row's natural
+    // identifiers (e.g. a `slug`) until the caller supplies an override
+    // — that turns into a UNIQUE-constraint violation at the adapter
+    // insert, which would otherwise bubble up as an unstructured 500.
+    // Map every adapter's unique-violation shape (drizzle SQLite/PG/MySQL,
+    // prisma P2002) to the engine's standard 409 envelope.
+    let obj: ModelObject<M['model']>;
+    try {
+      obj = await this.createClone(data);
+    } catch (err) {
+      const conflict = mapUniqueViolation(err);
+      if (conflict) throw conflict;
+      throw err;
+    }
 
     // Run after hook
     obj = await this.after(obj);
