@@ -62,6 +62,8 @@ export {
   applyManagedInsertFields,
   applyManagedUpdateFields,
   assertIdStrategySupported,
+  stripManagedInsertFields,
+  mapUniqueViolation,
 } from './core/managed-fields';
 export type {
   AdapterKind,

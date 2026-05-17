@@ -2,9 +2,10 @@ import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { CrudEndpoint } from './base';
 import type {MetaInput, OpenAPIRouteSchema} from '../core/types';
-import type { ModelObject } from './types';
+import { getSchemaFields, type ModelObject } from './types';
 import { parseCsv, validateCsvHeaders, type CsvParseOptions } from '../utils/csv';
 import { ConfigurationException, InputValidationException } from '../core/exceptions';
+import { getManagedInputExclusions } from '../core/managed-fields';
 
 // ============================================================================
 // Import Types
@@ -180,9 +181,23 @@ export abstract class ImportEndpoint<
 
   /**
    * Returns the schema for import request body.
+   *
+   * Engine-managed write fields (the `Model.id` strategy's primary key
+   * and any configured `Model.timestamps`) are excluded from the
+   * model-derived item schema — same rule the single-create and
+   * batch-create derivations follow. The engine stamps them at the
+   * write site (`applyManagedInsertFields` on create, an `UPDATE`-side
+   * stamp on upsert), so an import row must not be forced to supply
+   * them. A consumer-supplied per-endpoint body schema
+   * (`this._meta.fields`) wins verbatim and is never rewritten.
    */
   protected getImportSchema(): ZodObject<ZodRawShape> {
-    const baseSchema = this._meta.fields || this.getModelSchema();
+    const baseSchema = this._meta.fields
+      ? this._meta.fields
+      : getSchemaFields(
+          this.getModelSchema(),
+          getManagedInputExclusions(this._meta.model)
+        );
 
     // Make all fields optional for partial validation
     // The actual validation will be done per-row with detailed errors
@@ -452,11 +467,17 @@ export abstract class ImportEndpoint<
   ): { valid: boolean; errors?: Array<{ path: string; message: string }> } {
     const schema = this._meta.fields || this.getModelSchema();
 
-    // Make primary keys optional for create (they can be auto-generated)
-    const primaryKeys = this._meta.model.primaryKeys;
+    // Engine-managed fields (`Model.id` PK + `Model.timestamps`) are
+    // generated/stamped at the write site, so a row must never be
+    // forced to supply them. Mirrors the single-create / batch-create
+    // / clone derivation — same exclusion set, computed centrally so
+    // the precedence is never duplicated. Marked optional (vs
+    // omitted) here so `validateRow` keeps reporting unexpected /
+    // unknown keys for everything else, matching the long-standing
+    // per-row error format.
     const partialKeys: Record<string, true> = {};
-    for (const pk of primaryKeys) {
-      partialKeys[pk] = true;
+    for (const field of getManagedInputExclusions(this._meta.model)) {
+      partialKeys[field] = true;
     }
 
     // Also make optional import fields partial

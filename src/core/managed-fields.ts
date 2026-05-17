@@ -9,7 +9,7 @@
  * `audit`, `versioning` and `multiTenant`.
  */
 import type { IdStrategy, Model } from './types';
-import { ConfigurationException } from './exceptions';
+import { ConfigurationException, ConflictException } from './exceptions';
 
 /**
  * Adapter identity used to reject `id:'database'` where there is no
@@ -208,4 +208,91 @@ export function assertIdStrategySupported(
       "MemoryAdapter does not support id:'database' (no database to generate the key)"
     );
   }
+}
+
+/**
+ * Strip the engine-managed write-time fields from a record so the
+ * downstream {@link applyManagedInsertFields} call can stamp fresh
+ * values. The clone endpoint's source row carries the source's
+ * `createdAt` / `updatedAt` (and the source PK); those must NOT be
+ * copied into the new row — the new row is a brand-new write site and
+ * must get engine-fresh values exactly as a single-create does.
+ *
+ * Returns a NEW object — the input is never mutated. The set of stripped
+ * names mirrors {@link getManagedInputExclusions} (same PK + timestamps
+ * resolution), so the rule is never duplicated.
+ */
+export function stripManagedInsertFields<T extends Record<string, unknown>>(
+  record: T,
+  model: Pick<Model, 'id' | 'timestamps' | 'primaryKeys'>
+): T {
+  const out: Record<string, unknown> = { ...record };
+  for (const field of getManagedInputExclusions(model)) {
+    delete out[field];
+  }
+  return out as T;
+}
+
+/**
+ * Detect a UNIQUE-constraint violation from any adapter's underlying
+ * driver and surface it as a {@link ConflictException} (HTTP 409) so the
+ * engine's standard `{success:false, error:{code:'CONFLICT', …}}`
+ * envelope is returned to the caller instead of a plaintext 500.
+ *
+ * Returns the mapped exception when the input matches a known
+ * unique-violation shape, or `null` for anything else (so the caller
+ * rethrows the original and the global error handler decides). The
+ * recognised shapes are:
+ *
+ *  - **Drizzle (libsql / better-sqlite3 / D1)**: `LibsqlError` /
+ *    `SqliteError` with `code === 'SQLITE_CONSTRAINT_UNIQUE'` or a
+ *    message containing `UNIQUE constraint failed`.
+ *  - **Drizzle (postgres-js / node-postgres)**: PostgresError with
+ *    `code === '23505'` (`unique_violation`).
+ *  - **Drizzle (MySQL)**: `code === 'ER_DUP_ENTRY'`.
+ *  - **Prisma**: `PrismaClientKnownRequestError` with `code === 'P2002'`.
+ *
+ * The detector inspects properties (no `instanceof`) so adapters keep
+ * their dependencies optional — a Prisma-free build never imports
+ * `@prisma/client/runtime` just to check an error.
+ */
+export function mapUniqueViolation(err: unknown): ConflictException | null {
+  // Walk the `cause` chain so a wrapper (e.g. drizzle's `DrizzleQueryError`
+  // wrapping a `LibsqlError`, or any adapter that re-throws with extra
+  // context) doesn't hide the underlying driver error. Bounded depth to
+  // be safe against accidentally cyclical chains.
+  let cursor: unknown = err;
+  for (let depth = 0; depth < 8 && cursor && typeof cursor === 'object'; depth++) {
+    const e = cursor as { code?: unknown; name?: unknown; message?: unknown; cause?: unknown };
+    const code = typeof e.code === 'string' ? e.code : typeof e.code === 'number' ? e.code : '';
+    const name = typeof e.name === 'string' ? e.name : '';
+    const message = typeof e.message === 'string' ? e.message : '';
+
+    // Prisma: P2002 "Unique constraint failed on the {constraint}"
+    if (code === 'P2002') {
+      return new ConflictException('Unique constraint violation');
+    }
+    // SQLite / libSQL / D1
+    if (
+      code === 'SQLITE_CONSTRAINT_UNIQUE' ||
+      code === 'SQLITE_CONSTRAINT' ||
+      /UNIQUE constraint failed/i.test(message)
+    ) {
+      return new ConflictException('Unique constraint violation');
+    }
+    // PostgreSQL: 23505 unique_violation
+    if (code === '23505') {
+      return new ConflictException('Unique constraint violation');
+    }
+    // MySQL / MariaDB
+    if (code === 'ER_DUP_ENTRY' || code === 1062 || code === '1062') {
+      return new ConflictException('Unique constraint violation');
+    }
+    // PrismaClientKnownRequestError (defensive: name match for build variations)
+    if (name === 'PrismaClientKnownRequestError' && code === 'P2002') {
+      return new ConflictException('Unique constraint violation');
+    }
+    cursor = e.cause;
+  }
+  return null;
 }
