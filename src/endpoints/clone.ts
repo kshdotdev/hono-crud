@@ -8,7 +8,7 @@ import { getSchemaFields, type ModelObject } from './types';
 import {
   getManagedInputExclusions,
   stripManagedInsertFields,
-  withConstraintErrorMapping,
+  rethrowAsConstraintError,
 } from '../core/managed-fields';
 
 /**
@@ -246,11 +246,9 @@ export abstract class CloneEndpoint<
     // insert, which would otherwise bubble up as an unstructured 500.
     // Map every adapter's unique-violation shape (drizzle SQLite/PG/MySQL,
     // prisma P2002) to the engine's standard 409 envelope. Routed
-    // through the centralised `withConstraintErrorMapping` so the rule
+    // through the centralised `rethrowAsConstraintError` so the rule
     // is never duplicated per endpoint.
-    let obj: ModelObject<M['model']> = await withConstraintErrorMapping(() =>
-      this.createClone(data)
-    );
+    let obj: ModelObject<M['model']> = await this.createClone(data).catch(rethrowAsConstraintError);
 
     // Run after hook
     obj = await this.after(obj);

@@ -7,7 +7,7 @@ import { applyComputedFields, extractNestedData } from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
 import {
   getManagedInputExclusions,
-  withConstraintErrorMapping,
+  rethrowAsConstraintError,
 } from '../core/managed-fields';
 
 /**
@@ -345,10 +345,10 @@ export abstract class CreateEndpoint<
     obj = await this.encryptOnWrite(obj as Record<string, unknown>) as ModelObject<M['model']>;
     // Adapter insert call. Any UNIQUE-constraint violation thrown by the
     // underlying driver is mapped to the engine's standard 409 envelope
-    // (see `withConstraintErrorMapping`) so callers receive a structured
+    // (see `rethrowAsConstraintError`) so callers receive a structured
     // `{success:false, error:{code:'CONFLICT', …}}` JSON instead of a
     // plaintext 500.
-    obj = await withConstraintErrorMapping(() => this.create(obj, hookCtx.db.tx));
+    obj = await this.create(obj, hookCtx.db.tx).catch(rethrowAsConstraintError);
     obj = await this.decryptOnRead(obj as Record<string, unknown>) as ModelObject<M['model']>;
 
     // Get the parent ID for nested writes

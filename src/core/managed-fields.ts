@@ -331,25 +331,23 @@ export function mapUniqueViolation(err: unknown): ConflictException | null {
 }
 
 /**
- * Run `work()` and translate any UNIQUE-constraint violation thrown by
- * the adapter into the engine's standard `{success:false, error:{code:
- * 'CONFLICT', …}}` 409 envelope (via {@link mapUniqueViolation}). Any
- * other error is rethrown unchanged so the global error handler / route
- * stack decides.
+ * Translate an adapter error to the engine's standard 409 CONFLICT
+ * envelope (via {@link mapUniqueViolation}) when it represents a
+ * UNIQUE-constraint violation; otherwise rethrow the original error
+ * unchanged. Returns `never` — always throws.
+ *
+ * Designed to compose with a promise's native `.catch(...)` so call
+ * sites read top-to-bottom in execution order, with no thunk wrapper:
+ *
+ * ```ts
+ * const result = await this.upsert(data).catch(rethrowAsConstraintError);
+ * ```
  *
  * Used at every insert/upsert write site (`create`, `batchCreate`,
  * `upsert` / `nativeUpsert`, `batchUpsert` / `nativeBatchUpsert`,
  * `clone`) so the plaintext-500-on-UNIQUE mapping is never duplicated
  * per endpoint.
  */
-export async function withConstraintErrorMapping<T>(
-  work: () => Promise<T>
-): Promise<T> {
-  try {
-    return await work();
-  } catch (err) {
-    const mapped = mapUniqueViolation(err);
-    if (mapped) throw mapped;
-    throw err;
-  }
+export function rethrowAsConstraintError(err: unknown): never {
+  throw mapUniqueViolation(err) ?? err;
 }

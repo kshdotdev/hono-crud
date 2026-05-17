@@ -65,7 +65,7 @@ export {
   stripManagedInsertFields,
   mapUniqueViolation,
   causeChain,
-  withConstraintErrorMapping,
+  rethrowAsConstraintError,
 } from './core/managed-fields';
 export type {
   AdapterKind,

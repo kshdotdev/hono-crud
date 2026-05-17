@@ -7,7 +7,7 @@ import {applyComputedFields, extractNestedData, isDirectNestedData} from '../cor
 import { getSchemaFields, type ModelObject } from './types';
 import {
   getManagedInputExclusions,
-  withConstraintErrorMapping,
+  rethrowAsConstraintError,
 } from '../core/managed-fields';
 
 /**
@@ -546,7 +546,7 @@ export abstract class UpsertEndpoint<
     // 409 envelope. Routed through the centralised wrapper so the rule
     // is never duplicated per endpoint and covers both
     // `performStandardUpsert` and `nativeUpsert`.
-    const result = await withConstraintErrorMapping(() => this.upsert(data));
+    const result = await this.upsert(data).catch(rethrowAsConstraintError);
     let obj = result.data;
 
     // Get the parent ID for nested writes

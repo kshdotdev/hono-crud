@@ -12,9 +12,9 @@
  * asserts the engine's standard 409 envelope is returned.
  *
  * The idiomatic refactor of `mapUniqueViolation` (data-driven code set +
- * shared `causeChain` walker + centralised `withConstraintErrorMapping`)
- * is also regression-tested here against the same fixtures the previous
- * inline implementation passed.
+ * shared `causeChain` walker + the `rethrowAsConstraintError` mapper used
+ * directly via `.catch(...)` at each insert site) is also regression-tested
+ * here against the same fixtures the previous inline implementation passed.
  */
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { Hono } from 'hono';
@@ -29,7 +29,7 @@ import {
   defineMeta,
   mapUniqueViolation,
   causeChain,
-  withConstraintErrorMapping,
+  rethrowAsConstraintError,
   ConflictException,
 } from '../src/index.js';
 import {
@@ -429,28 +429,35 @@ describe('causeChain: bounded, ordered, exported', () => {
   });
 });
 
-describe('withConstraintErrorMapping: passes through success, maps unique violations, rethrows others', () => {
-  it('returns the value when work() resolves', async () => {
-    const out = await withConstraintErrorMapping(async () => 42);
+describe('rethrowAsConstraintError: maps unique violations, rethrows others, composes with .catch()', () => {
+  it('throws ConflictException when the input is a unique-violation', () => {
+    const err = Object.assign(new Error('UNIQUE constraint failed: t.col'), {
+      code: 'SQLITE_CONSTRAINT_UNIQUE',
+    });
+    expect(() => rethrowAsConstraintError(err)).toThrow(ConflictException);
+  });
+
+  it('rethrows any non-unique error unchanged (preserves identity)', () => {
+    const original = new Error('something else');
+    expect(() => rethrowAsConstraintError(original)).toThrow(original);
+  });
+
+  it('composes with Promise.catch(): success passes through unchanged', async () => {
+    const out = await Promise.resolve(42).catch(rethrowAsConstraintError);
     expect(out).toBe(42);
   });
 
-  it('translates a unique-violation throw to a ConflictException', async () => {
-    await expect(
-      withConstraintErrorMapping(async () => {
-        throw Object.assign(new Error('UNIQUE constraint failed: t.col'), {
-          code: 'SQLITE_CONSTRAINT_UNIQUE',
-        });
-      })
-    ).rejects.toBeInstanceOf(ConflictException);
+  it('composes with Promise.catch(): unique-violation rejection becomes ConflictException', async () => {
+    const work = Promise.reject(
+      Object.assign(new Error('UNIQUE constraint failed: t.col'), {
+        code: 'SQLITE_CONSTRAINT_UNIQUE',
+      }),
+    );
+    await expect(work.catch(rethrowAsConstraintError)).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('rethrows any non-unique error unchanged', async () => {
+  it('composes with Promise.catch(): other rejections are rethrown unchanged', async () => {
     const original = new Error('something else');
-    await expect(
-      withConstraintErrorMapping(async () => {
-        throw original;
-      })
-    ).rejects.toBe(original);
+    await expect(Promise.reject(original).catch(rethrowAsConstraintError)).rejects.toBe(original);
   });
 });

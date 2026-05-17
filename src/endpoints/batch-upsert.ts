@@ -7,7 +7,7 @@ import {applyComputedFields} from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
 import {
   getManagedInputExclusions,
-  withConstraintErrorMapping,
+  rethrowAsConstraintError,
 } from '../core/managed-fields';
 
 /**
@@ -496,7 +496,7 @@ export abstract class BatchUpsertEndpoint<
     // envelope instead of a plaintext 500. Routed through the
     // centralised wrapper so the rule is never duplicated and covers
     // both `performStandardBatchUpsert` and `nativeBatchUpsert`.
-    let result = await withConstraintErrorMapping(() => this.batchUpsert(items));
+    let result = await this.batchUpsert(items).catch(rethrowAsConstraintError);
 
     // Apply afterBatch hook
     result = await this.afterBatch(result);

@@ -5,7 +5,7 @@ import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
 import {
   getManagedInputExclusions,
-  withConstraintErrorMapping,
+  rethrowAsConstraintError,
 } from '../core/managed-fields';
 
 /**
@@ -233,11 +233,9 @@ export abstract class BatchCreateEndpoint<
     // mapped to the engine's standard 409 envelope — `batchCreate`
     // typically runs as a single bulk insert so a single colliding item
     // aborts the call, which would otherwise bubble up as a plaintext
-    // 500. Routed through the centralised wrapper so the rule is never
+    // 500. Routed through the centralised mapper so the rule is never
     // duplicated per endpoint.
-    let created = await withConstraintErrorMapping(() =>
-      this.batchCreate(processedItems)
-    );
+    let created = await this.batchCreate(processedItems).catch(rethrowAsConstraintError);
 
     // Apply after hooks
     const results: ModelObject<M['model']>[] = [];
