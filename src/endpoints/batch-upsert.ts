@@ -5,7 +5,10 @@ import { getLogger } from '../core/logger';
 import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
 import {applyComputedFields} from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
-import { getManagedInputExclusions } from '../core/managed-fields';
+import {
+  getManagedInputExclusions,
+  rethrowAsConstraintError,
+} from '../core/managed-fields';
 
 /**
  * Result for a single item in a batch upsert operation.
@@ -487,8 +490,13 @@ export abstract class BatchUpsertEndpoint<
     // Apply beforeBatch hook
     items = await this.beforeBatch(items);
 
-    // Perform batch upsert
-    let result = await this.batchUpsert(items);
+    // Perform batch upsert. As with the single upsert, a UNIQUE
+    // violation on a non-upsert-key column (or any other adapter-level
+    // unique constraint) is mapped to the engine's standard 409
+    // envelope instead of a plaintext 500. Routed through the
+    // centralised wrapper so the rule is never duplicated and covers
+    // both `performStandardBatchUpsert` and `nativeBatchUpsert`.
+    let result = await this.batchUpsert(items).catch(rethrowAsConstraintError);
 
     // Apply afterBatch hook
     result = await this.afterBatch(result);

@@ -5,7 +5,10 @@ import type {MetaInput, OpenAPIRouteSchema} from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
 import { parseCsv, validateCsvHeaders, type CsvParseOptions } from '../utils/csv';
 import { ConfigurationException, InputValidationException } from '../core/exceptions';
-import { getManagedInputExclusions } from '../core/managed-fields';
+import {
+  getManagedInputExclusions,
+  mapUniqueViolation,
+} from '../core/managed-fields';
 
 // ============================================================================
 // Import Types
@@ -33,6 +36,15 @@ export interface ImportRowResult<T = Record<string, unknown>> {
   data?: T;
   /** Error message (if failed). */
   error?: string;
+  /**
+   * Structured error code when the per-row failure maps to a known
+   * engine error shape. Mirrors the global error-envelope codes (e.g.
+   * `'CONFLICT'` for a driver-level UNIQUE-constraint violation) so a
+   * client can distinguish a duplicate-key failure from a generic
+   * adapter error without parsing `error`. Absent when the failure does
+   * not map to a known shape — `error` then carries the raw message.
+   */
+  code?: string;
   /** Validation errors (if failed due to validation). */
   validationErrors?: Array<{
     path: string;
@@ -242,6 +254,7 @@ export abstract class ImportEndpoint<
                     status: z.enum(['created', 'updated', 'skipped', 'failed']),
                     data: z.unknown().optional(),
                     error: z.string().optional(),
+                    code: z.string().optional(),
                     validationErrors: z.array(z.object({
                       path: z.string(),
                       message: z.string(),
@@ -271,6 +284,7 @@ export abstract class ImportEndpoint<
                     status: z.enum(['created', 'updated', 'skipped', 'failed']),
                     data: z.unknown().optional(),
                     error: z.string().optional(),
+                    code: z.string().optional(),
                     validationErrors: z.array(z.object({
                       path: z.string(),
                       message: z.string(),
@@ -651,6 +665,22 @@ export abstract class ImportEndpoint<
         data: created,
       };
     } catch (err) {
+      // Map a driver-level UNIQUE-constraint violation on the row's
+      // create/update to a `CONFLICT`-coded entry — matches the rest of
+      // the insert paths (`create` / `batchCreate` / `upsert` / `clone`)
+      // which raise a 409 at the response level. Import keeps the
+      // existing per-row error shape (no global 500) and now adds a
+      // structured `code` so a client can distinguish a duplicate-key
+      // failure from a generic adapter error.
+      const conflict = mapUniqueViolation(err);
+      if (conflict) {
+        return {
+          rowNumber,
+          status: 'failed',
+          code: 'CONFLICT',
+          error: conflict.message,
+        };
+      }
       return {
         rowNumber,
         status: 'failed',

@@ -64,6 +64,8 @@ export {
   assertIdStrategySupported,
   stripManagedInsertFields,
   mapUniqueViolation,
+  causeChain,
+  rethrowAsConstraintError,
 } from './core/managed-fields';
 export type {
   AdapterKind,

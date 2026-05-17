@@ -5,7 +5,10 @@ import { getLogger } from '../core/logger';
 import type {MetaInput, OpenAPIRouteSchema, HookMode, HookContext, RelationConfig} from '../core/types';
 import { applyComputedFields, extractNestedData } from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
-import { getManagedInputExclusions } from '../core/managed-fields';
+import {
+  getManagedInputExclusions,
+  rethrowAsConstraintError,
+} from '../core/managed-fields';
 
 /**
  * Base endpoint for creating resources.
@@ -340,7 +343,12 @@ export abstract class CreateEndpoint<
     const hookCtx = this.buildHookContext();
     obj = await this.before(obj, hookCtx);
     obj = await this.encryptOnWrite(obj as Record<string, unknown>) as ModelObject<M['model']>;
-    obj = await this.create(obj, hookCtx.db.tx);
+    // Adapter insert call. Any UNIQUE-constraint violation thrown by the
+    // underlying driver is mapped to the engine's standard 409 envelope
+    // (see `rethrowAsConstraintError`) so callers receive a structured
+    // `{success:false, error:{code:'CONFLICT', …}}` JSON instead of a
+    // plaintext 500.
+    obj = await this.create(obj, hookCtx.db.tx).catch(rethrowAsConstraintError);
     obj = await this.decryptOnRead(obj as Record<string, unknown>) as ModelObject<M['model']>;
 
     // Get the parent ID for nested writes

@@ -234,65 +234,120 @@ export function stripManagedInsertFields<T extends Record<string, unknown>>(
 }
 
 /**
+ * Driver error codes that mean "unique constraint violated". String/number
+ * values are accepted to cover every adapter shape without coercion:
+ *
+ *  - `'P2002'`                    — Prisma `PrismaClientKnownRequestError`
+ *  - `'SQLITE_CONSTRAINT_UNIQUE'` — libSQL / better-sqlite3 / D1 (specific)
+ *  - `'SQLITE_CONSTRAINT'`        — generic SQLite (less specific)
+ *  - `'23505'`                    — PostgreSQL `unique_violation`
+ *  - `'ER_DUP_ENTRY' | 1062 | '1062'` — MySQL / MariaDB
+ */
+const UNIQUE_VIOLATION_CODES: ReadonlySet<string | number> = new Set([
+  'P2002',
+  'SQLITE_CONSTRAINT_UNIQUE',
+  'SQLITE_CONSTRAINT',
+  '23505',
+  'ER_DUP_ENTRY',
+  1062,
+  '1062',
+]);
+
+/** Fallback for adapters that don't expose a structured driver code. */
+const UNIQUE_VIOLATION_MESSAGE =
+  /UNIQUE constraint failed|duplicate key value violates unique constraint|Duplicate entry/i;
+
+/**
+ * Returns `true` when an arbitrary thrown value carries a known
+ * unique-violation shape — driver code first, message regex as a
+ * fallback. Property-based (no `instanceof`) so adapters keep their
+ * runtime dependencies optional (a Prisma-free build never imports
+ * `@prisma/client/runtime` just to check an error).
+ */
+function isUniqueViolation(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false;
+  const { code, message } = e as { code?: unknown; message?: unknown };
+  if (
+    (typeof code === 'string' || typeof code === 'number') &&
+    UNIQUE_VIOLATION_CODES.has(code)
+  ) {
+    return true;
+  }
+  return typeof message === 'string' && UNIQUE_VIOLATION_MESSAGE.test(message);
+}
+
+/**
+ * Walk a bounded {@link Error.cause} chain, yielding each link in order
+ * (the original error first). Reusable for any future driver-error →
+ * HTTP-error mapper (NOT NULL, FK, CHECK …) — every mapper should walk
+ * the cause chain the same way so a wrapper (e.g. drizzle's
+ * `DrizzleQueryError` wrapping a `LibsqlError`) doesn't hide the
+ * underlying driver error. Depth-bounded as a guard against pathological
+ * cycles in user-constructed chains.
+ *
+ * @param err - the error to walk.
+ * @param maxDepth - bounded depth, defaults to 8.
+ */
+export function* causeChain(err: unknown, maxDepth = 8): Iterable<unknown> {
+  for (
+    let cursor: unknown = err, i = 0;
+    i < maxDepth && cursor != null && typeof cursor === 'object';
+    i++
+  ) {
+    yield cursor;
+    cursor = (cursor as { cause?: unknown }).cause;
+  }
+}
+
+/**
  * Detect a UNIQUE-constraint violation from any adapter's underlying
  * driver and surface it as a {@link ConflictException} (HTTP 409) so the
  * engine's standard `{success:false, error:{code:'CONFLICT', …}}`
  * envelope is returned to the caller instead of a plaintext 500.
  *
  * Returns the mapped exception when the input matches a known
- * unique-violation shape, or `null` for anything else (so the caller
- * rethrows the original and the global error handler decides). The
- * recognised shapes are:
+ * unique-violation shape (anywhere in the {@link causeChain}), or `null`
+ * for anything else (so the caller rethrows the original and the global
+ * error handler decides). The recognised shapes are:
  *
  *  - **Drizzle (libsql / better-sqlite3 / D1)**: `LibsqlError` /
  *    `SqliteError` with `code === 'SQLITE_CONSTRAINT_UNIQUE'` or a
  *    message containing `UNIQUE constraint failed`.
  *  - **Drizzle (postgres-js / node-postgres)**: PostgresError with
  *    `code === '23505'` (`unique_violation`).
- *  - **Drizzle (MySQL)**: `code === 'ER_DUP_ENTRY'`.
+ *  - **Drizzle (MySQL)**: `code === 'ER_DUP_ENTRY'` (or 1062).
  *  - **Prisma**: `PrismaClientKnownRequestError` with `code === 'P2002'`.
  *
  * The detector inspects properties (no `instanceof`) so adapters keep
- * their dependencies optional — a Prisma-free build never imports
- * `@prisma/client/runtime` just to check an error.
+ * their dependencies optional.
  */
 export function mapUniqueViolation(err: unknown): ConflictException | null {
-  // Walk the `cause` chain so a wrapper (e.g. drizzle's `DrizzleQueryError`
-  // wrapping a `LibsqlError`, or any adapter that re-throws with extra
-  // context) doesn't hide the underlying driver error. Bounded depth to
-  // be safe against accidentally cyclical chains.
-  let cursor: unknown = err;
-  for (let depth = 0; depth < 8 && cursor && typeof cursor === 'object'; depth++) {
-    const e = cursor as { code?: unknown; name?: unknown; message?: unknown; cause?: unknown };
-    const code = typeof e.code === 'string' ? e.code : typeof e.code === 'number' ? e.code : '';
-    const name = typeof e.name === 'string' ? e.name : '';
-    const message = typeof e.message === 'string' ? e.message : '';
-
-    // Prisma: P2002 "Unique constraint failed on the {constraint}"
-    if (code === 'P2002') {
+  for (const e of causeChain(err)) {
+    if (isUniqueViolation(e)) {
       return new ConflictException('Unique constraint violation');
     }
-    // SQLite / libSQL / D1
-    if (
-      code === 'SQLITE_CONSTRAINT_UNIQUE' ||
-      code === 'SQLITE_CONSTRAINT' ||
-      /UNIQUE constraint failed/i.test(message)
-    ) {
-      return new ConflictException('Unique constraint violation');
-    }
-    // PostgreSQL: 23505 unique_violation
-    if (code === '23505') {
-      return new ConflictException('Unique constraint violation');
-    }
-    // MySQL / MariaDB
-    if (code === 'ER_DUP_ENTRY' || code === 1062 || code === '1062') {
-      return new ConflictException('Unique constraint violation');
-    }
-    // PrismaClientKnownRequestError (defensive: name match for build variations)
-    if (name === 'PrismaClientKnownRequestError' && code === 'P2002') {
-      return new ConflictException('Unique constraint violation');
-    }
-    cursor = e.cause;
   }
   return null;
+}
+
+/**
+ * Translate an adapter error to the engine's standard 409 CONFLICT
+ * envelope (via {@link mapUniqueViolation}) when it represents a
+ * UNIQUE-constraint violation; otherwise rethrow the original error
+ * unchanged. Returns `never` — always throws.
+ *
+ * Designed to compose with a promise's native `.catch(...)` so call
+ * sites read top-to-bottom in execution order, with no thunk wrapper:
+ *
+ * ```ts
+ * const result = await this.upsert(data).catch(rethrowAsConstraintError);
+ * ```
+ *
+ * Used at every insert/upsert write site (`create`, `batchCreate`,
+ * `upsert` / `nativeUpsert`, `batchUpsert` / `nativeBatchUpsert`,
+ * `clone`) so the plaintext-500-on-UNIQUE mapping is never duplicated
+ * per endpoint.
+ */
+export function rethrowAsConstraintError(err: unknown): never {
+  throw mapUniqueViolation(err) ?? err;
 }

@@ -3,7 +3,10 @@ import type { Env } from 'hono';
 import { CrudEndpoint } from './base';
 import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
-import { getManagedInputExclusions } from '../core/managed-fields';
+import {
+  getManagedInputExclusions,
+  rethrowAsConstraintError,
+} from '../core/managed-fields';
 
 /**
  * Base endpoint for batch creating resources.
@@ -225,8 +228,14 @@ export abstract class BatchCreateEndpoint<
       }
     }
 
-    // Create all items
-    let created = await this.batchCreate(processedItems);
+    // Create all items. Any UNIQUE-constraint violation thrown by the
+    // underlying driver (e.g. a duplicate natural key in the batch) is
+    // mapped to the engine's standard 409 envelope — `batchCreate`
+    // typically runs as a single bulk insert so a single colliding item
+    // aborts the call, which would otherwise bubble up as a plaintext
+    // 500. Routed through the centralised mapper so the rule is never
+    // duplicated per endpoint.
+    let created = await this.batchCreate(processedItems).catch(rethrowAsConstraintError);
 
     // Apply after hooks
     const results: ModelObject<M['model']>[] = [];
