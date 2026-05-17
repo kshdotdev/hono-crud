@@ -7,8 +7,8 @@ import { NotFoundException } from '../core/exceptions';
 import { getSchemaFields, type ModelObject } from './types';
 import {
   getManagedInputExclusions,
-  mapUniqueViolation,
   stripManagedInsertFields,
+  withConstraintErrorMapping,
 } from '../core/managed-fields';
 
 /**
@@ -245,15 +245,12 @@ export abstract class CloneEndpoint<
     // — that turns into a UNIQUE-constraint violation at the adapter
     // insert, which would otherwise bubble up as an unstructured 500.
     // Map every adapter's unique-violation shape (drizzle SQLite/PG/MySQL,
-    // prisma P2002) to the engine's standard 409 envelope.
-    let obj: ModelObject<M['model']>;
-    try {
-      obj = await this.createClone(data);
-    } catch (err) {
-      const conflict = mapUniqueViolation(err);
-      if (conflict) throw conflict;
-      throw err;
-    }
+    // prisma P2002) to the engine's standard 409 envelope. Routed
+    // through the centralised `withConstraintErrorMapping` so the rule
+    // is never duplicated per endpoint.
+    let obj: ModelObject<M['model']> = await withConstraintErrorMapping(() =>
+      this.createClone(data)
+    );
 
     // Run after hook
     obj = await this.after(obj);

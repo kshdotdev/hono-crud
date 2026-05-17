@@ -5,7 +5,10 @@ import { getLogger } from '../core/logger';
 import type {MetaInput, OpenAPIRouteSchema, HookMode, RelationConfig, NestedWriteResult, NestedUpdateInput} from '../core/types';
 import {applyComputedFields, extractNestedData, isDirectNestedData} from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
-import { getManagedInputExclusions } from '../core/managed-fields';
+import {
+  getManagedInputExclusions,
+  withConstraintErrorMapping,
+} from '../core/managed-fields';
 
 /**
  * Result of an upsert operation indicating whether it was a create or update.
@@ -535,8 +538,15 @@ export abstract class UpsertEndpoint<
     // Call common before hook
     data = await this.before(data, isCreate);
 
-    // Perform upsert
-    const result = await this.upsert(data);
+    // Perform upsert. An upsert legitimately UPDATEs on a collision of
+    // the matching/upsert keys, but a UNIQUE-constraint violation on
+    // some OTHER unique column (e.g. a non-upsert-key `slug` when the
+    // upsert key is `id`) currently bubbles as a plaintext 500 — map
+    // every adapter's unique-violation shape to the engine's standard
+    // 409 envelope. Routed through the centralised wrapper so the rule
+    // is never duplicated per endpoint and covers both
+    // `performStandardUpsert` and `nativeUpsert`.
+    const result = await withConstraintErrorMapping(() => this.upsert(data));
     let obj = result.data;
 
     // Get the parent ID for nested writes
