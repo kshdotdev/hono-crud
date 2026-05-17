@@ -2,7 +2,8 @@ import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
 import { CrudEndpoint } from './base';
 import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
-import type { ModelObject } from './types';
+import { getSchemaFields, type ModelObject } from './types';
+import { getManagedInputExclusions } from '../core/managed-fields';
 
 /**
  * Item format for batch updates.
@@ -88,7 +89,18 @@ export abstract class BatchUpdateEndpoint<
    * Returns the request body schema for batch updates.
    */
   protected getBodySchema(): ZodObject<ZodRawShape> {
-    const dataSchema = this._meta.fields || this.getModelSchema();
+    // The per-item `data` payload excludes the engine-managed /
+    // server-owned write fields — primary keys and any configured
+    // `Model.timestamps` (`updatedAt` is always stamped on update,
+    // `createdAt` is server-owned). `filterUpdateData` already strips
+    // primary keys from the runtime payload; the schema is made
+    // consistent. A consumer-supplied body schema still wins.
+    const dataSchema = this._meta.fields
+      ? this._meta.fields
+      : getSchemaFields(
+          this.getModelSchema(),
+          getManagedInputExclusions(this._meta.model)
+        );
     return z.object({
       items: z.array(z.object({
         id: z.string(),

@@ -7,6 +7,7 @@ import { applyComputedFields, extractNestedData, isDirectNestedData } from '../c
 import { NotFoundException } from '../core/exceptions';
 import { generateETag, matchesIfMatch } from '../core/etag';
 import { getSchemaFields, type ModelObject } from './types';
+import { getManagedInputExclusions } from '../core/managed-fields';
 
 /**
  * Base endpoint for updating resources.
@@ -145,7 +146,12 @@ export abstract class UpdateEndpoint<
     if (this._meta.fields) {
       baseSchema = this._meta.fields.partial() as ZodObject<ZodRawShape>;
     } else {
-      let excludeFields = [...this._meta.model.primaryKeys];
+      // Primary keys + any configured `Model.timestamps` are
+      // engine-managed: `updatedAt` is always stamped on update
+      // (`applyManagedUpdateFields`) and `createdAt` is server-owned, so
+      // the client must never be forced to send them. Computed centrally
+      // so the precedence is never duplicated per endpoint.
+      let excludeFields = getManagedInputExclusions(this._meta.model);
       if (this.blockedUpdateFields) {
         excludeFields = [...excludeFields, ...this.blockedUpdateFields];
       }

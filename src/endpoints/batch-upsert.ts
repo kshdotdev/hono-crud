@@ -5,6 +5,7 @@ import { getLogger } from '../core/logger';
 import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
 import {applyComputedFields} from '../core/types';
 import { getSchemaFields, type ModelObject } from './types';
+import { getManagedInputExclusions } from '../core/managed-fields';
 
 /**
  * Result for a single item in a batch upsert operation.
@@ -164,9 +165,22 @@ export abstract class BatchUpsertEndpoint<
       return this._meta.fields;
     }
 
-    // For upsert, upsert keys are required, other fields optional
+    // For upsert, upsert keys are required, other fields optional.
+    // Exclude the engine-managed / server-owned write fields: any
+    // configured `Model.timestamps` are always stamped by the engine,
+    // and primary keys follow the single-create rule EXCEPT when a PK is
+    // itself an upsert/matching key (kept required so the record can be
+    // found). Computed centrally so the precedence is not duplicated.
     const upsertKeys = this.getUpsertKeys();
-    const allFields = getSchemaFields(this.getModelSchema(), []);
+    const exclude = getManagedInputExclusions(this._meta.model, {
+      includePrimaryKeys: false,
+    });
+    for (const pk of this._meta.model.primaryKeys) {
+      if (!upsertKeys.includes(pk)) {
+        exclude.push(pk);
+      }
+    }
+    const allFields = getSchemaFields(this.getModelSchema(), exclude);
 
     const shape: Record<string, z.ZodTypeAny> = {};
     for (const [key, value] of Object.entries(allFields.shape)) {

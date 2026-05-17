@@ -53,6 +53,56 @@ export function getTimestampsConfig(
   };
 }
 
+/**
+ * The set of engine-managed / server-owned field names that must be
+ * excluded from a **model-derived request/input** schema.
+ *
+ * This is the single source of truth for "which fields does the engine
+ * own on writes, so the client must not be forced to send them" — it
+ * mirrors and reuses the same `Model.primaryKeys` / `Model.id` /
+ * `getTimestampsConfig(model)` inputs the write-site resolvers
+ * ({@link applyManagedInsertFields} / {@link applyManagedUpdateFields})
+ * already consume, so the precedence is never duplicated per endpoint.
+ *
+ * Returned names are excluded from the *model-derived* schema only — a
+ * consumer-supplied per-endpoint body schema always wins and is never
+ * rewritten. RESPONSE/output schemas are unaffected: clients still read
+ * `id` / `createdAt` / `updatedAt`.
+ *
+ * @param model - the model whose managed fields to resolve.
+ * @param options.includePrimaryKeys - when `true` (the default) the
+ *   model's primary keys are part of the exclusion set, matching the
+ *   long-standing single-create derivation (`[...model.primaryKeys]`).
+ *   Pass `false` for upsert-style schemas where the primary key may be
+ *   the matching/upsert key and the existing code intentionally keeps it.
+ */
+export function getManagedInputExclusions(
+  model: Pick<Model, 'id' | 'timestamps' | 'primaryKeys'>,
+  options: { includePrimaryKeys?: boolean } = {}
+): string[] {
+  const { includePrimaryKeys = true } = options;
+  const exclude = new Set<string>();
+
+  if (includePrimaryKeys) {
+    for (const pk of model.primaryKeys) {
+      exclude.add(pk);
+    }
+  }
+
+  // Timestamps are stamped by the engine at every write site
+  // (createdAt + updatedAt on insert, updatedAt always on update),
+  // so a client must never be forced to supply them. Resolve the
+  // (possibly renamed) field names from the normalized config — never
+  // recompute or hardcode the names here.
+  const ts = getTimestampsConfig(model.timestamps);
+  if (ts.enabled) {
+    exclude.add(ts.createdAt);
+    exclude.add(ts.updatedAt);
+  }
+
+  return [...exclude];
+}
+
 /** Treat `null`, `undefined` and `''` as "the caller did not supply a PK". */
 function pkSupplied(value: unknown): boolean {
   return value !== null && value !== undefined && value !== '';
