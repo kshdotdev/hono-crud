@@ -122,6 +122,7 @@ export function createDrizzleCrud<M extends MetaInput, E extends Env = Env>(
     List: class extends DrizzleListEndpoint<E, M> {
       _meta = meta;
       db = db;
+      protected override dialect = dialect;
     },
     Restore: class extends DrizzleRestoreEndpoint<E, M> {
       _meta = meta;

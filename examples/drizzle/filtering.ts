@@ -56,6 +56,7 @@ class UserCreate extends DrizzleCreateEndpoint {
 class UserList extends DrizzleListEndpoint {
   _meta = userMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = {
     tags: ['Users'],
@@ -115,6 +116,7 @@ class CategoryCreate extends DrizzleCreateEndpoint {
 class CategoryList extends DrizzleListEndpoint {
   _meta = categoryMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = {
     tags: ['Categories'],

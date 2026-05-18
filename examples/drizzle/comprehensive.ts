@@ -124,6 +124,7 @@ class UserCreate extends DrizzleCreateEndpoint {
 class UserList extends DrizzleListEndpoint {
   _meta = userMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = {
     tags: ['Users'],
@@ -232,6 +233,7 @@ class PostCreate extends DrizzleCreateEndpoint {
 class PostList extends DrizzleListEndpoint {
   _meta = postMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = { tags: ['Posts'], summary: 'List posts' };
   filterFields = ['status'];
@@ -305,6 +307,7 @@ class CommentCreate extends DrizzleCreateEndpoint {
 class CommentList extends DrizzleListEndpoint {
   _meta = commentMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
   schema = { tags: ['Comments'], summary: 'List comments' };
   allowedIncludes = ['post', 'author'];
 }
@@ -329,6 +332,7 @@ class CategoryCreate extends DrizzleCreateEndpoint {
 class CategoryList extends DrizzleListEndpoint {
   _meta = categoryMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = { tags: ['Categories'], summary: 'List categories' };
   filterFields = ['name'];

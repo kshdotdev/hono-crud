@@ -20,6 +20,7 @@ import type {
 import type { ModelObject } from '../../endpoints/types';
 import {
   type DrizzleDatabase,
+  type DrizzleDialect,
   cast,
   getTable,
   getColumn,
@@ -27,6 +28,7 @@ import {
   batchLoadDrizzleRelations,
   buildWhereCondition,
 } from './helpers';
+import { substringMatch } from './advanced';
 import { getDrizzleDb } from './connection';
 
 /**
@@ -752,6 +754,21 @@ export abstract class DrizzleListEndpoint<
   /** Drizzle database instance */
   db?: DrizzleDatabase;
 
+  /**
+   * SQL dialect of the underlying Drizzle database.
+   *
+   * Drives the substring-match function emitted on the `?search=` path:
+   * `INSTR` for sqlite, `POSITION` for pg, `LOCATE` for mysql — matching
+   * how the dedicated search endpoint (`DrizzleSearchEndpoint`) and the
+   * export endpoint (`DrizzleExportEndpoint`) emit search SQL. Set via
+   * {@link createDrizzleCrud}'s `options.dialect`, or override in your
+   * subclass. Defaults to `'sqlite'` for backward compatibility with
+   * pre-existing portable behavior.
+   *
+   * See {@link DrizzleUpsertEndpoint.dialect} for full semantics.
+   */
+  protected dialect: DrizzleDialect = 'sqlite';
+
   /** Gets the database instance from property or context */
   protected getDb(): DrizzleDatabase {
     return getDrizzleDb(this);
@@ -794,10 +811,16 @@ export abstract class DrizzleListEndpoint<
 
     // Apply search
     if (filters.options.search && this.searchFields.length > 0) {
+      const needle = filters.options.search;
       const searchConditions = this.searchFields.map((field) => {
         const column = this.getColumn(field);
-        // Use LIKE with LOWER() for case-insensitive search (works with SQLite)
-        return sql`LOWER(${column}) LIKE LOWER(${`%${filters.options.search}%`})`;
+        // Dialect-native substring match (INSTR/POSITION/LOCATE). The needle
+        // is never injected into a LIKE pattern, so user-supplied `%` and `_`
+        // are inert literal characters — no wildcard surface, no escape
+        // sequence needed. Mirrors the dedicated search endpoint
+        // (`DrizzleSearchEndpoint`) and the export endpoint, and aligns
+        // with memory/Prisma which already use literal substring matching.
+        return substringMatch(column, needle, this.dialect);
       });
       conditions.push(or(...searchConditions)!);
     }
