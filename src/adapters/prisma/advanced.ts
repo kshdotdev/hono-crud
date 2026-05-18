@@ -70,25 +70,43 @@ export abstract class PrismaSearchEndpoint<
       }
     }
 
-    // Build search conditions
+    // Build search conditions.
+    //
+    // SECURITY: Prisma's `contains` is a literal substring match — it does
+    // NOT interpret SQL LIKE wildcards (`%`, `_`) from user input, so no
+    // additional escaping is required at this layer.
+    //
+    // mode='all' uses token-AND across fields: each query token must appear
+    // in AT LEAST ONE configured field. The prior implementation required
+    // EVERY field to contain the WHOLE phrase, which made mode='all'
+    // effectively unusable for multi-term queries.
     const searchableFields = this.getSearchableFields();
     const fieldsToSearch = options.fields || Object.keys(searchableFields);
 
-    const searchConditions = fieldsToSearch.map((field) => ({
+    const fieldContains = (field: string, needle: string) => ({
       [field]: {
-        contains: options.query,
+        contains: needle,
         mode: 'insensitive',
       },
-    }));
+    });
 
-    // Combine with filters based on search mode
-    if (searchConditions.length > 0) {
+    if (fieldsToSearch.length > 0) {
       if (options.mode === 'all') {
-        // AND all search conditions
-        where = { ...where, AND: searchConditions };
+        const tokens = options.query.split(/\s+/).filter((t) => t.length > 0);
+        if (tokens.length > 0) {
+          where = {
+            ...where,
+            AND: tokens.map((token) => ({
+              OR: fieldsToSearch.map((field) => fieldContains(field, token)),
+            })),
+          };
+        }
       } else {
-        // OR search conditions (for 'any' and 'phrase' modes)
-        where = { ...where, OR: searchConditions };
+        // 'any' or 'phrase': phrase OR'd across fields (unchanged semantics).
+        where = {
+          ...where,
+          OR: fieldsToSearch.map((field) => fieldContains(field, options.query)),
+        };
       }
     }
 
@@ -127,10 +145,19 @@ export abstract class PrismaSearchEndpoint<
       take: perPage,
     });
 
-    // Score results in memory and generate highlights
+    // Score results in memory and generate highlights.
+    //
+    // For mode='all' the WHERE above already enforces token-AND across
+    // fields, so we score with mode='any' to avoid `searchInMemory`'s
+    // stricter per-field "all tokens in same field" gate dropping
+    // correctly-matched rows. The score is used for ranking only — matching
+    // was decided in the database query.
+    const scoringOptions = options.mode === 'all'
+      ? { ...options, mode: 'any' as const }
+      : options;
     const searchResults = searchInMemory(
       records as ModelObject<M['model']>[],
-      options,
+      scoringOptions,
       this.getSearchableFields()
     );
 

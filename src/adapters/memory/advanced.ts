@@ -579,11 +579,52 @@ export abstract class MemorySearchEndpoint<
       });
     }
 
-    // Perform search and scoring
+    // Perform search and scoring.
+    //
+    // For mode='all' we apply a token-AND across fields ourselves before
+    // delegating to `searchInMemory`: each token must be present in AT LEAST
+    // ONE configured field. This matches the documented "all terms match"
+    // intent (rather than "every field contains the whole phrase").
+    //
+    // After pre-filtering we score with mode='any' so the scorer doesn't
+    // re-apply its stricter per-field "all tokens in same field" gate.
+    //
+    // SECURITY: matching uses native String#includes — `%` and `_` from the
+    // user query are treated as literal characters (no LIKE semantics on the
+    // in-memory adapter). This mirrors the SQL adapters' explicit wildcard
+    // escaping.
     const searchableFields = this.getSearchableFields();
+    let recordsForScoring = records as ModelObject<M['model']>[];
+    let scoringOptions = options;
+
+    if (options.mode === 'all') {
+      const tokens = options.query
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((t) => t.length > 0);
+      const fieldsToSearch = options.fields || Object.keys(searchableFields);
+
+      if (tokens.length > 0) {
+        recordsForScoring = recordsForScoring.filter((record) => {
+          const rec = record as Record<string, unknown>;
+          return tokens.every((token) =>
+            fieldsToSearch.some((field) => {
+              const value = rec[field];
+              if (value === undefined || value === null) return false;
+              const content = Array.isArray(value) ? value.join(' ') : String(value);
+              return content.toLowerCase().includes(token);
+            })
+          );
+        });
+      }
+
+      // Score with 'any' to avoid the scorer's stricter per-field gate.
+      scoringOptions = { ...options, mode: 'any' };
+    }
+
     const searchResults = searchInMemory(
-      records as ModelObject<M['model']>[],
-      options,
+      recordsForScoring,
+      scoringOptions,
       searchableFields
     );
 
