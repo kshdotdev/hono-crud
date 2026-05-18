@@ -677,6 +677,7 @@ export {
   MemoryAdapters,
 } from './config/index';
 export { DrizzleAdapters } from './adapters/drizzle/index';
+export type { DrizzleDialect } from './adapters/drizzle/index';
 export { PrismaAdapters } from './adapters/prisma/index';
 export type {
   CreateEndpointConfig as ConfigCreateEndpoint,

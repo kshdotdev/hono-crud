@@ -84,6 +84,17 @@ export type DrizzleDatabase = DrizzleDatabaseConstraint;
 export type DrizzleDB = DrizzleDatabaseConstraint;
 
 /**
+ * Drizzle SQL dialect identifier used to branch dialect-specific behavior
+ * (e.g. native upsert syntax: `ON CONFLICT DO UPDATE` for sqlite/pg vs
+ * `ON DUPLICATE KEY UPDATE` for mysql).
+ *
+ * The default for {@link createDrizzleCrud} is `'sqlite'` (preserves
+ * pre-existing portable behavior). Set explicitly when targeting PostgreSQL
+ * or MySQL to enable the appropriate code paths.
+ */
+export type DrizzleDialect = 'sqlite' | 'pg' | 'mysql';
+
+/**
  * Type helper for defining Hono Env with database in Variables.
  * Use this when injecting the database via middleware.
  *
