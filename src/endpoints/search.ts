@@ -20,6 +20,30 @@ import {
 } from './search-utils';
 
 /**
+ * Detect a string schema across Zod 3 and Zod 4.
+ *
+ * Zod 3 exposed the schema kind via `_def.typeName === 'ZodString'`. Zod 4
+ * reshaped its internals: `_def.type === 'string'` (and mirrored on `def`).
+ * `instanceof z.ZodString` is also stable across both majors when callers
+ * use the same Zod version as `hono-crud`, but the structural checks make
+ * this robust to dual-Zod installs in monorepos and any future minor
+ * internal drift. Tried in cheapest-first order.
+ */
+function isZodStringSchema(schema: unknown): boolean {
+  if (schema instanceof z.ZodString) return true;
+  const s = schema as {
+    _def?: { type?: string; typeName?: string };
+    def?: { type?: string };
+  } | null | undefined;
+  if (!s) return false;
+  return (
+    s._def?.type === 'string' ||
+    s._def?.typeName === 'ZodString' ||
+    s.def?.type === 'string'
+  );
+}
+
+/**
  * Base endpoint for full-text search with filtering, relevance scoring, and highlighting.
  * Extend this class and implement the `search` method for your ORM.
  *
@@ -100,6 +124,13 @@ export abstract class SearchEndpoint<
    * Results below this score are excluded.
    */
   protected defaultMinScore: number = 0;
+
+  /**
+   * Query parameter name used to read the search string. Defaults to `'q'`.
+   * Override (or configure via `endpoints.search.paramName`) to expose a
+   * different name on the wire, e.g. `'query'` for `/search?query=foo`.
+   */
+  protected searchParamName: string = 'q';
 
   // ============================================================================
   // Filter Configuration (reused from ListEndpoint)
@@ -188,9 +219,7 @@ export abstract class SearchEndpoint<
     const fields: Record<string, SearchFieldConfig> = {};
 
     for (const [key, zodType] of Object.entries(schemaShape)) {
-      // Check if field is a string type
-      const desc = (zodType as { _def?: { typeName?: string } })._def;
-      if (desc?.typeName === 'ZodString') {
+      if (isZodStringSchema(zodType)) {
         fields[key] = { weight: 1.0 };
       }
     }
@@ -206,10 +235,11 @@ export abstract class SearchEndpoint<
    * Returns the query parameter schema for search and filtering.
    */
   protected getQuerySchema(): ZodObject<ZodRawShape> {
+    const queryParam = this.searchParamName || 'q';
     // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4)
     const shape: Record<string, z.ZodTypeAny> = {
-      // Search parameters
-      q: z.string().min(this.minQueryLength).max(this.maxQueryLength).describe('Search query'),
+      // Search parameters — key is `searchParamName` (default `'q'`).
+      [queryParam]: z.string().min(this.minQueryLength).max(this.maxQueryLength).describe('Search query'),
       fields: z.string().optional().describe(
         `Comma-separated fields to search. Available: ${Object.keys(this.getSearchableFields()).join(', ')}`
       ),
@@ -364,7 +394,8 @@ export abstract class SearchEndpoint<
   protected async getSearchOptions(): Promise<SearchOptions> {
     const { query } = await this.getValidatedData();
 
-    const q = query?.q as string;
+    const queryParam = this.searchParamName || 'q';
+    const q = (query as Record<string, unknown> | undefined)?.[queryParam] as string;
     const fieldsParam = query?.fields as string | undefined;
     const mode = parseSearchMode(query?.mode as string | undefined);
     const highlight = query?.highlight === 'true';
@@ -520,15 +551,23 @@ export abstract class SearchEndpoint<
       }));
     }
 
-    // Calculate pagination info
+    // Calculate pagination info.
+    //
+    // Prefer `postFilteredCount` when the adapter populates it — that
+    // reflects the actual user-visible result set after in-memory
+    // tokenization / minScore filtering, so pagination math matches what
+    // the client receives. Adapters that already return a post-filter
+    // count via `totalCount` (e.g. memory) leave `postFilteredCount`
+    // unset and the legacy field is used unchanged — fully back-compat.
+    const effectiveTotal = searchResult.postFilteredCount ?? searchResult.totalCount;
     const page = filters.options.page || 1;
     const perPage = filters.options.per_page || this.defaultPerPage;
-    const totalPages = Math.ceil(searchResult.totalCount / perPage);
+    const totalPages = Math.ceil(effectiveTotal / perPage);
 
     return this.successPaginated(result, {
       page,
       per_page: perPage,
-      total_count: searchResult.totalCount,
+      total_count: effectiveTotal,
       total_pages: totalPages,
       query: searchOptions.query,
       searchedFields: searchOptions.fields || Object.keys(this.getSearchableFields()),

@@ -305,10 +305,6 @@ interface SearchHooks<M extends MetaInput> {
 
 /**
  * Search endpoint configuration.
- *
- * Note: `paramName` is reserved in the briefed shape but not currently wired —
- * the SearchEndpoint reads its query from a fixed `q` param. Override via a
- * subclass for now; first-class config will follow if there's demand.
  */
 export interface SearchEndpointConfig<M extends MetaInput> {
   openapi?: OpenAPIConfig;
@@ -316,7 +312,11 @@ export interface SearchEndpointConfig<M extends MetaInput> {
   middlewares?: MiddlewareHandler[];
   /** Fields included in the search index (maps to SearchEndpoint.searchFields). */
   fields?: string[];
-  /** Reserved — currently unused; SearchEndpoint reads `q` by default. */
+  /**
+   * Query parameter name carrying the search string. Defaults to `'q'`.
+   * Maps to `SearchEndpoint.searchParamName`. Set e.g. `'query'` to expose
+   * `/search?query=foo` instead of `/search?q=foo`.
+   */
   paramName?: string;
   /** Default search mode: 'any' | 'all' | 'phrase'. Maps to SearchEndpoint.defaultMode. */
   mode?: 'any' | 'all' | 'phrase';
@@ -823,6 +823,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       extras: {
         ...(cfg.fields !== undefined ? { searchFields: cfg.fields } : {}),
         ...(cfg.mode !== undefined ? { defaultMode: cfg.mode } : {}),
+        ...(cfg.paramName !== undefined ? { searchParamName: cfg.paramName } : {}),
       },
     });
   }

@@ -1847,8 +1847,28 @@ export interface SearchOptions {
 export interface SearchResult<T> {
   /** Search result items with scores and highlights */
   items: SearchResultItem<T>[];
-  /** Total number of matching records (before pagination) */
+  /**
+   * Total number of matching records before pagination.
+   *
+   * For adapters whose initial candidate set is a SQL `LIKE` (or similar)
+   * filter and which then apply in-memory tokenization / scoring / minScore
+   * on top, this field is the raw SQL hit count. Set
+   * {@link SearchResult.postFilteredCount} to the post-filter count so that
+   * the public `result_info.total_count` reflects what the client actually
+   * receives. Without `postFilteredCount`, `total_count` falls back to
+   * `totalCount` (back-compatible).
+   */
   totalCount: number;
+  /**
+   * Optional: number of records that survived BOTH the adapter's initial
+   * candidate filter (e.g. SQL LIKE) and any in-memory post-filtering
+   * (tokenization, stopword removal, minScore). Adapters that perform
+   * such post-filtering should populate this so that
+   * `result_info.total_count` matches the user-visible result set and
+   * pagination math is correct. When omitted, the handler falls back to
+   * `totalCount`.
+   */
+  postFilteredCount?: number;
 }
 
 /**
