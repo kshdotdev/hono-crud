@@ -19,6 +19,7 @@ import {
 import {
   DrizzleUpsertEndpoint,
   DrizzleBatchUpsertEndpoint,
+  DrizzleSearchEndpoint,
 } from './advanced';
 
 /**
@@ -38,6 +39,7 @@ export interface DrizzleCrudClasses<M extends MetaInput, E extends Env = Env> {
   List: ConfiguredDrizzleEndpoint<DrizzleListEndpoint<E, M>, M>;
   Restore: ConfiguredDrizzleEndpoint<DrizzleRestoreEndpoint<E, M>, M>;
   Upsert: ConfiguredDrizzleEndpoint<DrizzleUpsertEndpoint<E, M>, M>;
+  Search: ConfiguredDrizzleEndpoint<DrizzleSearchEndpoint<E, M>, M>;
   BatchCreate: ConfiguredDrizzleEndpoint<DrizzleBatchCreateEndpoint<E, M>, M>;
   BatchUpdate: ConfiguredDrizzleEndpoint<DrizzleBatchUpdateEndpoint<E, M>, M>;
   BatchDelete: ConfiguredDrizzleEndpoint<DrizzleBatchDeleteEndpoint<E, M>, M>;
@@ -126,6 +128,11 @@ export function createDrizzleCrud<M extends MetaInput, E extends Env = Env>(
       db = db;
     },
     Upsert: class extends DrizzleUpsertEndpoint<E, M> {
+      _meta = meta;
+      db = db;
+      protected override dialect = dialect;
+    },
+    Search: class extends DrizzleSearchEndpoint<E, M> {
       _meta = meta;
       db = db;
       protected override dialect = dialect;

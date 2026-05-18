@@ -28,6 +28,8 @@ import {
   DrizzleBatchUpsertEndpoint,
   type DrizzleDatabase,
 } from '../src/adapters/drizzle/index.js';
+import { substringMatch } from '../src/adapters/drizzle/advanced.js';
+import { sql } from 'drizzle-orm';
 
 // ============================================================================
 // Test Schema / Model
@@ -315,6 +317,58 @@ describe('DrizzleUpsertEndpoint dialect default', () => {
     const calls = stub.calls.map((c) => c.method);
     expect(calls).toContain('onDuplicateKeyUpdate');
     expect(calls).not.toContain('onConflictDoUpdate');
+  });
+});
+
+describe('substringMatch — dialect-native search SQL emission', () => {
+  /**
+   * Walks a drizzle `SQL` object's `queryChunks` and concatenates every
+   * string fragment. Bound parameters are skipped — we only care about
+   * the literal SQL function/keyword tokens emitted by the helper.
+   */
+  function literalChunks(s: ReturnType<typeof sql>): string {
+    const chunks = (s as unknown as { queryChunks: Array<unknown> }).queryChunks;
+    return chunks
+      .map((c) => (typeof c === 'object' && c !== null && 'value' in (c as Record<string, unknown>) && Array.isArray((c as { value: unknown[] }).value)
+        ? ((c as { value: string[] }).value).join('')
+        : ''))
+      .join('');
+  }
+
+  const col = sql`col`;
+
+  it('sqlite emits INSTR(LOWER(col), LOWER(needle)) > 0', () => {
+    const s = substringMatch(col, 'foo', 'sqlite');
+    const text = literalChunks(s);
+    expect(text).toContain('INSTR(');
+    expect(text).toContain('> 0');
+    expect(text).not.toContain('POSITION(');
+    expect(text).not.toContain('LOCATE(');
+    expect(text).not.toContain('LIKE');
+    expect(text).not.toContain('ESCAPE');
+  });
+
+  it('pg emits POSITION(LOWER(needle) IN LOWER(col)) > 0', () => {
+    const s = substringMatch(col, 'foo', 'pg');
+    const text = literalChunks(s);
+    expect(text).toContain('POSITION(');
+    expect(text).toContain(' IN ');
+    expect(text).toContain('> 0');
+    expect(text).not.toContain('INSTR(');
+    expect(text).not.toContain('LOCATE(');
+    expect(text).not.toContain('LIKE');
+    expect(text).not.toContain('ESCAPE');
+  });
+
+  it('mysql emits LOCATE(LOWER(needle), LOWER(col)) > 0', () => {
+    const s = substringMatch(col, 'foo', 'mysql');
+    const text = literalChunks(s);
+    expect(text).toContain('LOCATE(');
+    expect(text).toContain('> 0');
+    expect(text).not.toContain('INSTR(');
+    expect(text).not.toContain('POSITION(');
+    expect(text).not.toContain('LIKE');
+    expect(text).not.toContain('ESCAPE');
   });
 });
 

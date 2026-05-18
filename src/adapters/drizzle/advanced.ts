@@ -38,18 +38,34 @@ import {
 import { getDrizzleDb } from './connection';
 
 /**
- * Escape SQL LIKE wildcard characters in user-supplied input.
+ * Emit a dialect-correct case-insensitive substring-match SQL expression.
  *
- * The escape character itself (`\\`) must be escaped first to avoid
- * double-escaping the wildcards that follow. The corresponding LIKE
- * clause should declare `ESCAPE '\\'` so the database treats `\%`
- * and `\_` as literal characters.
+ * Replaces the previous `LOWER(col) LIKE LOWER('%needle%') ESCAPE '\\'`
+ * approach: by using the native substring-position function for each
+ * dialect, the needle is never injected into a pattern, so LIKE
+ * wildcards (`%`, `_`) and the LIKE escape character lose their
+ * special meaning entirely — no wildcard surface means no escape
+ * needed.
+ *
+ * Dialect mapping:
+ *   - `'sqlite'` → `INSTR(LOWER(col), LOWER(needle)) > 0`
+ *   - `'pg'`     → `POSITION(LOWER(needle) IN LOWER(col)) > 0`
+ *   - `'mysql'`  → `LOCATE(LOWER(needle), LOWER(col)) > 0`
+ *
+ * All three return a 1-based position (or 0 for "not found"), so
+ * `> 0` is the dialect-agnostic predicate that means "needle is a
+ * substring of col".
  */
-function escapeLikePattern(input: string): string {
-  return input
-    .replace(/\\/g, '\\\\')
-    .replace(/%/g, '\\%')
-    .replace(/_/g, '\\_');
+export function substringMatch(col: Column | SQL, needle: string, dialect: DrizzleDialect): SQL {
+  switch (dialect) {
+    case 'pg':
+      return sql`POSITION(LOWER(${needle}) IN LOWER(${col})) > 0`;
+    case 'mysql':
+      return sql`LOCATE(LOWER(${needle}), LOWER(${col})) > 0`;
+    case 'sqlite':
+    default:
+      return sql`INSTR(LOWER(${col}), LOWER(${needle})) > 0`;
+  }
 }
 
 /**
@@ -620,11 +636,12 @@ export abstract class DrizzleAggregateEndpoint<
  * Provides full-text search with relevance scoring and highlighting.
  *
  * For PostgreSQL, this can leverage native tsvector/tsquery for better performance.
- * For SQLite/MySQL, it falls back to LIKE-based searching with in-memory scoring.
+ * For SQLite/MySQL/PostgreSQL non-vector mode, it falls back to dialect-native
+ * substring-position search (INSTR/POSITION/LOCATE) with in-memory scoring.
  *
  * Features:
  * - PostgreSQL: Uses to_tsvector() and plainto_tsquery() for native full-text search
- * - SQLite/MySQL: Falls back to LIKE/ILIKE with in-memory scoring
+ * - Fallback: dialect-native substring match with in-memory scoring
  * - Configurable field weights
  * - Search modes: 'any' (OR), 'all' (AND), 'phrase' (exact)
  * - Highlighted snippets
@@ -650,6 +667,19 @@ export abstract class DrizzleSearchEndpoint<
   /** Drizzle database instance. Can be undefined if using context injection. */
   db?: DrizzleDatabase;
 
+  /**
+   * SQL dialect of the underlying Drizzle database.
+   *
+   * Drives the substring-match function emitted on the fallback search path:
+   * `INSTR` for sqlite, `POSITION` for pg, `LOCATE` for mysql. Set via
+   * {@link createDrizzleCrud}'s `options.dialect`, or override in your
+   * subclass. Defaults to `'sqlite'` for backward compatibility with
+   * pre-existing portable behavior.
+   *
+   * See {@link DrizzleUpsertEndpoint.dialect} for full semantics.
+   */
+  protected dialect: DrizzleDialect = 'sqlite';
+
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
     return getDrizzleDb(this);
@@ -658,7 +688,7 @@ export abstract class DrizzleSearchEndpoint<
   /**
    * Enable PostgreSQL native full-text search.
    * When true and vectorColumn is set, uses tsvector/tsquery.
-   * When false, uses LIKE-based search with in-memory scoring.
+   * When false, uses substring-position-based search with in-memory scoring.
    */
   protected useNativeSearch: boolean = false;
 
@@ -724,24 +754,23 @@ export abstract class DrizzleSearchEndpoint<
 
       conditions.push(sql`${vectorCol} @@ ${tsQuery}`);
     } else {
-      // Fallback: LIKE-based search.
+      // Fallback: dialect-native substring-position search.
       //
-      // SECURITY: user input is escaped for LIKE wildcards (`%`, `_`) so that
-      // a client cannot smuggle wildcard semantics through the bound parameter.
-      // The escape character (`\\`) itself is escaped first; the LIKE clause
-      // declares `ESCAPE '\\'` so the database treats the escapes correctly.
-      // Without this, `q=%%` would match every row and `q=foo_bar` would match
-      // `fooXbar`.
+      // The needle is matched via INSTR/POSITION/LOCATE rather than LIKE,
+      // so user-supplied `%` and `_` are inert literal characters — no
+      // wildcard surface, no escape sequence needed. `q=%%` matches only
+      // rows containing the literal "%%" substring; `q=foo_bar` matches
+      // only rows containing literal "foo_bar". The cast-to-text + LOWER
+      // pair preserves the previous case-insensitive semantics.
       //
       // mode='all' uses token-AND across fields: each query token must be
       // present in at least ONE configured field. The prior implementation
       // required EVERY field to contain the WHOLE phrase, which made
       // mode='all' effectively unusable for multi-term queries.
-      const buildFieldLike = (field: string, needle: string): SQL | undefined => {
+      const buildFieldMatch = (field: string, needle: string): SQL | undefined => {
         try {
           const column = this.getColumn(field);
-          const pattern = `%${escapeLikePattern(needle)}%`;
-          return sql`LOWER(CAST(${column} AS TEXT)) LIKE LOWER(${pattern}) ESCAPE '\\'`;
+          return substringMatch(sql`CAST(${column} AS TEXT)`, needle, this.dialect);
         } catch {
           return undefined;
         }
@@ -755,7 +784,7 @@ export abstract class DrizzleSearchEndpoint<
           const tokenClauses: SQL[] = [];
           for (const token of tokens) {
             const perFieldOr = fieldsToSearch
-              .map((field) => buildFieldLike(field, token))
+              .map((field) => buildFieldMatch(field, token))
               .filter((c): c is SQL => c !== undefined);
             if (perFieldOr.length > 0) {
               tokenClauses.push(or(...perFieldOr)!);
@@ -768,7 +797,7 @@ export abstract class DrizzleSearchEndpoint<
       } else {
         // 'any' or 'phrase': phrase OR'd across fields (unchanged semantics).
         const searchConditions = fieldsToSearch
-          .map((field) => buildFieldLike(field, options.query))
+          .map((field) => buildFieldMatch(field, options.query))
           .filter((c): c is SQL => c !== undefined);
 
         if (searchConditions.length > 0) {
@@ -855,6 +884,13 @@ export abstract class DrizzleExportEndpoint<
   /** Drizzle database instance. Can be undefined if using context injection. */
   db?: DrizzleDatabase;
 
+  /**
+   * SQL dialect of the underlying Drizzle database. Drives the
+   * substring-match function emitted on the `?search=` path. See
+   * {@link DrizzleUpsertEndpoint.dialect} for full semantics.
+   */
+  protected dialect: DrizzleDialect = 'sqlite';
+
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
     return getDrizzleDb(this);
@@ -894,10 +930,10 @@ export abstract class DrizzleExportEndpoint<
 
     // Apply search
     if (filters.options.search && this.searchFields.length > 0) {
-      const needle = `%${escapeLikePattern(filters.options.search)}%`;
+      const needle = filters.options.search;
       const searchConditions = this.searchFields.map((field) => {
         const column = this.getColumn(field);
-        return sql`LOWER(${column}) LIKE LOWER(${needle}) ESCAPE '\\'`;
+        return substringMatch(column, needle, this.dialect);
       });
       conditions.push(or(...searchConditions)!);
     }
