@@ -37,6 +37,35 @@ import {
 import { getDrizzleDb } from './connection';
 
 /**
+ * Escape SQL LIKE wildcard characters in user-supplied input.
+ *
+ * The escape character itself (`\\`) must be escaped first to avoid
+ * double-escaping the wildcards that follow. The corresponding LIKE
+ * clause should declare `ESCAPE '\\'` so the database treats `\%`
+ * and `\_` as literal characters.
+ */
+function escapeLikePattern(input: string): string {
+  return input
+    .replace(/\\/g, '\\\\')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_');
+}
+
+/**
+ * Split a search query into whitespace-delimited tokens for the
+ * SQL pre-filter used by `mode='all'`. Empty tokens are dropped.
+ *
+ * Final relevance scoring still happens in-memory via
+ * `searchInMemory`, which applies stopword filtering and tokenizes
+ * with its own rules — this function only narrows the SQL result
+ * set so the pre-filter is consistent with the abstract layer's
+ * notion of "all tokens must match".
+ */
+function tokenizeForSearch(query: string): string[] {
+  return query.split(/\s+/).filter((t) => t.length > 0);
+}
+
+/**
  * Drizzle Upsert endpoint.
  * Creates a record if it doesn't exist, updates it if it does.
  */
@@ -700,24 +729,54 @@ export abstract class DrizzleSearchEndpoint<
 
       conditions.push(sql`${vectorCol} @@ ${tsQuery}`);
     } else {
-      // Fallback: LIKE-based search
-      const searchConditions = fieldsToSearch.map((field) => {
+      // Fallback: LIKE-based search.
+      //
+      // SECURITY: user input is escaped for LIKE wildcards (`%`, `_`) so that
+      // a client cannot smuggle wildcard semantics through the bound parameter.
+      // The escape character (`\\`) itself is escaped first; the LIKE clause
+      // declares `ESCAPE '\\'` so the database treats the escapes correctly.
+      // Without this, `q=%%` would match every row and `q=foo_bar` would match
+      // `fooXbar`.
+      //
+      // mode='all' uses token-AND across fields: each query token must be
+      // present in at least ONE configured field. The prior implementation
+      // required EVERY field to contain the WHOLE phrase, which made
+      // mode='all' effectively unusable for multi-term queries.
+      const buildFieldLike = (field: string, needle: string): SQL | undefined => {
         try {
           const column = this.getColumn(field);
-          // Use ILIKE for case-insensitive search (works with PostgreSQL)
-          // For SQLite, use LOWER() with LIKE
-          return sql`LOWER(CAST(${column} AS TEXT)) LIKE LOWER(${`%${options.query}%`})`;
+          const pattern = `%${escapeLikePattern(needle)}%`;
+          return sql`LOWER(CAST(${column} AS TEXT)) LIKE LOWER(${pattern}) ESCAPE '\\'`;
         } catch {
           return undefined;
         }
-      }).filter((c): c is SQL => c !== undefined);
+      };
 
-      if (searchConditions.length > 0) {
-        if (options.mode === 'all') {
-          // AND all conditions
-          conditions.push(and(...searchConditions)!);
-        } else {
-          // OR conditions for 'any' mode
+      if (options.mode === 'all') {
+        // Token-AND across fields: for each token, AT LEAST ONE field must
+        // match (OR within token); ALL tokens must match (AND across tokens).
+        const tokens = tokenizeForSearch(options.query);
+        if (tokens.length > 0) {
+          const tokenClauses: SQL[] = [];
+          for (const token of tokens) {
+            const perFieldOr = fieldsToSearch
+              .map((field) => buildFieldLike(field, token))
+              .filter((c): c is SQL => c !== undefined);
+            if (perFieldOr.length > 0) {
+              tokenClauses.push(or(...perFieldOr)!);
+            }
+          }
+          if (tokenClauses.length > 0) {
+            conditions.push(and(...tokenClauses)!);
+          }
+        }
+      } else {
+        // 'any' or 'phrase': phrase OR'd across fields (unchanged semantics).
+        const searchConditions = fieldsToSearch
+          .map((field) => buildFieldLike(field, options.query))
+          .filter((c): c is SQL => c !== undefined);
+
+        if (searchConditions.length > 0) {
           conditions.push(or(...searchConditions)!);
         }
       }
@@ -750,10 +809,18 @@ export abstract class DrizzleSearchEndpoint<
 
     const records = await query;
 
-    // Score results in memory and generate highlights
+    // Score results in memory and generate highlights.
+    //
+    // For mode='all' the SQL above already enforces token-AND across fields,
+    // so we score with mode='any' to avoid `searchInMemory`'s stricter
+    // per-field "all tokens in same field" gate dropping correctly-matched
+    // rows. The score is used for ranking only — matching was decided in SQL.
+    const scoringOptions = options.mode === 'all'
+      ? { ...options, mode: 'any' as const }
+      : options;
     const searchResults = searchInMemory(
       records as ModelObject<M['model']>[],
-      options,
+      scoringOptions,
       searchableFields
     );
 
@@ -832,9 +899,10 @@ export abstract class DrizzleExportEndpoint<
 
     // Apply search
     if (filters.options.search && this.searchFields.length > 0) {
+      const needle = `%${escapeLikePattern(filters.options.search)}%`;
       const searchConditions = this.searchFields.map((field) => {
         const column = this.getColumn(field);
-        return sql`LOWER(${column}) LIKE LOWER(${`%${filters.options.search}%`})`;
+        return sql`LOWER(${column}) LIKE LOWER(${needle}) ESCAPE '\\'`;
       });
       conditions.push(or(...searchConditions)!);
     }
