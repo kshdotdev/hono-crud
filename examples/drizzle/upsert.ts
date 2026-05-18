@@ -165,6 +165,7 @@ class ProductUpsert extends DrizzleUpsertEndpoint {
 class ProductList extends DrizzleListEndpoint {
   _meta = productMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = { tags: ['Products'], summary: 'List products' };
   searchFields = ['name', 'sku'];
@@ -197,6 +198,7 @@ class InventoryBatchUpsert extends DrizzleBatchUpsertEndpoint {
 class InventoryList extends DrizzleListEndpoint {
   _meta = inventoryMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = { tags: ['Inventory'], summary: 'List inventory' };
   filterFields = ['sku', 'warehouseId'];

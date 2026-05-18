@@ -146,6 +146,7 @@ class UserRead extends DrizzleReadEndpoint {
 class UserList extends DrizzleListEndpoint {
   _meta = userMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = {
     tags: ['Users'],
@@ -183,6 +184,7 @@ class PostRead extends DrizzleReadEndpoint {
 class PostList extends DrizzleListEndpoint {
   _meta = postMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = {
     tags: ['Posts'],
@@ -243,6 +245,7 @@ class CommentRead extends DrizzleReadEndpoint {
 class CommentList extends DrizzleListEndpoint {
   _meta = commentMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = {
     tags: ['Comments'],
