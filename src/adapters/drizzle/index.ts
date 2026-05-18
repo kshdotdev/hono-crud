@@ -4,6 +4,7 @@ export {
   type DrizzleDatabaseConstraint,
   type DrizzleDatabase,
   type DrizzleDB,
+  type DrizzleDialect,
   type DrizzleEnv,
   cast,
   getTable,

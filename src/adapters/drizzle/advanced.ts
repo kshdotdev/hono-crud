@@ -28,6 +28,7 @@ import type {
 import type { ModelObject } from '../../endpoints/types';
 import {
   type DrizzleDatabase,
+  type DrizzleDialect,
   cast,
   getTable,
   getColumn,
@@ -46,6 +47,17 @@ export abstract class DrizzleUpsertEndpoint<
 > extends UpsertEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
   db?: DrizzleDatabase;
+
+  /**
+   * SQL dialect of the underlying Drizzle database.
+   *
+   * Used to branch dialect-specific behavior — currently the native upsert
+   * path (`ON CONFLICT DO UPDATE` for sqlite/pg vs `ON DUPLICATE KEY UPDATE`
+   * for mysql). Set via {@link createDrizzleCrud}'s `options.dialect`, or
+   * override in your subclass. Defaults to `'sqlite'` for backward
+   * compatibility with pre-existing portable behavior.
+   */
+  protected dialect: DrizzleDialect = 'sqlite';
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
@@ -140,7 +152,7 @@ export abstract class DrizzleUpsertEndpoint<
    */
   protected override async nativeUpsert(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    _tx?: unknown
   ): Promise<{ data: ModelObject<M['model']>; created: boolean }> {
     const table = this.getTable();
     const upsertKeys = this.getUpsertKeys();
@@ -180,45 +192,41 @@ export abstract class DrizzleUpsertEndpoint<
       whereCondition = isNull(this.getColumn(softDeleteConfig.field));
     }
 
-    try {
-      // Try PostgreSQL/SQLite style: onConflictDoUpdate
-      const insertQuery = cast(this.getDb()).insert(table).values(record as Record<string, unknown>);
+    const setClause: Record<string, unknown> =
+      Object.keys(updateSet).length > 0
+        ? updateSet
+        : { [primaryKey]: sql`${this.getColumn(primaryKey)}` };
 
-      // Use onConflictDoUpdate for PostgreSQL/SQLite
+    const insertQuery = cast(this.getDb())
+      .insert(table)
+      .values(record as Record<string, unknown>);
+
+    // Dialect-driven upsert: MySQL uses `ON DUPLICATE KEY UPDATE`, every
+    // other supported dialect (sqlite, pg) uses `ON CONFLICT DO UPDATE`.
+    // Upstream driver errors bubble — no broad catch.
+    if (this.dialect === 'mysql') {
       const result = await insertQuery
-        .onConflictDoUpdate({
-          target: targetColumns,
-          set: Object.keys(updateSet).length > 0 ? updateSet : { [primaryKey]: sql`${this.getColumn(primaryKey)}` },
-          where: whereCondition,
-        })
+        .onDuplicateKeyUpdate({ set: setClause })
         .returning();
 
       return {
         data: result[0] as ModelObject<M['model']>,
-        created: false, // We can't accurately determine this with native upsert
+        created: false, // Cannot accurately determine with native upsert
       };
-    } catch (error) {
-      // If onConflictDoUpdate fails, try MySQL style: onDuplicateKeyUpdate
-      if (error instanceof Error && error.message.includes('onConflictDoUpdate')) {
-        try {
-          const insertQuery = cast(this.getDb()).insert(table).values(record as Record<string, unknown>);
-          const result = await insertQuery
-            .onDuplicateKeyUpdate({
-              set: Object.keys(updateSet).length > 0 ? updateSet : { [primaryKey]: sql`${this.getColumn(primaryKey)}` },
-            })
-            .returning();
-
-          return {
-            data: result[0] as ModelObject<M['model']>,
-            created: false,
-          };
-        } catch {
-          // Fall back to standard upsert if native fails
-          return this.performStandardUpsert(data, tx);
-        }
-      }
-      throw error;
     }
+
+    const result = await insertQuery
+      .onConflictDoUpdate({
+        target: targetColumns,
+        set: setClause,
+        where: whereCondition,
+      })
+      .returning();
+
+    return {
+      data: result[0] as ModelObject<M['model']>,
+      created: false, // Cannot accurately determine with native upsert
+    };
   }
 }
 
@@ -231,6 +239,12 @@ export abstract class DrizzleBatchUpsertEndpoint<
 > extends BatchUpsertEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
   db?: DrizzleDatabase;
+
+  /**
+   * SQL dialect of the underlying Drizzle database. See
+   * {@link DrizzleUpsertEndpoint.dialect} for full semantics.
+   */
+  protected dialect: DrizzleDialect = 'sqlite';
 
   /** Gets the database instance from property or context. */
   protected getDb(): DrizzleDatabase {
@@ -318,7 +332,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
    */
   protected override async nativeBatchUpsert(
     items: Partial<ModelObject<M['model']>>[],
-    tx?: unknown
+    _tx?: unknown
   ): Promise<{
     items: Array<{ data: ModelObject<M['model']>; created: boolean; index: number }>;
     createdCount: number;
@@ -368,55 +382,36 @@ export abstract class DrizzleBatchUpsertEndpoint<
     // Get the target columns for conflict detection
     const targetColumns = upsertKeys.map((key) => this.getColumn(key));
 
-    try {
-      // PostgreSQL/SQLite style: onConflictDoUpdate with batch insert
-      const insertQuery = cast(this.getDb()).insert(table).values(records as Record<string, unknown>[]);
+    const setClause: Record<string, unknown> =
+      Object.keys(updateSet).length > 0
+        ? updateSet
+        : { [primaryKey]: sql`${this.getColumn(primaryKey)}` };
 
-      const result = await insertQuery
-        .onConflictDoUpdate({
+    const insertQuery = cast(this.getDb())
+      .insert(table)
+      .values(records as Record<string, unknown>[]);
+
+    // Dialect-driven upsert: MySQL uses `ON DUPLICATE KEY UPDATE`, every
+    // other supported dialect (sqlite, pg) uses `ON CONFLICT DO UPDATE`.
+    // Upstream driver errors bubble — no broad catch.
+    const result = await (this.dialect === 'mysql'
+      ? insertQuery.onDuplicateKeyUpdate({ set: setClause })
+      : insertQuery.onConflictDoUpdate({
           target: targetColumns,
-          set: Object.keys(updateSet).length > 0 ? updateSet : { [primaryKey]: sql`${this.getColumn(primaryKey)}` },
+          set: setClause,
         })
-        .returning();
+    ).returning();
 
-      return {
-        items: result.map((data: unknown, index: number) => ({
-          data: data as ModelObject<M['model']>,
-          created: false, // Cannot determine with native upsert
-          index,
-        })),
-        createdCount: 0, // Cannot determine with native upsert
-        updatedCount: result.length, // Assume all were updates (conservative)
-        totalCount: result.length,
-      };
-    } catch (error) {
-      // If onConflictDoUpdate fails, try MySQL style: onDuplicateKeyUpdate
-      if (error instanceof Error && error.message.includes('onConflictDoUpdate')) {
-        try {
-          const insertQuery = cast(this.getDb()).insert(table).values(records as Record<string, unknown>[]);
-          const result = await insertQuery
-            .onDuplicateKeyUpdate({
-              set: Object.keys(updateSet).length > 0 ? updateSet : { [primaryKey]: sql`${this.getColumn(primaryKey)}` },
-            })
-            .returning();
-
-          return {
-            items: result.map((data: unknown, index: number) => ({
-              data: data as ModelObject<M['model']>,
-              created: false,
-              index,
-            })),
-            createdCount: 0,
-            updatedCount: result.length,
-            totalCount: result.length,
-          };
-        } catch {
-          // Fall back to standard batch upsert if native fails
-          return this.performStandardBatchUpsert(items, tx);
-        }
-      }
-      throw error;
-    }
+    return {
+      items: result.map((data: unknown, index: number) => ({
+        data: data as ModelObject<M['model']>,
+        created: false, // Cannot determine with native upsert
+        index,
+      })),
+      createdCount: 0, // Cannot determine with native upsert
+      updatedCount: result.length, // Assume all were updates (conservative)
+      totalCount: result.length,
+    };
   }
 }
 

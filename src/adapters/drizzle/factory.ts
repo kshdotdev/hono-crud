@@ -1,7 +1,7 @@
 import type { Env } from 'hono';
 import type { MetaInput } from '../../core/types';
 import type { AdapterBundle } from '../../config/index';
-import { type DrizzleDatabaseConstraint } from './helpers';
+import { type DrizzleDatabaseConstraint, type DrizzleDialect } from './helpers';
 import {
   DrizzleCreateEndpoint,
   DrizzleReadEndpoint,
@@ -46,11 +46,31 @@ export interface DrizzleCrudClasses<M extends MetaInput, E extends Env = Env> {
 }
 
 /**
+ * Options accepted by {@link createDrizzleCrud}.
+ */
+export interface CreateDrizzleCrudOptions {
+  /**
+   * SQL dialect of the Drizzle database. Used to branch dialect-specific
+   * behavior such as native upsert syntax (`ON CONFLICT DO UPDATE` for
+   * `'sqlite'`/`'pg'` vs `ON DUPLICATE KEY UPDATE` for `'mysql'`).
+   *
+   * Defaults to `'sqlite'`, which preserves the pre-existing portable
+   * behavior for callers that don't specify a dialect.
+   *
+   * @default 'sqlite'
+   */
+  dialect?: DrizzleDialect;
+}
+
+/**
  * Creates a set of Drizzle CRUD endpoint base classes with db and meta pre-configured.
  * This is the cleanest pattern - no need to set `_meta` or `db` in your classes.
  *
  * @param db - Your Drizzle database instance
  * @param meta - The meta object (from defineMeta)
+ * @param options - Optional factory options. Pass `{ dialect: 'pg' | 'mysql' | 'sqlite' }`
+ *                  to enable dialect-specific code paths (e.g. native upsert syntax).
+ *                  Defaults to `{ dialect: 'sqlite' }`.
  * @returns Object with Create, Read, Update, Delete, List base classes
  *
  * @example
@@ -58,7 +78,7 @@ export interface DrizzleCrudClasses<M extends MetaInput, E extends Env = Env> {
  * import { createDrizzleCrud } from 'hono-crud/adapters/drizzle';
  *
  * const projectMeta = defineMeta({ model: ProjectModel, fields: projectSchemas.insert });
- * const Project = createDrizzleCrud(db, projectMeta);
+ * const Project = createDrizzleCrud(db, projectMeta, { dialect: 'pg' });
  *
  * // Now define endpoints with minimal boilerplate:
  * class ProjectCreate extends Project.Create {
@@ -74,8 +94,11 @@ export interface DrizzleCrudClasses<M extends MetaInput, E extends Env = Env> {
  */
 export function createDrizzleCrud<M extends MetaInput, E extends Env = Env>(
   db: DrizzleDatabaseConstraint,
-  meta: M
+  meta: M,
+  options?: CreateDrizzleCrudOptions
 ): DrizzleCrudClasses<M, E> {
+  const dialect: DrizzleDialect = options?.dialect ?? 'sqlite';
+
   // Use type assertion to avoid TypeScript's anonymous class protected member restriction
   return {
     Create: class extends DrizzleCreateEndpoint<E, M> {
@@ -105,6 +128,7 @@ export function createDrizzleCrud<M extends MetaInput, E extends Env = Env>(
     Upsert: class extends DrizzleUpsertEndpoint<E, M> {
       _meta = meta;
       db = db;
+      protected override dialect = dialect;
     },
     BatchCreate: class extends DrizzleBatchCreateEndpoint<E, M> {
       _meta = meta;
@@ -125,6 +149,7 @@ export function createDrizzleCrud<M extends MetaInput, E extends Env = Env>(
     BatchUpsert: class extends DrizzleBatchUpsertEndpoint<E, M> {
       _meta = meta;
       db = db;
+      protected override dialect = dialect;
     },
   } as DrizzleCrudClasses<M, E>;
 }
