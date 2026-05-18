@@ -133,6 +133,7 @@ const inventoryMeta = defineMeta({ model: InventoryModel });
 class ProductUpsert extends DrizzleUpsertEndpoint {
   _meta = productMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = {
     tags: ['Products'],
@@ -176,6 +177,7 @@ class ProductList extends DrizzleListEndpoint {
 class InventoryBatchUpsert extends DrizzleBatchUpsertEndpoint {
   _meta = inventoryMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = {
     tags: ['Inventory'],

@@ -346,6 +346,7 @@ class CategoryList extends DrizzleListEndpoint {
 class CategoryUpsert extends DrizzleUpsertEndpoint {
   _meta = categoryMeta;
   db = typedDb;
+  protected override dialect = 'pg' as const;
 
   schema = {
     tags: ['Categories'],
