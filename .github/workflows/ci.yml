@@ -51,5 +51,17 @@ jobs:
       - name: Type check
         run: pnpm -r typecheck
 
+      - name: Type check examples
+        run: pnpm run typecheck:examples
+
       - name: Unit tests
         run: pnpm run test:unit
+
+      - name: Example tests (Postgres)
+        run: pnpm run test:examples
+
+      - name: Workers tests (miniflare)
+        run: pnpm run test:workers
+
+      - name: Local consumer smoke
+        run: pnpm run example:local

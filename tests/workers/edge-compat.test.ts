@@ -98,8 +98,10 @@ describe('Edge Runtime Compatibility (Workers)', () => {
     it('should import the root package entry in a Workers isolate', async () => {
       const mod = await import('hono-crud');
       expect(mod.createCrudMiddleware).toBeTypeOf('function');
-      expect(mod.KVCacheStorage).toBeTypeOf('function');
-      expect(mod.KVRateLimitStorage).toBeTypeOf('function');
+      const { KVCacheStorage } = await import('@hono-crud/cache');
+      const { KVRateLimitStorage } = await import('@hono-crud/rate-limit');
+      expect(KVCacheStorage).toBeTypeOf('function');
+      expect(KVRateLimitStorage).toBeTypeOf('function');
     });
 
     it('should handle requests correctly', async () => {
@@ -130,20 +132,22 @@ describe('Edge Runtime Compatibility (Workers)', () => {
 
   describe('createCrudMiddleware in Workers', () => {
     it('should inject storage into Hono context', async () => {
-      const { createCrudMiddleware } = await import('hono-crud/middleware');
-      const { MemoryCacheStorage } = await import('@hono-crud/cache/storage/memory');
+      // createCrudMiddleware injects the core-owned storages (audit/versioning/
+      // logging/events). Cache/rate-limit/idempotency moved to their own
+      // packages and compose their own middleware.
+      const { createCrudMiddleware, MemoryAuditLogStorage } = await import('hono-crud');
 
-      const cache = new MemoryCacheStorage();
+      const audit = new MemoryAuditLogStorage();
       const app = new Hono<StorageEnv>();
 
-      app.use('*', createCrudMiddleware({ cache }));
+      app.use('*', createCrudMiddleware({ audit }));
       app.get('/test', (c) => {
-        return c.json({ hasCache: c.var.cacheStorage === cache });
+        return c.json({ hasAudit: c.var.auditStorage === audit });
       });
 
       const res = await app.request('/test');
       const body = await res.json();
-      expect(body).toEqual({ hasCache: true });
+      expect(body).toEqual({ hasAudit: true });
     });
   });
 });
