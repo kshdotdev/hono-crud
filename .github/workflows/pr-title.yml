@@ -12,20 +12,19 @@ jobs:
     name: Validate PR Title
     runs-on: ubuntu-latest
     steps:
-      - uses: amannn/action-semantic-pull-request@v5
+      # Conventional-Commits PR-title check, implemented inline (no third-party
+      # action). The title is read from an env var — never interpolated into the
+      # script — to avoid command injection from untrusted PR titles.
+      - name: Validate Conventional Commits title
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          types: |
-            feat
-            fix
-            perf
-            refactor
-            docs
-            style
-            test
-            build
-            ci
-            chore
-          requireScope: false
-          subjectPattern: ^.{1,100}$
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "PR title: $PR_TITLE"
+          pattern='^(feat|fix|perf|refactor|docs|style|test|build|ci|chore)(\([a-z0-9 ,._/-]+\))?!?: .{1,100}$'
+          if [[ "$PR_TITLE" =~ $pattern ]]; then
+            echo "✓ PR title follows Conventional Commits."
+          else
+            echo "::error::PR title must follow Conventional Commits, e.g. 'feat: add X' or 'fix(adapter): bug'."
+            echo "Allowed types: feat, fix, perf, refactor, docs, style, test, build, ci, chore"
+            exit 1
+          fi
