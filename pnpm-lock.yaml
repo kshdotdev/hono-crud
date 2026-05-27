@@ -99,6 +99,49 @@ importers:
         specifier: ^4.3.5
         version: 4.3.6
 
+  examples/local-consumer:
+    dependencies:
+      '@hono-crud/cache':
+        specifier: workspace:*
+        version: link:../../packages/cache
+      '@hono-crud/health':
+        specifier: workspace:*
+        version: link:../../packages/health
+      '@hono-crud/idempotency':
+        specifier: workspace:*
+        version: link:../../packages/idempotency
+      '@hono-crud/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
+      '@hono-crud/rate-limit':
+        specifier: workspace:*
+        version: link:../../packages/rate-limit
+      '@hono-crud/swagger':
+        specifier: workspace:*
+        version: link:../../packages/swagger
+      '@hono/node-server':
+        specifier: ^1.19.9
+        version: 1.19.9(hono@4.11.7)
+      hono:
+        specifier: ^4.11.4
+        version: 4.11.7
+      hono-crud:
+        specifier: workspace:*
+        version: link:../../packages/core
+      zod:
+        specifier: ^4.3.5
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.14.1
+        version: 22.19.7
+      tsx:
+        specifier: ^4.19.3
+        version: 4.21.0
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+
   packages/cache:
     dependencies:
       hono-crud:

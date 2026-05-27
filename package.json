@@ -27,11 +27,12 @@
     "prisma:studio": "prisma studio --schema=examples/prisma/schema.prisma --config=examples/prisma/prisma.config.ts",
     "db:up": "cd examples && docker compose up -d",
     "db:down": "cd examples && docker compose down",
-    "test": "pnpm run typecheck && pnpm run typecheck:examples && pnpm run test:unit && pnpm run test:examples && pnpm run test:workers",
+    "test": "pnpm -r build && pnpm -r typecheck && pnpm run typecheck:examples && pnpm run test:unit && pnpm run test:examples && pnpm run test:workers && pnpm run example:local",
     "test:unit": "vitest run --exclude 'tests/examples/**'",
     "test:examples": "pnpm run prisma:generate && pnpm run prisma:push && vitest run tests/examples",
     "test:workers": "vitest run --config vitest.config.workers.ts",
     "typecheck:examples": "pnpm run prisma:generate && tsc -p tsconfig.examples.json",
+    "example:local": "pnpm --filter hono-crud-local-consumer-example run typecheck && pnpm --filter hono-crud-local-consumer-example run test",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "pnpm -r build && changeset publish"

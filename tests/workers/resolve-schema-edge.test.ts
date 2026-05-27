@@ -61,9 +61,9 @@ describe('Per-tenant schema resolution (Workers)', () => {
       defineModel,
       defineMeta,
       buildPerTenantOpenApi,
-      KVCacheStorage,
       wrapCacheStorageForOpenApi,
     } = await import('hono-crud');
+    const { KVCacheStorage } = await import('@hono-crud/cache');
     const { MemoryCreateEndpoint } = await import('@hono-crud/memory');
 
     const Base = z.object({ id: z.string().uuid(), title: z.string() });
