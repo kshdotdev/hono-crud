@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/idempotency",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Idempotency middleware and storage backends for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
@@ -27,9 +27,19 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .tsup"
   },
-  "keywords": ["hono", "crud", "idempotency", "idempotency-key", "retries"],
+  "keywords": [
+    "hono",
+    "crud",
+    "idempotency",
+    "idempotency-key",
+    "retries"
+  ],
   "sideEffects": false,
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20.19.0"
   },
