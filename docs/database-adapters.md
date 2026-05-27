@@ -26,7 +26,7 @@ import {
   MemoryBatchDeleteEndpoint,
   MemoryBatchRestoreEndpoint,
   clearStorage,
-} from 'hono-crud/adapters/memory';
+} from '@hono-crud/memory';
 ```
 
 ### Complete Example
@@ -42,7 +42,7 @@ import {
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from 'hono-crud/adapters/memory';
+} from '@hono-crud/memory';
 
 clearStorage();
 
@@ -102,7 +102,7 @@ registerCrud(app, '/tasks', {
 ### Storage Helpers
 
 ```typescript
-import { clearStorage, getStorage } from 'hono-crud/adapters/memory';
+import { clearStorage, getStorage } from '@hono-crud/memory';
 
 // Clear all in-memory data
 clearStorage();
@@ -121,7 +121,7 @@ For production use with [Drizzle ORM](https://orm.drizzle.team). Supports Postgr
 ### Install Dependencies
 
 ```bash
-npm install drizzle-orm
+npm install @hono-crud/drizzle drizzle-orm drizzle-zod
 ```
 
 ### Schema Definition
@@ -151,7 +151,7 @@ The `createDrizzleCrud` factory pre-configures `db` and `_meta` on all endpoint 
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { createDrizzleCrud } from 'hono-crud/adapters/drizzle';
+import { createDrizzleCrud } from '@hono-crud/drizzle';
 import { db } from './db';
 import { users } from './schema';
 
@@ -226,7 +226,7 @@ import {
   DrizzleUpdateEndpoint,
   DrizzleDeleteEndpoint,
   type DrizzleDatabase,
-} from 'hono-crud/adapters/drizzle';
+} from '@hono-crud/drizzle';
 
 const typedDb = db as unknown as DrizzleDatabase;
 
@@ -242,7 +242,7 @@ class UserList extends DrizzleListEndpoint {
 
 ```typescript
 import { defineEndpoints } from 'hono-crud';
-import { DrizzleAdapters } from 'hono-crud/adapters/drizzle';
+import { DrizzleAdapters } from '@hono-crud/drizzle';
 
 const endpoints = defineEndpoints({
   meta: userMeta,
@@ -260,7 +260,7 @@ For production use with [Prisma](https://www.prisma.io).
 ### Install Dependencies
 
 ```bash
-npm install @prisma/client
+npm install @hono-crud/prisma @prisma/client pluralize fastest-levenshtein
 npx prisma init
 ```
 
@@ -296,7 +296,7 @@ import {
   PrismaUpdateEndpoint,
   PrismaDeleteEndpoint,
   PrismaListEndpoint,
-} from 'hono-crud/adapters/prisma';
+} from '@hono-crud/prisma';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -372,7 +372,7 @@ registerCrud(app, '/users', {
 Prisma uses the model name to determine the table. If your model name differs from the `tableName`, register a mapping:
 
 ```typescript
-import { registerPrismaModelMapping } from 'hono-crud/adapters/prisma';
+import { registerPrismaModelMapping } from '@hono-crud/prisma';
 
 // Map table name to Prisma model name
 registerPrismaModelMapping('users', 'User');
@@ -386,7 +386,7 @@ import {
   PrismaBatchCreateEndpoint,
   PrismaBatchUpdateEndpoint,
   PrismaBatchDeleteEndpoint,
-} from 'hono-crud/adapters/prisma';
+} from '@hono-crud/prisma';
 
 class UserBatchCreate extends PrismaBatchCreateEndpoint {
   _meta = userMeta;

@@ -12,14 +12,14 @@ import {
   setAuditStorage,
   getAuditStorage,
   calculateChanges,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // Define test schema
 const UserSchema = z.object({

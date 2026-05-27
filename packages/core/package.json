@@ -1,0 +1,116 @@
+{
+  "name": "hono-crud",
+  "version": "0.13.3",
+  "description": "CRUD generator for Hono with Zod validation and OpenAPI generation",
+  "author": "Kauan Guesser <contato@kauan.net>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kshdotdev/hono-crud.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/kshdotdev/hono-crud#readme",
+  "bugs": {
+    "url": "https://github.com/kshdotdev/hono-crud/issues"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "import": "./dist/internal.js"
+    },
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "import": "./dist/auth/index.js"
+    },
+    "./logging": {
+      "types": "./dist/logging/index.d.ts",
+      "import": "./dist/logging/index.js"
+    },
+    "./storage": {
+      "types": "./dist/storage/index.d.ts",
+      "import": "./dist/storage/index.js"
+    },
+    "./events": {
+      "types": "./dist/events/index.d.ts",
+      "import": "./dist/events/index.js"
+    },
+    "./encryption": {
+      "types": "./dist/encryption/index.d.ts",
+      "import": "./dist/encryption/index.js"
+    },
+    "./serialization": {
+      "types": "./dist/serialization/index.d.ts",
+      "import": "./dist/serialization/index.js"
+    },
+    "./api-version": {
+      "types": "./dist/api-version/index.d.ts",
+      "import": "./dist/api-version/index.js"
+    },
+    "./audit": {
+      "types": "./dist/audit/index.d.ts",
+      "import": "./dist/audit/index.js"
+    },
+    "./versioning": {
+      "types": "./dist/versioning/index.d.ts",
+      "import": "./dist/versioning/index.js"
+    },
+    "./multi-tenant": {
+      "types": "./dist/multi-tenant/index.d.ts",
+      "import": "./dist/multi-tenant/index.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/types/cloudflare.d.ts",
+      "import": "./dist/types/cloudflare.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .tsup"
+  },
+  "keywords": [
+    "hono",
+    "crud",
+    "rest-api",
+    "openapi",
+    "swagger",
+    "typescript",
+    "zod",
+    "prisma",
+    "drizzle",
+    "cloudflare-workers"
+  ],
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@hono/zod-openapi": "^1.2.0"
+  },
+  "peerDependencies": {
+    "hono": ">=4.11.7 <5",
+    "zod": ">=4.0.0"
+  },
+  "devDependencies": {
+    "hono": "^4.11.4",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3",
+    "zod": "^4.3.5"
+  }
+}

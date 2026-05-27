@@ -4,13 +4,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from '../src/index.js';
+import { fromHono, defineModel, defineMeta } from 'hono-crud';
 import {
   MemoryBatchUpsertEndpoint,
   MemoryListEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // ============================================================================
 // Schema Definitions

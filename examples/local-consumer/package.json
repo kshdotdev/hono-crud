@@ -9,8 +9,14 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.9",
+    "@hono-crud/cache": "workspace:*",
+    "@hono-crud/health": "workspace:*",
+    "@hono-crud/idempotency": "workspace:*",
+    "@hono-crud/memory": "workspace:*",
+    "@hono-crud/rate-limit": "workspace:*",
+    "@hono-crud/swagger": "workspace:*",
     "hono": "^4.11.4",
-    "hono-crud": "file:../..",
+    "hono-crud": "workspace:*",
     "zod": "^4.3.5"
   },
   "devDependencies": {

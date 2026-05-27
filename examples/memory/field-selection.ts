@@ -17,11 +17,11 @@ import { serve } from '@hono/node-server';
 import { z } from 'zod';
 import {
   fromHono,
-  setupSwaggerUI,
   defineModel,
   defineMeta,
   type ComputedFieldsConfig,
-} from '../../src/index.js';
+} from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -30,7 +30,7 @@ import {
   MemoryDeleteEndpoint,
   clearStorage,
   getStorage,
-} from '../../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // Clear storage on start
 clearStorage();

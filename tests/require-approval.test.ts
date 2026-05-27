@@ -21,7 +21,7 @@ import {
   parseIso8601Duration,
   ApiException,
   setContextVar,
-} from '../src/index.js';
+} from 'hono-crud';
 
 describe('requireApproval middleware', () => {
   let storage: MemoryApprovalStorage;

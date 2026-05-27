@@ -37,18 +37,18 @@ import {
   defineMeta,
   mapUniqueViolation,
   stripManagedInsertFields,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryImportEndpoint,
   MemoryCloneEndpoint,
   MemoryBatchCreateEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 import {
   DrizzleCloneEndpoint,
   type DrizzleDatabase,
-} from '../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 
 // ============================================================================
 // Schemas / app helpers

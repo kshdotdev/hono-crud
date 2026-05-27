@@ -14,7 +14,7 @@ import {
   ZodIssueSchema,
   ZodErrorSchema,
   HttpErrorSchema,
-} from '../src/openapi/utils.js';
+} from 'hono-crud/openapi/utils';
 
 // ============================================================================
 // jsonContent() Tests

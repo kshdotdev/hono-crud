@@ -22,7 +22,7 @@ import {
   setContextVar,
   type ModelPolicies,
   type FilterCondition,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryListEndpoint,
@@ -31,7 +31,7 @@ import {
   MemoryDeleteEndpoint,
   clearStorage,
   getStore,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // ============================================================================
 // Fixture

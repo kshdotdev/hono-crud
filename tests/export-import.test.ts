@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { fromHono, registerCrud } from '../src/index.js';
+import { fromHono, registerCrud } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryListEndpoint,
   MemoryExportEndpoint,
   MemoryImportEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 import {
   generateCsv,
   parseCsv,
@@ -17,8 +17,8 @@ import {
   validateCsvHeaders,
   csvToJson,
   jsonToCsv,
-} from '../src/utils/csv.js';
-import type { MetaInput, Model } from '../src/index.js';
+} from 'hono-crud/utils/csv';
+import type { MetaInput, Model } from 'hono-crud';
 
 // Define test schema
 const UserSchema = z.object({

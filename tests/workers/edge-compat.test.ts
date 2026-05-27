@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { StorageEnv } from '../../src/storage/types';
+import type { StorageEnv } from 'hono-crud/storage/types';
 
 describe('Edge Runtime Compatibility (Workers)', () => {
   describe('Web Crypto API', () => {
@@ -75,7 +75,7 @@ describe('Edge Runtime Compatibility (Workers)', () => {
   describe('Memory storage in Worker isolate', () => {
     it('should work with MemoryCacheStorage', async () => {
       // Dynamic import to prove it loads in Workers
-      const { MemoryCacheStorage } = await import('../../src/cache/storage/memory');
+      const { MemoryCacheStorage } = await import('@hono-crud/cache/storage/memory');
 
       const cache = new MemoryCacheStorage({ maxSize: 100, defaultTtl: 60 });
       await cache.set('k', { value: 42 });
@@ -86,7 +86,7 @@ describe('Edge Runtime Compatibility (Workers)', () => {
     });
 
     it('should work with MemoryRateLimitStorage', async () => {
-      const { MemoryRateLimitStorage } = await import('../../src/rate-limit/storage/memory');
+      const { MemoryRateLimitStorage } = await import('@hono-crud/rate-limit/storage/memory');
 
       const rl = new MemoryRateLimitStorage();
       const result = await rl.increment('test-key', 60_000);
@@ -96,7 +96,7 @@ describe('Edge Runtime Compatibility (Workers)', () => {
 
   describe('Hono app in Workers', () => {
     it('should import the root package entry in a Workers isolate', async () => {
-      const mod = await import('../../src/index');
+      const mod = await import('hono-crud');
       expect(mod.createCrudMiddleware).toBeTypeOf('function');
       expect(mod.KVCacheStorage).toBeTypeOf('function');
       expect(mod.KVRateLimitStorage).toBeTypeOf('function');
@@ -130,8 +130,8 @@ describe('Edge Runtime Compatibility (Workers)', () => {
 
   describe('createCrudMiddleware in Workers', () => {
     it('should inject storage into Hono context', async () => {
-      const { createCrudMiddleware } = await import('../../src/middleware');
-      const { MemoryCacheStorage } = await import('../../src/cache/storage/memory');
+      const { createCrudMiddleware } = await import('hono-crud/middleware');
+      const { MemoryCacheStorage } = await import('@hono-crud/cache/storage/memory');
 
       const cache = new MemoryCacheStorage();
       const app = new Hono<StorageEnv>();

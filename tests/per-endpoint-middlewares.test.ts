@@ -12,20 +12,25 @@
  * so this is purely additive — no other surface changes.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   fromHono,
   registerCrud,
   defineEndpoints,
-  MemoryAdapters,
   defineMeta,
   defineModel,
   requireApproval,
   MemoryApprovalStorage,
-} from '../src/index.js';
-import { clearStorage } from '../src/adapters/memory/index.js';
+  } from 'hono-crud';
+import { clearStorage,
+  MemoryAdapters,
+} from '@hono-crud/memory';
 
 const WidgetSchema = z.object({
   id: z.string(),

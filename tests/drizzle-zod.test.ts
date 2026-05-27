@@ -7,7 +7,7 @@ import {
   createUpdateSchema,
   createDrizzleSchemas,
   isDrizzleZodAvailable,
-} from '../src/adapters/drizzle/schema-utils.js';
+} from '@hono-crud/drizzle/schema-utils';
 
 // ============================================================================
 // Test Table Definitions
@@ -383,7 +383,7 @@ describe('Type inference', () => {
 
 describe('Drizzle adapter exports', () => {
   it('should export schema utilities from adapter index', async () => {
-    const exports = await import('../src/adapters/drizzle/index.js');
+    const exports = await import('@hono-crud/drizzle');
 
     expect(exports.createSelectSchema).toBeDefined();
     expect(exports.createInsertSchema).toBeDefined();
@@ -394,7 +394,7 @@ describe('Drizzle adapter exports', () => {
 
   it('should export DrizzleSchemas type', async () => {
     // This is a compile-time check
-    const schemaType: import('../src/adapters/drizzle/schema-utils.js').DrizzleSchemas | null =
+    const schemaType: import('@hono-crud/drizzle/schema-utils').DrizzleSchemas | null =
       null;
     expect(schemaType).toBeNull();
   });

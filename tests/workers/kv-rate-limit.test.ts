@@ -8,8 +8,8 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
-import { KVRateLimitStorage } from '../../src/rate-limit/storage/cloudflare-kv';
-import type { KVNamespace } from '../../src/shared/kv-types';
+import { KVRateLimitStorage } from '@hono-crud/rate-limit/storage/cloudflare-kv';
+import type { KVNamespace } from 'hono-crud/shared/kv-types';
 
 class SameKeyWriteLimitedKV implements KVNamespace {
   private values = new Map<string, string>();

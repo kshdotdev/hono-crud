@@ -18,15 +18,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { Hono } from 'hono';
-import { defineModel } from '../src/index.js';
-import type { ListFilters } from '../src/endpoints/types.js';
-import type { SearchOptions, SearchResult } from '../src/core/types.js';
-import { SearchEndpoint } from '../src/endpoints/search.js';
+import { defineModel } from 'hono-crud';
+import type { ListFilters } from 'hono-crud/endpoints/types';
+import type { SearchOptions, SearchResult } from 'hono-crud/core/types';
+import { SearchEndpoint } from 'hono-crud/endpoints/search';
 import {
   MemorySearchEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // ============================================================================
 // Fix 1: Zod 4 searchable-field auto-detection

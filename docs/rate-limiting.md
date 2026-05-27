@@ -1,6 +1,8 @@
 # Rate Limiting
 
-hono-crud provides rate limiting middleware with fixed-window and sliding-window algorithms, tier-based limits, and Memory/Redis storage.
+Rate limiting lives in the `@hono-crud/rate-limit` package. It provides middleware with fixed-window and sliding-window algorithms, tier-based limits, and Memory/Redis storage.
+
+Install: `npm install @hono-crud/rate-limit`.
 
 ---
 
@@ -11,7 +13,7 @@ import {
   createRateLimitMiddleware,
   setRateLimitStorage,
   MemoryRateLimitStorage,
-} from 'hono-crud';
+} from '@hono-crud/rate-limit';
 
 // Set storage (required before middleware runs)
 setRateLimitStorage(new MemoryRateLimitStorage());
@@ -20,7 +22,7 @@ setRateLimitStorage(new MemoryRateLimitStorage());
 ### Redis Storage
 
 ```typescript
-import { RedisRateLimitStorage, setRateLimitStorage } from 'hono-crud/rate-limit';
+import { RedisRateLimitStorage, setRateLimitStorage } from '@hono-crud/rate-limit';
 
 setRateLimitStorage(new RedisRateLimitStorage({
   client: redisClient,
@@ -30,12 +32,15 @@ setRateLimitStorage(new RedisRateLimitStorage({
 
 ### Context-scoped Storage
 
-```typescript
-import { createRateLimitStorageMiddleware } from 'hono-crud/storage';
+For multi-tenant or per-request storage, set the storage inside a middleware:
 
-app.use('*', createRateLimitStorageMiddleware(() => {
-  return new MemoryRateLimitStorage();
-}));
+```typescript
+import { setRateLimitStorage, MemoryRateLimitStorage } from '@hono-crud/rate-limit';
+
+app.use('*', async (c, next) => {
+  setRateLimitStorage(new MemoryRateLimitStorage());
+  await next();
+});
 ```
 
 ---
@@ -167,7 +172,7 @@ app.use('/api/*', createRateLimitMiddleware({
 ## Reset Rate Limit
 
 ```typescript
-import { resetRateLimit } from 'hono-crud';
+import { resetRateLimit } from '@hono-crud/rate-limit';
 
 // Reset a specific key (e.g., after successful verification)
 await resetRateLimit('rl:/api/login:192.168.1.1');

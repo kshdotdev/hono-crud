@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { fromHono, registerCrud } from '../src/index.js';
+import { fromHono, registerCrud } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -10,13 +10,13 @@ import {
   MemoryListEndpoint,
   MemoryCloneEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
-import type { MetaInput, Model } from '../src/index.js';
-import { encodeCursor, decodeCursor } from '../src/core/types.js';
-import { generateETag, matchesIfNoneMatch, matchesIfMatch } from '../src/core/etag.js';
-import { CrudEventEmitter } from '../src/events/emitter.js';
-import { MemoryIdempotencyStorage } from '../src/idempotency/storage/memory.js';
-import { idempotency } from '../src/idempotency/middleware.js';
+} from '@hono-crud/memory';
+import type { MetaInput, Model } from 'hono-crud';
+import { encodeCursor, decodeCursor } from 'hono-crud/core/types';
+import { generateETag, matchesIfNoneMatch, matchesIfMatch } from 'hono-crud/core/etag';
+import { CrudEventEmitter } from 'hono-crud/events/emitter';
+import { MemoryIdempotencyStorage } from '@hono-crud/idempotency/storage/memory';
+import { idempotency } from '@hono-crud/idempotency/middleware';
 
 // ============================================================================
 // Test Schema

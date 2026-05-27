@@ -35,7 +35,7 @@ import {
   registerCrud,
   type ErrorMapper,
   type ResponseEnvelope,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
@@ -44,7 +44,7 @@ import {
   MemoryUpdateEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // ============================================================================
 // Fixture: a tiny Widget model + endpoints reused across cases

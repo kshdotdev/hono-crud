@@ -5,7 +5,7 @@ import {
   getApiVersion,
   getApiVersionConfig,
   versionedResponse,
-} from '../src/api-version/index';
+} from 'hono-crud/api-version';
 
 describe('API Versioning', () => {
   describe('header strategy', () => {

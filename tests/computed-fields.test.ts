@@ -9,7 +9,7 @@ import {
   type ComputedFieldsConfig,
   applyComputedFields,
   applyComputedFieldsToArray,
-} from '../src/index.js';
+} from 'hono-crud';
 
 // ============================================================================
 // Test Data

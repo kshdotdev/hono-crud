@@ -12,12 +12,12 @@ import {
   generateHighlights,
   parseSearchFields,
   buildSearchConfig,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemorySearchEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // Define test schema
 const ArticleSchema = z.object({

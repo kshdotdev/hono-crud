@@ -19,12 +19,13 @@
 
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { fromHono, setupSwaggerUI, defineModel, defineMeta } from '../../src/index.js';
+import { fromHono, defineModel, defineMeta } from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   PrismaUpsertEndpoint,
   PrismaBatchUpsertEndpoint,
   PrismaListEndpoint,
-} from '../../src/adapters/prisma/index.js';
+} from '@hono-crud/prisma';
 import { CategorySchema } from '../shared/schemas.js';
 import { prisma, initDb, clearDb } from './db.js';
 

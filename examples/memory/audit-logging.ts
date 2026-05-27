@@ -15,14 +15,14 @@ import {
   getAuditStorage,
   type AuditLogStorage,
   type AuditLogEntry,
-} from '../../src/index.js';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
   MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
-} from '../../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 type AppEnv = {
   Variables: {

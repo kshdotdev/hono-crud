@@ -12,7 +12,7 @@ import {
   setVersioningStorage,
   getVersioningStorage,
   getVersioningConfig,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryUpdateEndpoint,
@@ -22,7 +22,7 @@ import {
   MemoryVersionRollbackEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // Define test schema with versioning
 const DocumentSchema = z.object({

@@ -24,14 +24,14 @@ import {
   ApiException,
   type AuthEnv,
   type JWTClaims,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
-import type { MetaInput, Model } from '../src/index.js';
+} from '@hono-crud/memory';
+import type { MetaInput, Model } from 'hono-crud';
 
 /**
  * Creates a Hono app with error handling for ApiException.

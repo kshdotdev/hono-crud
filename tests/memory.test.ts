@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { fromHono, registerCrud } from '../src/index.js';
+import { fromHono, registerCrud } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -9,8 +9,8 @@ import {
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
-import type { MetaInput, Model } from '../src/index.js';
+} from '@hono-crud/memory';
+import type { MetaInput, Model } from 'hono-crud';
 
 // Define test schema
 const TestSchema = z.object({

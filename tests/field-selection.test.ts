@@ -8,7 +8,7 @@ import {
   applyFieldSelectionToArray,
   type FieldSelection,
   type FieldSelectionConfig,
-} from '../src/index.js';
+} from 'hono-crud';
 
 // ============================================================================
 // Test Data

@@ -1,12 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { MemoryAdapters } from '@hono-crud/memory';
+import {
+  describe,
+  it,
+  expect } from 'vitest';
 import { z } from 'zod';
 import {
   defineEndpoints,
-  MemoryAdapters,
   defineMeta,
   defineModel,
   toOpenApiPaths,
-} from '../src/index.js';
+} from 'hono-crud';
 
 // ============================================================================
 // Fixtures

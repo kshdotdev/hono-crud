@@ -1,4 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi } from 'vitest';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
@@ -13,7 +19,7 @@ import {
   getCacheStorage,
   withCache,
   withCacheInvalidation,
-} from '../src/cache/index.js';
+} from '@hono-crud/cache';
 import {
   MemoryReadEndpoint,
   MemoryListEndpoint,
@@ -21,10 +27,12 @@ import {
   MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
-import { fromHono, registerCrud } from '../src/index.js';
-import type { MetaInput, Model } from '../src/index.js';
-import type { RedisClient } from '../src/cache/index.js';
+} from '@hono-crud/memory';
+import { fromHono,
+  registerCrud,
+} from 'hono-crud';
+import type { MetaInput, Model } from 'hono-crud';
+import type { RedisClient } from '@hono-crud/cache';
 
 // Define test schema
 const UserSchema = z.object({

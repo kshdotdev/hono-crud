@@ -23,7 +23,7 @@ import {
   type LogEntry,
   type LoggingStorage,
   type LogLevel,
-} from '../src/index.js';
+} from 'hono-crud';
 
 // ============================================================================
 // Utility Function Tests

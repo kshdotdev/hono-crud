@@ -19,12 +19,12 @@ import {
   defineMeta,
   multiTenant,
   buildPerTenantOpenApi,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // ============================================================================
 // Test fixtures

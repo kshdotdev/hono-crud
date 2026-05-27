@@ -19,23 +19,24 @@ import { z } from 'zod';
 import {
   fromHono,
   registerCrud,
-  setupSwaggerUI,
   defineModel,
   defineMeta,
-  // Rate limiting exports
+  type AuthEnv,
+} from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import {
   createRateLimitMiddleware,
   setRateLimitStorage,
   MemoryRateLimitStorage,
   RateLimitExceededException,
   type RateLimitEnv,
-  type AuthEnv,
-} from '../../src/index.js';
+} from '@hono-crud/rate-limit';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // Clear storage on start
 clearStorage();

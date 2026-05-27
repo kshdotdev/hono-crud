@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../examples/memory/alternative-apis';
-import { clearStorage } from '../../src/adapters/memory/index.js';
+import { clearStorage } from '@hono-crud/memory';
 import { expectOk, json, type ListResponse, type SuccessResponse } from './harness';
 
 type User = {

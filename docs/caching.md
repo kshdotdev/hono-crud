@@ -1,13 +1,15 @@
 # Caching
 
-hono-crud provides response caching via mixins (`withCache`, `withCacheInvalidation`) and supports Memory and Redis storage backends.
+Caching lives in the `@hono-crud/cache` package. It provides response caching via mixins (`withCache`, `withCacheInvalidation`) and supports Memory and Redis storage backends.
+
+Install: `npm install @hono-crud/cache`.
 
 ---
 
 ## Setup
 
 ```typescript
-import { setCacheStorage, MemoryCacheStorage } from 'hono-crud';
+import { setCacheStorage, MemoryCacheStorage } from '@hono-crud/cache';
 
 // Use in-memory cache (default if not set)
 setCacheStorage(new MemoryCacheStorage());
@@ -16,7 +18,7 @@ setCacheStorage(new MemoryCacheStorage());
 ### Redis Storage
 
 ```typescript
-import { RedisCacheStorage, setCacheStorage } from 'hono-crud/cache';
+import { RedisCacheStorage, setCacheStorage } from '@hono-crud/cache';
 
 setCacheStorage(new RedisCacheStorage({
   client: redisClient,     // Any Redis client with get/set/del/keys
@@ -26,14 +28,15 @@ setCacheStorage(new RedisCacheStorage({
 
 ### Context-scoped Storage
 
-For multi-tenant or per-request storage:
+For multi-tenant or per-request storage, set the storage inside a middleware:
 
 ```typescript
-import { createCacheStorageMiddleware } from 'hono-crud/storage';
+import { setCacheStorage, MemoryCacheStorage } from '@hono-crud/cache';
 
-app.use('*', createCacheStorageMiddleware(() => {
-  return new MemoryCacheStorage();
-}));
+app.use('*', async (c, next) => {
+  setCacheStorage(new MemoryCacheStorage());
+  await next();
+});
 ```
 
 ---
@@ -43,8 +46,8 @@ app.use('*', createCacheStorageMiddleware(() => {
 Add caching to read/list endpoints:
 
 ```typescript
-import { withCache } from 'hono-crud';
-import { MemoryReadEndpoint, MemoryListEndpoint } from 'hono-crud/adapters/memory';
+import { withCache } from '@hono-crud/cache';
+import { MemoryReadEndpoint, MemoryListEndpoint } from '@hono-crud/memory';
 
 class UserRead extends withCache(MemoryReadEndpoint) {
   _meta = userMeta;
@@ -107,7 +110,8 @@ class UserRead extends withCache(MemoryReadEndpoint) {
 Automatically invalidate caches after mutations:
 
 ```typescript
-import { withCacheInvalidation } from 'hono-crud';
+import { withCacheInvalidation } from '@hono-crud/cache';
+import { MemoryUpdateEndpoint, MemoryDeleteEndpoint } from '@hono-crud/memory';
 
 class UserUpdate extends withCacheInvalidation(MemoryUpdateEndpoint) {
   _meta = userMeta;

@@ -21,14 +21,14 @@ import {
   defineModel,
   defineMeta,
   type DrizzleDialect,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   createDrizzleCrud,
   DrizzleUpsertEndpoint,
   DrizzleBatchUpsertEndpoint,
   type DrizzleDatabase,
-} from '../src/adapters/drizzle/index.js';
-import { substringMatch } from '../src/adapters/drizzle/advanced.js';
+} from '@hono-crud/drizzle';
+import { substringMatch } from '@hono-crud/drizzle/advanced';
 import { sql } from 'drizzle-orm';
 
 // ============================================================================

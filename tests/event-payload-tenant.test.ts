@@ -18,11 +18,11 @@ import {
   CrudEventEmitter,
   setContextVar,
   type CrudEventPayload,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   clearStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 const TENANT = 'tenant-payload-test';
 const ORG = 'org-payload-test';
