@@ -31,7 +31,7 @@ import {
   causeChain,
   rethrowAsConstraintError,
   ConflictException,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   DrizzleCreateEndpoint,
   DrizzleBatchCreateEndpoint,
@@ -39,7 +39,7 @@ import {
   DrizzleBatchUpsertEndpoint,
   DrizzleImportEndpoint,
   type DrizzleDatabase,
-} from '../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 
 // ============================================================================
 // Shared drizzle/libsql fixture — a table with a non-PK UNIQUE column.

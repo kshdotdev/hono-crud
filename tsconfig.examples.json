@@ -2,14 +2,27 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
+    "baseUrl": ".",
     "types": ["node", "@cloudflare/workers-types"],
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "hono-crud": ["packages/core/src/index.ts"],
+      "hono-crud/*": ["packages/core/src/*"],
+      "@hono-crud/memory": ["packages/memory/src/index.ts"],
+      "@hono-crud/drizzle": ["packages/drizzle/src/index.ts"],
+      "@hono-crud/prisma": ["packages/prisma/src/index.ts"],
+      "@hono-crud/swagger": ["packages/swagger/src/index.ts"],
+      "@hono-crud/scalar": ["packages/scalar/src/index.ts"],
+      "@hono-crud/cache": ["packages/cache/src/index.ts"],
+      "@hono-crud/rate-limit": ["packages/rate-limit/src/index.ts"],
+      "@hono-crud/idempotency": ["packages/idempotency/src/index.ts"],
+      "@hono-crud/health": ["packages/health/src/index.ts"]
+    }
   },
   "include": [
-    "examples/**/*.ts",
-    "src/**/*.ts"
+    "examples/**/*.ts"
   ],
   "exclude": [
     "node_modules",

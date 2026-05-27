@@ -13,7 +13,7 @@ import {
   defineModel,
   fromHono,
   registerCrud,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   DrizzleCreateEndpoint,
   DrizzleReadEndpoint,
@@ -27,7 +27,7 @@ import {
   DrizzleAggregateEndpoint,
   DrizzleCloneEndpoint,
   type DrizzleDatabase,
-} from '../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 
 // ============================================================================
 // Database Setup

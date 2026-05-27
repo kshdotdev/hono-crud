@@ -1,159 +1,48 @@
 {
-  "name": "hono-crud",
-  "version": "0.13.3",
-  "description": "CRUD generator for Hono with Zod validation and OpenAPI generation",
+  "name": "hono-crud-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo for hono-crud and @hono-crud/* packages",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kshdotdev/hono-crud.git"
   },
-  "homepage": "https://github.com/kshdotdev/hono-crud#readme",
-  "bugs": {
-    "url": "https://github.com/kshdotdev/hono-crud/issues"
-  },
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./adapters/memory": {
-      "types": "./dist/adapters/memory/index.d.ts",
-      "import": "./dist/adapters/memory/index.js"
-    },
-    "./adapters/drizzle": {
-      "types": "./dist/adapters/drizzle/index.d.ts",
-      "import": "./dist/adapters/drizzle/index.js"
-    },
-    "./adapters/prisma": {
-      "types": "./dist/adapters/prisma/index.d.ts",
-      "import": "./dist/adapters/prisma/index.js"
-    },
-    "./auth": {
-      "types": "./dist/auth/index.d.ts",
-      "import": "./dist/auth/index.js"
-    },
-    "./cache": {
-      "types": "./dist/cache/index.d.ts",
-      "import": "./dist/cache/index.js"
-    },
-    "./rate-limit": {
-      "types": "./dist/rate-limit/index.d.ts",
-      "import": "./dist/rate-limit/index.js"
-    },
-    "./logging": {
-      "types": "./dist/logging/index.d.ts",
-      "import": "./dist/logging/index.js"
-    },
-    "./storage": {
-      "types": "./dist/storage/index.d.ts",
-      "import": "./dist/storage/index.js"
-    },
-    "./events": {
-      "types": "./dist/events/index.d.ts",
-      "import": "./dist/events/index.js"
-    },
-    "./idempotency": {
-      "types": "./dist/idempotency/index.d.ts",
-      "import": "./dist/idempotency/index.js"
-    },
-    "./health": {
-      "types": "./dist/health/index.d.ts",
-      "import": "./dist/health/index.js"
-    },
-    "./encryption": {
-      "types": "./dist/encryption/index.d.ts",
-      "import": "./dist/encryption/index.js"
-    },
-    "./serialization": {
-      "types": "./dist/serialization/index.d.ts",
-      "import": "./dist/serialization/index.js"
-    },
-    "./api-version": {
-      "types": "./dist/api-version/index.d.ts",
-      "import": "./dist/api-version/index.js"
-    },
-    "./audit": {
-      "types": "./dist/audit/index.d.ts",
-      "import": "./dist/audit/index.js"
-    },
-    "./versioning": {
-      "types": "./dist/versioning/index.d.ts",
-      "import": "./dist/versioning/index.js"
-    },
-    "./multi-tenant": {
-      "types": "./dist/multi-tenant/index.d.ts",
-      "import": "./dist/multi-tenant/index.js"
-    },
-    "./ui": {
-      "types": "./dist/ui.d.ts",
-      "import": "./dist/ui.js"
-    },
-    "./cloudflare": {
-      "types": "./dist/types/cloudflare.d.ts",
-      "import": "./dist/types/cloudflare.js"
-    }
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.19.0"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean",
     "dev": "tsx watch examples/memory/basic-crud.ts",
     "dev:drizzle": "tsx watch examples/drizzle/comprehensive.ts",
     "dev:prisma": "tsx watch examples/prisma/comprehensive.ts",
     "dev:memory": "tsx watch examples/memory/comprehensive.ts",
-    "example:local:install": "pnpm --dir examples/local-consumer install --lockfile=false",
-    "example:local:dev": "pnpm run build && pnpm run example:local:install && pnpm --dir examples/local-consumer dev",
-    "example:local:test": "pnpm run build && pnpm run example:local:install && pnpm --dir examples/local-consumer test",
-    "example:local:typecheck": "pnpm run build && pnpm run example:local:install && pnpm --dir examples/local-consumer typecheck",
     "prisma:generate": "prisma generate --schema=examples/prisma/schema.prisma --config=examples/prisma/prisma.config.ts",
     "prisma:push": "prisma db push --schema=examples/prisma/schema.prisma --config=examples/prisma/prisma.config.ts",
     "prisma:studio": "prisma studio --schema=examples/prisma/schema.prisma --config=examples/prisma/prisma.config.ts",
     "db:up": "cd examples && docker compose up -d",
     "db:down": "cd examples && docker compose down",
-    "test": "pnpm run typecheck && pnpm run typecheck:examples && pnpm run test:unit && pnpm run test:package-example && pnpm run test:examples && pnpm run test:workers",
+    "test": "pnpm run typecheck && pnpm run typecheck:examples && pnpm run test:unit && pnpm run test:examples && pnpm run test:workers",
     "test:unit": "vitest run --exclude 'tests/examples/**'",
-    "test:package-example": "pnpm run build && pnpm run example:local:install && pnpm --dir examples/local-consumer typecheck && pnpm --dir examples/local-consumer test",
     "test:examples": "pnpm run prisma:generate && pnpm run prisma:push && vitest run tests/examples",
     "test:workers": "vitest run --config vitest.config.workers.ts",
-    "typecheck": "tsc --noEmit",
     "typecheck:examples": "pnpm run prisma:generate && tsc -p tsconfig.examples.json",
-    "prepare": "tsup",
-    "prepublishOnly": "pnpm test"
-  },
-  "keywords": [
-    "hono",
-    "crud",
-    "rest-api",
-    "openapi",
-    "swagger",
-    "typescript",
-    "zod",
-    "prisma",
-    "drizzle",
-    "cloudflare-workers"
-  ],
-  "sideEffects": false,
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
-  ],
-  "engines": {
-    "node": ">=20.19.0"
-  },
-  "packageManager": "pnpm@9.15.0",
-  "dependencies": {
-    "@hono/swagger-ui": "^0.5.3",
-    "@hono/zod-openapi": "^1.2.0",
-    "@scalar/hono-api-reference": "^0.9.19"
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "pnpm -r build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.27.0",
     "@cloudflare/vitest-pool-workers": "^0.12.21",
     "@cloudflare/workers-types": "^4.20260426.1",
     "@hono/node-server": "^1.19.9",
+    "@hono/zod-openapi": "^1.2.0",
+    "@prisma/adapter-pg": "^7.2.0",
     "@libsql/client": "^0.15.4",
     "@prisma/client": "^7.2.0",
     "@types/node": "^22.14.1",
@@ -162,42 +51,21 @@
     "drizzle-orm": "^0.45.1",
     "drizzle-zod": "^0.8.3",
     "hono": "^4.11.4",
+    "hono-crud": "workspace:*",
+    "@hono-crud/memory": "workspace:*",
+    "@hono-crud/drizzle": "workspace:*",
+    "@hono-crud/prisma": "workspace:*",
+    "@hono-crud/swagger": "workspace:*",
+    "@hono-crud/scalar": "workspace:*",
+    "@hono-crud/cache": "workspace:*",
+    "@hono-crud/rate-limit": "workspace:*",
+    "@hono-crud/idempotency": "workspace:*",
+    "@hono-crud/health": "workspace:*",
     "pg": "^8.17.2",
     "prisma": "^7.2.0",
-    "tsup": "^8.4.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",
     "vitest": "^3.1.1",
     "zod": "^4.3.5"
-  },
-  "peerDependencies": {
-    "@prisma/adapter-pg": ">=5.0.0",
-    "@prisma/client": ">=5.0.0",
-    "drizzle-orm": ">=0.30.0",
-    "drizzle-zod": ">=0.8.0",
-    "fastest-levenshtein": ">=1.0.0",
-    "hono": ">=4.11.7 <5",
-    "pluralize": ">=8.0.0",
-    "zod": ">=4.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@prisma/adapter-pg": {
-      "optional": true
-    },
-    "@prisma/client": {
-      "optional": true
-    },
-    "drizzle-orm": {
-      "optional": true
-    },
-    "drizzle-zod": {
-      "optional": true
-    },
-    "fastest-levenshtein": {
-      "optional": true
-    },
-    "pluralize": {
-      "optional": true
-    }
   }
 }

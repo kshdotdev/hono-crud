@@ -22,25 +22,45 @@ Type-safe CRUD generator for [Hono](https://hono.dev) with Zod validation and au
 
 ## Installation
 
+Install the core package plus the adapter you need (and Swagger UI, if you want docs):
+
 ```bash
-npm install hono-crud hono zod
+npm install hono-crud @hono-crud/memory @hono-crud/swagger hono zod
 ```
 
 Peer dependencies: `hono >= 4.0.0` and `zod >= 4.0.0` are required.
+
+## Packages
+
+`hono-crud` is published as a small core plus focused add-on packages, so you only install what you use:
+
+| Package | Purpose |
+|---|---|
+| `hono-crud` | Core: `defineModel`, `registerCrud`, `fromHono`, endpoint classes, auth, logging, events, encryption, serialization, audit, versioning, multi-tenant, api-version |
+| `@hono-crud/memory` | In-memory CRUD adapter (tests, demos) |
+| `@hono-crud/drizzle` | Drizzle ORM CRUD adapter |
+| `@hono-crud/prisma` | Prisma CRUD adapter |
+| `@hono-crud/swagger` | Swagger UI + ReDoc documentation endpoints |
+| `@hono-crud/scalar` | Scalar API reference documentation endpoint |
+| `@hono-crud/cache` | Caching mixins and storage backends |
+| `@hono-crud/rate-limit` | Rate limiting middleware and storage backends |
+| `@hono-crud/idempotency` | Idempotency middleware and storage backends |
+| `@hono-crud/health` | Health check endpoints |
 
 ## Quick Start
 
 ```typescript
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { fromHono, registerCrud, setupSwaggerUI, defineModel, defineMeta } from 'hono-crud';
+import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
   MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
-} from 'hono-crud/adapters/memory';
+} from '@hono-crud/memory';
 
 // 1. Define your schema
 const UserSchema = z.object({
@@ -131,7 +151,8 @@ hono-crud supports four ways to define endpoints. All produce classes compatible
 | **Config-based** | Declarative, all-in-one | `defineEndpoints({ meta, list: { ... } }, MemoryAdapters)` |
 
 ```typescript
-import { createList, crud, defineEndpoints, MemoryAdapters } from 'hono-crud';
+import { createList, crud, defineEndpoints } from 'hono-crud';
+import { MemoryAdapters } from '@hono-crud/memory';
 
 // Functional
 const UserList = createList(
@@ -166,18 +187,18 @@ See [docs/alternative-api-patterns.md](./docs/alternative-api-patterns.md) for t
 
 ### Memory
 
-Zero-config, perfect for prototyping and tests:
+Zero-config, perfect for prototyping and tests (`npm install @hono-crud/memory`):
 
 ```typescript
-import { MemoryCreateEndpoint, MemoryListEndpoint /* ... */ } from 'hono-crud/adapters/memory';
+import { MemoryCreateEndpoint, MemoryListEndpoint /* ... */ } from '@hono-crud/memory';
 ```
 
 ### Drizzle
 
-Use `createDrizzleCrud` for minimal boilerplate:
+`npm install @hono-crud/drizzle drizzle-orm drizzle-zod`. Use `createDrizzleCrud` for minimal boilerplate:
 
 ```typescript
-import { createDrizzleCrud } from 'hono-crud/adapters/drizzle';
+import { createDrizzleCrud } from '@hono-crud/drizzle';
 import { db } from './db';
 
 const User = createDrizzleCrud(db, userMeta);
@@ -195,7 +216,7 @@ class UserList extends User.List {
 Or set `db` directly on each endpoint class:
 
 ```typescript
-import { DrizzleListEndpoint } from 'hono-crud/adapters/drizzle';
+import { DrizzleListEndpoint } from '@hono-crud/drizzle';
 
 class UserList extends DrizzleListEndpoint {
   _meta = userMeta;
@@ -206,8 +227,10 @@ class UserList extends DrizzleListEndpoint {
 
 ### Prisma
 
+`npm install @hono-crud/prisma @prisma/client pluralize fastest-levenshtein`:
+
 ```typescript
-import { PrismaListEndpoint } from 'hono-crud/adapters/prisma';
+import { PrismaListEndpoint } from '@hono-crud/prisma';
 
 class UserList extends PrismaListEndpoint {
   _meta = userMeta;
@@ -253,7 +276,8 @@ See [docs/authentication.md](./docs/authentication.md) for JWT, API Key, guards,
 ### Caching
 
 ```typescript
-import { withCache, withCacheInvalidation, setCacheStorage, MemoryCacheStorage } from 'hono-crud';
+import { withCache, withCacheInvalidation, setCacheStorage, MemoryCacheStorage } from '@hono-crud/cache';
+import { MemoryReadEndpoint } from '@hono-crud/memory';
 
 class UserRead extends withCache(MemoryReadEndpoint) {
   _meta = userMeta;
@@ -266,7 +290,7 @@ See [docs/caching.md](./docs/caching.md).
 ### Rate Limiting
 
 ```typescript
-import { createRateLimitMiddleware, setRateLimitStorage, MemoryRateLimitStorage } from 'hono-crud';
+import { createRateLimitMiddleware, setRateLimitStorage, MemoryRateLimitStorage } from '@hono-crud/rate-limit';
 
 setRateLimitStorage(new MemoryRateLimitStorage());
 
@@ -384,26 +408,34 @@ See [docs/advanced-features.md](./docs/advanced-features.md) for examples of eve
 
 ### Subpath Imports
 
-Every advanced feature is also exposed as a tree-shakeable subpath, so apps that only need one feature can import it directly without pulling in the rest of the library:
+Several core features are also exposed as tree-shakeable subpaths, so apps that only need one feature can import it directly without pulling in the rest of the library:
 
 ```typescript
 import { multiTenant } from 'hono-crud/multi-tenant';
 import { createAuditLogger, MemoryAuditLogStorage } from 'hono-crud/audit';
 import { VersionManager, MemoryVersioningStorage } from 'hono-crud/versioning';
 import { CrudEventEmitter, registerWebhooks } from 'hono-crud/events';
-import { idempotency, MemoryIdempotencyStorage } from 'hono-crud/idempotency';
-import { createHealthEndpoints } from 'hono-crud/health';
 import { encryptFields, decryptFields, StaticKeyProvider } from 'hono-crud/encryption';
 import { applyProfile, type SerializationProfile } from 'hono-crud/serialization';
 import { apiVersion, getApiVersion } from 'hono-crud/api-version';
 ```
 
-The same symbols remain available from `'hono-crud'` for convenience.
+These symbols also remain available from the `'hono-crud'` barrel for convenience.
+
+Idempotency and health checks ship as their own packages:
+
+```typescript
+import { idempotency, MemoryIdempotencyStorage } from '@hono-crud/idempotency';
+import { createHealthEndpoints } from '@hono-crud/health';
+```
 
 ## API Documentation
 
+`npm install @hono-crud/swagger @hono-crud/scalar`:
+
 ```typescript
-import { setupSwaggerUI, setupReDoc, setupScalar } from 'hono-crud';
+import { setupSwaggerUI, setupReDoc } from '@hono-crud/swagger';
+import { setupScalar } from '@hono-crud/scalar';
 
 // OpenAPI spec
 app.doc('/openapi.json', {

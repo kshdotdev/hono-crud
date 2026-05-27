@@ -19,13 +19,14 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { z } from 'zod';
 import { pgTable, text, integer, timestamp, uuid, numeric, pgEnum } from 'drizzle-orm/pg-core';
-import { fromHono, setupSwaggerUI, defineModel, defineMeta } from '../../src/index.js';
+import { fromHono, defineModel, defineMeta } from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   DrizzleUpsertEndpoint,
   DrizzleBatchUpsertEndpoint,
   DrizzleListEndpoint,
   type DrizzleDatabase,
-} from '../../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 import { db, pool, initDb } from './db.js';
 
 const typedDb = db as unknown as DrizzleDatabase;

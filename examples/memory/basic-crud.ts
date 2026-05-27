@@ -14,7 +14,9 @@
 import { Hono, type Env } from 'hono';
 import { serve } from '@hono/node-server';
 import { z } from 'zod';
-import { fromHono, registerCrud, setupSwaggerUI, setupReDoc, setupScalar, defineModel, defineMeta } from '../../src/index.js';
+import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
+import { setupSwaggerUI, setupReDoc } from '@hono-crud/swagger';
+import { setupScalar } from '@hono-crud/scalar';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -22,7 +24,7 @@ import {
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // Clear storage on start
 clearStorage();

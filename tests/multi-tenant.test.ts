@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { z } from 'zod';
-import { fromHono, defineModel, defineMeta, multiTenant } from '../src/index.js';
+import { fromHono, defineModel, defineMeta, multiTenant } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryListEndpoint,
@@ -13,7 +13,7 @@ import {
   MemoryDeleteEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // ============================================================================
 // Schema Definitions

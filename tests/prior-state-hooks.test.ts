@@ -34,18 +34,18 @@ import {
   defineMeta,
   type HookContext,
   type DrizzleDatabase,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
   MEMORY_NOOP_TX,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 import {
   DrizzleUpdateEndpoint,
   DrizzleDeleteEndpoint,
-} from '../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 
 // ============================================================================
 // Memory adapter — Update

@@ -1,0 +1,50 @@
+{
+  "name": "@hono-crud/swagger",
+  "version": "0.1.0",
+  "description": "Swagger UI and ReDoc documentation endpoints for hono-crud",
+  "author": "Kauan Guesser <contato@kauan.net>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kshdotdev/hono-crud.git",
+    "directory": "packages/swagger"
+  },
+  "homepage": "https://github.com/kshdotdev/hono-crud#readme",
+  "bugs": {
+    "url": "https://github.com/kshdotdev/hono-crud/issues"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .tsup"
+  },
+  "keywords": ["hono", "crud", "swagger", "openapi", "redoc", "docs"],
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@hono/swagger-ui": "^0.5.3"
+  },
+  "peerDependencies": {
+    "hono": ">=4.11.7 <5"
+  },
+  "devDependencies": {
+    "hono": "^4.11.4",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3"
+  }
+}

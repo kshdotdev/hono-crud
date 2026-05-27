@@ -23,12 +23,12 @@ import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
-import { defineModel, defineMeta } from '../src/index.js';
+import { defineModel, defineMeta } from 'hono-crud';
 import {
   createDrizzleCrud,
   DrizzleListEndpoint,
   type DrizzleDatabase,
-} from '../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 
 // ============================================================================
 // Shared fixture model

@@ -18,7 +18,6 @@ import { z } from 'zod';
 import {
   fromHono,
   registerCrud,
-  setupSwaggerUI,
   defineModel,
   defineMeta,
   // Function-based API
@@ -31,8 +30,8 @@ import {
   crud,
   // Config-based API
   defineEndpoints,
-  MemoryAdapters,
-} from '../../src/index.js';
+} from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -40,7 +39,8 @@ import {
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../../src/adapters/memory/index.js';
+  MemoryAdapters,
+} from '@hono-crud/memory';
 
 // Clear storage on start
 clearStorage();

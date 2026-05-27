@@ -8,12 +8,12 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from '../../src/index.js';
+import { fromHono, defineModel, defineMeta } from 'hono-crud';
 import {
   MemoryUpsertEndpoint,
   MemoryListEndpoint,
   clearStorage,
-} from '../../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // Clear storage
 clearStorage();

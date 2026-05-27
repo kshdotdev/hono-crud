@@ -18,7 +18,9 @@
 
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, setupSwaggerUI, setupReDoc, setupScalar, defineModel, defineMeta } from '../../src/index.js';
+import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
+import { setupSwaggerUI, setupReDoc } from '@hono-crud/swagger';
+import { setupScalar } from '@hono-crud/scalar';
 import {
   DrizzleCreateEndpoint,
   DrizzleReadEndpoint,
@@ -33,7 +35,7 @@ import {
   DrizzleUpsertEndpoint,
   DrizzleCloneEndpoint,
   type DrizzleDatabase,
-} from '../../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 import {
   UserSchema,
   PostSchema,

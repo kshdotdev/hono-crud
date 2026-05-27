@@ -12,7 +12,7 @@ import { z } from 'zod';
 
 describe('Per-tenant schema resolution (Workers)', () => {
   it('imports buildPerTenantOpenApi from the root package entry', async () => {
-    const mod = await import('../../src/index');
+    const mod = await import('hono-crud');
     expect(mod.buildPerTenantOpenApi).toBeTypeOf('function');
     expect(mod.wrapCacheStorageForOpenApi).toBeTypeOf('function');
   });
@@ -23,8 +23,8 @@ describe('Per-tenant schema resolution (Workers)', () => {
       defineModel,
       defineMeta,
       buildPerTenantOpenApi,
-    } = await import('../../src/index');
-    const { MemoryCreateEndpoint } = await import('../../src/adapters/memory/index');
+    } = await import('hono-crud');
+    const { MemoryCreateEndpoint } = await import('@hono-crud/memory');
 
     const Base = z.object({
       id: z.string().uuid(),
@@ -63,8 +63,8 @@ describe('Per-tenant schema resolution (Workers)', () => {
       buildPerTenantOpenApi,
       KVCacheStorage,
       wrapCacheStorageForOpenApi,
-    } = await import('../../src/index');
-    const { MemoryCreateEndpoint } = await import('../../src/adapters/memory/index');
+    } = await import('hono-crud');
+    const { MemoryCreateEndpoint } = await import('@hono-crud/memory');
 
     const Base = z.object({ id: z.string().uuid(), title: z.string() });
 

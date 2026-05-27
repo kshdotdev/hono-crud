@@ -5,28 +5,19 @@ import {
   applyProfile,
   apiVersion,
   createErrorHandler,
-  createHealthEndpoints,
-  createRateLimitMiddleware,
   decryptValue,
   defineMeta,
   defineModel,
   encryptValue,
   fromHono,
   getApiVersion,
-  idempotency,
   multiTenant,
   registerCrud,
   requireRoles,
   setAuditStorage,
   setEventEmitter,
-  setIdempotencyStorage,
-  setRateLimitStorage,
   setVersioningStorage,
-  setupSwaggerUI,
   MemoryAuditLogStorage,
-  MemoryCacheStorage,
-  MemoryIdempotencyStorage,
-  MemoryRateLimitStorage,
   MemoryVersioningStorage,
   CrudEventEmitter,
   type AuthEnv,
@@ -35,6 +26,19 @@ import {
   type ResponseEnvelope,
   type SerializationProfile,
 } from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { createHealthEndpoints } from '@hono-crud/health';
+import {
+  createRateLimitMiddleware,
+  setRateLimitStorage,
+  MemoryRateLimitStorage,
+} from '@hono-crud/rate-limit';
+import {
+  idempotency,
+  setIdempotencyStorage,
+  MemoryIdempotencyStorage,
+} from '@hono-crud/idempotency';
+import { MemoryCacheStorage } from '@hono-crud/cache';
 import {
   clearStorage,
   getStorage,
@@ -60,7 +64,7 @@ import {
   MemoryVersionHistoryEndpoint,
   MemoryVersionReadEndpoint,
   MemoryVersionRollbackEndpoint,
-} from 'hono-crud/adapters/memory';
+} from '@hono-crud/memory';
 
 type AppEnv = AuthEnv & {
   Variables: AuthEnv['Variables'] & {

@@ -25,15 +25,15 @@ import { createClient } from '@libsql/client';
 import {
   fromHono,
   registerCrud,
-  setupSwaggerUI,
-  setupScalar,
   defineModel,
   defineMeta,
   // OpenAPI utilities
   jsonContent,
   createErrorSchema,
   openApiValidationHook,
-} from '../../src/index.js';
+} from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { setupScalar } from '@hono-crud/scalar';
 import {
   DrizzleCreateEndpoint,
   DrizzleReadEndpoint,
@@ -43,7 +43,7 @@ import {
   DrizzleDatabase,
   // drizzle-zod helpers
   createDrizzleSchemas,
-} from '../../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 
 // ============================================================================
 // Database Setup

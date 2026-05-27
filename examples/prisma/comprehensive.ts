@@ -20,7 +20,8 @@
 
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, setupSwaggerUI, setupReDoc, defineModel, defineMeta } from '../../src/index.js';
+import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
+import { setupSwaggerUI, setupReDoc } from '@hono-crud/swagger';
 import {
   PrismaCreateEndpoint,
   PrismaReadEndpoint,
@@ -34,7 +35,7 @@ import {
   PrismaBatchRestoreEndpoint,
   PrismaUpsertEndpoint,
   PrismaCloneEndpoint,
-} from '../../src/adapters/prisma/index.js';
+} from '@hono-crud/prisma';
 import {
   UserSchema,
   PostSchema,

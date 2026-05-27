@@ -45,7 +45,7 @@ The original approach using class inheritance. Best for complex logic, custom me
 
 ```typescript
 import { defineModel, defineMeta, registerCrud } from 'hono-crud';
-import { MemoryCreateEndpoint, MemoryListEndpoint } from 'hono-crud/adapters/memory';
+import { MemoryCreateEndpoint, MemoryListEndpoint } from '@hono-crud/memory';
 
 const UserModel = defineModel({
   tableName: 'users',
@@ -85,7 +85,7 @@ For Drizzle and Prisma, provide the database connection as a class property:
 
 ```typescript
 // Drizzle
-import { DrizzleListEndpoint } from 'hono-crud/adapters/drizzle';
+import { DrizzleListEndpoint } from '@hono-crud/drizzle';
 
 class UserList extends DrizzleListEndpoint {
   _meta = userMeta;
@@ -94,7 +94,7 @@ class UserList extends DrizzleListEndpoint {
 }
 
 // Prisma
-import { PrismaListEndpoint } from 'hono-crud/adapters/prisma';
+import { PrismaListEndpoint } from '@hono-crud/prisma';
 
 class UserList extends PrismaListEndpoint {
   _meta = userMeta;
@@ -124,7 +124,7 @@ import {
 ### Basic Usage
 
 ```typescript
-import { MemoryCreateEndpoint, MemoryListEndpoint, MemoryReadEndpoint, MemoryUpdateEndpoint, MemoryDeleteEndpoint } from 'hono-crud/adapters/memory';
+import { MemoryCreateEndpoint, MemoryListEndpoint, MemoryReadEndpoint, MemoryUpdateEndpoint, MemoryDeleteEndpoint } from '@hono-crud/memory';
 
 const UserCreate = createCreate({
   meta: userMeta,
@@ -259,7 +259,7 @@ import { crud } from 'hono-crud';
 ### Basic Usage
 
 ```typescript
-import { MemoryCreateEndpoint, MemoryListEndpoint, MemoryReadEndpoint, MemoryUpdateEndpoint, MemoryDeleteEndpoint } from 'hono-crud/adapters/memory';
+import { MemoryCreateEndpoint, MemoryListEndpoint, MemoryReadEndpoint, MemoryUpdateEndpoint, MemoryDeleteEndpoint } from '@hono-crud/memory';
 
 const UserCreate = crud(userMeta)
   .create()
@@ -402,7 +402,8 @@ Single declarative object defining all endpoints at once.
 ### Import
 
 ```typescript
-import { defineEndpoints, MemoryAdapters } from 'hono-crud';
+import { defineEndpoints } from 'hono-crud';
+import { MemoryAdapters } from '@hono-crud/memory';
 ```
 
 ### Basic Usage
@@ -462,10 +463,10 @@ registerCrud(app, '/users', userEndpoints);
 
 ```typescript
 // Built-in Memory adapter bundle
-import { MemoryAdapters } from 'hono-crud';
+import { MemoryAdapters } from '@hono-crud/memory';
 
 // Create custom adapter bundles for Drizzle or Prisma
-import { DrizzleAdapters } from 'hono-crud/adapters/drizzle';
+import { DrizzleAdapters } from '@hono-crud/drizzle';
 
 const endpoints = defineEndpoints(config, DrizzleAdapters);
 ```

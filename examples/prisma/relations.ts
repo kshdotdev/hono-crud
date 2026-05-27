@@ -15,12 +15,13 @@
 
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, setupSwaggerUI, defineModel, defineMeta } from '../../src/index.js';
+import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   PrismaCreateEndpoint,
   PrismaReadEndpoint,
   PrismaListEndpoint,
-} from '../../src/adapters/prisma/index.js';
+} from '@hono-crud/prisma';
 import {
   UserSchema,
   PostSchema,

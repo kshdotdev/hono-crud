@@ -1,38 +1,65 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import type { StorageEnv } from '../src/storage/types.js';
+import type { StorageEnv } from 'hono-crud/storage/types';
 import {
   createStorageMiddleware,
-  createRateLimitStorageMiddleware,
-  createCacheStorageMiddleware,
-  resolveRateLimitStorage,
   resolveLoggingStorage,
-  resolveCacheStorage,
   resolveAuditStorage,
   resolveVersioningStorage,
   resolveAPIKeyStorage,
-} from '../src/storage/index.js';
-import { MemoryRateLimitStorage } from '../src/rate-limit/storage/memory.js';
-import { MemoryLoggingStorage } from '../src/logging/storage/memory.js';
-import { MemoryCacheStorage } from '../src/cache/storage/memory.js';
-import { MemoryAuditLogStorage, setAuditStorage } from '../src/audit/index.js';
-import { MemoryVersioningStorage, setVersioningStorage } from '../src/versioning/index.js';
-import { MemoryAPIKeyStorage } from '../src/auth/storage/memory.js';
-import { MemoryIdempotencyStorage } from '../src/idempotency/storage/memory.js';
-import { CrudEventEmitter } from '../src/events/emitter.js';
+} from 'hono-crud/storage';
+import { MemoryRateLimitStorage } from '@hono-crud/rate-limit/storage/memory';
+import { MemoryLoggingStorage } from 'hono-crud/logging/storage/memory';
+import { MemoryCacheStorage } from '@hono-crud/cache/storage/memory';
+import { MemoryAuditLogStorage, setAuditStorage } from 'hono-crud/audit';
+import { MemoryVersioningStorage, setVersioningStorage } from 'hono-crud/versioning';
+import { MemoryAPIKeyStorage } from 'hono-crud/auth/storage/memory';
+import { MemoryIdempotencyStorage } from '@hono-crud/idempotency/storage/memory';
+import { CrudEventEmitter } from 'hono-crud/events/emitter';
 import {
   setRateLimitStorage,
   getRateLimitStorage,
-} from '../src/rate-limit/middleware.js';
+  resolveRateLimitStorage,
+} from '@hono-crud/rate-limit/middleware';
 import {
   setLoggingStorage,
   getLoggingStorage,
-} from '../src/logging/middleware.js';
+} from 'hono-crud/logging/middleware';
 import {
   setCacheStorage,
   getCacheStorage,
-} from '../src/cache/mixin.js';
-import { setAPIKeyStorage } from '../src/auth/storage/memory.js';
+  resolveCacheStorage,
+} from '@hono-crud/cache/mixin';
+import { setAPIKeyStorage } from 'hono-crud/auth/storage/memory';
+import type { MiddlewareHandler } from 'hono';
+
+// After the package split, rate-limit / cache / idempotency storage live in
+// their own packages and are no longer part of core's createStorageMiddleware
+// or StorageEnv. These tiny helpers reproduce the context-injection behaviour
+// the removed createRateLimitStorageMiddleware / createCacheStorageMiddleware
+// factories provided: they set the same context vars that each package's
+// resolve helper reads.
+type TestStorageEnv = StorageEnv & {
+  Variables: StorageEnv['Variables'] & {
+    rateLimitStorage?: MemoryRateLimitStorage;
+    cacheStorage?: MemoryCacheStorage;
+    idempotencyStorage?: MemoryIdempotencyStorage;
+  };
+};
+
+const createRateLimitStorageMiddleware = (
+  storage: MemoryRateLimitStorage
+): MiddlewareHandler => async (ctx, next) => {
+  ctx.set('rateLimitStorage', storage);
+  await next();
+};
+
+const createCacheStorageMiddleware = (
+  storage: MemoryCacheStorage
+): MiddlewareHandler => async (ctx, next) => {
+  ctx.set('cacheStorage', storage);
+  await next();
+};
 
 describe('Storage Module', () => {
   describe('createStorageMiddleware', () => {
@@ -46,21 +73,26 @@ describe('Storage Module', () => {
       const idempotencyStorage = new MemoryIdempotencyStorage();
       const eventEmitter = new CrudEventEmitter();
 
-      const app = new Hono<StorageEnv>();
+      const app = new Hono<TestStorageEnv>();
 
       app.use(
         '/*',
         createStorageMiddleware({
-          rateLimitStorage,
           loggingStorage,
-          cacheStorage,
           auditStorage,
           versioningStorage,
           apiKeyStorage,
-          idempotencyStorage,
           eventEmitter,
         })
       );
+      // rate-limit / cache / idempotency storage are injected by their own
+      // package helpers after the split.
+      app.use('/*', async (ctx, next) => {
+        ctx.set('rateLimitStorage', rateLimitStorage);
+        ctx.set('cacheStorage', cacheStorage);
+        ctx.set('idempotencyStorage', idempotencyStorage);
+        await next();
+      });
 
       app.get('/test', (ctx) => {
         // Verify all storage instances are available in context
@@ -82,14 +114,9 @@ describe('Storage Module', () => {
     it('should only inject specified storage instances', async () => {
       const rateLimitStorage = new MemoryRateLimitStorage();
 
-      const app = new Hono<StorageEnv>();
+      const app = new Hono<TestStorageEnv>();
 
-      app.use(
-        '/*',
-        createStorageMiddleware({
-          rateLimitStorage,
-        })
-      );
+      app.use('/*', createRateLimitStorageMiddleware(rateLimitStorage));
 
       app.get('/test', (ctx) => {
         expect(ctx.var.rateLimitStorage).toBe(rateLimitStorage);
@@ -106,7 +133,7 @@ describe('Storage Module', () => {
   describe('Individual storage middleware', () => {
     it('createRateLimitStorageMiddleware should inject rate limit storage', async () => {
       const storage = new MemoryRateLimitStorage();
-      const app = new Hono<StorageEnv>();
+      const app = new Hono<TestStorageEnv>();
 
       app.use('/*', createRateLimitStorageMiddleware(storage));
 
@@ -121,7 +148,7 @@ describe('Storage Module', () => {
 
     it('createCacheStorageMiddleware should inject cache storage', async () => {
       const storage = new MemoryCacheStorage();
-      const app = new Hono<StorageEnv>();
+      const app = new Hono<TestStorageEnv>();
 
       app.use('/*', createCacheStorageMiddleware(storage));
 
@@ -171,7 +198,7 @@ describe('Storage Module', () => {
         const globalStorage = new MemoryRateLimitStorage();
         setRateLimitStorage(globalStorage);
 
-        const app = new Hono<StorageEnv>();
+        const app = new Hono<TestStorageEnv>();
         app.use('/*', createRateLimitStorageMiddleware(contextStorage));
 
         app.get('/test', (ctx) => {
@@ -261,11 +288,11 @@ describe('Storage Module', () => {
 
   describe('Integration with existing middleware', () => {
     it('rate limit middleware should use context storage when available', async () => {
-      const { createRateLimitMiddleware } = await import('../src/rate-limit/middleware.js');
+      const { createRateLimitMiddleware } = await import('@hono-crud/rate-limit/middleware');
 
       const contextStorage = new MemoryRateLimitStorage();
 
-      const app = new Hono<StorageEnv>();
+      const app = new Hono<TestStorageEnv>();
 
       // First inject storage into context
       app.use('/*', createRateLimitStorageMiddleware(contextStorage));
@@ -293,8 +320,8 @@ describe('Storage Module', () => {
     });
 
     it('logging middleware should use context storage when available', async () => {
-      const { createLoggingMiddleware } = await import('../src/logging/middleware.js');
-      const { createLoggingStorageMiddleware } = await import('../src/storage/middleware.js');
+      const { createLoggingMiddleware } = await import('hono-crud/logging/middleware');
+      const { createLoggingStorageMiddleware } = await import('hono-crud/storage/middleware');
 
       const contextStorage = new MemoryLoggingStorage();
 
@@ -323,7 +350,7 @@ describe('Storage Module', () => {
   describe('Backward compatibility', () => {
     it('global setRateLimitStorage should still work', async () => {
       const { createRateLimitMiddleware, setRateLimitStorage } = await import(
-        '../src/rate-limit/middleware.js'
+        '@hono-crud/rate-limit/middleware'
       );
 
       const globalStorage = new MemoryRateLimitStorage();
@@ -351,7 +378,7 @@ describe('Storage Module', () => {
 
     it('global setLoggingStorage should still work', async () => {
       const { createLoggingMiddleware, setLoggingStorage } = await import(
-        '../src/logging/middleware.js'
+        'hono-crud/logging/middleware'
       );
 
       const globalStorage = new MemoryLoggingStorage();

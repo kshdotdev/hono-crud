@@ -15,7 +15,7 @@ import {
   getVersioningStorage,
   type VersioningStorage,
   type VersionHistoryEntry,
-} from '../../src/index.js';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -25,7 +25,7 @@ import {
   MemoryVersionReadEndpoint,
   MemoryVersionCompareEndpoint,
   MemoryVersionRollbackEndpoint,
-} from '../../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 type AppEnv = {
   Variables: {

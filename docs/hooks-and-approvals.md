@@ -157,7 +157,7 @@ The `MEMORY_NOOP_TX` sentinel exists so production code can feature-detect
 "I'm running against a backend that doesn't support rollback":
 
 ```ts
-import { MEMORY_NOOP_TX } from 'hono-crud/adapters/memory';
+import { MEMORY_NOOP_TX } from '@hono-crud/memory';
 
 override async after(order, hookCtx) {
   if (hookCtx.db.tx === MEMORY_NOOP_TX) {

@@ -17,7 +17,7 @@ import {
   defineModel,
   defineMeta,
   getManagedInputExclusions,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryBatchCreateEndpoint,
@@ -26,7 +26,7 @@ import {
   MemoryUpsertEndpoint,
   MemoryBatchUpsertEndpoint,
   MemoryCloneEndpoint,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // ----------------------------------------------------------------------------
 // Helpers

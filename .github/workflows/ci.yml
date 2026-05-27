@@ -45,11 +45,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type check
-        run: pnpm run typecheck
-
-      - name: Run tests
-        run: pnpm test
-
       - name: Build
-        run: pnpm run build
+        run: pnpm -r build
+
+      - name: Type check
+        run: pnpm -r typecheck
+
+      - name: Unit tests
+        run: pnpm run test:unit

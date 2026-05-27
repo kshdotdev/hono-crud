@@ -22,8 +22,8 @@ import {
   applyManagedInsertFields,
   applyManagedUpdateFields,
   getTimestampsConfig,
-} from '../src/index.js';
-import type { IdStrategy } from '../src/index.js';
+} from 'hono-crud';
+import type { IdStrategy } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -35,13 +35,13 @@ import {
   MemoryCloneEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 import {
   DrizzleCreateEndpoint,
   DrizzleUpsertEndpoint,
   DrizzleCloneEndpoint,
   type DrizzleDatabase,
-} from '../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 
 const UUID_V4 =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

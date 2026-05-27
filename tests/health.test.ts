@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import { createHealthEndpoints, createHealthHandler } from '../src/health/index';
+import { createHealthEndpoints, createHealthHandler } from '@hono-crud/health';
 
 describe('Health Endpoints', () => {
   describe('createHealthEndpoints', () => {

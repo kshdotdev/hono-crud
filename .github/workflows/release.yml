@@ -3,315 +3,47 @@ name: Release
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      version_type:
-        description: 'Version bump type (leave empty for auto-detection)'
-        required: false
-        type: choice
-        options:
-          - ''
-          - patch
-          - minor
-          - major
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
+  pull-requests: write
   id-token: write
 
 jobs:
   release:
+    name: Release
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: hono_crud
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hono_crud?schema=public
-
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: pnpm/action-setup@v4
 
-      - name: Use Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
-      - name: Type check
-        run: pnpm run typecheck
-
-      - name: Run tests
-        run: pnpm test
-
-      - name: Build
-        run: pnpm run build
-
-      - name: Get latest tag
-        id: latest_tag
-        run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "Latest tag: $LATEST_TAG"
-
-      - name: Get commits since last tag
-        id: commits
-        run: |
-          LATEST_TAG="${{ steps.latest_tag.outputs.tag }}"
-
-          # Get commits since last tag (or all commits if no tag)
-          if [ "$LATEST_TAG" = "v0.0.0" ]; then
-            COMMITS=$(git log --pretty=format:"%s" | head -50)
-          else
-            COMMITS=$(git log ${LATEST_TAG}..HEAD --pretty=format:"%s")
-          fi
-
-          echo "Commits since $LATEST_TAG:"
-          echo "$COMMITS"
-
-          # Save commits to file for later use
-          echo "$COMMITS" > /tmp/commits.txt
-
-          # Check if there are any commits
-          if [ -z "$COMMITS" ]; then
-            echo "has_commits=false" >> $GITHUB_OUTPUT
-          else
-            echo "has_commits=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Determine version bump type
-        id: version_type
-        if: steps.commits.outputs.has_commits == 'true'
-        run: |
-          # Use manual override if provided
-          if [ -n "${{ inputs.version_type }}" ]; then
-            echo "type=${{ inputs.version_type }}" >> $GITHUB_OUTPUT
-            echo "Using manual version type: ${{ inputs.version_type }}"
-            exit 0
-          fi
-
-          COMMITS=$(cat /tmp/commits.txt)
-
-          # Check for breaking changes
-          if echo "$COMMITS" | grep -qE "^[a-z]+(\(.+\))?!:|BREAKING CHANGE"; then
-            echo "type=major" >> $GITHUB_OUTPUT
-            echo "Detected: major (breaking change)"
-            exit 0
-          fi
-
-          # Check for features
-          if echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
-            echo "type=minor" >> $GITHUB_OUTPUT
-            echo "Detected: minor (new feature)"
-            exit 0
-          fi
-
-          # Check for any conventional commits that warrant a release
-          if echo "$COMMITS" | grep -qE "^(fix|perf|refactor|docs|style|test|build|ci|chore)(\(.+\))?:"; then
-            echo "type=patch" >> $GITHUB_OUTPUT
-            echo "Detected: patch (fixes/improvements)"
-            exit 0
-          fi
-
-          # No releasable commits
-          echo "type=" >> $GITHUB_OUTPUT
-          echo "No releasable commits found"
-
-      - name: Bump version
-        id: bump
-        if: steps.commits.outputs.has_commits == 'true' && steps.version_type.outputs.type != ''
-        run: |
-          VERSION_TYPE="${{ steps.version_type.outputs.type }}"
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-
-          # Parse semver
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
-
-          case "$VERSION_TYPE" in
-            major)
-              NEW_VERSION="$((MAJOR + 1)).0.0"
-              ;;
-            minor)
-              NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
-              ;;
-            patch)
-              NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
-              ;;
-          esac
-
-          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "Bumping version: $CURRENT_VERSION -> $NEW_VERSION"
-
-          # Update package.json
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = '$NEW_VERSION';
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
-
-      - name: Update CHANGELOG.md
-        if: steps.bump.outputs.new != ''
-        run: |
-          NEW_VERSION="${{ steps.bump.outputs.new }}"
-          TODAY=$(date +%Y-%m-%d)
-          LATEST_TAG="${{ steps.latest_tag.outputs.tag }}"
-          REPO_URL="https://github.com/${{ github.repository }}"
-
-          # Read commits and categorize them
-          COMMITS=$(cat /tmp/commits.txt)
-
-          # Initialize category arrays
-          BREAKING=""
-          FEATURES=""
-          FIXES=""
-          PERFORMANCE=""
-          REFACTORING=""
-          DOCS=""
-          OTHER=""
-
-          while IFS= read -r commit; do
-            [ -z "$commit" ] && continue
-
-            # Extract type and message
-            if [[ "$commit" =~ ^([a-z]+)(\(.+\))?(!)?: ]]; then
-              TYPE="${BASH_REMATCH[1]}"
-              SCOPE="${BASH_REMATCH[2]}"
-              BREAKING_MARK="${BASH_REMATCH[3]}"
-              MSG="${commit#*: }"
-
-              # Format the entry
-              if [ -n "$SCOPE" ]; then
-                ENTRY="- **${SCOPE}**: ${MSG}"
-              else
-                ENTRY="- ${MSG}"
-              fi
-
-              # Categorize
-              if [ -n "$BREAKING_MARK" ] || echo "$commit" | grep -q "BREAKING CHANGE"; then
-                BREAKING="${BREAKING}${ENTRY}\n"
-              elif [ "$TYPE" = "feat" ]; then
-                FEATURES="${FEATURES}${ENTRY}\n"
-              elif [ "$TYPE" = "fix" ]; then
-                FIXES="${FIXES}${ENTRY}\n"
-              elif [ "$TYPE" = "perf" ]; then
-                PERFORMANCE="${PERFORMANCE}${ENTRY}\n"
-              elif [ "$TYPE" = "refactor" ]; then
-                REFACTORING="${REFACTORING}${ENTRY}\n"
-              elif [ "$TYPE" = "docs" ]; then
-                DOCS="${DOCS}${ENTRY}\n"
-              else
-                OTHER="${OTHER}${ENTRY}\n"
-              fi
-            fi
-          done <<< "$COMMITS"
-
-          # Build new changelog entry
-          NEW_ENTRY="## [${NEW_VERSION}] - ${TODAY}\n"
-
-          if [ -n "$BREAKING" ]; then
-            NEW_ENTRY="${NEW_ENTRY}\n### ⚠️ Breaking Changes\n\n${BREAKING}"
-          fi
-          if [ -n "$FEATURES" ]; then
-            NEW_ENTRY="${NEW_ENTRY}\n### Added\n\n${FEATURES}"
-          fi
-          if [ -n "$FIXES" ]; then
-            NEW_ENTRY="${NEW_ENTRY}\n### Fixed\n\n${FIXES}"
-          fi
-          if [ -n "$PERFORMANCE" ]; then
-            NEW_ENTRY="${NEW_ENTRY}\n### Performance\n\n${PERFORMANCE}"
-          fi
-          if [ -n "$REFACTORING" ]; then
-            NEW_ENTRY="${NEW_ENTRY}\n### Changed\n\n${REFACTORING}"
-          fi
-          if [ -n "$DOCS" ]; then
-            NEW_ENTRY="${NEW_ENTRY}\n### Documentation\n\n${DOCS}"
-          fi
-          if [ -n "$OTHER" ]; then
-            NEW_ENTRY="${NEW_ENTRY}\n### Other\n\n${OTHER}"
-          fi
-
-          # Add version link
-          NEW_LINK="[${NEW_VERSION}]: ${REPO_URL}/compare/${LATEST_TAG}...v${NEW_VERSION}"
-
-          # Update CHANGELOG.md
-          if [ -f CHANGELOG.md ]; then
-            # Insert new entry after the header
-            awk -v entry="$NEW_ENTRY" -v link="$NEW_LINK" '
-              /^## \[/ && !inserted {
-                printf "%b\n", entry
-                inserted = 1
-              }
-              { print }
-              END {
-                if (!found_links) printf "\n%s\n", link
-              }
-              /^\[.*\]:.*compare/ { found_links = 1 }
-            ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
-
-            # Add new link at the bottom
-            if ! grep -q "^\[${NEW_VERSION}\]:" CHANGELOG.md; then
-              echo "$NEW_LINK" >> CHANGELOG.md
-            fi
-          fi
-
-      - name: Commit and tag
-        if: steps.bump.outputs.new != ''
-        run: |
-          NEW_VERSION="${{ steps.bump.outputs.new }}"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # Update lockfile to reflect new version
-          pnpm install --lockfile-only
-
-          git add package.json pnpm-lock.yaml CHANGELOG.md
-          git commit -m "chore(release): v${NEW_VERSION}"
-          git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
-          git push origin main --follow-tags
-
-      - name: Publish to npm
-        if: steps.bump.outputs.new != ''
-        run: pnpm publish --no-git-checks --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Create GitHub Release
-        if: steps.bump.outputs.new != ''
-        uses: softprops/action-gh-release@v2
+      # Opens/updates a "Version Packages" PR when changesets are pending,
+      # and publishes to npm once that PR is merged. Replaces the previous
+      # hand-rolled single-package version-bump script.
+      - name: Create Release PR or Publish
+        uses: changesets/action@v1
         with:
-          tag_name: v${{ steps.bump.outputs.new }}
-          name: v${{ steps.bump.outputs.new }}
-          generate_release_notes: true
+          version: pnpm run version
+          publish: pnpm run release
+          commit: 'chore: release packages'
+          title: 'chore: release packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Skip release
-        if: steps.commits.outputs.has_commits != 'true' || steps.version_type.outputs.type == ''
-        run: |
-          echo "No release needed."
-          echo "has_commits: ${{ steps.commits.outputs.has_commits }}"
-          echo "version_type: ${{ steps.version_type.outputs.type }}"
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true

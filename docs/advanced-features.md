@@ -36,7 +36,7 @@ const UserModel = defineModel({
 **Restore endpoint:**
 
 ```typescript
-import { MemoryRestoreEndpoint } from 'hono-crud/adapters/memory';
+import { MemoryRestoreEndpoint } from '@hono-crud/memory';
 
 class UserRestore extends MemoryRestoreEndpoint {
   _meta = userMeta;
@@ -153,7 +153,7 @@ import {
   MemoryBatchUpdateEndpoint,
   MemoryBatchDeleteEndpoint,
   MemoryBatchRestoreEndpoint,
-} from 'hono-crud/adapters/memory';
+} from '@hono-crud/memory';
 
 class UserBatchCreate extends MemoryBatchCreateEndpoint {
   _meta = userMeta;
@@ -218,7 +218,7 @@ PATCH /users/batch
 Create or update a record based on unique keys.
 
 ```typescript
-import { MemoryUpsertEndpoint } from 'hono-crud/adapters/memory';
+import { MemoryUpsertEndpoint } from '@hono-crud/memory';
 
 class CategoryUpsert extends MemoryUpsertEndpoint {
   _meta = categoryMeta;
@@ -573,7 +573,7 @@ import {
   idempotency,
   setIdempotencyStorage,
   MemoryIdempotencyStorage,
-} from 'hono-crud';
+} from '@hono-crud/idempotency';
 
 setIdempotencyStorage(new MemoryIdempotencyStorage());
 
@@ -643,7 +643,7 @@ const UserModel = defineModel({
 Liveness and readiness endpoints.
 
 ```typescript
-import { createHealthEndpoints } from 'hono-crud';
+import { createHealthEndpoints } from '@hono-crud/health';
 
 createHealthEndpoints(app, {
   version: '1.0.0',

@@ -15,16 +15,16 @@ import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
-import { defineModel } from '../src/index.js';
+import { defineModel } from 'hono-crud';
 import {
   DrizzleSearchEndpoint,
   type DrizzleDatabase,
-} from '../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 import {
   MemorySearchEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // ============================================================================
 // Shared fixture model

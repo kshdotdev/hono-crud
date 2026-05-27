@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { env } from 'cloudflare:test';
-import { KVCacheStorage } from '../../src/cache/storage/cloudflare-kv';
+import { KVCacheStorage } from '@hono-crud/cache/storage/cloudflare-kv';
 
 describe('KVCacheStorage (Workers)', () => {
   let cache: KVCacheStorage;

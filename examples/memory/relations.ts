@@ -12,14 +12,15 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { z } from 'zod';
-import { fromHono, registerCrud, setupSwaggerUI, defineModel, defineMeta } from '../../src/index.js';
+import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
   MemoryListEndpoint,
   clearStorage,
   getStorage,
-} from '../../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // Clear storage on start
 clearStorage();

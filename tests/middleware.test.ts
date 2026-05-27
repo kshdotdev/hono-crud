@@ -2,18 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { z } from 'zod';
 import type { MiddlewareHandler, Context, Next } from 'hono';
-import type { MetaInput } from '../src/index';
+import type { MetaInput } from 'hono-crud';
 import {
   fromHono,
   registerCrud,
   crud,
   createCreate,
   createList,
-} from '../src/index';
+} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryListEndpoint,
-} from '../src/adapters/memory/index';
+} from '@hono-crud/memory';
 
 // Define test schema
 const UserSchema = z.object({

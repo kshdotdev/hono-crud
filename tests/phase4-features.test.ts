@@ -7,8 +7,8 @@ import {
   resolveProfile,
   createSerializer,
   createArraySerializer,
-} from '../src/serialization/index';
-import type { SerializationProfile, SerializationConfig } from '../src/serialization/index';
+} from 'hono-crud/serialization';
+import type { SerializationProfile, SerializationConfig } from 'hono-crud/serialization';
 import {
   encryptValue,
   decryptValue,
@@ -16,11 +16,11 @@ import {
   encryptFields,
   decryptFields,
   StaticKeyProvider,
-} from '../src/encryption/index';
-import type { EncryptedValue } from '../src/encryption/index';
-import { fromHono } from '../src/core/openapi';
-import { defineModel, defineMeta } from '../src/core/types';
-import { MemoryBulkPatchEndpoint } from '../src/adapters/memory/index';
+} from 'hono-crud/encryption';
+import type { EncryptedValue } from 'hono-crud/encryption';
+import { fromHono } from 'hono-crud/core/openapi';
+import { defineModel, defineMeta } from 'hono-crud/core/types';
+import { MemoryBulkPatchEndpoint } from '@hono-crud/memory';
 
 // ============================================================================
 // Serialization Profiles

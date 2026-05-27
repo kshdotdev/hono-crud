@@ -9,7 +9,7 @@ import {
   defineModel,
   fromHono,
   registerCrud,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   PrismaCreateEndpoint,
   PrismaReadEndpoint,
@@ -28,7 +28,7 @@ import {
   registerPrismaModelMapping,
   registerPrismaModelMappings,
   clearPrismaModelMappings,
-} from '../src/adapters/prisma/index.js';
+} from '@hono-crud/prisma';
 
 // ============================================================================
 // Mock Prisma Client

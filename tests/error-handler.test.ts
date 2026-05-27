@@ -14,7 +14,7 @@ import {
   type ErrorMapper,
   type ErrorHook,
   type LoggingStorage,
-} from '../src/index.js';
+} from 'hono-crud';
 
 // ============================================================================
 // Built-in Mapper Tests

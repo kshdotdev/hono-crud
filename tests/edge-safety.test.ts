@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
-const srcRoot = join(repoRoot, 'src');
+const packagesRoot = join(repoRoot, 'packages');
 
 function listSourceFiles(): string[] {
   const files: string[] = [];
@@ -19,7 +19,17 @@ function listSourceFiles(): string[] {
       }
     }
   };
-  visit(srcRoot);
+  // Scan every package's src/ directory (packages/*/src/**).
+  for (const pkg of readdirSync(packagesRoot)) {
+    const srcDir = join(packagesRoot, pkg, 'src');
+    let isDir = false;
+    try {
+      isDir = statSync(srcDir).isDirectory();
+    } catch {
+      isDir = false;
+    }
+    if (isDir) visit(srcDir);
+  }
   return files;
 }
 

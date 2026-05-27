@@ -1,0 +1,56 @@
+{
+  "name": "@hono-crud/drizzle",
+  "version": "0.1.0",
+  "description": "Drizzle ORM CRUD adapter for hono-crud",
+  "author": "Kauan Guesser <contato@kauan.net>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kshdotdev/hono-crud.git",
+    "directory": "packages/drizzle"
+  },
+  "homepage": "https://github.com/kshdotdev/hono-crud#readme",
+  "bugs": {
+    "url": "https://github.com/kshdotdev/hono-crud/issues"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .tsup"
+  },
+  "keywords": ["hono", "crud", "drizzle", "drizzle-orm", "adapter"],
+  "sideEffects": false,
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "hono-crud": "workspace:*"
+  },
+  "peerDependencies": {
+    "drizzle-orm": ">=0.30.0",
+    "drizzle-zod": ">=0.8.0",
+    "hono": ">=4.11.7 <5",
+    "zod": ">=4.0.0"
+  },
+  "devDependencies": {
+    "drizzle-orm": "^0.45.1",
+    "drizzle-zod": "^0.8.3",
+    "hono": "^4.11.4",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.3",
+    "zod": "^4.3.5"
+  }
+}

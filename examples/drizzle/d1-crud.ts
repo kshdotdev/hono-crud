@@ -38,14 +38,13 @@ import {
   registerCrud,
   defineModel,
   defineMeta,
-  createCrudMiddleware,
-  KVCacheStorage,
-  setupSwaggerUI,
-} from '../../src/index.js';
+} from 'hono-crud';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { KVCacheStorage } from '@hono-crud/cache';
 import {
   createDrizzleCrud,
   type DrizzleDatabase,
-} from '../../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 
 // ============================================================================
 // D1 Schema (SQLite via Drizzle)
@@ -235,7 +234,8 @@ app.use('*', async (c, next) => {
   // Optional: inject KV-backed cache if binding exists
   if (c.env.CACHE_KV) {
     const cache = new KVCacheStorage({ kv: c.env.CACHE_KV });
-    return createCrudMiddleware({ cache })(c as never, next);
+    // The cache mixin resolves storage from the 'cacheStorage' context var.
+    c.set('cacheStorage' as never, cache as never);
   }
 
   await next();

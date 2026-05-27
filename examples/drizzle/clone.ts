@@ -27,14 +27,14 @@ import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
-import { defineModel, defineMeta, registerCrud, fromHono } from '../../src/index.js';
+import { defineModel, defineMeta, registerCrud, fromHono } from 'hono-crud';
 import {
   DrizzleCloneEndpoint,
   DrizzleCreateEndpoint,
   DrizzleReadEndpoint,
   DrizzleListEndpoint,
   type DrizzleDatabase,
-} from '../../src/adapters/drizzle/index.js';
+} from '@hono-crud/drizzle';
 
 // -----------------------------------------------------------------------------
 // Schema + DB

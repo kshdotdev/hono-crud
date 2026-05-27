@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import { scalarUI, setupScalar } from '../src/ui/scalar.js';
-import type { ScalarConfig, ScalarTheme } from '../src/ui/scalar.js';
+import { scalarUI, setupScalar } from '@hono-crud/scalar';
+import type { ScalarConfig, ScalarTheme } from '@hono-crud/scalar';
 
 // ============================================================================
 // scalarUI() Tests

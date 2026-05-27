@@ -9,12 +9,12 @@ import {
   parseAggregateField,
   parseAggregateQuery,
   computeAggregations,
-} from '../src/index.js';
+} from 'hono-crud';
 import {
   MemoryAggregateEndpoint,
   clearStorage,
   getStorage,
-} from '../src/adapters/memory/index.js';
+} from '@hono-crud/memory';
 
 // Define test schema
 const ProductSchema = z.object({
