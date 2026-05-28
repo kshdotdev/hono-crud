@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
+import { CONTEXT_KEYS } from '../../core/context-keys';
 import { UnauthorizedException } from '../../core/exceptions';
 import { matchAny } from '../../utils/path-match';
 import type { AuthConfig, AuthEnv } from '../types';
@@ -48,7 +49,7 @@ export function createAuthMiddleware<E extends AuthEnv = AuthEnv>(
     // Check if path should skip auth
     const path = ctx.req.path;
     if (matchAny(path, skipPaths)) {
-      ctx.set('authType', 'none');
+      ctx.set(CONTEXT_KEYS.authType, 'none');
       return next();
     }
 
@@ -95,7 +96,7 @@ export function createAuthMiddleware<E extends AuthEnv = AuthEnv>(
         throw new UnauthorizedException(unauthorizedMessage);
       }
       // Auth not required, set auth type to none
-      ctx.set('authType', 'none');
+      ctx.set(CONTEXT_KEYS.authType, 'none');
     }
 
     await next();

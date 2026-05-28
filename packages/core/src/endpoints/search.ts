@@ -21,7 +21,7 @@ import {
   tokenizeQuery,
 } from './search-utils';
 import {
-  type ListEndpointConfig,
+  type ListFilterParseOptions,
   type ListFilters,
   type ModelObject,
   applyFieldSelectionToArray,
@@ -442,7 +442,7 @@ export abstract class SearchEndpoint<
     const { query } = await this.getValidatedData();
     const softDeleteConfig = this.getSoftDeleteConfig();
 
-    const config: ListEndpointConfig = {
+    const config: ListFilterParseOptions = {
       filterFields: this.filterFields,
       filterConfig: this.filterConfig,
       searchFields: [], // Don't use basic search, we handle it ourselves

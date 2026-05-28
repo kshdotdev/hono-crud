@@ -1,3 +1,4 @@
+import { CONTEXT_KEYS } from '../../core/context-keys';
 import { createNullableRegistry } from '../../storage/registry';
 import type { APIKeyEntry, APIKeyLookupResult, APIKeyStorage } from '../types';
 
@@ -259,7 +260,9 @@ export function isValidAPIKeyFormat(key: string, prefix?: string): boolean {
  * meant every API key would miss against an empty store). To opt into the
  * old behaviour, instantiate `MemoryAPIKeyStorage` and call `setAPIKeyStorage()`.
  */
-export const apiKeyStorageRegistry = createNullableRegistry<APIKeyStorage>('apiKeyStorage');
+export const apiKeyStorageRegistry = createNullableRegistry<APIKeyStorage>(
+  CONTEXT_KEYS.apiKeyStorage,
+);
 
 /**
  * Gets the global API key storage. Returns null if not configured.

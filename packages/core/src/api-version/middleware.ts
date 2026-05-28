@@ -1,4 +1,5 @@
 import type { Context, MiddlewareHandler } from 'hono';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import { ApiException } from '../core/exceptions';
 import type { ApiVersionConfig, VersioningMiddlewareConfig } from './types';
 
@@ -110,8 +111,8 @@ export function apiVersion(config: VersioningMiddlewareConfig): MiddlewareHandle
     }
 
     // Set version info in context
-    ctx.set('apiVersion', version);
-    ctx.set('apiVersionConfig', versionConfig);
+    ctx.set(CONTEXT_KEYS.apiVersion, version);
+    ctx.set(CONTEXT_KEYS.apiVersionConfig, versionConfig);
 
     // Add response headers
     if (addHeaders) {
@@ -141,14 +142,14 @@ export function apiVersion(config: VersioningMiddlewareConfig): MiddlewareHandle
  * Get the current API version from context.
  */
 export function getApiVersion(ctx: Context): string | undefined {
-  return ctx.get('apiVersion');
+  return ctx.get(CONTEXT_KEYS.apiVersion);
 }
 
 /**
  * Get the full version config from context.
  */
 export function getApiVersionConfig(ctx: Context): ApiVersionConfig | undefined {
-  return ctx.get('apiVersionConfig');
+  return ctx.get(CONTEXT_KEYS.apiVersionConfig);
 }
 
 /**
@@ -166,7 +167,7 @@ export function versionedResponse(): MiddlewareHandler {
   return async (ctx, next) => {
     await next();
 
-    const versionConfig = ctx.get('apiVersionConfig') as ApiVersionConfig | undefined;
+    const versionConfig = ctx.get(CONTEXT_KEYS.apiVersionConfig) as ApiVersionConfig | undefined;
     if (!versionConfig?.responseTransformer) return;
 
     const contentType = ctx.res.headers.get('content-type');

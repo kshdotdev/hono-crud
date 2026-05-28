@@ -2,8 +2,9 @@
  * TTL-aware Map primitive for in-memory storage backends.
  * Edge-safe: lazy cleanup on access, no background timers.
  *
- * Used by: cache/, idempotency/, rate-limit/, logging/, audit/, versioning/
- * memory storage implementations to share Map+TTL+eviction logic.
+ * Shared Map+TTL+eviction logic for in-memory storage implementations
+ * (e.g. logging's memory store) so the cleanup/eviction policy lives in
+ * one place instead of being hand-rolled per backend.
  */
 
 export interface TtlMapOptions {

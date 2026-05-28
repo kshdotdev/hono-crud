@@ -4,7 +4,7 @@ import type { FilterConfig, MetaInput, OpenAPIRouteSchema, PaginatedResult } fro
 import { applyComputedFieldsToArray } from '../core/types';
 import { CrudEndpoint } from './base';
 import {
-  type ListEndpointConfig,
+  type ListFilterParseOptions,
   type ListFilters,
   type ModelObject,
   applyFieldSelectionToArray,
@@ -245,7 +245,7 @@ export abstract class ListEndpoint<
     const { query } = await this.getValidatedData();
     const softDeleteConfig = this.getSoftDeleteConfig();
 
-    const config: ListEndpointConfig = {
+    const config: ListFilterParseOptions = {
       filterFields: this.filterFields,
       filterConfig: this.filterConfig,
       searchFields: this.searchFields,

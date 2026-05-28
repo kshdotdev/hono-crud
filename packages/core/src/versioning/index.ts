@@ -1,4 +1,5 @@
 import type { Context, Env } from 'hono';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import type {
   AuditFieldChange,
   NormalizedVersioningConfig,
@@ -187,7 +188,7 @@ export class MemoryVersioningStorage implements VersioningStorage {
  * global storage.
  */
 export const versioningStorageRegistry = createRegistryWithDefault<VersioningStorage>(
-  'versioningStorage',
+  CONTEXT_KEYS.versioningStorage,
   () => new MemoryVersioningStorage(),
 );
 

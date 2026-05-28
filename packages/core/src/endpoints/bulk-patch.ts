@@ -2,7 +2,7 @@ import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import type { HookMode, ListFilters, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import type { ListEndpointConfig, ModelObject } from './types';
+import type { ListFilterParseOptions, ModelObject } from './types';
 import { parseListFilters } from './types';
 
 /**
@@ -142,7 +142,7 @@ export abstract class BulkPatchEndpoint<
         filterFields: this.filterFields,
         defaultPerPage: this.maxBulkSize,
         maxPerPage: this.maxBulkSize,
-      } as ListEndpointConfig,
+      } as ListFilterParseOptions,
     );
 
     // Count matching records

@@ -1,5 +1,6 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import { setContextVar } from '../utils/context';
 
 /**
@@ -154,7 +155,7 @@ export function multiTenant<E extends Env = Env>(
     query: (ctx) => ctx.req.query(queryParam),
     jwt: (ctx) => {
       // JWT payload should be set by jwt middleware
-      const payload = ctx.get('jwtPayload' as keyof E['Variables']);
+      const payload = ctx.get(CONTEXT_KEYS.jwtPayload as keyof E['Variables']);
       if (payload && typeof payload === 'object') {
         return (payload as Record<string, unknown>)[jwtClaim] as string | undefined;
       }

@@ -12,7 +12,7 @@ import {
 import { Hono } from 'hono';
 import { fromHono, registerCrud } from 'hono-crud';
 import type { MetaInput, Model } from 'hono-crud';
-import { generateETag, matchesIfMatch, matchesIfNoneMatch } from 'hono-crud/core/etag';
+import { generateETag, matchesIfMatch, matchesIfNoneMatch } from 'hono-crud';
 import { decodeCursor, encodeCursor } from 'hono-crud/core/types';
 import { CrudEventEmitter } from 'hono-crud/events/emitter';
 import { beforeEach, describe, expect, it } from 'vitest';

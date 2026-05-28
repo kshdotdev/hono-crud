@@ -1,4 +1,4 @@
-import type { ZodObject, ZodRawShape, z } from 'zod';
+import type { ZodObject, ZodRawShape } from 'zod';
 import type {
   FilterCondition,
   FilterConfig,
@@ -31,8 +31,9 @@ export type {
 };
 export type { defineModel, defineMeta };
 
-// List endpoint configuration
-export interface ListEndpointConfig {
+// Query-string parsing options for `parseListFilters` (runtime parser input).
+// Distinct from the declarative author-facing list config in `config/index.ts`.
+export interface ListFilterParseOptions {
   // Filter configuration
   filterFields?: string[];
   filterConfig?: FilterConfig;
@@ -110,7 +111,7 @@ export function parseFilterValue(value: string): { operator: FilterOperator; val
 // Parse query parameters into list filters
 export function parseListFilters(
   query: Record<string, unknown>,
-  config: ListEndpointConfig,
+  config: ListFilterParseOptions,
 ): ListFilters {
   const filters: FilterCondition[] = [];
   const options: ListOptions = {};
@@ -305,8 +306,12 @@ export function getSchemaFields<T extends ZodObject<ZodRawShape>>(
   return schema.omit(mask) as unknown as ZodObject<ZodRawShape>;
 }
 
-// Infer the object type from a model
-export type ModelObject<M extends Model> = z.infer<M['schema']>;
+/**
+ * Infer the object type from a model.
+ * @deprecated Identical to `InferModel<M>`; kept as an alias to avoid churn.
+ * Prefer `InferModel` for new code.
+ */
+export type ModelObject<M extends Model> = InferModel<M>;
 
 // ============================================================================
 // Field Selection Types

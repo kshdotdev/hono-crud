@@ -1,6 +1,7 @@
 /**
  * Prefix wrapper for KV stores. Owns the `prefix + ":" + key` plumbing
- * that every cache/rate-limit storage backend repeated.
+ * so storage backends share one key-namespacing convention instead of
+ * repeating it inline.
  */
 export class PrefixedKv {
   constructor(

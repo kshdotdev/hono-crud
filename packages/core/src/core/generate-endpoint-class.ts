@@ -73,6 +73,11 @@ export interface NormalizedEndpointConfig {
   // Spread onto the generated subclass instance via Object.assign in
   // the constructor; absent keys leave the endpoint base-class default
   // in place.
+  //
+  // Kept loose (`Record<string, unknown>`) here so the factory stays
+  // generic over base classes; the *value* contract is the typed
+  // `*Extras` types in `endpoints/extras-config.ts`, which the config-API
+  // build sites use so an unknown/misspelled key fails to compile.
   extras?: Record<string, unknown>;
 }
 

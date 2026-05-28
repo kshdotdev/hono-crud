@@ -1,5 +1,6 @@
 import type { Context, Env } from 'hono';
 import { getContextVar } from '../core/context-helpers';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import { getLogger } from '../core/logger';
 import type {
   CrudEventListener,
@@ -244,7 +245,7 @@ export function resolveEventEmitter<E extends Env>(
     return explicit;
   }
   if (ctx) {
-    const contextEmitter = getContextVar<CrudEventEmitter>(ctx, 'eventEmitter');
+    const contextEmitter = getContextVar<CrudEventEmitter>(ctx, CONTEXT_KEYS.eventEmitter);
     if (contextEmitter) {
       return contextEmitter;
     }

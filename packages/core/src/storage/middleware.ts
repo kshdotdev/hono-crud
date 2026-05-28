@@ -1,4 +1,5 @@
 import type { Env, MiddlewareHandler } from 'hono';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import type { StorageEnv, StorageMiddlewareConfig } from './types';
 
 /**
@@ -55,23 +56,23 @@ export function createStorageMiddleware<E extends Env = Env>(
   return async (ctx, next) => {
     // Inject each configured storage into context
     if (config.loggingStorage) {
-      ctx.set('loggingStorage', config.loggingStorage);
+      ctx.set(CONTEXT_KEYS.loggingStorage, config.loggingStorage);
     }
 
     if (config.auditStorage) {
-      ctx.set('auditStorage', config.auditStorage);
+      ctx.set(CONTEXT_KEYS.auditStorage, config.auditStorage);
     }
 
     if (config.versioningStorage) {
-      ctx.set('versioningStorage', config.versioningStorage);
+      ctx.set(CONTEXT_KEYS.versioningStorage, config.versioningStorage);
     }
 
     if (config.apiKeyStorage) {
-      ctx.set('apiKeyStorage', config.apiKeyStorage);
+      ctx.set(CONTEXT_KEYS.apiKeyStorage, config.apiKeyStorage);
     }
 
     if (config.eventEmitter) {
-      ctx.set('eventEmitter', config.eventEmitter);
+      ctx.set(CONTEXT_KEYS.eventEmitter, config.eventEmitter);
     }
 
     await next();

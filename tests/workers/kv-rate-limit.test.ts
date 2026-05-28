@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { KVRateLimitStorage } from '@hono-crud/rate-limit/storage/cloudflare-kv';
-import type { KVNamespace } from 'hono-crud/shared/kv-types';
+import type { KVNamespace } from 'hono-crud/shared/cloudflare-kv-types';
 /**
  * KV Rate Limit Storage tests running inside miniflare.
  *

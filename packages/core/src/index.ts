@@ -176,7 +176,7 @@ export { setLogger, getLogger } from './core/logger';
 export type { Logger } from './core/logger';
 
 // ETag exports
-export { generateETag, matchesIfNoneMatch, matchesIfMatch } from './core/etag';
+export { generateETag, matchesIfNoneMatch, matchesIfMatch } from './utils/etag';
 
 // Endpoint exports
 export { CreateEndpoint } from './endpoints/create';
@@ -243,7 +243,7 @@ export {
   applyFieldSelectionToArray,
 } from './endpoints/types';
 export type {
-  ListEndpointConfig,
+  ListFilterParseOptions,
   SingleEndpointConfig,
   UpdateEndpointConfig,
   ModelObject,
@@ -286,7 +286,7 @@ export {
   toError,
   wrapError,
   getErrorMessage,
-} from './utils/errors';
+} from './utils/error-coerce';
 
 // Context helper exports
 export {

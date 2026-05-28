@@ -1,9 +1,9 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
-import { generateETag, matchesIfNoneMatch } from '../core/etag';
 import { NotFoundException } from '../core/exceptions';
 import type { IncludeOptions, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { applyComputedFields } from '../core/types';
+import { generateETag, matchesIfNoneMatch } from '../utils/etag';
 import { CrudEndpoint } from './base';
 import { type FieldSelection, type ModelObject, applyFieldSelection } from './types';
 

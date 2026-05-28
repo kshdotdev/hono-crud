@@ -10,6 +10,7 @@
 
 import type { Context, Env } from 'hono';
 import { getContextVar } from '../utils/context';
+import { CONTEXT_KEYS } from './context-keys';
 
 export {
   getContextVar,
@@ -22,28 +23,32 @@ export {
 // Auth-specific helpers (move to src/auth/context.ts in Phase E)
 // ============================================================================
 
-export function getUserId<E extends Env>(ctx: Context<E>): string | undefined {
-  return getContextVar<string>(ctx, 'userId');
-}
+// `getUserId` is the lower-level shared accessor in `utils/request-info.ts`
+// (also consumed by logging/audit). Re-exported here as part of the auth
+// helper family so there is a single definition.
+export { getUserId } from '../utils/request-info';
 
 export function getUser<E extends Env>(
   ctx: Context<E>,
 ): { id: string; roles?: string[]; permissions?: string[] } | undefined {
-  return getContextVar<{ id: string; roles?: string[]; permissions?: string[] }>(ctx, 'user');
+  return getContextVar<{ id: string; roles?: string[]; permissions?: string[] }>(
+    ctx,
+    CONTEXT_KEYS.user,
+  );
 }
 
 export function getUserRoles<E extends Env>(ctx: Context<E>): string[] | undefined {
-  return getContextVar<string[]>(ctx, 'roles');
+  return getContextVar<string[]>(ctx, CONTEXT_KEYS.roles);
 }
 
 export function getUserPermissions<E extends Env>(ctx: Context<E>): string[] | undefined {
-  return getContextVar<string[]>(ctx, 'permissions');
+  return getContextVar<string[]>(ctx, CONTEXT_KEYS.permissions);
 }
 
 export function getAuthType<E extends Env>(
   ctx: Context<E>,
 ): 'jwt' | 'api-key' | 'none' | undefined {
-  return getContextVar<'jwt' | 'api-key' | 'none'>(ctx, 'authType');
+  return getContextVar<'jwt' | 'api-key' | 'none'>(ctx, CONTEXT_KEYS.authType);
 }
 
 export function hasRole<E extends Env>(ctx: Context<E>, role: string): boolean {

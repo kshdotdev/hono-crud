@@ -18,6 +18,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { type AuditLogger, createAuditLogger } from '../audit';
 import { POLICIES_CONTEXT_KEY } from '../auth/guards';
 import type { AuthUser } from '../auth/types';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import { ApiException, InputValidationException } from '../core/exceptions';
 import {
   type AdapterKind,
@@ -136,8 +137,7 @@ export abstract class CrudEndpoint<
     if (config.getUserId && this.context) {
       return config.getUserId(this.context);
     }
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
+    return this.context ? getContextVar<string>(this.context, CONTEXT_KEYS.userId) : undefined;
   }
 
   // ============================================================================
@@ -167,8 +167,7 @@ export abstract class CrudEndpoint<
     if (config.getUserId && this.context) {
       return config.getUserId(this.context);
     }
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
+    return this.context ? getContextVar<string>(this.context, CONTEXT_KEYS.userId) : undefined;
   }
 
   // ============================================================================
@@ -310,7 +309,7 @@ export abstract class CrudEndpoint<
       userId: this.getAuditUserId(),
       tenantId: this.context ? this.getTenantId() : undefined,
       organizationId: this.context
-        ? getContextVar<string>(this.context, 'organizationId')
+        ? getContextVar<string>(this.context, CONTEXT_KEYS.organizationId)
         : undefined,
       timestamp: new Date().toISOString(),
       metadata: payload.metadata,
@@ -423,10 +422,10 @@ export abstract class CrudEndpoint<
   protected buildPolicyContext(): PolicyContext {
     const ctx = this.context;
     return {
-      user: ctx ? getContextVar<AuthUser>(ctx, 'user') : undefined,
-      userId: ctx ? getContextVar<string>(ctx, 'userId') : undefined,
-      tenantId: ctx ? getContextVar<string>(ctx, 'tenantId') : undefined,
-      organizationId: ctx ? getContextVar<string>(ctx, 'organizationId') : undefined,
+      user: ctx ? getContextVar<AuthUser>(ctx, CONTEXT_KEYS.user) : undefined,
+      userId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.userId) : undefined,
+      tenantId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.tenantId) : undefined,
+      organizationId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.organizationId) : undefined,
       request: ctx?.req?.raw ?? new Request('http://localhost/'),
     };
   }
@@ -517,10 +516,10 @@ export abstract class CrudEndpoint<
       db: { tx: this._tx },
       request: ctx?.req?.raw,
       tenantId: ctx ? this.getTenantId() : undefined,
-      organizationId: ctx ? getContextVar<string>(ctx, 'organizationId') : undefined,
-      userId: ctx ? getContextVar<string>(ctx, 'userId') : undefined,
-      agentId: ctx ? getContextVar<string>(ctx, 'agentId') : undefined,
-      agentRunId: ctx ? getContextVar<string>(ctx, 'agentRunId') : undefined,
+      organizationId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.organizationId) : undefined,
+      userId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.userId) : undefined,
+      agentId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.agentId) : undefined,
+      agentRunId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.agentRunId) : undefined,
     };
   }
 
@@ -571,8 +570,8 @@ export abstract class CrudEndpoint<
     // be configured — the resolver hook is independent of the per-model
     // tenant-injection feature.
     const resolveCtx: SchemaResolveContext = {
-      tenantId: getContextVar<string>(this.context, 'tenantId'),
-      organizationId: getContextVar<string>(this.context, 'organizationId'),
+      tenantId: getContextVar<string>(this.context, CONTEXT_KEYS.tenantId),
+      organizationId: getContextVar<string>(this.context, CONTEXT_KEYS.organizationId),
       request: this.context.req?.raw,
       env: this.context.env,
     };
