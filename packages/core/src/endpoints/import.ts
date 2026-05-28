@@ -5,6 +5,7 @@ import { getManagedInputExclusions, mapUniqueViolation } from '../core/managed-f
 import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { type CsvParseOptions, parseCsv, validateCsvHeaders } from '../utils/csv';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 // ============================================================================
@@ -300,21 +301,7 @@ export abstract class ImportEndpoint<
             },
           },
         },
-        400: {
-          description: 'Validation error',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                  details: z.unknown().optional(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Validation error'),
       },
     };
   }

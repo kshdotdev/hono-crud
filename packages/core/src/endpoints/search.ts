@@ -12,6 +12,7 @@ import type {
 } from '../core/types';
 import { parseSearchMode } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import {
   buildSearchConfig,
   calculateScore,
@@ -383,21 +384,7 @@ export abstract class SearchEndpoint<
             },
           },
         },
-        400: {
-          description: 'Invalid search request',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                  details: z.unknown().optional(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Invalid search request'),
       },
     };
   }

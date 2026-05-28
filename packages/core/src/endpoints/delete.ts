@@ -11,6 +11,7 @@ import type {
   RelationConfig,
 } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import type { ModelObject } from './types';
 
 /**
@@ -190,20 +191,7 @@ export abstract class DeleteEndpoint<
             },
           },
         },
-        404: {
-          description: 'Resource not found',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        404: errorResponseSchema('Resource not found'),
         409: {
           description: 'Cannot delete - related records exist (restrict)',
           content: {

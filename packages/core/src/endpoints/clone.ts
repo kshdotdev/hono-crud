@@ -8,6 +8,7 @@ import {
 } from '../core/managed-fields';
 import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -106,34 +107,8 @@ export abstract class CloneEndpoint<
             },
           },
         },
-        404: {
-          description: 'Source resource not found',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
-        409: {
-          description: 'Unique-constraint violation (e.g. natural-key collision)',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        404: errorResponseSchema('Source resource not found'),
+        409: errorResponseSchema('Unique-constraint violation (e.g. natural-key collision)'),
       },
     };
   }

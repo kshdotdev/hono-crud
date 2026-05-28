@@ -4,6 +4,7 @@ import { NotFoundException } from '../core/exceptions';
 import type { IncludeOptions, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { generateETag, matchesIfNoneMatch } from '../utils/etag';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import type { FieldSelection, ModelObject } from './types';
 
 /**
@@ -172,20 +173,7 @@ export abstract class ReadEndpoint<
             },
           },
         },
-        404: {
-          description: 'Resource not found',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        404: errorResponseSchema('Resource not found'),
       },
     };
   }
