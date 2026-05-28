@@ -2,6 +2,10 @@ import type { Hono } from 'hono';
 import type { RequestPlan } from './schema';
 import type { OperationName } from './types';
 
+// NOTE: METHOD and REQUEST_BUILDERS below mirror the HTTP method + URL shape that
+// `registerCrud` assigns to each operation (see packages/core/src/utils.ts —
+// create=POST /, list=GET /, read=GET /:id, update=PATCH /:id, delete=DELETE /:id).
+// registerCrud is the source of truth; keep these two in lockstep with it.
 const METHOD: Record<OperationName, 'GET' | 'POST' | 'PATCH' | 'DELETE'> = {
   list: 'GET',
   read: 'GET',

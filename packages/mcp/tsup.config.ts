@@ -15,7 +15,6 @@ export default defineConfig({
     'hono',
     '@hono/mcp',
     '@modelcontextprotocol/sdk',
-    'hono-rate-limiter',
     'zod',
   ],
 });

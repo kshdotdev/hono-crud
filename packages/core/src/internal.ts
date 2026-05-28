@@ -41,3 +41,4 @@ export { matchPath, matchAny, isPathIncluded } from './utils/path-match';
 export type { PathPattern } from './utils/path-match';
 export { getClientIp } from './utils/request-info';
 export type { ClientIpOptions } from './utils/request-info';
+export { defaultExtractToken as extractBearerToken } from './auth/middleware/jwt';

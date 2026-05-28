@@ -1,4 +1,5 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
+import { UnauthorizedException, extractBearerToken } from 'hono-crud/internal';
 import type { Identity, McpAuthOptions } from './types';
 
 export interface ResolvedAuth {
@@ -9,14 +10,9 @@ export interface ResolvedAuth {
   gate(c: Context): Promise<Response | undefined>;
 }
 
+/** 401 with core's canonical error envelope, so MCP tracks the same shape as REST. */
 function unauthorized(c: Context, message: string): Response {
-  return c.json({ success: false, error: { code: 'UNAUTHORIZED', message } }, 401);
-}
-
-function bearerToken(c: Context): string | undefined {
-  const header = c.req.header('authorization');
-  const match = header ? /^Bearer\s+(.+)$/i.exec(header) : null;
-  return match ? match[1] : undefined;
+  return c.json(new UnauthorizedException(message).toJSON(), 401);
 }
 
 /**
@@ -47,7 +43,7 @@ const STRATEGIES: StrategyResolvers = {
   verifier: (options) => ({
     mount() {},
     async gate(c) {
-      const token = bearerToken(c);
+      const token = extractBearerToken(c);
       if (!token) return unauthorized(c, 'Missing bearer token');
       const identity = await options.verifyToken(token, c);
       if (!identity) return unauthorized(c, 'Invalid token');

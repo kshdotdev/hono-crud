@@ -1,7 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Hono } from 'hono';
-import { getLogger } from 'hono-crud';
-import { ConfigurationException } from 'hono-crud/internal';
+import { ConfigurationException, getLogger } from 'hono-crud/internal';
 import { defaultDescription, defaultNaming, resolveAnnotations } from './config';
 import {
   type DispatchTarget,
@@ -46,7 +45,12 @@ function resourceLabel(path: string, instance: EndpointInstance, override?: stri
     .replace(/^\/+|\/+$/g, '')
     .split('/')
     .pop();
-  return segment || 'resource';
+  if (segment) return segment;
+  // Fail loud rather than fall back to a generic name that would silently
+  // collide across mis-configured resources (matches @hono-crud/cache).
+  throw new ConfigurationException(
+    `@hono-crud/mcp: cannot derive a resource name for path "${path}". Set a model tag/tableName via _meta, or pass a resource name override.`,
+  );
 }
 
 function headersFrom(extra: ToolExtra): ForwardHeaders | undefined {

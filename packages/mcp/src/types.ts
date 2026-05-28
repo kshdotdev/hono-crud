@@ -1,9 +1,16 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
-import type { CrudEndpoints, OpenAPIRoute, OpenAPIRouteSchema } from 'hono-crud';
+import type { CrudEndpointName, CrudEndpoints, OpenAPIRoute, OpenAPIRouteSchema } from 'hono-crud';
 import type { MetaInput, PathPattern } from 'hono-crud/internal';
 
-/** The five standard CRUD operations exposed as MCP tools. */
-export type OperationName = 'list' | 'read' | 'create' | 'update' | 'delete';
+/**
+ * The five standard CRUD operations exposed as MCP tools. Pinned to core's
+ * `CrudEndpointName` via `Extract` so a rename in core surfaces as a compile
+ * error here rather than silent drift.
+ */
+export type OperationName = Extract<
+  CrudEndpointName,
+  'list' | 'read' | 'create' | 'update' | 'delete'
+>;
 
 export const OPERATIONS: readonly OperationName[] = ['list', 'read', 'create', 'update', 'delete'];
 

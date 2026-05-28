@@ -14,8 +14,9 @@ REST API — auth, Zod validation, hooks, audit, soft-delete, serialization and 
 npm i @hono-crud/mcp @modelcontextprotocol/sdk
 ```
 
-`@modelcontextprotocol/sdk`, `hono` and `zod` are peer dependencies. `hono-rate-limiter` is an
-optional peer, only needed for the OAuth strategy.
+`@modelcontextprotocol/sdk`, `hono` and `zod` are peer dependencies. The optional OAuth strategy
+brings its own router and middleware (see [Authentication](#authentication)) — this package has no
+other dependencies.
 
 ## Usage
 
