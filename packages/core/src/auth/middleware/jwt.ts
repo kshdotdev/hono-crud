@@ -50,9 +50,11 @@ function validateAlgorithm(algorithm: JWTAlgorithm): HonoAlgorithm {
 // ============================================================================
 
 /**
- * Default function to extract the token from the request.
+ * Default function to extract a Bearer token from the `Authorization` header.
+ * Exported via `hono-crud/internal` so first-party addons (e.g. `@hono-crud/mcp`)
+ * can reuse the same extraction logic instead of reimplementing it.
  */
-function defaultExtractToken(ctx: Context): string | null {
+export function defaultExtractToken(ctx: Context): string | null {
   const authHeader = ctx.req.header('Authorization');
   if (!authHeader) {
     return null;

@@ -1,5 +1,6 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import type { Env, MiddlewareHandler } from 'hono';
+import { recordCrudResource } from './core/resource-registry';
 import type { OpenAPIRoute } from './core/route';
 import { RESPONSE_ENVELOPE_CONTEXT_KEY, type ResponseEnvelope } from './core/types';
 import { setContextVar } from './utils/context';
@@ -336,6 +337,10 @@ export function registerCrud<E extends Env = Env>(
   if (endpoints.clone) {
     registerRoute('post', `${normalizedPath}/:id/clone`, 'clone', endpoints.clone);
   }
+
+  // Record this registration on the app so addons (e.g. @hono-crud/mcp) can
+  // enumerate registered resources. App-scoped, startup-time — edge-safe.
+  recordCrudResource(app, normalizedPath, endpoints);
 }
 
 /**
