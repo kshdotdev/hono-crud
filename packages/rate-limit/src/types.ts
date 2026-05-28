@@ -153,7 +153,7 @@ export interface RateLimitTier {
  * Can return different limits based on user, route, or other context.
  */
 export type TierFunction<E extends Env = Env> = (
-  ctx: Context<E>
+  ctx: Context<E>,
 ) => RateLimitTier | Promise<RateLimitTier>;
 
 /**
@@ -163,7 +163,7 @@ export type TierFunction<E extends Env = Env> = (
 export type OnRateLimitExceeded<E extends Env = Env> = (
   ctx: Context<E>,
   result: RateLimitResult,
-  key: string
+  key: string,
 ) => void | Promise<void>;
 
 /**

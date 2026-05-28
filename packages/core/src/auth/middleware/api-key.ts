@@ -1,6 +1,6 @@
 import type { Context, MiddlewareHandler } from 'hono';
-import type { AuthEnv, APIKeyConfig, APIKeyEntry, AuthUser } from '../types';
 import { UnauthorizedException } from '../../core/exceptions';
+import type { APIKeyConfig, APIKeyEntry, AuthEnv, AuthUser } from '../types';
 import { validateAPIKeyEntry } from '../validators/api-key';
 
 // ============================================================================
@@ -74,7 +74,7 @@ function extractFromQuery(ctx: Context, paramName: string): string | null {
  * ```
  */
 export function createAPIKeyMiddleware<E extends AuthEnv = AuthEnv>(
-  config: APIKeyConfig
+  config: APIKeyConfig,
 ): MiddlewareHandler<E> {
   const headerName = config.headerName || 'X-API-Key';
   const queryParam = config.queryParam ?? null;
@@ -129,10 +129,7 @@ export function createAPIKeyMiddleware<E extends AuthEnv = AuthEnv>(
  * @returns The API key entry if valid
  * @throws UnauthorizedException if the key is invalid
  */
-export async function validateAPIKey(
-  apiKey: string,
-  config: APIKeyConfig
-): Promise<APIKeyEntry> {
+export async function validateAPIKey(apiKey: string, config: APIKeyConfig): Promise<APIKeyEntry> {
   const hashKey = config.hashKey || defaultHashAPIKey;
 
   // Hash the API key

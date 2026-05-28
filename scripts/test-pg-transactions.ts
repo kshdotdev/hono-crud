@@ -8,19 +8,19 @@
  * Run: npx tsx scripts/test-pg-transactions.ts
  */
 
-import { Hono } from 'hono';
-import { z } from 'zod';
+import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
+import { Hono } from 'hono';
 import pg from 'pg';
-import { defineModel } from '../src/index.js';
+import { z } from 'zod';
 import {
   DrizzleCreateEndpoint,
-  DrizzleUpdateEndpoint,
-  DrizzleDeleteEndpoint,
   type DrizzleDatabase,
+  DrizzleDeleteEndpoint,
+  DrizzleUpdateEndpoint,
 } from '../src/adapters/drizzle/index.js';
+import { defineModel } from '../src/index.js';
 
 const { Pool } = pg;
 
@@ -147,12 +147,15 @@ async function testCreateWithTransaction() {
     }),
   });
 
-  const result = await response.json() as { success: boolean; result: { id: string; name: string } };
+  const result = (await response.json()) as {
+    success: boolean;
+    result: { id: string; name: string };
+  };
 
   if (response.status === 201 && result.success) {
     // Verify in database
     const users = await db.select().from(usersTable);
-    const found = users.find(u => u.email === 'tx@example.com');
+    const found = users.find((u) => u.email === 'tx@example.com');
 
     if (found) {
       console.log('✅ PASSED: User created successfully with transaction');
@@ -193,11 +196,13 @@ async function testCreateWithTransactionRollback() {
     }),
   });
 
-  const result = await response.json() as { success: boolean; error?: { message: string } };
+  const result = (await response.json()) as { success: boolean; error?: { message: string } };
 
   // Count users after
   const countAfter = (await db.select().from(usersTable)).length;
-  const userExists = (await db.select().from(usersTable)).some(u => u.email === 'rollback@example.com');
+  const userExists = (await db.select().from(usersTable)).some(
+    (u) => u.email === 'rollback@example.com',
+  );
 
   if (response.status === 500 && !userExists && countAfter === countBefore) {
     console.log('✅ PASSED: Transaction rolled back on error');
@@ -238,12 +243,12 @@ async function testUpdateWithTransaction() {
     body: JSON.stringify({ name: 'Updated Name' }),
   });
 
-  const result = await response.json() as { success: boolean; result: { name: string } };
+  const result = (await response.json()) as { success: boolean; result: { name: string } };
 
   if (response.status === 200 && result.result?.name === 'Updated Name') {
     // Verify in database
     const users = await db.select().from(usersTable);
-    const found = users.find(u => u.id === userId);
+    const found = users.find((u) => u.id === userId);
 
     if (found?.name === 'Updated Name') {
       console.log('✅ PASSED: User updated successfully with transaction');
@@ -281,12 +286,12 @@ async function testDeleteWithTransaction() {
     method: 'DELETE',
   });
 
-  const result = await response.json() as { success: boolean; result: { deleted: boolean } };
+  const result = (await response.json()) as { success: boolean; result: { deleted: boolean } };
 
   if (response.status === 200 && result.result?.deleted) {
     // Verify soft delete in database
     const users = await db.select().from(usersTable);
-    const found = users.find(u => u.id === userId);
+    const found = users.find((u) => u.id === userId);
 
     if (found?.deletedAt !== null) {
       console.log('✅ PASSED: User soft-deleted successfully with transaction');
@@ -321,7 +326,7 @@ async function main() {
     console.log('Summary');
     console.log('='.repeat(60));
 
-    const passed = results.filter(r => r).length;
+    const passed = results.filter((r) => r).length;
     const total = results.length;
 
     console.log(`\nTests: ${passed}/${total} passed`);
@@ -332,7 +337,6 @@ async function main() {
       console.log(`\n❌ ${total - passed} test(s) failed\n`);
       process.exitCode = 1;
     }
-
   } catch (error) {
     console.error('Test error:', error);
     process.exitCode = 1;

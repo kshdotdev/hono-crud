@@ -1,22 +1,22 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Hono } from 'hono';
-import { z } from 'zod';
-import { fromHono, registerCrud } from 'hono-crud';
+import { idempotency } from '@hono-crud/idempotency/middleware';
+import { MemoryIdempotencyStorage } from '@hono-crud/idempotency/storage/memory';
 import {
+  MemoryCloneEndpoint,
   MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
-  MemoryCloneEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
 } from '@hono-crud/memory';
+import { Hono } from 'hono';
+import { fromHono, registerCrud } from 'hono-crud';
 import type { MetaInput, Model } from 'hono-crud';
-import { encodeCursor, decodeCursor } from 'hono-crud/core/types';
-import { generateETag, matchesIfNoneMatch, matchesIfMatch } from 'hono-crud/core/etag';
+import { generateETag, matchesIfMatch, matchesIfNoneMatch } from 'hono-crud/core/etag';
+import { decodeCursor, encodeCursor } from 'hono-crud/core/types';
 import { CrudEventEmitter } from 'hono-crud/events/emitter';
-import { MemoryIdempotencyStorage } from '@hono-crud/idempotency/storage/memory';
-import { idempotency } from '@hono-crud/idempotency/middleware';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // ============================================================================
 // Test Schema
@@ -109,7 +109,7 @@ describe('Cursor-Based Pagination', () => {
   it('should support cursor-based pagination with limit', async () => {
     const res = await app.request('/users?limit=2');
     expect(res.status).toBe(200);
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     expect(data.success).toBe(true);
     expect(data.result.length).toBe(2);
     expect(data.result_info.has_next_page).toBe(true);
@@ -119,14 +119,14 @@ describe('Cursor-Based Pagination', () => {
   it('should paginate through results with cursor', async () => {
     // First page
     const res1 = await app.request('/users?limit=2');
-    const data1 = await res1.json() as any;
+    const data1 = (await res1.json()) as any;
     expect(data1.result.length).toBe(2);
     const nextCursor = data1.result_info.next_cursor;
     expect(nextCursor).toBeDefined();
 
     // Second page using cursor
     const res2 = await app.request(`/users?cursor=${nextCursor}&limit=2`);
-    const data2 = await res2.json() as any;
+    const data2 = (await res2.json()) as any;
     expect(data2.result.length).toBe(2);
 
     // All 4 items should be different
@@ -136,17 +136,17 @@ describe('Cursor-Based Pagination', () => {
 
   it('should return has_prev_page when using cursor', async () => {
     const res1 = await app.request('/users?limit=2');
-    const data1 = await res1.json() as any;
+    const data1 = (await res1.json()) as any;
     expect(data1.result_info.has_prev_page).toBe(false);
 
     const res2 = await app.request(`/users?cursor=${data1.result_info.next_cursor}&limit=2`);
-    const data2 = await res2.json() as any;
+    const data2 = (await res2.json()) as any;
     expect(data2.result_info.has_prev_page).toBe(true);
   });
 
   it('should still support offset-based pagination', async () => {
     const res = await app.request('/users?page=1&per_page=2');
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     expect(data.result.length).toBe(2);
     expect(data.result_info.page).toBe(1);
     expect(data.result_info.total_count).toBe(4);
@@ -199,7 +199,7 @@ describe('ETag & Conditional Requests', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Alice', email: 'alice@test.com' }),
     });
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     userId = data.result.id;
   });
 
@@ -249,7 +249,7 @@ describe('ETag & Conditional Requests', () => {
       body: JSON.stringify({ name: 'Alice Updated' }),
     });
     expect(res.status).toBe(409);
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     expect(data.error.code).toBe('CONFLICT');
   });
 
@@ -305,7 +305,7 @@ describe('ETag Utilities', () => {
   });
 
   it('matchesIfMatch should handle various inputs', () => {
-    expect(matchesIfMatch(null, '"abc"')).toBe(true);  // No header = proceed
+    expect(matchesIfMatch(null, '"abc"')).toBe(true); // No header = proceed
     expect(matchesIfMatch(undefined, '"abc"')).toBe(true);
     expect(matchesIfMatch('*', '"abc"')).toBe(true);
     expect(matchesIfMatch('"abc"', '"abc"')).toBe(true);
@@ -341,7 +341,7 @@ describe('Clone Endpoint', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Alice', email: 'alice@test.com', age: 30 }),
     });
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     userId = data.result.id;
   });
 
@@ -352,7 +352,7 @@ describe('Clone Endpoint', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(201);
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     expect(data.success).toBe(true);
     expect(data.result.name).toBe('Alice');
     expect(data.result.email).toBe('alice@test.com');
@@ -366,7 +366,7 @@ describe('Clone Endpoint', () => {
       body: JSON.stringify({ name: 'Alice Clone', email: 'clone@test.com' }),
     });
     expect(res.status).toBe(201);
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     expect(data.result.name).toBe('Alice Clone');
     expect(data.result.email).toBe('clone@test.com');
     expect(data.result.age).toBe(30); // Preserved from original
@@ -442,8 +442,20 @@ describe('Event System', () => {
       received.push(event);
     });
 
-    await emitter.emit({ type: 'created', table: 'users', recordId: '1', data: null, timestamp: '' });
-    await emitter.emit({ type: 'deleted', table: 'posts', recordId: '2', data: null, timestamp: '' });
+    await emitter.emit({
+      type: 'created',
+      table: 'users',
+      recordId: '1',
+      data: null,
+      timestamp: '',
+    });
+    await emitter.emit({
+      type: 'deleted',
+      table: 'posts',
+      recordId: '2',
+      data: null,
+      timestamp: '',
+    });
 
     expect(received.length).toBe(2);
   });
@@ -456,12 +468,24 @@ describe('Event System', () => {
       received.push(event);
     });
 
-    await emitter.emit({ type: 'created', table: 'users', recordId: '1', data: null, timestamp: '' });
+    await emitter.emit({
+      type: 'created',
+      table: 'users',
+      recordId: '1',
+      data: null,
+      timestamp: '',
+    });
     expect(received.length).toBe(1);
 
     sub.unsubscribe();
 
-    await emitter.emit({ type: 'created', table: 'users', recordId: '2', data: null, timestamp: '' });
+    await emitter.emit({
+      type: 'created',
+      table: 'users',
+      recordId: '2',
+      data: null,
+      timestamp: '',
+    });
     expect(received.length).toBe(1); // Still 1
   });
 
@@ -473,7 +497,13 @@ describe('Event System', () => {
     });
 
     // Should not throw
-    await emitter.emit({ type: 'created', table: 'users', recordId: '1', data: null, timestamp: '' });
+    await emitter.emit({
+      type: 'created',
+      table: 'users',
+      recordId: '1',
+      data: null,
+      timestamp: '',
+    });
   });
 
   it('should report correct listener count', () => {
@@ -526,7 +556,7 @@ describe('Idempotency Middleware', () => {
       headers: { 'Idempotency-Key': key },
     });
     expect(res1.status).toBe(201);
-    const data1 = await res1.json() as any;
+    const data1 = (await res1.json()) as any;
 
     // Second request with same key — should replay
     const res2 = await app.request('/items', {
@@ -535,7 +565,7 @@ describe('Idempotency Middleware', () => {
     });
     expect(res2.status).toBe(201);
     expect(res2.headers.get('Idempotency-Replayed')).toBe('true');
-    const data2 = await res2.json() as any;
+    const data2 = (await res2.json()) as any;
     expect(data2.result.id).toBe(data1.result.id); // Same ID
   });
 
@@ -546,7 +576,7 @@ describe('Idempotency Middleware', () => {
 
     const res = await requiredApp.request('/items', { method: 'POST' });
     expect(res.status).toBe(400);
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     expect(data.error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
   });
 });
@@ -573,13 +603,17 @@ describe('MemoryIdempotencyStorage', () => {
 
   it('should return null for expired entries', async () => {
     const storage = new MemoryIdempotencyStorage();
-    await storage.set('test', {
-      key: 'test',
-      statusCode: 200,
-      body: '',
-      headers: {},
-      createdAt: Date.now(),
-    }, 1); // 1ms TTL
+    await storage.set(
+      'test',
+      {
+        key: 'test',
+        statusCode: 200,
+        body: '',
+        headers: {},
+        createdAt: Date.now(),
+      },
+      1,
+    ); // 1ms TTL
 
     await new Promise((r) => setTimeout(r, 10));
     const retrieved = await storage.get('test');

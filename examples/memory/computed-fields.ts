@@ -13,25 +13,20 @@
  * Run with: npx tsx examples/computed-fields.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import {
-  fromHono,
-  defineModel,
-  defineMeta,
-  type ComputedFieldsConfig,
-} from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryListEndpoint,
-  MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { type ComputedFieldsConfig, defineMeta, defineModel, fromHono } from 'hono-crud';
+import { z } from 'zod';
 
 // Clear storage on start
 clearStorage();

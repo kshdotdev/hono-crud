@@ -1,3 +1,13 @@
+import {
+  DrizzleBatchUpsertEndpoint,
+  type DrizzleDatabase,
+  DrizzleUpsertEndpoint,
+  createDrizzleCrud,
+} from '@hono-crud/drizzle';
+import { substringMatch } from '@hono-crud/drizzle/advanced';
+import { sql } from 'drizzle-orm';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { type DrizzleDialect, defineMeta, defineModel } from 'hono-crud';
 /**
  * Tests for the Drizzle adapter's `dialect` option.
  *
@@ -14,22 +24,8 @@
  * dialect-driver-free (a real MySQL driver isn't available in the test
  * environment).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import {
-  defineModel,
-  defineMeta,
-  type DrizzleDialect,
-} from 'hono-crud';
-import {
-  createDrizzleCrud,
-  DrizzleUpsertEndpoint,
-  DrizzleBatchUpsertEndpoint,
-  type DrizzleDatabase,
-} from '@hono-crud/drizzle';
-import { substringMatch } from '@hono-crud/drizzle/advanced';
-import { sql } from 'drizzle-orm';
 
 // ============================================================================
 // Test Schema / Model
@@ -80,8 +76,9 @@ function makeStubDb(): StubDb {
   const calls: StubCall[] = [];
 
   const builder: Record<string, (...args: unknown[]) => unknown> = {};
-  const record = (method: string) =>
-    function (...args: unknown[]) {
+  const record =
+    (method: string) =>
+    (...args: unknown[]) => {
       calls.push({ method, args });
       return builder;
     };
@@ -89,13 +86,13 @@ function makeStubDb(): StubDb {
   builder.values = record('values');
   builder.onConflictDoUpdate = record('onConflictDoUpdate');
   builder.onDuplicateKeyUpdate = record('onDuplicateKeyUpdate');
-  builder.returning = function (..._args: unknown[]) {
+  builder.returning = ((..._args: unknown[]) => {
     calls.push({ method: 'returning', args: [] });
     // Return a thenable so `await` resolves to a single fake row (or batch).
     return Promise.resolve([
       { id: '00000000-0000-0000-0000-000000000001', email: 'a@b.c', name: 'A' },
     ]);
-  } as (...args: unknown[]) => unknown;
+  }) as (...args: unknown[]) => unknown;
 
   const db = {
     insert(_table: unknown) {
@@ -103,10 +100,26 @@ function makeStubDb(): StubDb {
       return builder;
     },
     select() {
-      return { from() { return { where() { return { limit() { return Promise.resolve([]); } }; } }; } };
+      return {
+        from() {
+          return {
+            where() {
+              return {
+                limit() {
+                  return Promise.resolve([]);
+                },
+              };
+            },
+          };
+        },
+      };
     },
-    update() { return builder; },
-    delete() { return builder; },
+    update() {
+      return builder;
+    },
+    delete() {
+      return builder;
+    },
     transaction<T>(fn: (tx: unknown) => Promise<T>) {
       return fn(db);
     },
@@ -121,17 +134,21 @@ function makeStubDb(): StubDb {
 function makeStubBatchDb(rowCount: number): StubDb {
   const stub = makeStubDb();
   // Replace .returning() to yield rowCount rows.
-  const builder = (stub.db as unknown as { insert: (t: unknown) => Record<string, (...args: unknown[]) => unknown> }).insert(null);
-  builder.returning = function (..._args: unknown[]) {
+  const builder = (
+    stub.db as unknown as {
+      insert: (t: unknown) => Record<string, (...args: unknown[]) => unknown>;
+    }
+  ).insert(null);
+  builder.returning = ((..._args: unknown[]) => {
     stub.calls.push({ method: 'returning', args: [] });
     return Promise.resolve(
       Array.from({ length: rowCount }, (_, i) => ({
         id: `id-${i}`,
         email: `u${i}@x.y`,
         name: `U${i}`,
-      }))
+      })),
     );
-  } as (...args: unknown[]) => unknown;
+  }) as (...args: unknown[]) => unknown;
   // Reset the recorded `insert` call from our priming call.
   stub.calls.length = 0;
   return stub;
@@ -150,9 +167,11 @@ describe('createDrizzleCrud dialect option', () => {
     class UserUpsert extends User.Upsert {
       // Expose for the test.
       public async run(data: Record<string, unknown>) {
-        return (this as unknown as {
-          nativeUpsert: (d: unknown) => Promise<unknown>;
-        }).nativeUpsert(data);
+        return (
+          this as unknown as {
+            nativeUpsert: (d: unknown) => Promise<unknown>;
+          }
+        ).nativeUpsert(data);
       }
     }
 
@@ -170,9 +189,11 @@ describe('createDrizzleCrud dialect option', () => {
 
     class UserUpsert extends User.Upsert {
       public async run(data: Record<string, unknown>) {
-        return (this as unknown as {
-          nativeUpsert: (d: unknown) => Promise<unknown>;
-        }).nativeUpsert(data);
+        return (
+          this as unknown as {
+            nativeUpsert: (d: unknown) => Promise<unknown>;
+          }
+        ).nativeUpsert(data);
       }
     }
 
@@ -189,9 +210,11 @@ describe('createDrizzleCrud dialect option', () => {
 
     class UserUpsert extends User.Upsert {
       public async run(data: Record<string, unknown>) {
-        return (this as unknown as {
-          nativeUpsert: (d: unknown) => Promise<unknown>;
-        }).nativeUpsert(data);
+        return (
+          this as unknown as {
+            nativeUpsert: (d: unknown) => Promise<unknown>;
+          }
+        ).nativeUpsert(data);
       }
     }
 
@@ -208,9 +231,11 @@ describe('createDrizzleCrud dialect option', () => {
 
     class UserUpsert extends User.Upsert {
       public async run(data: Record<string, unknown>) {
-        return (this as unknown as {
-          nativeUpsert: (d: unknown) => Promise<unknown>;
-        }).nativeUpsert(data);
+        return (
+          this as unknown as {
+            nativeUpsert: (d: unknown) => Promise<unknown>;
+          }
+        ).nativeUpsert(data);
       }
     }
 
@@ -227,9 +252,11 @@ describe('createDrizzleCrud dialect option', () => {
 
     class UserBatchUpsert extends User.BatchUpsert {
       public async run(items: Array<Record<string, unknown>>) {
-        return (this as unknown as {
-          nativeBatchUpsert: (i: unknown) => Promise<unknown>;
-        }).nativeBatchUpsert(items);
+        return (
+          this as unknown as {
+            nativeBatchUpsert: (i: unknown) => Promise<unknown>;
+          }
+        ).nativeBatchUpsert(items);
       }
     }
 
@@ -249,9 +276,11 @@ describe('createDrizzleCrud dialect option', () => {
 
     class UserBatchUpsert extends User.BatchUpsert {
       public async run(items: Array<Record<string, unknown>>) {
-        return (this as unknown as {
-          nativeBatchUpsert: (i: unknown) => Promise<unknown>;
-        }).nativeBatchUpsert(items);
+        return (
+          this as unknown as {
+            nativeBatchUpsert: (i: unknown) => Promise<unknown>;
+          }
+        ).nativeBatchUpsert(items);
       }
     }
 
@@ -284,9 +313,11 @@ describe('DrizzleUpsertEndpoint dialect default', () => {
       // Explicitly not setting `dialect` — should default to 'sqlite'.
 
       public async run(data: Record<string, unknown>) {
-        return (this as unknown as {
-          nativeUpsert: (d: unknown) => Promise<unknown>;
-        }).nativeUpsert(data);
+        return (
+          this as unknown as {
+            nativeUpsert: (d: unknown) => Promise<unknown>;
+          }
+        ).nativeUpsert(data);
       }
     }
 
@@ -306,9 +337,11 @@ describe('DrizzleUpsertEndpoint dialect default', () => {
       protected override dialect: DrizzleDialect = 'mysql';
 
       public async run(data: Record<string, unknown>) {
-        return (this as unknown as {
-          nativeUpsert: (d: unknown) => Promise<unknown>;
-        }).nativeUpsert(data);
+        return (
+          this as unknown as {
+            nativeUpsert: (d: unknown) => Promise<unknown>;
+          }
+        ).nativeUpsert(data);
       }
     }
 
@@ -329,9 +362,14 @@ describe('substringMatch — dialect-native search SQL emission', () => {
   function literalChunks(s: ReturnType<typeof sql>): string {
     const chunks = (s as unknown as { queryChunks: Array<unknown> }).queryChunks;
     return chunks
-      .map((c) => (typeof c === 'object' && c !== null && 'value' in (c as Record<string, unknown>) && Array.isArray((c as { value: unknown[] }).value)
-        ? ((c as { value: string[] }).value).join('')
-        : ''))
+      .map((c) =>
+        typeof c === 'object' &&
+        c !== null &&
+        'value' in (c as Record<string, unknown>) &&
+        Array.isArray((c as { value: unknown[] }).value)
+          ? (c as { value: string[] }).value.join('')
+          : '',
+      )
       .join('');
   }
 
@@ -381,15 +419,15 @@ describe('DrizzleBatchUpsertEndpoint dialect default', () => {
       db = stub.db;
 
       public async run(items: Array<Record<string, unknown>>) {
-        return (this as unknown as {
-          nativeBatchUpsert: (i: unknown) => Promise<unknown>;
-        }).nativeBatchUpsert(items);
+        return (
+          this as unknown as {
+            nativeBatchUpsert: (i: unknown) => Promise<unknown>;
+          }
+        ).nativeBatchUpsert(items);
       }
     }
 
-    await new UserBatchUpsert().run([
-      { id: 'a', email: 'a@x.y', name: 'A' },
-    ]);
+    await new UserBatchUpsert().run([{ id: 'a', email: 'a@x.y', name: 'A' }]);
 
     const calls = stub.calls.map((c) => c.method);
     expect(calls).toContain('onConflictDoUpdate');

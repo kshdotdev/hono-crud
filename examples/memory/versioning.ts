@@ -1,3 +1,13 @@
+import {
+  MemoryCreateEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
+  MemoryVersionCompareEndpoint,
+  MemoryVersionHistoryEndpoint,
+  MemoryVersionReadEndpoint,
+  MemoryVersionRollbackEndpoint,
+} from '@hono-crud/memory';
 /**
  * Example: Record Versioning
  *
@@ -5,27 +15,17 @@
  * to track the history of changes to your data.
  */
 import { Hono } from 'hono';
-import { z } from 'zod';
 import {
-  defineModel,
-  defineMeta,
-  fromHono,
   MemoryVersioningStorage,
-  setVersioningStorage,
-  getVersioningStorage,
-  type VersioningStorage,
   type VersionHistoryEntry,
+  type VersioningStorage,
+  defineMeta,
+  defineModel,
+  fromHono,
+  getVersioningStorage,
+  setVersioningStorage,
 } from 'hono-crud';
-import {
-  MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryUpdateEndpoint,
-  MemoryListEndpoint,
-  MemoryVersionHistoryEndpoint,
-  MemoryVersionReadEndpoint,
-  MemoryVersionCompareEndpoint,
-  MemoryVersionRollbackEndpoint,
-} from '@hono-crud/memory';
+import { z } from 'zod';
 
 type AppEnv = {
   Variables: {
@@ -109,7 +109,7 @@ class ConsoleVersioningStorage implements VersioningStorage {
   async getByRecordId(
     tableName: string,
     recordId: string | number,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number },
   ): Promise<VersionHistoryEntry[]> {
     const key = this.getKey(tableName, recordId);
     const versions = this.storage.get(key) || [];
@@ -122,27 +122,24 @@ class ConsoleVersioningStorage implements VersioningStorage {
   async getVersion(
     tableName: string,
     recordId: string | number,
-    version: number
+    version: number,
   ): Promise<VersionHistoryEntry | null> {
     const key = this.getKey(tableName, recordId);
     const versions = this.storage.get(key) || [];
-    return versions.find(v => v.version === version) || null;
+    return versions.find((v) => v.version === version) || null;
   }
 
-  async getLatestVersion(
-    tableName: string,
-    recordId: string | number
-  ): Promise<number> {
+  async getLatestVersion(tableName: string, recordId: string | number): Promise<number> {
     const key = this.getKey(tableName, recordId);
     const versions = this.storage.get(key) || [];
     if (versions.length === 0) return 0;
-    return Math.max(...versions.map(v => v.version));
+    return Math.max(...versions.map((v) => v.version));
   }
 
   async pruneVersions(
     tableName: string,
     recordId: string | number,
-    keepCount: number
+    keepCount: number,
   ): Promise<number> {
     const key = this.getKey(tableName, recordId);
     const versions = this.storage.get(key) || [];
@@ -153,10 +150,7 @@ class ConsoleVersioningStorage implements VersioningStorage {
     return sorted.length - toKeep.length;
   }
 
-  async deleteAllVersions(
-    tableName: string,
-    recordId: string | number
-  ): Promise<number> {
+  async deleteAllVersions(tableName: string, recordId: string | number): Promise<number> {
     const key = this.getKey(tableName, recordId);
     const versions = this.storage.get(key) || [];
     this.storage.delete(key);
@@ -224,10 +218,13 @@ async function main() {
   // Error handler
   app.onError((err, c) => {
     if ('status' in err && typeof err.status === 'number') {
-      return c.json({
-        success: false,
-        error: { message: err.message }
-      }, err.status as 400 | 404 | 500);
+      return c.json(
+        {
+          success: false,
+          error: { message: err.message },
+        },
+        err.status as 400 | 404 | 500,
+      );
     }
     return c.json({ success: false, error: { message: err.message } }, 500);
   });
@@ -299,7 +296,7 @@ async function main() {
       author: 'Alice',
     }),
   });
-  const createResult = await response.json() as { result: { id: string; version: number } };
+  const createResult = (await response.json()) as { result: { id: string; version: number } };
   const docId = createResult.result.id;
   console.log(`  Created document ${docId} (v${createResult.result.version})\n`);
 
@@ -312,7 +309,7 @@ async function main() {
       title: 'My Updated Document',
     }),
   });
-  const update1Result = await response.json() as { result: { version: number } };
+  const update1Result = (await response.json()) as { result: { version: number } };
   console.log(`  Updated to v${update1Result.result.version}\n`);
 
   // 3. Update again (creates v3)
@@ -324,13 +321,15 @@ async function main() {
       content: 'This is the updated content with more details.',
     }),
   });
-  const update2Result = await response.json() as { result: { version: number } };
+  const update2Result = (await response.json()) as { result: { version: number } };
   console.log(`  Updated to v${update2Result.result.version}\n`);
 
   // 4. View version history
   console.log('4. Viewing version history...');
   response = await app.request(`/documents/${docId}/versions`);
-  const historyResult = await response.json() as { result: { versions: VersionHistoryEntry[]; totalVersions: number } };
+  const historyResult = (await response.json()) as {
+    result: { versions: VersionHistoryEntry[]; totalVersions: number };
+  };
   console.log(`  Total versions: ${historyResult.result.totalVersions}`);
   console.log('  History:');
   for (const v of historyResult.result.versions) {
@@ -341,14 +340,16 @@ async function main() {
   // 5. Get a specific version
   console.log('5. Getting version 1...');
   response = await app.request(`/documents/${docId}/versions/1`);
-  const v1Result = await response.json() as { result: VersionHistoryEntry };
+  const v1Result = (await response.json()) as { result: VersionHistoryEntry };
   console.log(`  Version 1 title: "${v1Result.result.data.title}"`);
   console.log(`  Version 1 content: "${v1Result.result.data.content}"\n`);
 
   // 6. Compare versions
   console.log('6. Comparing v1 and v2...');
   response = await app.request(`/documents/${docId}/versions/compare?from=1&to=2`);
-  const compareResult = await response.json() as { result: { changes: Array<{ field: string; oldValue: unknown; newValue: unknown }> } };
+  const compareResult = (await response.json()) as {
+    result: { changes: Array<{ field: string; oldValue: unknown; newValue: unknown }> };
+  };
   console.log('  Changes:');
   for (const change of compareResult.result.changes) {
     console.log(`    - ${change.field}: "${change.oldValue}" -> "${change.newValue}"`);
@@ -360,13 +361,17 @@ async function main() {
   response = await app.request(`/documents/${docId}/versions/1/rollback`, {
     method: 'POST',
   });
-  const rollbackResult = await response.json() as { result: { title: string; version: number } };
-  console.log(`  Rolled back to: "${rollbackResult.result.title}" (now v${rollbackResult.result.version})\n`);
+  const rollbackResult = (await response.json()) as { result: { title: string; version: number } };
+  console.log(
+    `  Rolled back to: "${rollbackResult.result.title}" (now v${rollbackResult.result.version})\n`,
+  );
 
   // 8. Verify current state
   console.log('8. Current document state:');
   response = await app.request(`/documents/${docId}`);
-  const finalResult = await response.json() as { result: { title: string; content: string; version: number } };
+  const finalResult = (await response.json()) as {
+    result: { title: string; content: string; version: number };
+  };
   console.log(`  Title: "${finalResult.result.title}"`);
   console.log(`  Content: "${finalResult.result.content}"`);
   console.log(`  Version: ${finalResult.result.version}\n`);

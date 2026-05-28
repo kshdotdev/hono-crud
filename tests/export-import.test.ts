@@ -1,24 +1,24 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Hono } from 'hono';
-import { z } from 'zod';
-import { fromHono, registerCrud } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
-  MemoryListEndpoint,
   MemoryExportEndpoint,
   MemoryImportEndpoint,
+  MemoryListEndpoint,
   clearStorage,
 } from '@hono-crud/memory';
-import {
-  generateCsv,
-  parseCsv,
-  escapeCsvValue,
-  createCsvStream,
-  validateCsvHeaders,
-  csvToJson,
-  jsonToCsv,
-} from 'hono-crud/utils/csv';
+import { Hono } from 'hono';
+import { fromHono, registerCrud } from 'hono-crud';
 import type { MetaInput, Model } from 'hono-crud';
+import {
+  createCsvStream,
+  csvToJson,
+  escapeCsvValue,
+  generateCsv,
+  jsonToCsv,
+  parseCsv,
+  validateCsvHeaders,
+} from 'hono-crud/utils/csv';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // Define test schema
 const UserSchema = z.object({
@@ -281,7 +281,7 @@ describe('CSV Utilities', () => {
       const csv = 'id,age,active\n1,25,true';
       const result = parseCsv(csv, {
         parsers: {
-          age: (v) => parseInt(v, 10),
+          age: (v) => Number.parseInt(v, 10),
           active: (v) => v === 'true',
         },
       });
@@ -706,9 +706,7 @@ Bob,bob@example.com,user`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: [
-            { name: 'Alice', email: 'alice@example.com', role: 'admin' },
-          ],
+          items: [{ name: 'Alice', email: 'alice@example.com', role: 'admin' }],
         }),
       });
 
@@ -816,9 +814,7 @@ Bob,bob@example.com,user`;
   describe('Multipart Form Data', () => {
     it('should import from uploaded JSON file', async () => {
       const jsonContent = JSON.stringify({
-        items: [
-          { name: 'Alice', email: 'alice@example.com', role: 'admin' },
-        ],
+        items: [{ name: 'Alice', email: 'alice@example.com', role: 'admin' }],
       });
 
       const formData = new FormData();

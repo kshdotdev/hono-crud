@@ -33,7 +33,7 @@ export function getWaitUntil<E extends Env>(ctx: Context<E>): WaitUntil | undefi
 export function runAfterResponse<E extends Env>(
   ctx: Context<E>,
   fn: () => Promise<unknown>,
-  onError?: (err: unknown) => void
+  onError?: (err: unknown) => void,
 ): void {
   const waitUntil = getWaitUntil(ctx);
   const promise = (async () => {

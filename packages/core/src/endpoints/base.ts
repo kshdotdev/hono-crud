@@ -13,17 +13,22 @@
 
 import type { Env } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { z, type ZodObject, type ZodRawShape } from 'zod';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 
-import { OpenAPIRoute } from '../core/route';
+import { type AuditLogger, createAuditLogger } from '../audit';
+import { POLICIES_CONTEXT_KEY } from '../auth/guards';
+import type { AuthUser } from '../auth/types';
 import { ApiException, InputValidationException } from '../core/exceptions';
-import { getContextVar, setContextVar } from '../utils/context';
 import {
-  getAuditConfig,
-  getMultiTenantConfig,
-  extractTenantId,
-  getSoftDeleteConfig,
-  getVersioningConfig,
+  type AdapterKind,
+  type NormalizedTimestampsConfig,
+  applyManagedInsertFields,
+  applyManagedUpdateFields,
+  assertIdStrategySupported,
+  getTimestampsConfig,
+} from '../core/managed-fields';
+import { OpenAPIRoute } from '../core/route';
+import {
   type FilterCondition,
   type HookContext,
   type MetaInput,
@@ -35,23 +40,18 @@ import {
   type PolicyContext,
   type SchemaResolveContext,
   type ValidatedData,
+  extractTenantId,
+  getAuditConfig,
+  getMultiTenantConfig,
+  getSoftDeleteConfig,
+  getVersioningConfig,
 } from '../core/types';
-import {
-  applyManagedInsertFields,
-  applyManagedUpdateFields,
-  assertIdStrategySupported,
-  getTimestampsConfig,
-  type AdapterKind,
-  type NormalizedTimestampsConfig,
-} from '../core/managed-fields';
-import { POLICIES_CONTEXT_KEY } from '../auth/guards';
-import type { AuthUser } from '../auth/types';
-import { createAuditLogger, type AuditLogger } from '../audit';
-import { createVersionManager, type VersionManager } from '../versioning';
+import { decryptFields, encryptFields } from '../encryption/crypto';
 import { resolveEventEmitter } from '../events/emitter';
 import type { CrudEventType } from '../events/types';
-import { encryptFields, decryptFields } from '../encryption/crypto';
 import { applyProfile, applyProfileToArray } from '../serialization/serialize';
+import { getContextVar, setContextVar } from '../utils/context';
+import { type VersionManager, createVersionManager } from '../versioning';
 
 /**
  * Per-request memoization key for `Model.resolveSchema(ctx)` results.
@@ -83,7 +83,7 @@ type RowOf<M extends MetaInput> = z.infer<SchemaOf<M>>;
  * { ... this.getBodySchema() ... }` with no per-call cast.
  */
 function hasGetBodySchema<T extends object>(
-  o: T
+  o: T,
 ): o is T & { getBodySchema(): ZodObject<ZodRawShape> } {
   const candidate = o as { getBodySchema?: unknown };
   return typeof candidate.getBodySchema === 'function';
@@ -148,7 +148,7 @@ export abstract class CrudEndpoint<
     if (!this._versionManager) {
       this._versionManager = createVersionManager(
         this._meta.model.versioning,
-        this._meta.model.tableName
+        this._meta.model.tableName,
       );
     }
     return this._versionManager;
@@ -213,14 +213,9 @@ export abstract class CrudEndpoint<
   protected applyManagedInsertFields<T extends Record<string, unknown>>(
     record: T,
     adapter: AdapterKind,
-    defaultIdFactory?: () => string | number
+    defaultIdFactory?: () => string | number,
   ): T {
-    return applyManagedInsertFields(
-      record,
-      this._meta.model,
-      adapter,
-      defaultIdFactory
-    );
+    return applyManagedInsertFields(record, this._meta.model, adapter, defaultIdFactory);
   }
 
   /**
@@ -228,9 +223,7 @@ export abstract class CrudEndpoint<
    * `updatedAt` (server-managed) when timestamps are enabled, never touches
    * `createdAt`. See {@link applyManagedUpdateFields}.
    */
-  protected applyManagedUpdateFields<T extends Record<string, unknown>>(
-    data: T
-  ): T {
+  protected applyManagedUpdateFields<T extends Record<string, unknown>>(data: T): T {
     return applyManagedUpdateFields(data, this._meta.model);
   }
 
@@ -304,7 +297,7 @@ export abstract class CrudEndpoint<
       data?: unknown;
       previousData?: unknown;
       metadata?: Record<string, unknown>;
-    }
+    },
   ): Promise<void> {
     const emitter = resolveEventEmitter(this.context ?? undefined);
     if (!emitter) return;
@@ -367,7 +360,9 @@ export abstract class CrudEndpoint<
    * Apply the model's default serialization profile to an array of records.
    * Returns the array unchanged when no profile is configured.
    */
-  protected applyProfileToArray<T extends Record<string, unknown>>(records: T[]): Record<string, unknown>[] {
+  protected applyProfileToArray<T extends Record<string, unknown>>(
+    records: T[],
+  ): Record<string, unknown>[] {
     const profile = this._meta.model.serializationProfile;
     return profile ? applyProfileToArray(records, profile) : records;
   }
@@ -409,10 +404,7 @@ export abstract class CrudEndpoint<
    */
   protected getPolicies(): ModelPolicies<RowOf<M>> | undefined {
     if (this.context) {
-      const fromCtx = getContextVar<ModelPolicies<RowOf<M>>>(
-        this.context,
-        POLICIES_CONTEXT_KEY
-      );
+      const fromCtx = getContextVar<ModelPolicies<RowOf<M>>>(this.context, POLICIES_CONTEXT_KEY);
       if (fromCtx) return fromCtx;
     }
     // `ModelPolicies<X>` is invariant in X (X appears in both input and
@@ -549,7 +541,7 @@ export abstract class CrudEndpoint<
     if (this.context && this._meta.model.resolveSchema) {
       const cached = getContextVar<SchemaOf<M>>(
         this.context,
-        RESOLVED_SCHEMA_KEY_PREFIX + this._meta.model.tableName
+        RESOLVED_SCHEMA_KEY_PREFIX + this._meta.model.tableName,
       );
       if (cached) return cached;
     }
@@ -593,7 +585,7 @@ export abstract class CrudEndpoint<
         err instanceof Error ? err.message : 'Schema resolution failed',
         500,
         'SCHEMA_RESOLVE_ERROR',
-        err instanceof Error ? { cause: err.message } : undefined
+        err instanceof Error ? { cause: err.message } : undefined,
       );
     }
 

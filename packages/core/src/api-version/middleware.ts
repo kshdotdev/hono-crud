@@ -1,9 +1,6 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { ApiException } from '../core/exceptions';
-import type {
-  ApiVersionConfig,
-  VersioningMiddlewareConfig,
-} from './types';
+import type { ApiVersionConfig, VersioningMiddlewareConfig } from './types';
 
 /**
  * Extract version from the Accept-Version (or custom) header.
@@ -109,11 +106,7 @@ export function apiVersion(config: VersioningMiddlewareConfig): MiddlewareHandle
 
     const versionConfig = versionMap.get(version);
     if (!versionConfig) {
-      throw new ApiException(
-        `Unsupported API version: ${version}`,
-        400,
-        'UNSUPPORTED_VERSION'
-      );
+      throw new ApiException(`Unsupported API version: ${version}`, 400, 'UNSUPPORTED_VERSION');
     }
 
     // Set version info in context

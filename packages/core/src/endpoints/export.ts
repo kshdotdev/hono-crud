@@ -1,14 +1,10 @@
-import { z } from 'zod';
 import type { Env } from 'hono';
 import { stream } from 'hono/streaming';
+import { z } from 'zod';
+import type { ListFilters, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { type CsvGenerateOptions, escapeCsvValue, generateCsv } from '../utils/csv';
 import { ListEndpoint } from './list';
-import type { MetaInput, OpenAPIRouteSchema, ListFilters } from '../core/types';
 import type { ModelObject } from './types';
-import {
-  generateCsv,
-  escapeCsvValue,
-  type CsvGenerateOptions,
-} from '../utils/csv';
 
 // ============================================================================
 // Export Types
@@ -73,13 +69,13 @@ export abstract class ExportEndpoint<
   M extends MetaInput = MetaInput,
 > extends ListEndpoint<E, M> {
   /** Maximum number of records that can be exported in a single request. */
-  protected maxExportRecords: number = 10000;
+  protected maxExportRecords = 10000;
 
   /** Whether to enable streaming for large exports. */
-  protected enableStreaming: boolean = true;
+  protected enableStreaming = true;
 
   /** Page size for paginated streaming export. @default 500 */
-  protected streamPageSize: number = 500;
+  protected streamPageSize = 500;
 
   /** Fields to exclude from the export. */
   protected excludedExportFields: string[] = [];
@@ -167,9 +163,7 @@ export abstract class ExportEndpoint<
   /**
    * Prepares records for export by applying field exclusions.
    */
-  protected prepareRecordsForExport(
-    records: ModelObject<M['model']>[]
-  ): Record<string, unknown>[] {
+  protected prepareRecordsForExport(records: ModelObject<M['model']>[]): Record<string, unknown>[] {
     if (this.excludedExportFields.length === 0) {
       return records as Record<string, unknown>[];
     }
@@ -188,10 +182,7 @@ export abstract class ExportEndpoint<
   /**
    * Exports records as JSON format.
    */
-  protected exportAsJson(
-    records: Record<string, unknown>[],
-    format: ExportFormat
-  ): Response {
+  protected exportAsJson(records: Record<string, unknown>[], format: ExportFormat): Response {
     const result: ExportResult<Record<string, unknown>> = {
       data: records,
       count: records.length,
@@ -211,10 +202,7 @@ export abstract class ExportEndpoint<
   /**
    * Exports records as CSV format (non-streaming).
    */
-  protected exportAsCsv(
-    records: Record<string, unknown>[],
-    format: ExportFormat
-  ): Response {
+  protected exportAsCsv(records: Record<string, unknown>[], format: ExportFormat): Response {
     const csv = generateCsv(records, {
       ...this.csvOptions,
       excludeFields: this.excludedExportFields,
@@ -233,10 +221,7 @@ export abstract class ExportEndpoint<
    * Exports records as CSV format with streaming using Hono's stream helper.
    * Provides better memory efficiency for large exports.
    */
-  protected exportAsCsvStream(
-    records: Record<string, unknown>[],
-    format: ExportFormat
-  ): Response {
+  protected exportAsCsvStream(records: Record<string, unknown>[], format: ExportFormat): Response {
     const ctx = this.getContext();
     const filename = this.getExportFilename(format);
     const csvOptions = this.csvOptions;
@@ -255,7 +240,8 @@ export abstract class ExportEndpoint<
       const batchSize = 100;
       for (let i = 0; i < records.length; i += batchSize) {
         for (const record of records.slice(i, i + batchSize)) {
-          const row = fields.map((field) => escapeCsvValue(record[field], csvOptions)).join(',') + '\n';
+          const row =
+            fields.map((field) => escapeCsvValue(record[field], csvOptions)).join(',') + '\n';
           await streamWriter.write(row);
         }
       }
@@ -267,10 +253,7 @@ export abstract class ExportEndpoint<
    * Fetches records page-by-page and encodes each chunk as CSV rows,
    * avoiding loading all records into memory at once.
    */
-  protected exportAsCsvStreamPaginated(
-    filters: ListFilters,
-    format: ExportFormat
-  ): Response {
+  protected exportAsCsvStreamPaginated(filters: ListFilters, format: ExportFormat): Response {
     const filename = this.getExportFilename(format);
     const pageSize = this.streamPageSize;
     const maxRecords = Math.min(this.maxExportRecords, 100_000);
@@ -305,13 +288,16 @@ export abstract class ExportEndpoint<
 
             if (!headerFields && prepared.length > 0) {
               headerFields = Object.keys(prepared[0]).filter((k) => !excludedFields.includes(k));
-              const headerRow = headerFields.map((field) => escapeCsvValue(field, csvOptions)).join(',') + '\n';
+              const headerRow =
+                headerFields.map((field) => escapeCsvValue(field, csvOptions)).join(',') + '\n';
               controller.enqueue(encoder.encode(headerRow));
             }
 
             if (headerFields) {
               for (const record of prepared) {
-                const row = headerFields.map((field) => escapeCsvValue(record[field], csvOptions)).join(',') + '\n';
+                const row =
+                  headerFields.map((field) => escapeCsvValue(record[field], csvOptions)).join(',') +
+                  '\n';
                 controller.enqueue(encoder.encode(row));
               }
             }
@@ -343,9 +329,7 @@ export abstract class ExportEndpoint<
    * Lifecycle hook: called after records are fetched but before export.
    * Override to transform or filter records before export.
    */
-  async beforeExport(
-    records: ModelObject<M['model']>[]
-  ): Promise<ModelObject<M['model']>[]> {
+  async beforeExport(records: ModelObject<M['model']>[]): Promise<ModelObject<M['model']>[]> {
     return records;
   }
 
@@ -353,9 +337,7 @@ export abstract class ExportEndpoint<
    * Fetches all records for export.
    * Overrides pagination to fetch up to maxExportRecords.
    */
-  protected async fetchAllForExport(
-    filters: ListFilters
-  ): Promise<ModelObject<M['model']>[]> {
+  protected async fetchAllForExport(filters: ListFilters): Promise<ModelObject<M['model']>[]> {
     // Override pagination to fetch all records up to the limit (hard cap at 100k)
     const effectiveLimit = Math.min(this.maxExportRecords, 100_000);
     const exportFilters: ListFilters = {
@@ -375,7 +357,6 @@ export abstract class ExportEndpoint<
    * Main handler for the export operation.
    */
   async handle(): Promise<Response> {
-
     const exportOptions = await this.getExportOptions();
     const filters = await this.getFilters();
 

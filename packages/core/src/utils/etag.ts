@@ -31,20 +31,20 @@ export async function generateETag(data: unknown): Promise<string> {
   return `"${hex.substring(0, 32)}"`;
 }
 
-export function matchesIfNoneMatch(
-  ifNoneMatch: string | null | undefined,
-  etag: string
-): boolean {
+export function matchesIfNoneMatch(ifNoneMatch: string | null | undefined, etag: string): boolean {
   if (!ifNoneMatch) return false;
   if (ifNoneMatch === '*') return true;
-  return ifNoneMatch.split(',').map((t) => t.trim()).includes(etag);
+  return ifNoneMatch
+    .split(',')
+    .map((t) => t.trim())
+    .includes(etag);
 }
 
-export function matchesIfMatch(
-  ifMatch: string | null | undefined,
-  etag: string
-): boolean {
+export function matchesIfMatch(ifMatch: string | null | undefined, etag: string): boolean {
   if (!ifMatch) return true;
   if (ifMatch === '*') return true;
-  return ifMatch.split(',').map((t) => t.trim()).includes(etag);
+  return ifMatch
+    .split(',')
+    .map((t) => t.trim())
+    .includes(etag);
 }

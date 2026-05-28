@@ -9,18 +9,18 @@
  * Run with: npx tsx examples/relations.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   MemoryCreateEndpoint,
-  MemoryReadEndpoint,
   MemoryListEndpoint,
+  MemoryReadEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { z } from 'zod';
 
 // Clear storage on start
 clearStorage();

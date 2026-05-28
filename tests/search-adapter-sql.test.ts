@@ -1,3 +1,11 @@
+import { type DrizzleDatabase, DrizzleSearchEndpoint } from '@hono-crud/drizzle';
+import { MemorySearchEndpoint, clearStorage, getStorage } from '@hono-crud/memory';
+import { createClient } from '@libsql/client';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { Hono } from 'hono';
+import { defineModel } from 'hono-crud';
 /**
  * Tests for adapter-layer search fixes:
  *
@@ -8,23 +16,8 @@
  *
  * Covers drizzle (real libsql/SQLite table) and the in-memory adapter.
  */
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { Hono } from 'hono';
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import { sql } from 'drizzle-orm';
-import { defineModel } from 'hono-crud';
-import {
-  DrizzleSearchEndpoint,
-  type DrizzleDatabase,
-} from '@hono-crud/drizzle';
-import {
-  MemorySearchEndpoint,
-  clearStorage,
-  getStorage,
-} from '@hono-crud/memory';
 
 // ============================================================================
 // Shared fixture model
@@ -145,9 +138,7 @@ interface SearchResponse {
   result_info: { total_count: number; query: string };
 }
 
-async function parseSearch(
-  response: Response
-): Promise<{ ids: string[]; totalCount: number }> {
+async function parseSearch(response: Response): Promise<{ ids: string[]; totalCount: number }> {
   expect(response.status).toBe(200);
   const data = (await response.json()) as SearchResponse;
   expect(data.success).toBe(true);
@@ -186,9 +177,7 @@ describe('Drizzle search adapter — LIKE wildcard escape', () => {
     }
 
     app = new Hono();
-    app.onError((err, c) =>
-      c.json({ success: false, error: { message: err.message } }, 400)
-    );
+    app.onError((err, c) => c.json({ success: false, error: { message: err.message } }, 400));
     app.get('/products/search', async (c) => {
       const endpoint = new DrizzleProductSearch();
       endpoint.setContext(c);
@@ -254,9 +243,7 @@ describe("Drizzle search adapter — mode='all' token-AND semantics", () => {
     }
 
     app = new Hono();
-    app.onError((err, c) =>
-      c.json({ success: false, error: { message: err.message } }, 400)
-    );
+    app.onError((err, c) => c.json({ success: false, error: { message: err.message } }, 400));
     app.get('/products/search', async (c) => {
       const endpoint = new DrizzleProductSearch();
       endpoint.setContext(c);
@@ -265,9 +252,7 @@ describe("Drizzle search adapter — mode='all' token-AND semantics", () => {
   });
 
   it("q='warm cool' mode='all' matches the Orbit row (token-AND across fields)", async () => {
-    const response = await app.request(
-      '/products/search?q=warm%20cool&mode=all'
-    );
+    const response = await app.request('/products/search?q=warm%20cool&mode=all');
     const matched = await ids(response);
 
     // r1 description contains both "warm" and "cool" (in "warm/cool").
@@ -279,18 +264,14 @@ describe("Drizzle search adapter — mode='all' token-AND semantics", () => {
   });
 
   it("q='warm zzzz' mode='all' returns 0 (negative case)", async () => {
-    const response = await app.request(
-      '/products/search?q=warm%20zzzz&mode=all'
-    );
+    const response = await app.request('/products/search?q=warm%20zzzz&mode=all');
     const matched = await ids(response);
 
     expect(matched).toEqual([]);
   });
 
   it("mode='any' (default) preserves phrase OR'd across fields", async () => {
-    const response = await app.request(
-      '/products/search?q=warm%20cool&mode=any'
-    );
+    const response = await app.request('/products/search?q=warm%20cool&mode=any');
     const matched = await ids(response);
 
     // 'any' mode keeps the legacy semantics: full phrase OR'd across fields.
@@ -300,18 +281,14 @@ describe("Drizzle search adapter — mode='all' token-AND semantics", () => {
   });
 
   it("mode='phrase' matches the literal phrase 'warm/cool'", async () => {
-    const response = await app.request(
-      '/products/search?q=warm%2Fcool&mode=phrase'
-    );
+    const response = await app.request('/products/search?q=warm%2Fcool&mode=phrase');
     const matched = await ids(response);
 
     expect(matched).toContain('r1');
   });
 
   it("mode='phrase' does NOT match the non-existent phrase 'warm cool'", async () => {
-    const response = await app.request(
-      '/products/search?q=warm%20cool&mode=phrase'
-    );
+    const response = await app.request('/products/search?q=warm%20cool&mode=phrase');
     const matched = await ids(response);
 
     expect(matched).not.toContain('r1');
@@ -333,9 +310,7 @@ describe('Memory search adapter — LIKE wildcard semantics (literal chars)', ()
     }
 
     app = new Hono();
-    app.onError((err, c) =>
-      c.json({ success: false, error: { message: err.message } }, 400)
-    );
+    app.onError((err, c) => c.json({ success: false, error: { message: err.message } }, 400));
     app.get('/products/search', async (c) => {
       const endpoint = new MemoryProductSearch();
       endpoint.setContext(c);
@@ -370,9 +345,7 @@ describe("Memory search adapter — mode='all' token-AND semantics", () => {
     }
 
     app = new Hono();
-    app.onError((err, c) =>
-      c.json({ success: false, error: { message: err.message } }, 400)
-    );
+    app.onError((err, c) => c.json({ success: false, error: { message: err.message } }, 400));
     app.get('/products/search', async (c) => {
       const endpoint = new MemoryProductSearch();
       endpoint.setContext(c);
@@ -381,9 +354,7 @@ describe("Memory search adapter — mode='all' token-AND semantics", () => {
   });
 
   it("q='warm cool' mode='all' matches the Orbit row (token-AND across fields)", async () => {
-    const response = await app.request(
-      '/products/search?q=warm%20cool&mode=all'
-    );
+    const response = await app.request('/products/search?q=warm%20cool&mode=all');
     const matched = await ids(response);
 
     expect(matched).toContain('r1');
@@ -391,9 +362,7 @@ describe("Memory search adapter — mode='all' token-AND semantics", () => {
   });
 
   it("q='warm zzzz' mode='all' returns 0 (negative case)", async () => {
-    const response = await app.request(
-      '/products/search?q=warm%20zzzz&mode=all'
-    );
+    const response = await app.request('/products/search?q=warm%20zzzz&mode=all');
     const matched = await ids(response);
 
     expect(matched).toEqual([]);

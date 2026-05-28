@@ -1,5 +1,5 @@
-import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 import { getLogger } from 'hono-crud/internal';
+import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 
 /**
  * Redis client interface.
@@ -11,7 +11,10 @@ export interface RedisClient {
   del(...keys: string[]): Promise<number>;
   exists(...keys: string[]): Promise<number>;
   keys?(pattern: string): Promise<string[]>;
-  scan?(cursor: number | string, options?: { match?: string; count?: number }): Promise<[string, string[]]>;
+  scan?(
+    cursor: number | string,
+    options?: { match?: string; count?: number },
+  ): Promise<[string, string[]]>;
   sadd?(key: string, ...members: string[]): Promise<number>;
   smembers?(key: string): Promise<string[]>;
   srem?(key: string, ...members: string[]): Promise<number>;
@@ -363,7 +366,7 @@ export class RedisCacheStorage implements CacheStorage {
     }
 
     const keys: string[] = [];
-    let cursor: string = '0';
+    let cursor = '0';
 
     do {
       const [nextCursor, batch] = await this.client.scan(cursor, {

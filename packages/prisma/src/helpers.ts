@@ -7,11 +7,11 @@
  * `fieldInfoCache`) are per-isolate and will reset on cold starts.
  */
 import type {
-  MetaInput,
-  PaginatedResult,
-  ListFilters,
   FilterCondition,
   IncludeOptions,
+  ListFilters,
+  MetaInput,
+  PaginatedResult,
   RelationConfig,
 } from 'hono-crud/internal';
 import { inlineSingular, levenshteinDistance } from './pluralize';
@@ -58,13 +58,15 @@ function isPrismaModelOperations(value: unknown): value is PrismaModelOperations
 
 export function getPrismaModelByName(
   prisma: PrismaClient,
-  modelName: string
+  modelName: string,
 ): PrismaModelOperations | undefined {
   const model = getClientProperty(prisma, modelName);
   return isPrismaModelOperations(model) ? model : undefined;
 }
 
-export function getPrismaTransaction(prisma: PrismaClient): NonNullable<PrismaClient['$transaction']> {
+export function getPrismaTransaction(
+  prisma: PrismaClient,
+): NonNullable<PrismaClient['$transaction']> {
   if (typeof prisma.$transaction !== 'function') {
     throw new Error('Prisma client does not support $transaction');
   }
@@ -79,10 +81,10 @@ export function coerceValue(value: unknown): unknown {
   if (typeof value === 'string') {
     // Check for numeric string
     if (/^-?\d+$/.test(value)) {
-      return parseInt(value, 10);
+      return Number.parseInt(value, 10);
     }
     if (/^-?\d+\.\d+$/.test(value)) {
-      return parseFloat(value);
+      return Number.parseFloat(value);
     }
     // Check for boolean string
     if (value === 'true') return true;
@@ -280,7 +282,11 @@ function getAvailablePrismaModels(prisma: PrismaClient): string[] {
 /**
  * Finds similar model names for error suggestions using Levenshtein distance.
  */
-async function findSimilarModelNames(target: string, available: string[], maxSuggestions = 3): Promise<string[]> {
+async function findSimilarModelNames(
+  target: string,
+  available: string[],
+  maxSuggestions = 3,
+): Promise<string[]> {
   if (available.length === 0) return [];
 
   const targetLower = target.toLowerCase();
@@ -288,14 +294,14 @@ async function findSimilarModelNames(target: string, available: string[], maxSug
     available.map(async (name) => ({
       name,
       distance: await levenshteinDistance(targetLower, name.toLowerCase()),
-    }))
+    })),
   );
 
   return scored
-    .filter(item => item.distance <= Math.max(3, target.length / 2))
+    .filter((item) => item.distance <= Math.max(3, target.length / 2))
     .sort((a, b) => a.distance - b.distance)
     .slice(0, maxSuggestions)
-    .map(item => item.name);
+    .map((item) => item.name);
 }
 
 /**
@@ -307,7 +313,10 @@ async function findSimilarModelNames(target: string, available: string[], maxSug
  * @returns The Prisma model operations
  * @throws Error if the model is not found in the Prisma client
  */
-export async function getPrismaModel(prisma: PrismaClient, tableName: string): Promise<PrismaModelOperations> {
+export async function getPrismaModel(
+  prisma: PrismaClient,
+  tableName: string,
+): Promise<PrismaModelOperations> {
   const modelName = await getModelName(tableName);
   const model = getPrismaModelByName(prisma, modelName);
 
@@ -315,11 +324,11 @@ export async function getPrismaModel(prisma: PrismaClient, tableName: string): P
     const availableModels = getAvailablePrismaModels(prisma);
     const suggestions = await findSimilarModelNames(modelName, availableModels);
 
-    let errorMessage = `Model '${modelName}' not found in Prisma client. ` +
-      `Table name: '${tableName}'. `;
+    let errorMessage =
+      `Model '${modelName}' not found in Prisma client. ` + `Table name: '${tableName}'. `;
 
     if (suggestions.length > 0) {
-      errorMessage += `Did you mean: ${suggestions.map(s => `'${s}'`).join(', ')}? `;
+      errorMessage += `Did you mean: ${suggestions.map((s) => `'${s}'`).join(', ')}? `;
     }
 
     if (availableModels.length > 0 && availableModels.length <= 10) {
@@ -341,7 +350,7 @@ export async function loadPrismaRelation<T extends Record<string, unknown>>(
   prisma: PrismaClient,
   item: T,
   relationName: string,
-  relationConfig: RelationConfig
+  relationConfig: RelationConfig,
 ): Promise<T> {
   const relatedModelName = await getModelName(relationConfig.model);
   const relatedModel = getPrismaModelByName(prisma, relatedModelName);
@@ -399,7 +408,7 @@ export async function loadPrismaRelations<T extends Record<string, unknown>, M e
   prisma: PrismaClient,
   item: T,
   meta: M,
-  includeOptions?: IncludeOptions
+  includeOptions?: IncludeOptions,
 ): Promise<T> {
   if (!includeOptions?.relations?.length || !meta.model.relations) {
     return item;
@@ -421,18 +430,16 @@ export async function loadPrismaRelations<T extends Record<string, unknown>, M e
  * Batch loads relations for multiple items to avoid N+1 queries.
  * Instead of N queries per relation, this uses 1 query per relation using `in` operator.
  */
-export async function batchLoadPrismaRelations<T extends Record<string, unknown>, M extends MetaInput>(
-  prisma: PrismaClient,
-  items: T[],
-  meta: M,
-  includeOptions?: IncludeOptions
-): Promise<T[]> {
+export async function batchLoadPrismaRelations<
+  T extends Record<string, unknown>,
+  M extends MetaInput,
+>(prisma: PrismaClient, items: T[], meta: M, includeOptions?: IncludeOptions): Promise<T[]> {
   if (!items.length || !includeOptions?.relations?.length || !meta.model.relations) {
     return items;
   }
 
   // Clone all items to avoid mutation
-  let results = items.map(item => ({ ...item })) as T[];
+  let results = items.map((item) => ({ ...item })) as T[];
 
   for (const relationName of includeOptions.relations) {
     const relationConfig = meta.model.relations[relationName];
@@ -453,15 +460,17 @@ export async function batchLoadPrismaRelations<T extends Record<string, unknown>
         const localKey = relationConfig.localKey || 'id';
 
         // Collect all unique local values
-        const localValues = [...new Set(
-          results
-            .map(item => item[localKey])
-            .filter(val => val !== undefined && val !== null)
-        )];
+        const localValues = [
+          ...new Set(
+            results
+              .map((item) => item[localKey])
+              .filter((val) => val !== undefined && val !== null),
+          ),
+        ];
 
         if (localValues.length === 0) {
           // Set empty results for all items
-          results = results.map(item => ({
+          results = results.map((item) => ({
             ...item,
             [relationName]: relationConfig.type === 'hasMany' ? [] : null,
           }));
@@ -484,12 +493,12 @@ export async function batchLoadPrismaRelations<T extends Record<string, unknown>
         }
 
         // Map results back to items
-        results = results.map(item => {
+        results = results.map((item) => {
           const localValue = item[localKey];
           const related = recordsByForeignKey.get(localValue) || [];
           return {
             ...item,
-            [relationName]: relationConfig.type === 'hasMany' ? related : (related[0] || null),
+            [relationName]: relationConfig.type === 'hasMany' ? related : related[0] || null,
           };
         });
         break;
@@ -500,15 +509,17 @@ export async function batchLoadPrismaRelations<T extends Record<string, unknown>
         const refLocalKey = relationConfig.localKey || 'id';
 
         // Collect all unique foreign key values
-        const foreignValues = [...new Set(
-          results
-            .map(item => item[relationConfig.foreignKey])
-            .filter(val => val !== undefined && val !== null)
-        )];
+        const foreignValues = [
+          ...new Set(
+            results
+              .map((item) => item[relationConfig.foreignKey])
+              .filter((val) => val !== undefined && val !== null),
+          ),
+        ];
 
         if (foreignValues.length === 0) {
           // Set null for all items
-          results = results.map(item => ({
+          results = results.map((item) => ({
             ...item,
             [relationName]: null,
           }));
@@ -528,7 +539,7 @@ export async function batchLoadPrismaRelations<T extends Record<string, unknown>
         }
 
         // Map results back to items
-        results = results.map(item => {
+        results = results.map((item) => {
           const foreignValue = item[relationConfig.foreignKey];
           return {
             ...item,
@@ -666,7 +677,7 @@ export async function executePrismaQuery(options: PrismaQueryOptions): Promise<P
  */
 export function buildPaginatedResult<T>(
   items: T[],
-  queryResult: PrismaQueryResult
+  queryResult: PrismaQueryResult,
 ): PaginatedResult<T> {
   return {
     result: items,

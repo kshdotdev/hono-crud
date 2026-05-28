@@ -21,12 +21,6 @@
       "@hono-crud/health": ["packages/health/src/index.ts"]
     }
   },
-  "include": [
-    "examples/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "examples/local-consumer/**"
-  ]
+  "include": ["examples/**/*.ts"],
+  "exclude": ["node_modules", "dist", "examples/local-consumer/**"]
 }

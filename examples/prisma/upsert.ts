@@ -17,17 +17,17 @@
  * 4. npx tsx examples/prisma/upsert.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
-  PrismaUpsertEndpoint,
   PrismaBatchUpsertEndpoint,
   PrismaListEndpoint,
+  PrismaUpsertEndpoint,
 } from '@hono-crud/prisma';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono } from 'hono-crud';
 import { CategorySchema } from '../shared/schemas.js';
-import { prisma, initDb, clearDb } from './db.js';
+import { clearDb, initDb, prisma } from './db.js';
 
 // ============================================================================
 // Category Model for Upsert Examples

@@ -1,19 +1,8 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach } from 'vitest';
+import { MemoryAdapters, clearStorage } from '@hono-crud/memory';
 import { Hono } from 'hono';
+import { defineEndpoints, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { fromHono,
-  registerCrud,
-  defineEndpoints,
-  defineMeta,
-  defineModel,
-  } from 'hono-crud';
-import { clearStorage,
-  MemoryAdapters,
-} from '@hono-crud/memory';
 
 const PostSchema = z.object({
   id: z.uuid(),
@@ -89,10 +78,7 @@ describe('per-endpoint bodySchema override', () => {
     });
 
     it('falls back to the model-derived schema when no override is set', async () => {
-      const endpoints = defineEndpoints(
-        { meta: postMeta, create: {} },
-        MemoryAdapters,
-      );
+      const endpoints = defineEndpoints({ meta: postMeta, create: {} }, MemoryAdapters);
 
       const app = fromHono(new Hono());
       registerCrud(app, '/posts2', endpoints);
@@ -110,10 +96,7 @@ describe('per-endpoint bodySchema override', () => {
   describe('UpdateEndpointConfig.bodySchema', () => {
     it('uses the override schema and is not auto-partialed', async () => {
       // Pre-seed an item via create to update later.
-      const seedEndpoints = defineEndpoints(
-        { meta: postMeta, create: {} },
-        MemoryAdapters,
-      );
+      const seedEndpoints = defineEndpoints({ meta: postMeta, create: {} }, MemoryAdapters);
       const seedApp = fromHono(new Hono());
       registerCrud(seedApp, '/posts3', seedEndpoints);
       const created = await seedApp.request('/posts3', {
@@ -157,10 +140,7 @@ describe('per-endpoint bodySchema override', () => {
     });
 
     it('falls back to the model-derived partial schema when no override is set', async () => {
-      const endpoints = defineEndpoints(
-        { meta: postMeta, create: {}, update: {} },
-        MemoryAdapters,
-      );
+      const endpoints = defineEndpoints({ meta: postMeta, create: {}, update: {} }, MemoryAdapters);
       const app = fromHono(new Hono());
       registerCrud(app, '/posts4', endpoints);
 

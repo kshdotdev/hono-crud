@@ -1,13 +1,13 @@
+import { and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import type { Column, SQL, Table } from 'drizzle-orm';
 import type { Env } from 'hono';
-import { eq, and, isNull, isNotNull, or, asc, desc, sql } from 'drizzle-orm';
-import type { SQL, Table, Column } from 'drizzle-orm';
 import { UpsertEndpoint } from 'hono-crud/internal';
 import { BatchUpsertEndpoint } from 'hono-crud/internal';
 import { CloneEndpoint } from 'hono-crud/internal';
 import {
+  VersionCompareEndpoint,
   VersionHistoryEndpoint,
   VersionReadEndpoint,
-  VersionCompareEndpoint,
   VersionRollbackEndpoint,
 } from 'hono-crud/internal';
 import { AggregateEndpoint, computeAggregations } from 'hono-crud/internal';
@@ -15,27 +15,27 @@ import { SearchEndpoint, searchInMemory } from 'hono-crud/internal';
 import { ExportEndpoint } from 'hono-crud/internal';
 import { ImportEndpoint } from 'hono-crud/internal';
 import type {
-  MetaInput,
-  PaginatedResult,
-  ListFilters,
-  FilterCondition,
-  IncludeOptions,
   AggregateOptions,
   AggregateResult,
+  FilterCondition,
+  IncludeOptions,
+  ListFilters,
+  MetaInput,
+  PaginatedResult,
   SearchOptions,
   SearchResult,
 } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
+import { getDrizzleDb } from './connection';
 import {
   type DrizzleDatabase,
   type DrizzleDialect,
-  cast,
-  getTable,
-  getColumn,
   batchLoadDrizzleRelations,
   buildWhereCondition,
+  cast,
+  getColumn,
+  getTable,
 } from './helpers';
-import { getDrizzleDb } from './connection';
 
 /**
  * Emit a dialect-correct case-insensitive substring-match SQL expression.
@@ -62,8 +62,8 @@ export function substringMatch(col: Column | SQL, needle: string, dialect: Drizz
       return sql`POSITION(LOWER(${needle}) IN LOWER(${col})) > 0`;
     case 'mysql':
       return sql`LOCATE(LOWER(${needle}), LOWER(${col})) > 0`;
-    case 'sqlite':
     default:
+      // 'sqlite' (default)
       return sql`INSTR(LOWER(${col}), LOWER(${needle})) > 0`;
   }
 }
@@ -118,7 +118,7 @@ export abstract class DrizzleUpsertEndpoint<
   }
 
   override async findExisting(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const table = this.getTable();
     const upsertKeys = this.getUpsertKeys();
@@ -151,16 +151,11 @@ export abstract class DrizzleUpsertEndpoint<
     return (result[0] as ModelObject<M['model']>) || null;
   }
 
-  override async create(
-    data: Partial<ModelObject<M['model']>>
-  ): Promise<ModelObject<M['model']>> {
+  override async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'drizzle'
-    );
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'drizzle');
 
     const result = await cast(this.getDb())
       .insert(table)
@@ -172,7 +167,7 @@ export abstract class DrizzleUpsertEndpoint<
 
   override async update(
     existing: ModelObject<M['model']>,
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
     const pk = this._meta.model.primaryKeys[0];
@@ -197,7 +192,7 @@ export abstract class DrizzleUpsertEndpoint<
    */
   protected override async nativeUpsert(
     data: Partial<ModelObject<M['model']>>,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<{ data: ModelObject<M['model']>; created: boolean }> {
     const table = this.getTable();
     const upsertKeys = this.getUpsertKeys();
@@ -207,10 +202,7 @@ export abstract class DrizzleUpsertEndpoint<
 
     // Resolve managed write-time fields for the INSERT branch
     // (Model.id strategy + createdAt/updatedAt).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'drizzle'
-    );
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'drizzle');
 
     // Build the set clause for update - exclude upsert keys and primary key
     const updateSet: Record<string, unknown> = {};
@@ -250,9 +242,7 @@ export abstract class DrizzleUpsertEndpoint<
     // other supported dialect (sqlite, pg) uses `ON CONFLICT DO UPDATE`.
     // Upstream driver errors bubble — no broad catch.
     if (this.dialect === 'mysql') {
-      const result = await insertQuery
-        .onDuplicateKeyUpdate({ set: setClause })
-        .returning();
+      const result = await insertQuery.onDuplicateKeyUpdate({ set: setClause }).returning();
 
       return {
         data: result[0] as ModelObject<M['model']>,
@@ -305,7 +295,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
   }
 
   override async findExisting(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const table = this.getTable();
     const upsertKeys = this.getUpsertKeys();
@@ -331,16 +321,11 @@ export abstract class DrizzleBatchUpsertEndpoint<
     return (result[0] as ModelObject<M['model']>) || null;
   }
 
-  override async create(
-    data: Partial<ModelObject<M['model']>>
-  ): Promise<ModelObject<M['model']>> {
+  override async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'drizzle'
-    );
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'drizzle');
 
     const result = await cast(this.getDb())
       .insert(table)
@@ -352,7 +337,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
 
   override async update(
     existing: ModelObject<M['model']>,
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
     const pk = this._meta.model.primaryKeys[0];
@@ -377,7 +362,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
    */
   protected override async nativeBatchUpsert(
     items: Partial<ModelObject<M['model']>>[],
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<{
     items: Array<{ data: ModelObject<M['model']>; created: boolean; index: number }>;
     createdCount: number;
@@ -402,7 +387,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
     // Resolve managed write-time fields for the INSERT branch of every row
     // (Model.id strategy + createdAt/updatedAt).
     const records = items.map((item) =>
-      this.applyManagedInsertFields(item as Record<string, unknown>, 'drizzle')
+      this.applyManagedInsertFields(item as Record<string, unknown>, 'drizzle'),
     );
 
     // Build the set clause for update - exclude upsert keys and primary key
@@ -541,7 +526,7 @@ export abstract class DrizzleVersionRollbackEndpoint<
   override async rollback(
     lookupValue: string,
     versionData: Record<string, unknown>,
-    newVersion: number
+    newVersion: number,
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
     const versionField = this.getVersioningConfig().field;
@@ -690,7 +675,7 @@ export abstract class DrizzleSearchEndpoint<
    * When true and vectorColumn is set, uses tsvector/tsquery.
    * When false, uses substring-position-based search with in-memory scoring.
    */
-  protected useNativeSearch: boolean = false;
+  protected useNativeSearch = false;
 
   /**
    * PostgreSQL tsvector column name for native full-text search.
@@ -701,7 +686,7 @@ export abstract class DrizzleSearchEndpoint<
   /**
    * PostgreSQL text search configuration (e.g., 'english', 'simple').
    */
-  protected vectorConfig: string = 'english';
+  protected vectorConfig = 'english';
 
   protected getTable(): Table {
     return getTable(this._meta);
@@ -716,7 +701,7 @@ export abstract class DrizzleSearchEndpoint<
    */
   override async search(
     options: SearchOptions,
-    filters: ListFilters
+    filters: ListFilters,
   ): Promise<SearchResult<ModelObject<M['model']>>> {
     const table = this.getTable();
     const conditions: SQL[] = [];
@@ -746,11 +731,12 @@ export abstract class DrizzleSearchEndpoint<
     if (this.useNativeSearch && this.vectorColumn) {
       // PostgreSQL native full-text search
       const vectorCol = this.getColumn(this.vectorColumn);
-      const tsQuery = options.mode === 'phrase'
-        ? sql`phraseto_tsquery(${this.vectorConfig}, ${options.query})`
-        : options.mode === 'all'
-          ? sql`plainto_tsquery(${this.vectorConfig}, ${options.query})`
-          : sql`to_tsquery(${this.vectorConfig}, ${options.query.split(/\s+/).join(' | ')})`;
+      const tsQuery =
+        options.mode === 'phrase'
+          ? sql`phraseto_tsquery(${this.vectorConfig}, ${options.query})`
+          : options.mode === 'all'
+            ? sql`plainto_tsquery(${this.vectorConfig}, ${options.query})`
+            : sql`to_tsquery(${this.vectorConfig}, ${options.query.split(/\s+/).join(' | ')})`;
 
       conditions.push(sql`${vectorCol} @@ ${tsQuery}`);
     } else {
@@ -839,25 +825,23 @@ export abstract class DrizzleSearchEndpoint<
     // so we score with mode='any' to avoid `searchInMemory`'s stricter
     // per-field "all tokens in same field" gate dropping correctly-matched
     // rows. The score is used for ranking only — matching was decided in SQL.
-    const scoringOptions = options.mode === 'all'
-      ? { ...options, mode: 'any' as const }
-      : options;
+    const scoringOptions = options.mode === 'all' ? { ...options, mode: 'any' as const } : options;
     const searchResults = searchInMemory(
       records as ModelObject<M['model']>[],
       scoringOptions,
-      searchableFields
+      searchableFields,
     );
 
     // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
 
     // Extract items for batch relation loading
-    const items = searchResults.map(r => r.item as Record<string, unknown>);
+    const items = searchResults.map((r) => r.item as Record<string, unknown>);
     const itemsWithRelations = await batchLoadDrizzleRelations(
       this.getDb(),
       items,
       this._meta,
-      includeOptions
+      includeOptions,
     );
 
     // Map back the relations to the search results
@@ -971,7 +955,7 @@ export abstract class DrizzleExportEndpoint<
       this.getDb(),
       result as Record<string, unknown>[],
       this._meta,
-      includeOptions
+      includeOptions,
     );
 
     const totalPages = Math.ceil(totalCount / perPage);
@@ -1018,7 +1002,7 @@ export abstract class DrizzleImportEndpoint<
    * Finds an existing record by upsert keys.
    */
   override async findExisting(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const table = this.getTable();
     const upsertKeys = this.getUpsertKeys();
@@ -1054,16 +1038,11 @@ export abstract class DrizzleImportEndpoint<
   /**
    * Creates a new record.
    */
-  override async create(
-    data: Partial<ModelObject<M['model']>>
-  ): Promise<ModelObject<M['model']>> {
+  override async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'drizzle'
-    );
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'drizzle');
 
     const result = await cast(this.getDb())
       .insert(table)
@@ -1078,7 +1057,7 @@ export abstract class DrizzleImportEndpoint<
    */
   override async update(
     existing: ModelObject<M['model']>,
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
     const pk = this._meta.model.primaryKeys[0];
@@ -1139,7 +1118,7 @@ export abstract class DrizzleCloneEndpoint<
 
   override async findSource(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
@@ -1168,19 +1147,15 @@ export abstract class DrizzleCloneEndpoint<
     return result[0] as ModelObject<M['model']>;
   }
 
-  override async createClone(
-    data: ModelObject<M['model']>
-  ): Promise<ModelObject<M['model']>> {
+  override async createClone(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
     const table = this.getTable();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     // The long-standing overridable `generateId()` remains the default-branch
     // generator for the `'uuid'`/unset strategy; a `function`/`'database'`
     // strategy takes precedence.
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'drizzle',
-      () => this.generateId()
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'drizzle', () =>
+      this.generateId(),
     );
 
     const result = await cast(this.getDb())

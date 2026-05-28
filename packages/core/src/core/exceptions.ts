@@ -1,6 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
-import type { ZodError } from 'zod';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { ZodError } from 'zod';
 
 /**
  * Valid HTTP status codes for API exceptions.
@@ -25,8 +25,8 @@ export class ApiException extends HTTPException {
   constructor(
     message: string,
     status: ApiStatusCode = 500,
-    code: string = 'INTERNAL_ERROR',
-    details?: unknown
+    code = 'INTERNAL_ERROR',
+    details?: unknown,
   ) {
     super(status, { message });
     this.name = 'ApiException';
@@ -94,7 +94,7 @@ export class InputValidationException extends ApiException {
 }
 
 export class NotFoundException extends ApiException {
-  constructor(resource: string = 'Resource', id?: string) {
+  constructor(resource = 'Resource', id?: string) {
     const message = id ? `${resource} with id '${id}' not found` : `${resource} not found`;
     super(message, 404, 'NOT_FOUND');
     this.name = 'NotFoundException';
@@ -102,21 +102,21 @@ export class NotFoundException extends ApiException {
 }
 
 export class ConflictException extends ApiException {
-  constructor(message: string = 'Resource already exists', details?: unknown) {
+  constructor(message = 'Resource already exists', details?: unknown) {
     super(message, 409, 'CONFLICT', details);
     this.name = 'ConflictException';
   }
 }
 
 export class UnauthorizedException extends ApiException {
-  constructor(message: string = 'Unauthorized') {
+  constructor(message = 'Unauthorized') {
     super(message, 401, 'UNAUTHORIZED');
     this.name = 'UnauthorizedException';
   }
 }
 
 export class ForbiddenException extends ApiException {
-  constructor(message: string = 'Forbidden') {
+  constructor(message = 'Forbidden') {
     super(message, 403, 'FORBIDDEN');
     this.name = 'ForbiddenException';
   }

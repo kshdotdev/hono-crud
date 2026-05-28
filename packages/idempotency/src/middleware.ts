@@ -1,6 +1,6 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
-import type { IdempotencyConfig, IdempotencyEntry, IdempotencyStorage } from './types';
 import { createNullableRegistry, getContextVar } from 'hono-crud/internal';
+import type { IdempotencyConfig, IdempotencyEntry, IdempotencyStorage } from './types';
 
 // ============================================================================
 // Global Storage
@@ -11,9 +11,8 @@ import { createNullableRegistry, getContextVar } from 'hono-crud/internal';
  * Compatibility global registry. Prefer passing storage explicitly or injecting
  * it with createCrudMiddleware() in edge runtimes.
  */
-export const idempotencyStorageRegistry = createNullableRegistry<IdempotencyStorage>(
-  'idempotencyStorage'
-);
+export const idempotencyStorageRegistry =
+  createNullableRegistry<IdempotencyStorage>('idempotencyStorage');
 
 /**
  * Set the global idempotency storage.
@@ -45,7 +44,7 @@ export function getIdempotencyStorage(): IdempotencyStorage {
  */
 export function resolveIdempotencyStorage<E extends Env>(
   ctx?: Context<E>,
-  explicitStorage?: IdempotencyStorage
+  explicitStorage?: IdempotencyStorage,
 ): IdempotencyStorage | null {
   return idempotencyStorageRegistry.resolve(ctx, explicitStorage);
 }
@@ -105,7 +104,7 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
               message: `${headerName} header is required for ${method} requests`,
             },
           },
-          400
+          400,
         );
       }
       return next();
@@ -148,7 +147,7 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
             message: 'A request with this idempotency key is already being processed',
           },
         },
-        409
+        409,
       );
     }
 
@@ -163,7 +162,7 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
             message: 'A request with this idempotency key is already being processed',
           },
         },
-        409
+        409,
       );
     }
 

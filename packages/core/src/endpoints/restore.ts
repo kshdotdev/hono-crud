@@ -1,8 +1,8 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { ApiException, NotFoundException } from '../core/exceptions';
+import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
-import { NotFoundException, ApiException } from '../core/exceptions';
 import type { ModelObject } from './types';
 
 /**
@@ -16,9 +16,8 @@ export abstract class RestoreEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   // Lookup configuration
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
   protected lookupFields?: string[];
   protected additionalFilters?: string[];
 
@@ -146,10 +145,7 @@ export abstract class RestoreEndpoint<
    * Lifecycle hook: called before restore operation.
    * Override to perform checks or side effects before restoring.
    */
-  async before(
-    _lookupValue: string,
-    _tx?: unknown
-  ): Promise<void> {
+  async before(_lookupValue: string, _tx?: unknown): Promise<void> {
     // Override in subclass
   }
 
@@ -159,7 +155,7 @@ export abstract class RestoreEndpoint<
    */
   async after(
     restoredItem: ModelObject<M['model']>,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<ModelObject<M['model']>> {
     return restoredItem;
   }
@@ -172,7 +168,7 @@ export abstract class RestoreEndpoint<
   abstract restore(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null>;
 
   /**
@@ -183,10 +179,13 @@ export abstract class RestoreEndpoint<
    * Main handler for the restore operation.
    */
   async handle(): Promise<Response> {
-
     // Check if soft delete is enabled
     if (!this.isSoftDeleteEnabled()) {
-      throw new ApiException('Soft delete is not enabled for this model', 400, 'SOFT_DELETE_NOT_ENABLED');
+      throw new ApiException(
+        'Soft delete is not enabled for this model',
+        400,
+        'SOFT_DELETE_NOT_ENABLED',
+      );
     }
 
     const lookupValue = await this.getLookupValue();
@@ -211,19 +210,19 @@ export abstract class RestoreEndpoint<
     const recordId = this.getRecordId(restoredItem);
     if (this.isAuditEnabled() && recordId !== null) {
       const auditLogger = this.getAuditLogger();
-      this.runAfterResponse(auditLogger.logRestore(
-        this._meta.model.tableName,
-        recordId,
-        restoredItem as Record<string, unknown>,
-        this.getAuditUserId()
-      ));
+      this.runAfterResponse(
+        auditLogger.logRestore(
+          this._meta.model.tableName,
+          recordId,
+          restoredItem as Record<string, unknown>,
+          this.getAuditUserId(),
+        ),
+      );
     }
 
     // Emit restored event
     if (recordId !== null) {
-      this.runAfterResponse(
-        this.emitEvent('restored', { recordId, data: restoredItem })
-      );
+      this.runAfterResponse(this.emitEvent('restored', { recordId, data: restoredItem }));
     }
 
     // Apply serializer if defined

@@ -16,37 +16,37 @@
  * 2. npx tsx examples/drizzle/comprehensive.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI, setupReDoc } from '@hono-crud/swagger';
-import { setupScalar } from '@hono-crud/scalar';
 import {
-  DrizzleCreateEndpoint,
-  DrizzleReadEndpoint,
-  DrizzleUpdateEndpoint,
-  DrizzleDeleteEndpoint,
-  DrizzleListEndpoint,
-  DrizzleRestoreEndpoint,
   DrizzleBatchCreateEndpoint,
-  DrizzleBatchUpdateEndpoint,
   DrizzleBatchDeleteEndpoint,
   DrizzleBatchRestoreEndpoint,
-  DrizzleUpsertEndpoint,
+  DrizzleBatchUpdateEndpoint,
   DrizzleCloneEndpoint,
+  DrizzleCreateEndpoint,
   type DrizzleDatabase,
+  DrizzleDeleteEndpoint,
+  DrizzleListEndpoint,
+  DrizzleReadEndpoint,
+  DrizzleRestoreEndpoint,
+  DrizzleUpdateEndpoint,
+  DrizzleUpsertEndpoint,
 } from '@hono-crud/drizzle';
+import { setupScalar } from '@hono-crud/scalar';
+import { setupReDoc, setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
 import {
-  UserSchema,
+  CategorySchema,
+  CommentSchema,
+  type Post,
   PostSchema,
   ProfileSchema,
-  CommentSchema,
-  CategorySchema,
   type User,
-  type Post,
+  UserSchema,
 } from '../shared/schemas.js';
-import { users, posts, profiles, comments, categories } from './schema.js';
 import { db, initDb, pool } from './db.js';
+import { categories, comments, posts, profiles, users } from './schema.js';
 
 const typedDb = db as unknown as DrizzleDatabase;
 
@@ -74,7 +74,13 @@ const PostModel = defineModel({
   table: posts,
   softDelete: true,
   relations: {
-    author: { type: 'belongsTo', model: 'users', table: users, foreignKey: 'authorId', localKey: 'id' },
+    author: {
+      type: 'belongsTo',
+      model: 'users',
+      table: users,
+      foreignKey: 'authorId',
+      localKey: 'id',
+    },
     comments: { type: 'hasMany', model: 'comments', table: comments, foreignKey: 'postId' },
   },
 });
@@ -96,7 +102,13 @@ const CommentModel = defineModel({
   table: comments,
   relations: {
     post: { type: 'belongsTo', model: 'posts', table: posts, foreignKey: 'postId', localKey: 'id' },
-    author: { type: 'belongsTo', model: 'users', table: users, foreignKey: 'authorId', localKey: 'id' },
+    author: {
+      type: 'belongsTo',
+      model: 'users',
+      table: users,
+      foreignKey: 'authorId',
+      localKey: 'id',
+    },
   },
 });
 

@@ -22,20 +22,10 @@
  *     to `envelope.success(result, info)`.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import {
-  ConflictException,
-  createErrorHandler,
-  defineMeta,
-  defineModel,
-  fromHono,
-  registerCrud,
-  type ErrorMapper,
-  type ResponseEnvelope,
-} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
@@ -45,6 +35,16 @@ import {
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import {
+  ConflictException,
+  type ErrorMapper,
+  type ResponseEnvelope,
+  createErrorHandler,
+  defineMeta,
+  defineModel,
+  fromHono,
+  registerCrud,
+} from 'hono-crud';
 
 // ============================================================================
 // Fixture: a tiny Widget model + endpoints reused across cases
@@ -138,8 +138,7 @@ describe('responseEnvelope — default (no option)', () => {
 
 describe('responseEnvelope — custom success', () => {
   const dataEnvelope: ResponseEnvelope = {
-    success: (result, info) =>
-      info ? { data: result, meta: info } : { data: result },
+    success: (result, info) => (info ? { data: result, meta: info } : { data: result }),
     error: (err) => ({ error: err }),
   };
 
@@ -221,12 +220,7 @@ describe('responseEnvelope — custom error', () => {
     }
     const app = fromHono(new Hono());
     app.onError(createErrorHandler({ logUnmappedErrors: false }));
-    registerCrud(
-      app,
-      '/widgets',
-      { read: FailingRead },
-      { responseEnvelope: compactEnvelope }
-    );
+    registerCrud(app, '/widgets', { read: FailingRead }, { responseEnvelope: compactEnvelope });
 
     const res = await app.request('/widgets/w1');
     expect(res.status).toBe(500);
@@ -274,7 +268,7 @@ describe('responseEnvelope — composes with createErrorHandler mappers', () => 
       createErrorHandler({
         mappers: [dbMapper],
         logUnmappedErrors: false,
-      })
+      }),
     );
     // Per-route envelope set via registerCrud — wins over the
     // handler-level default (which is `undefined` here anyway).
@@ -282,7 +276,7 @@ describe('responseEnvelope — composes with createErrorHandler mappers', () => 
       app,
       '/widgets',
       { read: Read, create: Create },
-      { responseEnvelope: problemEnvelope }
+      { responseEnvelope: problemEnvelope },
     );
 
     // Add a route that throws our custom DB error inside the registerCrud
@@ -304,7 +298,7 @@ describe('responseEnvelope — composes with createErrorHandler mappers', () => 
       app,
       '/conflicting',
       { create: ConflictingCreate },
-      { responseEnvelope: problemEnvelope }
+      { responseEnvelope: problemEnvelope },
     );
 
     const res = await app.request('/conflicting', {
@@ -344,7 +338,7 @@ describe('responseEnvelope — composes with createErrorHandler mappers', () => 
       createErrorHandler({
         responseEnvelope: fallbackEnvelope,
         logUnmappedErrors: false,
-      })
+      }),
     );
     registerCrud(app, '/widgets', { read: ThrowingRead });
 
@@ -368,7 +362,7 @@ describe('responseEnvelope — composes with createErrorHandler mappers', () => 
       createErrorHandler({
         responseEnvelope: handlerLevel,
         logUnmappedErrors: false,
-      })
+      }),
     );
     registerCrud(app, '/widgets', { read: Read }, { responseEnvelope: routeLevel });
 
@@ -399,12 +393,7 @@ describe('responseEnvelope — interacts cleanly with the 0.10.0 prior hook', ()
     };
 
     const app = fromHono(new Hono());
-    registerCrud(
-      app,
-      '/widgets',
-      { delete: PriorCapturingDelete },
-      { responseEnvelope: envelope }
-    );
+    registerCrud(app, '/widgets', { delete: PriorCapturingDelete }, { responseEnvelope: envelope });
 
     const res = await app.request('/widgets/w1', { method: 'DELETE' });
     expect(res.status).toBe(200);

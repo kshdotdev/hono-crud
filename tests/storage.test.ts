@@ -1,37 +1,30 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Hono } from 'hono';
-import type { StorageEnv } from 'hono-crud/storage/types';
-import {
-  createStorageMiddleware,
-  resolveLoggingStorage,
-  resolveAuditStorage,
-  resolveVersioningStorage,
-  resolveAPIKeyStorage,
-} from 'hono-crud/storage';
-import { MemoryRateLimitStorage } from '@hono-crud/rate-limit/storage/memory';
-import { MemoryLoggingStorage } from 'hono-crud/logging/storage/memory';
+import { getCacheStorage, resolveCacheStorage, setCacheStorage } from '@hono-crud/cache/mixin';
 import { MemoryCacheStorage } from '@hono-crud/cache/storage/memory';
-import { MemoryAuditLogStorage, setAuditStorage } from 'hono-crud/audit';
-import { MemoryVersioningStorage, setVersioningStorage } from 'hono-crud/versioning';
-import { MemoryAPIKeyStorage } from 'hono-crud/auth/storage/memory';
 import { MemoryIdempotencyStorage } from '@hono-crud/idempotency/storage/memory';
-import { CrudEventEmitter } from 'hono-crud/events/emitter';
 import {
-  setRateLimitStorage,
   getRateLimitStorage,
   resolveRateLimitStorage,
+  setRateLimitStorage,
 } from '@hono-crud/rate-limit/middleware';
-import {
-  setLoggingStorage,
-  getLoggingStorage,
-} from 'hono-crud/logging/middleware';
-import {
-  setCacheStorage,
-  getCacheStorage,
-  resolveCacheStorage,
-} from '@hono-crud/cache/mixin';
-import { setAPIKeyStorage } from 'hono-crud/auth/storage/memory';
+import { MemoryRateLimitStorage } from '@hono-crud/rate-limit/storage/memory';
+import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
+import { MemoryAuditLogStorage, setAuditStorage } from 'hono-crud/audit';
+import { MemoryAPIKeyStorage } from 'hono-crud/auth/storage/memory';
+import { setAPIKeyStorage } from 'hono-crud/auth/storage/memory';
+import { CrudEventEmitter } from 'hono-crud/events/emitter';
+import { getLoggingStorage, setLoggingStorage } from 'hono-crud/logging/middleware';
+import { MemoryLoggingStorage } from 'hono-crud/logging/storage/memory';
+import {
+  createStorageMiddleware,
+  resolveAPIKeyStorage,
+  resolveAuditStorage,
+  resolveLoggingStorage,
+  resolveVersioningStorage,
+} from 'hono-crud/storage';
+import type { StorageEnv } from 'hono-crud/storage/types';
+import { MemoryVersioningStorage, setVersioningStorage } from 'hono-crud/versioning';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 // After the package split, rate-limit / cache / idempotency storage live in
 // their own packages and are no longer part of core's createStorageMiddleware
@@ -47,19 +40,19 @@ type TestStorageEnv = StorageEnv & {
   };
 };
 
-const createRateLimitStorageMiddleware = (
-  storage: MemoryRateLimitStorage
-): MiddlewareHandler => async (ctx, next) => {
-  ctx.set('rateLimitStorage', storage);
-  await next();
-};
+const createRateLimitStorageMiddleware =
+  (storage: MemoryRateLimitStorage): MiddlewareHandler =>
+  async (ctx, next) => {
+    ctx.set('rateLimitStorage', storage);
+    await next();
+  };
 
-const createCacheStorageMiddleware = (
-  storage: MemoryCacheStorage
-): MiddlewareHandler => async (ctx, next) => {
-  ctx.set('cacheStorage', storage);
-  await next();
-};
+const createCacheStorageMiddleware =
+  (storage: MemoryCacheStorage): MiddlewareHandler =>
+  async (ctx, next) => {
+    ctx.set('cacheStorage', storage);
+    await next();
+  };
 
 describe('Storage Module', () => {
   describe('createStorageMiddleware', () => {
@@ -83,7 +76,7 @@ describe('Storage Module', () => {
           versioningStorage,
           apiKeyStorage,
           eventEmitter,
-        })
+        }),
       );
       // rate-limit / cache / idempotency storage are injected by their own
       // package helpers after the split.
@@ -303,7 +296,7 @@ describe('Storage Module', () => {
         createRateLimitMiddleware({
           limit: 5,
           windowSeconds: 60,
-        })
+        }),
       );
 
       app.get('/test', (ctx) => ctx.text('ok'));
@@ -363,7 +356,7 @@ describe('Storage Module', () => {
         createRateLimitMiddleware({
           limit: 10,
           windowSeconds: 60,
-        })
+        }),
       );
 
       app.get('/test', (ctx) => ctx.text('ok'));

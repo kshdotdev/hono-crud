@@ -34,13 +34,12 @@
 
 import type { Env, MiddlewareHandler } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
-import type { MetaInput, HookMode } from '../core/types';
-import type { FilterConfig } from '../core/types';
-import type { OpenAPIRoute } from '../core/route';
-import type { EndpointClass } from '../utils';
-import type { ModelObject } from '../endpoints/types';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
-
+import type { OpenAPIRoute } from '../core/route';
+import type { HookMode, MetaInput } from '../core/types';
+import type { FilterConfig } from '../core/types';
+import type { ModelObject } from '../endpoints/types';
+import type { EndpointClass } from '../utils';
 
 // ============================================================================
 // Type Definitions
@@ -67,8 +66,14 @@ interface HookConfig {
  * Create endpoint hooks.
  */
 interface CreateHooks<M extends MetaInput> extends HookConfig {
-  before?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
-  after?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  before?: (
+    data: ModelObject<M['model']>,
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  after?: (
+    data: ModelObject<M['model']>,
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
 }
 
 /**
@@ -147,7 +152,9 @@ interface FieldSelectionConfig {
  * List endpoint hooks.
  */
 interface ListHooks<M extends MetaInput> {
-  after?: (items: ModelObject<M['model']>[]) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  after?: (
+    items: ModelObject<M['model']>[],
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
   transform?: (item: ModelObject<M['model']>) => unknown;
 }
 
@@ -171,7 +178,9 @@ export interface ListEndpointConfig<M extends MetaInput> {
  * Read endpoint hooks.
  */
 interface ReadHooks<M extends MetaInput> {
-  after?: (data: ModelObject<M['model']>) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  after?: (
+    data: ModelObject<M['model']>,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
   transform?: (item: ModelObject<M['model']>) => unknown;
 }
 
@@ -206,11 +215,14 @@ interface UpdateFieldConfig {
  * audit/CDC pipelines no longer have to re-fetch in `before`.
  */
 interface UpdateHooks<M extends MetaInput> extends HookConfig {
-  before?: (data: Partial<ModelObject<M['model']>>, tx?: unknown) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
+  before?: (
+    data: Partial<ModelObject<M['model']>>,
+    tx?: unknown,
+  ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
   after?: (
     prior: ModelObject<M['model']>,
     current: ModelObject<M['model']>,
-    ctx: unknown
+    ctx: unknown,
   ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void;
   transform?: (item: ModelObject<M['model']>) => unknown;
 }
@@ -279,7 +291,9 @@ export interface DeleteEndpointConfig<M extends MetaInput> {
  * supports an `after` callback for post-processing results.
  */
 interface SearchHooks<M extends MetaInput> {
-  after?: (items: ModelObject<M['model']>[]) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  after?: (
+    items: ModelObject<M['model']>[],
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
 }
 
 /**
@@ -343,8 +357,14 @@ export interface RestoreEndpointConfig<M extends MetaInput> {
  * Batch-create endpoint hooks.
  */
 interface BatchCreateHooks<M extends MetaInput> extends HookConfig {
-  before?: (data: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
-  after?: (data: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  before?: (
+    data: ModelObject<M['model']>[],
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  after?: (
+    data: ModelObject<M['model']>[],
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
 }
 
 /**
@@ -363,8 +383,14 @@ export interface BatchCreateEndpointConfig<M extends MetaInput> {
  * Batch-update endpoint hooks.
  */
 interface BatchUpdateHooks<M extends MetaInput> extends HookConfig {
-  before?: (data: Partial<ModelObject<M['model']>>[], tx?: unknown) => Promise<Partial<ModelObject<M['model']>>[]> | Partial<ModelObject<M['model']>>[];
-  after?: (data: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  before?: (
+    data: Partial<ModelObject<M['model']>>[],
+    tx?: unknown,
+  ) => Promise<Partial<ModelObject<M['model']>>[]> | Partial<ModelObject<M['model']>>[];
+  after?: (
+    data: ModelObject<M['model']>[],
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
 }
 
 /**
@@ -420,8 +446,14 @@ export interface BatchRestoreEndpointConfig<M extends MetaInput> {
  * Batch-upsert endpoint hooks.
  */
 interface BatchUpsertHooks<M extends MetaInput> extends HookConfig {
-  before?: (data: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
-  after?: (data: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  before?: (
+    data: ModelObject<M['model']>[],
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  after?: (
+    data: ModelObject<M['model']>[],
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
 }
 
 /**
@@ -463,8 +495,14 @@ export interface ExportEndpointConfig<_M extends MetaInput> {
  * of this surface.
  */
 interface ImportHooks<M extends MetaInput> {
-  before?: (rows: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
-  after?: (rows: ModelObject<M['model']>[], tx?: unknown) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  before?: (
+    rows: ModelObject<M['model']>[],
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  after?: (
+    rows: ModelObject<M['model']>[],
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
 }
 
 /**
@@ -483,8 +521,14 @@ export interface ImportEndpointConfig<M extends MetaInput> {
  * Upsert endpoint hooks.
  */
 interface UpsertHooks<M extends MetaInput> extends HookConfig {
-  before?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
-  after?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  before?: (
+    data: ModelObject<M['model']>,
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  after?: (
+    data: ModelObject<M['model']>,
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
 }
 
 /**
@@ -661,7 +705,7 @@ export interface GeneratedEndpoints<E extends Env = Env> {
  */
 export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
   config: EndpointsConfig<M>,
-  adapters: AdapterBundle<E>
+  adapters: AdapterBundle<E>,
 ): GeneratedEndpoints<E> {
   const result: GeneratedEndpoints<E> = {};
 
@@ -694,7 +738,10 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       searchFieldName: cfg.search?.paramName,
       sortFields: cfg.sorting?.fields,
       defaultSort: cfg.sorting?.default
-        ? { field: cfg.sorting.default, order: cfg.sorting.defaultOrder ?? cfg.sorting.defaultDirection ?? 'asc' }
+        ? {
+            field: cfg.sorting.default,
+            order: cfg.sorting.defaultOrder ?? cfg.sorting.defaultDirection ?? 'asc',
+          }
         : undefined,
       defaultPerPage: cfg.pagination?.defaultPerPage,
       maxPerPage: cfg.pagination?.maxPerPage,
@@ -888,9 +935,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
   if (config.batchUpsert !== undefined && adapters.BatchUpsertEndpoint) {
     const cfg = config.batchUpsert;
     const upsertKeys =
-      typeof cfg.conflictTarget === 'string'
-        ? [cfg.conflictTarget]
-        : cfg.conflictTarget;
+      typeof cfg.conflictTarget === 'string' ? [cfg.conflictTarget] : cfg.conflictTarget;
     result.batchUpsert = generateEndpointClass(adapters.BatchUpsertEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
@@ -942,9 +987,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
   if (config.upsert !== undefined && adapters.UpsertEndpoint) {
     const cfg = config.upsert;
     const upsertKeys =
-      typeof cfg.conflictTarget === 'string'
-        ? [cfg.conflictTarget]
-        : cfg.conflictTarget;
+      typeof cfg.conflictTarget === 'string' ? [cfg.conflictTarget] : cfg.conflictTarget;
     result.upsert = generateEndpointClass(adapters.UpsertEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,

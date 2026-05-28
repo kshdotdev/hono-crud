@@ -7,14 +7,10 @@
  * Run with: npx tsx examples/batch-upsert.ts
  */
 
+import { MemoryBatchUpsertEndpoint, MemoryListEndpoint, clearStorage } from '@hono-crud/memory';
 import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono } from 'hono-crud';
 import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from 'hono-crud';
-import {
-  MemoryBatchUpsertEndpoint,
-  MemoryListEndpoint,
-  clearStorage,
-} from '@hono-crud/memory';
 
 // Clear storage
 clearStorage();
@@ -140,7 +136,7 @@ async function main() {
     body: JSON.stringify(initialInventory),
   });
 
-  const syncResult1 = await syncRes1.json() as BatchUpsertResponse<Inventory>;
+  const syncResult1 = (await syncRes1.json()) as BatchUpsertResponse<Inventory>;
   console.log('   Initial sync results:');
   console.log(`   - Created: ${syncResult1.result.createdCount}`);
   console.log(`   - Updated: ${syncResult1.result.updatedCount}`);
@@ -154,10 +150,10 @@ async function main() {
 
   // Simulate updated data from external system
   const updatedInventory = [
-    { sku: 'LAPTOP-001', warehouseId: 'WH-EAST', quantity: 45 },  // Update: sold 5
-    { sku: 'LAPTOP-001', warehouseId: 'WH-WEST', quantity: 28 },  // Update: sold 2
+    { sku: 'LAPTOP-001', warehouseId: 'WH-EAST', quantity: 45 }, // Update: sold 5
+    { sku: 'LAPTOP-001', warehouseId: 'WH-WEST', quantity: 28 }, // Update: sold 2
     { sku: 'PHONE-001', warehouseId: 'WH-CENTRAL', quantity: 100 }, // New warehouse
-    { sku: 'MONITOR-001', warehouseId: 'WH-EAST', quantity: 60 },  // New product
+    { sku: 'MONITOR-001', warehouseId: 'WH-EAST', quantity: 60 }, // New product
   ];
 
   const syncRes2 = await app.request('/inventory/sync', {
@@ -166,7 +162,7 @@ async function main() {
     body: JSON.stringify(updatedInventory),
   });
 
-  const syncResult2 = await syncRes2.json() as BatchUpsertResponse<Inventory>;
+  const syncResult2 = (await syncRes2.json()) as BatchUpsertResponse<Inventory>;
   console.log('   Incremental sync results:');
   console.log(`   - Created: ${syncResult2.result.createdCount} (new locations/products)`);
   console.log(`   - Updated: ${syncResult2.result.updatedCount} (quantity changes)`);
@@ -177,7 +173,9 @@ async function main() {
   console.log('   Breakdown by item:');
   for (const item of syncResult2.result.items) {
     const action = item.created ? 'CREATED' : 'UPDATED';
-    console.log(`   - [${action}] ${item.data.sku} @ ${item.data.warehouseId}: ${item.data.quantity} units`);
+    console.log(
+      `   - [${action}] ${item.data.sku} @ ${item.data.warehouseId}: ${item.data.quantity} units`,
+    );
   }
   console.log();
 
@@ -187,11 +185,41 @@ async function main() {
   console.log('3. PRICE SYNC - Multi-region pricing\n');
 
   const prices = [
-    { productId: 'LAPTOP-001', region: 'US', price: 999.99, currency: 'USD', validFrom: '2024-01-01' },
-    { productId: 'LAPTOP-001', region: 'EU', price: 899.99, currency: 'EUR', validFrom: '2024-01-01' },
-    { productId: 'LAPTOP-001', region: 'UK', price: 799.99, currency: 'GBP', validFrom: '2024-01-01' },
-    { productId: 'PHONE-001', region: 'US', price: 599.99, currency: 'USD', validFrom: '2024-01-01' },
-    { productId: 'PHONE-001', region: 'EU', price: 549.99, currency: 'EUR', validFrom: '2024-01-01' },
+    {
+      productId: 'LAPTOP-001',
+      region: 'US',
+      price: 999.99,
+      currency: 'USD',
+      validFrom: '2024-01-01',
+    },
+    {
+      productId: 'LAPTOP-001',
+      region: 'EU',
+      price: 899.99,
+      currency: 'EUR',
+      validFrom: '2024-01-01',
+    },
+    {
+      productId: 'LAPTOP-001',
+      region: 'UK',
+      price: 799.99,
+      currency: 'GBP',
+      validFrom: '2024-01-01',
+    },
+    {
+      productId: 'PHONE-001',
+      region: 'US',
+      price: 599.99,
+      currency: 'USD',
+      validFrom: '2024-01-01',
+    },
+    {
+      productId: 'PHONE-001',
+      region: 'EU',
+      price: 549.99,
+      currency: 'EUR',
+      validFrom: '2024-01-01',
+    },
   ];
 
   const priceRes1 = await app.request('/prices/sync', {
@@ -200,7 +228,7 @@ async function main() {
     body: JSON.stringify(prices),
   });
 
-  const priceResult1 = await priceRes1.json() as BatchUpsertResponse<Price>;
+  const priceResult1 = (await priceRes1.json()) as BatchUpsertResponse<Price>;
   console.log('   Initial price sync:');
   console.log(`   - Created: ${priceResult1.result.createdCount}`);
   console.log(`   - Updated: ${priceResult1.result.updatedCount}`);
@@ -208,9 +236,27 @@ async function main() {
 
   // Price update (e.g., promotional pricing)
   const priceUpdates = [
-    { productId: 'LAPTOP-001', region: 'US', price: 899.99, currency: 'USD', validFrom: '2024-02-01' }, // Sale!
-    { productId: 'LAPTOP-001', region: 'EU', price: 849.99, currency: 'EUR', validFrom: '2024-02-01' }, // Sale!
-    { productId: 'LAPTOP-001', region: 'JP', price: 119999, currency: 'JPY', validFrom: '2024-02-01' },  // New region
+    {
+      productId: 'LAPTOP-001',
+      region: 'US',
+      price: 899.99,
+      currency: 'USD',
+      validFrom: '2024-02-01',
+    }, // Sale!
+    {
+      productId: 'LAPTOP-001',
+      region: 'EU',
+      price: 849.99,
+      currency: 'EUR',
+      validFrom: '2024-02-01',
+    }, // Sale!
+    {
+      productId: 'LAPTOP-001',
+      region: 'JP',
+      price: 119999,
+      currency: 'JPY',
+      validFrom: '2024-02-01',
+    }, // New region
   ];
 
   const priceRes2 = await app.request('/prices/sync', {
@@ -219,7 +265,7 @@ async function main() {
     body: JSON.stringify(priceUpdates),
   });
 
-  const priceResult2 = await priceRes2.json() as BatchUpsertResponse<Price>;
+  const priceResult2 = (await priceRes2.json()) as BatchUpsertResponse<Price>;
   console.log('   Price update sync:');
   console.log(`   - Created: ${priceResult2.result.createdCount} (new regions)`);
   console.log(`   - Updated: ${priceResult2.result.updatedCount} (price changes)`);
@@ -231,15 +277,17 @@ async function main() {
   console.log('4. VIEW SYNCED DATA\n');
 
   const inventoryRes = await app.request('/inventory');
-  const inventoryList = await inventoryRes.json() as ListResponse<Inventory>;
+  const inventoryList = (await inventoryRes.json()) as ListResponse<Inventory>;
   console.log('   Inventory Records:');
   for (const inv of inventoryList.result) {
-    console.log(`   - ${inv.sku} @ ${inv.warehouseId}: ${inv.quantity} units (synced: ${inv.lastSyncedAt})`);
+    console.log(
+      `   - ${inv.sku} @ ${inv.warehouseId}: ${inv.quantity} units (synced: ${inv.lastSyncedAt})`,
+    );
   }
   console.log();
 
   const priceRes = await app.request('/prices');
-  const priceList = await priceRes.json() as ListResponse<Price>;
+  const priceList = (await priceRes.json()) as ListResponse<Price>;
   console.log('   Price Records:');
   for (const price of priceList.result) {
     console.log(`   - ${price.productId} [${price.region}]: ${price.price} ${price.currency}`);

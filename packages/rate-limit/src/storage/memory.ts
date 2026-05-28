@@ -1,4 +1,9 @@
-import type { RateLimitStorage, FixedWindowEntry, SlidingWindowEntry, RateLimitEntry } from '../types';
+import type {
+  FixedWindowEntry,
+  RateLimitEntry,
+  RateLimitStorage,
+  SlidingWindowEntry,
+} from '../types';
 
 /**
  * Options for MemoryRateLimitStorage.
@@ -48,7 +53,7 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
   private cleanupInterval: number;
 
   /** Timestamp of last cleanup run */
-  private lastCleanup: number = 0;
+  private lastCleanup = 0;
 
   constructor(options?: MemoryRateLimitStorageOptions) {
     this.cleanupInterval = options?.cleanupInterval ?? 60000;

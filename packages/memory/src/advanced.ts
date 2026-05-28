@@ -2,9 +2,9 @@ import type { Env } from 'hono';
 import { CloneEndpoint } from 'hono-crud/internal';
 import { UpsertEndpoint } from 'hono-crud/internal';
 import {
+  VersionCompareEndpoint,
   VersionHistoryEndpoint,
   VersionReadEndpoint,
-  VersionCompareEndpoint,
   VersionRollbackEndpoint,
 } from 'hono-crud/internal';
 import { AggregateEndpoint, computeAggregations } from 'hono-crud/internal';
@@ -13,15 +13,15 @@ import { ExportEndpoint } from 'hono-crud/internal';
 import { ImportEndpoint } from 'hono-crud/internal';
 import { BulkPatchEndpoint } from 'hono-crud/internal';
 import type {
-  MetaInput,
-  PaginatedResult,
-  ListFilters,
-  IncludeOptions,
-  RelationConfig,
-  NestedUpdateInput,
-  NestedWriteResult,
   AggregateOptions,
   AggregateResult,
+  IncludeOptions,
+  ListFilters,
+  MetaInput,
+  NestedUpdateInput,
+  NestedWriteResult,
+  PaginatedResult,
+  RelationConfig,
   SearchOptions,
   SearchResult,
 } from 'hono-crud/internal';
@@ -46,7 +46,7 @@ export abstract class MemoryCloneEndpoint<
 
   async findSource(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const existing = store.get(lookupValue);
@@ -61,19 +61,15 @@ export abstract class MemoryCloneEndpoint<
     return existing;
   }
 
-  async createClone(
-    data: ModelObject<M['model']>
-  ): Promise<ModelObject<M['model']>> {
+  async createClone(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const pk = this._meta.model.primaryKeys[0];
 
     // Base CloneEndpoint already stripped the source PK, so the managed
     // resolver always fills it. `generateId()` stays the overridable
     // default-branch generator; `id:'database'` throws (memory has no DB).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'memory',
-      () => this.generateId()
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'memory', () =>
+      this.generateId(),
     ) as ModelObject<M['model']>;
 
     const id = String((record as Record<string, unknown>)[pk]);
@@ -101,7 +97,7 @@ export abstract class MemoryUpsertEndpoint<
    * Finds an existing record by upsert keys.
    */
   async findExisting(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const upsertKeys = this.getUpsertKeys();
@@ -139,19 +135,15 @@ export abstract class MemoryUpsertEndpoint<
   /**
    * Creates a new record.
    */
-  async create(
-    data: Partial<ModelObject<M['model']>>
-  ): Promise<ModelObject<M['model']>> {
+  async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     // `generateId()` stays the overridable default-branch generator;
     // `id:'database'` throws here (memory has no database).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'memory',
-      () => this.generateId()
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'memory', () =>
+      this.generateId(),
     ) as ModelObject<M['model']>;
 
     store.set(String((record as Record<string, unknown>)[primaryKey]), record);
@@ -163,7 +155,7 @@ export abstract class MemoryUpsertEndpoint<
    */
   async update(
     existing: ModelObject<M['model']>,
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];
@@ -188,7 +180,7 @@ export abstract class MemoryUpsertEndpoint<
    */
   protected async nativeUpsert(
     data: Partial<ModelObject<M['model']>>,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<{ data: ModelObject<M['model']>; created: boolean }> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const upsertKeys = this.getUpsertKeys();
@@ -225,7 +217,7 @@ export abstract class MemoryUpsertEndpoint<
 
     if (existingRecord) {
       // Update existing record - filter out create-only fields
-      let updateData = { ...data };
+      const updateData = { ...data };
       if (this.createOnlyFields) {
         for (const field of this.createOnlyFields) {
           delete updateData[field as keyof typeof updateData];
@@ -242,7 +234,7 @@ export abstract class MemoryUpsertEndpoint<
       return { data: updated, created: false };
     } else {
       // Create new record - filter out update-only fields
-      let createData = { ...data };
+      const createData = { ...data };
       if (this.updateOnlyFields) {
         for (const field of this.updateOnlyFields) {
           delete createData[field as keyof typeof createData];
@@ -253,7 +245,7 @@ export abstract class MemoryUpsertEndpoint<
       const record = this.applyManagedInsertFields(
         createData as Record<string, unknown>,
         'memory',
-        () => this.generateId()
+        () => this.generateId(),
       ) as ModelObject<M['model']>;
 
       const id = String((record as Record<string, unknown>)[primaryKey]);
@@ -269,7 +261,7 @@ export abstract class MemoryUpsertEndpoint<
     parentId: string | number,
     _relationName: string,
     relationConfig: RelationConfig,
-    operations: NestedUpdateInput
+    operations: NestedUpdateInput,
   ): Promise<NestedWriteResult> {
     const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);
     const result: NestedWriteResult = {
@@ -399,7 +391,7 @@ export abstract class MemoryVersionRollbackEndpoint<
   async rollback(
     lookupValue: string,
     versionData: Record<string, unknown>,
-    newVersion: number
+    newVersion: number,
   ): Promise<ModelObject<M['model']>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const versionField = this.getVersioningConfig().field;
@@ -516,7 +508,7 @@ export abstract class MemorySearchEndpoint<
    */
   async search(
     options: SearchOptions,
-    filters: ListFilters
+    filters: ListFilters,
   ): Promise<SearchResult<ModelObject<M['model']>>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     let records = Array.from(store.values()) as Record<string, unknown>[];
@@ -613,7 +605,7 @@ export abstract class MemorySearchEndpoint<
               if (value === undefined || value === null) return false;
               const content = Array.isArray(value) ? value.join(' ') : String(value);
               return content.toLowerCase().includes(token);
-            })
+            }),
           );
         });
       }
@@ -622,11 +614,7 @@ export abstract class MemorySearchEndpoint<
       scoringOptions = { ...options, mode: 'any' };
     }
 
-    const searchResults = searchInMemory(
-      recordsForScoring,
-      scoringOptions,
-      searchableFields
-    );
+    const searchResults = searchInMemory(recordsForScoring, scoringOptions, searchableFields);
 
     const totalCount = searchResults.length;
 
@@ -656,7 +644,11 @@ export abstract class MemorySearchEndpoint<
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const resultsWithRelations = paginatedResults.map((result) => ({
       ...result,
-      item: loadRelations(result.item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<M['model']>,
+      item: loadRelations(
+        result.item as Record<string, unknown>,
+        this._meta,
+        includeOptions,
+      ) as ModelObject<M['model']>,
     }));
 
     return {
@@ -741,7 +733,7 @@ export abstract class MemoryExportEndpoint<
         this.searchFields.some((field) => {
           const value = (item as Record<string, unknown>)[field];
           return String(value).toLowerCase().includes(searchTerm);
-        })
+        }),
       );
     }
 
@@ -770,8 +762,11 @@ export abstract class MemoryExportEndpoint<
 
     // Load relations if requested
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
-    const itemsWithRelations = paginatedItems.map((item) =>
-      loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<M['model']>
+    const itemsWithRelations = paginatedItems.map(
+      (item) =>
+        loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<
+          M['model']
+        >,
     );
 
     const totalPages = Math.ceil(totalCount / perPage);
@@ -809,7 +804,7 @@ export abstract class MemoryImportEndpoint<
    * Finds an existing record by upsert keys.
    */
   async findExisting(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const upsertKeys = this.getUpsertKeys();
@@ -847,19 +842,15 @@ export abstract class MemoryImportEndpoint<
   /**
    * Creates a new record.
    */
-  async create(
-    data: Partial<ModelObject<M['model']>>
-  ): Promise<ModelObject<M['model']>> {
+  async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     // `generateId()` stays the overridable default-branch generator;
     // `id:'database'` throws here (memory has no database).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'memory',
-      () => this.generateId()
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'memory', () =>
+      this.generateId(),
     ) as ModelObject<M['model']>;
 
     store.set(String((record as Record<string, unknown>)[primaryKey]), record);
@@ -871,7 +862,7 @@ export abstract class MemoryImportEndpoint<
    */
   async update(
     existing: ModelObject<M['model']>,
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];
@@ -903,7 +894,7 @@ export abstract class MemoryBulkPatchEndpoint<
 
   async applyPatch(
     data: Partial<ModelObject<M['model']>>,
-    filters: ListFilters
+    filters: ListFilters,
   ): Promise<{ updated: number; records?: ModelObject<M['model']>[] }> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];

@@ -10,20 +10,20 @@
  * Run with: npx tsx examples/soft-delete.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
+  MemoryReadEndpoint,
   MemoryRestoreEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
 } from '@hono-crud/memory';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { z } from 'zod';
 
 // Clear storage on start
 clearStorage();
@@ -83,7 +83,8 @@ class UserList extends MemoryListEndpoint {
   schema = {
     tags: ['Users'],
     summary: 'List all users',
-    description: 'By default excludes deleted users. Use ?withDeleted=true to include them, or ?onlyDeleted=true to show only deleted users.',
+    description:
+      'By default excludes deleted users. Use ?withDeleted=true to include them, or ?onlyDeleted=true to show only deleted users.',
   };
 
   filterFields = ['role'];
@@ -121,7 +122,8 @@ class UserDelete extends MemoryDeleteEndpoint {
   schema = {
     tags: ['Users'],
     summary: 'Delete a user (soft delete)',
-    description: 'Sets deletedAt timestamp instead of removing the record. Cannot delete already-deleted users.',
+    description:
+      'Sets deletedAt timestamp instead of removing the record. Cannot delete already-deleted users.',
   };
 }
 
@@ -131,7 +133,8 @@ class UserRestore extends MemoryRestoreEndpoint {
   schema = {
     tags: ['Users'],
     summary: 'Restore a deleted user',
-    description: 'Sets deletedAt back to null, making the user visible again. Only works on soft-deleted users.',
+    description:
+      'Sets deletedAt back to null, making the user visible again. Only works on soft-deleted users.',
   };
 }
 

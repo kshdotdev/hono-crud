@@ -12,26 +12,26 @@
  * 2. npx tsx examples/drizzle/batch-operations.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
-  DrizzleCreateEndpoint,
-  DrizzleReadEndpoint,
-  DrizzleUpdateEndpoint,
-  DrizzleDeleteEndpoint,
-  DrizzleListEndpoint,
-  DrizzleRestoreEndpoint,
   DrizzleBatchCreateEndpoint,
-  DrizzleBatchUpdateEndpoint,
   DrizzleBatchDeleteEndpoint,
   DrizzleBatchRestoreEndpoint,
+  DrizzleBatchUpdateEndpoint,
+  DrizzleCreateEndpoint,
   type DrizzleDatabase,
+  DrizzleDeleteEndpoint,
+  DrizzleListEndpoint,
+  DrizzleReadEndpoint,
+  DrizzleRestoreEndpoint,
+  DrizzleUpdateEndpoint,
 } from '@hono-crud/drizzle';
-import { UserSchema, type User } from '../shared/schemas.js';
-import { users } from './schema.js';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { type User, UserSchema } from '../shared/schemas.js';
 import { db, initDb, pool } from './db.js';
+import { users } from './schema.js';
 
 const typedDb = db as unknown as DrizzleDatabase;
 
@@ -119,7 +119,8 @@ class UserBatchUpdate extends DrizzleBatchUpdateEndpoint {
   schema = {
     tags: ['Users - Batch'],
     summary: 'Update multiple users',
-    description: 'Updates up to 100 users in a single request. Soft-deleted users cannot be updated.',
+    description:
+      'Updates up to 100 users in a single request. Soft-deleted users cannot be updated.',
   };
 
   maxBatchSize = 100;

@@ -20,18 +20,18 @@
  * 2. npx tsx examples/drizzle/filtering.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   DrizzleCreateEndpoint,
-  DrizzleListEndpoint,
   type DrizzleDatabase,
+  DrizzleListEndpoint,
 } from '@hono-crud/drizzle';
-import { UserSchema, CategorySchema, type User, type Category } from '../shared/schemas.js';
-import { users, categories } from './schema.js';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { type Category, CategorySchema, type User, UserSchema } from '../shared/schemas.js';
 import { db, initDb, pool } from './db.js';
+import { categories, users } from './schema.js';
 
 const typedDb = db as unknown as DrizzleDatabase;
 
@@ -162,7 +162,13 @@ app.get('/seed', async (c) => {
   const userSeedData = [
     { name: 'Alice Admin', email: 'alice@example.com', role: 'admin', age: 35, status: 'active' },
     { name: 'Bob User', email: 'bob@example.com', role: 'user', age: 28, status: 'active' },
-    { name: 'Charlie Guest', email: 'charlie@example.com', role: 'guest', age: 22, status: 'pending' },
+    {
+      name: 'Charlie Guest',
+      email: 'charlie@example.com',
+      role: 'guest',
+      age: 22,
+      status: 'pending',
+    },
     { name: 'Diana User', email: 'diana@example.com', role: 'user', age: 45, status: 'active' },
     { name: 'Eve Admin', email: 'eve@example.com', role: 'admin', age: 31, status: 'inactive' },
     { name: 'Frank User', email: 'frank@example.com', role: 'user', age: null, status: 'active' },
@@ -173,7 +179,7 @@ app.get('/seed', async (c) => {
   for (const user of userSeedData) {
     await pool.query(
       'INSERT INTO users (email, name, role, age, status) VALUES ($1, $2, $3, $4, $5)',
-      [user.email, user.name, user.role, user.age, user.status]
+      [user.email, user.name, user.role, user.age, user.status],
     );
   }
 
@@ -187,10 +193,11 @@ app.get('/seed', async (c) => {
   ];
 
   for (const cat of categorySeedData) {
-    await pool.query(
-      'INSERT INTO categories (name, description, sort_order) VALUES ($1, $2, $3)',
-      [cat.name, cat.description, cat.sortOrder]
-    );
+    await pool.query('INSERT INTO categories (name, description, sort_order) VALUES ($1, $2, $3)', [
+      cat.name,
+      cat.description,
+      cat.sortOrder,
+    ]);
   }
 
   return c.json({ success: true, message: 'Seeded 8 users and 5 categories' });

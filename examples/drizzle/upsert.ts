@@ -15,19 +15,19 @@
  * 2. npx tsx examples/drizzle/upsert.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import { pgTable, text, integer, timestamp, uuid, numeric, pgEnum } from 'drizzle-orm/pg-core';
-import { fromHono, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
-  DrizzleUpsertEndpoint,
   DrizzleBatchUpsertEndpoint,
-  DrizzleListEndpoint,
   type DrizzleDatabase,
+  DrizzleListEndpoint,
+  DrizzleUpsertEndpoint,
 } from '@hono-crud/drizzle';
-import { db, pool, initDb } from './db.js';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { integer, numeric, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono } from 'hono-crud';
+import { z } from 'zod';
+import { db, initDb, pool } from './db.js';
 
 const typedDb = db as unknown as DrizzleDatabase;
 

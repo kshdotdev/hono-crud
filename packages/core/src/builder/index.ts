@@ -30,9 +30,9 @@
  */
 
 import type { Env, MiddlewareHandler } from 'hono';
-import type { MetaInput, HookMode, FilterConfig } from '../core/types';
-import type { ModelObject } from '../endpoints/types';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
+import type { FilterConfig, HookMode, MetaInput } from '../core/types';
+import type { ModelObject } from '../endpoints/types';
 
 type GeneratedClass<B extends abstract new () => unknown> = B & (new () => InstanceType<B>);
 
@@ -45,8 +45,14 @@ type GeneratedClass<B extends abstract new () => unknown> = B & (new () => Insta
  */
 export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
   private _schema: Record<string, unknown> = {};
-  private _before?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
-  private _after?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  private _before?: (
+    data: ModelObject<M['model']>,
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  private _after?: (
+    data: ModelObject<M['model']>,
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
   private _beforeHookMode: HookMode = 'sequential';
   private _afterHookMode: HookMode = 'sequential';
   private _allowNestedCreate: string[] = [];
@@ -79,13 +85,23 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set before hook */
-  before(fn: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>): this {
+  before(
+    fn: (
+      data: ModelObject<M['model']>,
+      tx?: unknown,
+    ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>,
+  ): this {
     this._before = fn;
     return this;
   }
 
   /** Set after hook */
-  after(fn: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>): this {
+  after(
+    fn: (
+      data: ModelObject<M['model']>,
+      tx?: unknown,
+    ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>,
+  ): this {
     this._after = fn;
     return this;
   }
@@ -151,7 +167,9 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
   private _blockedSelectFields: string[] = [];
   private _alwaysIncludeFields: string[] = [];
   private _defaultSelectFields: string[] = [];
-  private _after?: (items: ModelObject<M['model']>[]) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  private _after?: (
+    items: ModelObject<M['model']>[],
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
   private _transform?: (item: ModelObject<M['model']>) => unknown;
   private _middlewares: MiddlewareHandler<E>[] = [];
 
@@ -258,7 +276,11 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set after hook */
-  after(fn: (items: ModelObject<M['model']>[]) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[]): this {
+  after(
+    fn: (
+      items: ModelObject<M['model']>[],
+    ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[],
+  ): this {
     this._after = fn;
     return this;
   }
@@ -317,7 +339,9 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
   private _blockedSelectFields: string[] = [];
   private _alwaysIncludeFields: string[] = [];
   private _defaultSelectFields: string[] = [];
-  private _after?: (data: ModelObject<M['model']>) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  private _after?: (
+    data: ModelObject<M['model']>,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
   private _transform?: (item: ModelObject<M['model']>) => unknown;
   private _middlewares: MiddlewareHandler<E>[] = [];
 
@@ -381,7 +405,11 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set after hook */
-  after(fn: (data: ModelObject<M['model']>) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>): this {
+  after(
+    fn: (
+      data: ModelObject<M['model']>,
+    ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>,
+  ): this {
     this._after = fn;
     return this;
   }
@@ -431,11 +459,14 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
   private _allowedUpdateFields?: string[];
   private _blockedUpdateFields?: string[];
   private _allowNestedWrites: string[] = [];
-  private _before?: (data: Partial<ModelObject<M['model']>>, tx?: unknown) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
+  private _before?: (
+    data: Partial<ModelObject<M['model']>>,
+    tx?: unknown,
+  ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
   private _after?: (
     prior: ModelObject<M['model']>,
     current: ModelObject<M['model']>,
-    ctx: unknown
+    ctx: unknown,
   ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void;
   private _beforeHookMode: HookMode = 'sequential';
   private _afterHookMode: HookMode = 'sequential';
@@ -499,7 +530,12 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set before hook */
-  before(fn: (data: Partial<ModelObject<M['model']>>, tx?: unknown) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>): this {
+  before(
+    fn: (
+      data: Partial<ModelObject<M['model']>>,
+      tx?: unknown,
+    ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>,
+  ): this {
     this._before = fn;
     return this;
   }
@@ -512,11 +548,13 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
    * transaction so consumers can compute field-level diffs without a
    * re-fetch in `before`.
    */
-  after(fn: (
-    prior: ModelObject<M['model']>,
-    current: ModelObject<M['model']>,
-    ctx: unknown
-  ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void): this {
+  after(
+    fn: (
+      prior: ModelObject<M['model']>,
+      current: ModelObject<M['model']>,
+      ctx: unknown,
+    ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void,
+  ): this {
     this._after = fn;
     return this;
   }

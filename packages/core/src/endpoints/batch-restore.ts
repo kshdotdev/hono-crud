@@ -1,8 +1,8 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { ApiException } from '../core/exceptions';
+import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { CrudEndpoint } from './base';
 import type { ModelObject } from './types';
 
 /**
@@ -30,15 +30,14 @@ export abstract class BatchRestoreEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   /** Maximum number of records that can be restored in a single request */
-  protected maxBatchSize: number = 100;
+  protected maxBatchSize = 100;
 
   /** Whether to stop on first error or continue with remaining items */
-  protected stopOnError: boolean = false;
+  protected stopOnError = false;
 
   /** The field used to identify records */
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
 
   /** Hook execution mode */
   protected beforeHookMode: HookMode = 'sequential';
@@ -124,10 +123,14 @@ export abstract class BatchRestoreEndpoint<
                   restored: z.array(this.getModelSchema()),
                   count: z.number(),
                   notFound: z.array(z.string()).optional(),
-                  errors: z.array(z.object({
-                    id: z.string(),
-                    error: z.string(),
-                  })).optional(),
+                  errors: z
+                    .array(
+                      z.object({
+                        id: z.string(),
+                        error: z.string(),
+                      }),
+                    )
+                    .optional(),
                 }),
               }),
             },
@@ -163,10 +166,7 @@ export abstract class BatchRestoreEndpoint<
    * Lifecycle hook: called before each item is restored.
    * Override to perform checks or side effects.
    */
-  async before(
-    _id: string,
-    _tx?: unknown
-  ): Promise<void> {
+  async before(_id: string, _tx?: unknown): Promise<void> {
     // Override in subclass
   }
 
@@ -174,10 +174,7 @@ export abstract class BatchRestoreEndpoint<
    * Lifecycle hook: called after each item is restored.
    * Override to perform side effects.
    */
-  async after(
-    data: ModelObject<M['model']>,
-    _tx?: unknown
-  ): Promise<ModelObject<M['model']>> {
+  async after(data: ModelObject<M['model']>, _tx?: unknown): Promise<ModelObject<M['model']>> {
     return data;
   }
 
@@ -193,17 +190,20 @@ export abstract class BatchRestoreEndpoint<
    */
   abstract batchRestore(
     ids: string[],
-    tx?: unknown
+    tx?: unknown,
   ): Promise<{ restored: ModelObject<M['model']>[]; notFound: string[] }>;
 
   /**
    * Main handler for the batch restore operation.
    */
   async handle(): Promise<Response> {
-
     // Check if soft delete is enabled
     if (!this.isSoftDeleteEnabled()) {
-      throw new ApiException('Soft delete is not enabled for this model', 400, 'SOFT_DELETE_NOT_ENABLED');
+      throw new ApiException(
+        'Soft delete is not enabled for this model',
+        400,
+        'SOFT_DELETE_NOT_ENABLED',
+      );
     }
 
     const ids = await this.getIds();
@@ -261,12 +261,14 @@ export abstract class BatchRestoreEndpoint<
         .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (auditRecords.length > 0) {
-        this.runAfterResponse(auditLogger.logBatch(
-          'batch_restore',
-          this._meta.model.tableName,
-          auditRecords,
-          this.getAuditUserId()
-        ));
+        this.runAfterResponse(
+          auditLogger.logBatch(
+            'batch_restore',
+            this._meta.model.tableName,
+            auditRecords,
+            this.getAuditUserId(),
+          ),
+        );
       }
     }
 

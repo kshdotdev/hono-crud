@@ -1,7 +1,7 @@
 import type { Context, Env } from 'hono';
 import { streamSSE } from 'hono/streaming';
+import { type CrudEventEmitter, resolveEventEmitter } from '../events/emitter';
 import type { CrudEventPayload, CrudEventType, EventSubscription } from '../events/types';
-import { resolveEventEmitter, type CrudEventEmitter } from '../events/emitter';
 
 // Per-isolate SSE connection counter. Not a strict global limit:
 // in Cloudflare Workers each isolate keeps its own counter, so the cap
@@ -37,10 +37,7 @@ export interface SubscribeEndpointConfig {
 /**
  * Strips sensitive fields from an object.
  */
-function stripSensitiveFields(
-  data: unknown,
-  excludeFields: string[]
-): unknown {
+function stripSensitiveFields(data: unknown, excludeFields: string[]): unknown {
   if (data === null || data === undefined || typeof data !== 'object') {
     return data;
   }
@@ -50,9 +47,10 @@ function stripSensitiveFields(
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
     if (!excludeFields.includes(key)) {
-      result[key] = typeof value === 'object' && value !== null
-        ? stripSensitiveFields(value, excludeFields)
-        : value;
+      result[key] =
+        typeof value === 'object' && value !== null
+          ? stripSensitiveFields(value, excludeFields)
+          : value;
     }
   }
   return result;
@@ -104,8 +102,11 @@ export function createSubscribeHandler(config: SubscribeEndpointConfig) {
     const emitter = resolveEventEmitter(ctx, customEmitter);
     if (!emitter) {
       return ctx.json(
-        { success: false, error: { code: 'EVENT_EMITTER_NOT_CONFIGURED', message: 'Event emitter not configured' } },
-        500
+        {
+          success: false,
+          error: { code: 'EVENT_EMITTER_NOT_CONFIGURED', message: 'Event emitter not configured' },
+        },
+        500,
       );
     }
 
@@ -113,8 +114,11 @@ export function createSubscribeHandler(config: SubscribeEndpointConfig) {
     const currentCount = connectionCounts.get(table) || 0;
     if (currentCount >= maxConnections) {
       return ctx.json(
-        { success: false, error: { code: 'TOO_MANY_CONNECTIONS', message: 'Too many SSE connections' } },
-        503
+        {
+          success: false,
+          error: { code: 'TOO_MANY_CONNECTIONS', message: 'Too many SSE connections' },
+        },
+        503,
       );
     }
 
@@ -137,12 +141,12 @@ export function createSubscribeHandler(config: SubscribeEndpointConfig) {
         }
 
         // Strip sensitive fields from event data
-        const sanitizedData = excludeFields.length > 0
-          ? stripSensitiveFields(event.data, excludeFields)
-          : event.data;
-        const sanitizedPreviousData = event.previousData && excludeFields.length > 0
-          ? stripSensitiveFields(event.previousData, excludeFields)
-          : event.previousData;
+        const sanitizedData =
+          excludeFields.length > 0 ? stripSensitiveFields(event.data, excludeFields) : event.data;
+        const sanitizedPreviousData =
+          event.previousData && excludeFields.length > 0
+            ? stripSensitiveFields(event.previousData, excludeFields)
+            : event.previousData;
 
         try {
           await stream.writeSSE({

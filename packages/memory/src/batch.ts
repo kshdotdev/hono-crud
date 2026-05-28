@@ -4,9 +4,7 @@ import { BatchUpdateEndpoint, type BatchUpdateItem } from 'hono-crud/internal';
 import { BatchDeleteEndpoint } from 'hono-crud/internal';
 import { BatchRestoreEndpoint } from 'hono-crud/internal';
 import { BatchUpsertEndpoint } from 'hono-crud/internal';
-import type {
-  MetaInput,
-} from 'hono-crud/internal';
+import type { MetaInput } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
 import { getStore } from './helpers';
 import { isVisible } from './visibility';
@@ -25,19 +23,15 @@ export abstract class MemoryBatchCreateEndpoint<
     return crypto.randomUUID();
   }
 
-  async batchCreate(
-    items: Partial<ModelObject<M['model']>>[]
-  ): Promise<ModelObject<M['model']>[]> {
+  async batchCreate(items: Partial<ModelObject<M['model']>>[]): Promise<ModelObject<M['model']>[]> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];
     const created: ModelObject<M['model']>[] = [];
 
     for (const item of items) {
       // Resolve managed write-time fields (Model.id strategy + timestamps).
-      const record = this.applyManagedInsertFields(
-        item as Record<string, unknown>,
-        'memory',
-        () => this.generateId()
+      const record = this.applyManagedInsertFields(item as Record<string, unknown>, 'memory', () =>
+        this.generateId(),
       ) as ModelObject<M['model']>;
 
       const id = String((record as Record<string, unknown>)[primaryKey]);
@@ -58,7 +52,7 @@ export abstract class MemoryBatchUpdateEndpoint<
   M extends MetaInput = MetaInput,
 > extends BatchUpdateEndpoint<E, M> {
   async batchUpdate(
-    items: BatchUpdateItem<ModelObject<M['model']>>[]
+    items: BatchUpdateItem<ModelObject<M['model']>>[],
   ): Promise<{ updated: ModelObject<M['model']>[]; notFound: string[] }> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -99,7 +93,7 @@ export abstract class MemoryBatchDeleteEndpoint<
   M extends MetaInput = MetaInput,
 > extends BatchDeleteEndpoint<E, M> {
   async batchDelete(
-    ids: string[]
+    ids: string[],
   ): Promise<{ deleted: ModelObject<M['model']>[]; notFound: string[] }> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -147,7 +141,7 @@ export abstract class MemoryBatchRestoreEndpoint<
   M extends MetaInput = MetaInput,
 > extends BatchRestoreEndpoint<E, M> {
   async batchRestore(
-    ids: string[]
+    ids: string[],
   ): Promise<{ restored: ModelObject<M['model']>[]; notFound: string[] }> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -201,7 +195,7 @@ export abstract class MemoryBatchUpsertEndpoint<
    * Finds an existing record by upsert keys.
    */
   async findExisting(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const upsertKeys = this.getUpsertKeys();
@@ -230,17 +224,13 @@ export abstract class MemoryBatchUpsertEndpoint<
   /**
    * Creates a new record.
    */
-  async create(
-    data: Partial<ModelObject<M['model']>>
-  ): Promise<ModelObject<M['model']>> {
+  async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'memory',
-      () => this.generateId()
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'memory', () =>
+      this.generateId(),
     ) as ModelObject<M['model']>;
 
     store.set(String((record as Record<string, unknown>)[primaryKey]), record);
@@ -252,7 +242,7 @@ export abstract class MemoryBatchUpsertEndpoint<
    */
   async update(
     existing: ModelObject<M['model']>,
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const primaryKey = this._meta.model.primaryKeys[0];
@@ -274,7 +264,7 @@ export abstract class MemoryBatchUpsertEndpoint<
    */
   protected async nativeBatchUpsert(
     items: Partial<ModelObject<M['model']>>[],
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<{
     items: Array<{ data: ModelObject<M['model']>; created: boolean; index: number }>;
     createdCount: number;
@@ -314,7 +304,7 @@ export abstract class MemoryBatchUpsertEndpoint<
 
       if (existingRecord) {
         // Update existing record - filter out create-only fields
-        let updateData = { ...data };
+        const updateData = { ...data };
         if (this.createOnlyFields) {
           for (const field of this.createOnlyFields) {
             delete updateData[field as keyof typeof updateData];
@@ -332,7 +322,7 @@ export abstract class MemoryBatchUpsertEndpoint<
         updatedCount++;
       } else {
         // Create new record - filter out update-only fields
-        let createData = { ...data };
+        const createData = { ...data };
         if (this.updateOnlyFields) {
           for (const field of this.updateOnlyFields) {
             delete createData[field as keyof typeof createData];
@@ -343,7 +333,7 @@ export abstract class MemoryBatchUpsertEndpoint<
         const record = this.applyManagedInsertFields(
           createData as Record<string, unknown>,
           'memory',
-          () => this.generateId()
+          () => this.generateId(),
         ) as ModelObject<M['model']>;
 
         const id = String((record as Record<string, unknown>)[primaryKey]);

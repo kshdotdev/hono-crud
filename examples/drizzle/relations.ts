@@ -11,24 +11,19 @@
  * 2. npx tsx examples/drizzle/relations.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   DrizzleCreateEndpoint,
-  DrizzleReadEndpoint,
-  DrizzleListEndpoint,
   type DrizzleDatabase,
+  DrizzleListEndpoint,
+  DrizzleReadEndpoint,
 } from '@hono-crud/drizzle';
-import {
-  UserSchema,
-  PostSchema,
-  ProfileSchema,
-  CommentSchema,
-} from '../shared/schemas.js';
-import { users, posts, profiles, comments } from './schema.js';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { CommentSchema, PostSchema, ProfileSchema, UserSchema } from '../shared/schemas.js';
 import { db, initDb, pool } from './db.js';
+import { comments, posts, profiles, users } from './schema.js';
 
 const typedDb = db as unknown as DrizzleDatabase;
 

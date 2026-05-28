@@ -212,7 +212,7 @@ export function createNullableRegistry<T>(contextKey: string): StorageRegistry<T
  */
 export function createRegistryWithDefault<T>(
   contextKey: string,
-  defaultFactory: () => T
+  defaultFactory: () => T,
 ): StorageRegistry<T> {
   return new StorageRegistry<T>(contextKey, defaultFactory);
 }

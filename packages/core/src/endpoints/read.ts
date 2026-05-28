@@ -1,11 +1,11 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema, IncludeOptions} from '../core/types';
-import { applyComputedFields } from '../core/types';
-import { NotFoundException } from '../core/exceptions';
-import { applyFieldSelection, type ModelObject, type FieldSelection } from './types';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { generateETag, matchesIfNoneMatch } from '../core/etag';
+import { NotFoundException } from '../core/exceptions';
+import type { IncludeOptions, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { applyComputedFields } from '../core/types';
+import { CrudEndpoint } from './base';
+import { type FieldSelection, type ModelObject, applyFieldSelection } from './types';
 
 /**
  * Base endpoint for reading a single resource.
@@ -19,15 +19,14 @@ export abstract class ReadEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   // Lookup configuration
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
   protected lookupFields?: string[];
   protected additionalFilters?: string[];
 
   // ETag configuration
   /** Enable ETag generation and If-None-Match support for conditional requests */
-  protected etagEnabled: boolean = false;
+  protected etagEnabled = false;
 
   // Relations configuration
   /** Allowed relation names that can be included via ?include=relation1,relation2 */
@@ -35,7 +34,7 @@ export abstract class ReadEndpoint<
 
   // Field selection configuration
   /** Enable field selection via ?fields=field1,field2 */
-  protected fieldSelectionEnabled: boolean = false;
+  protected fieldSelectionEnabled = false;
   /** Fields that are allowed to be selected. If empty, all schema fields are allowed. */
   protected allowedSelectFields: string[] = [];
   /** Fields that are never returned, even if requested. */
@@ -98,17 +97,23 @@ export abstract class ReadEndpoint<
 
     // Add include parameter for relations
     if (this.allowedIncludes.length > 0) {
-      shape.include = z.string().optional().describe(
-        `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`
-      );
+      shape.include = z
+        .string()
+        .optional()
+        .describe(
+          `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
+        );
     }
 
     // Add fields parameter for field selection
     if (this.fieldSelectionEnabled) {
       const availableFields = this.getAvailableSelectFields();
-      shape.fields = z.string().optional().describe(
-        `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`
-      );
+      shape.fields = z
+        .string()
+        .optional()
+        .describe(
+          `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
+        );
     }
 
     if (Object.keys(shape).length === 0) {
@@ -225,7 +230,10 @@ export abstract class ReadEndpoint<
       return { relations: [] };
     }
 
-    const requested = includeParam.split(',').map((v) => v.trim()).filter(Boolean);
+    const requested = includeParam
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
 
     // Filter to only allowed includes
     if (this.allowedIncludes.length > 0) {
@@ -257,7 +265,10 @@ export abstract class ReadEndpoint<
       return { fields: [], isActive: false };
     }
 
-    const requested = fieldsParam.split(',').map((f) => f.trim()).filter(Boolean);
+    const requested = fieldsParam
+      .split(',')
+      .map((f) => f.trim())
+      .filter(Boolean);
     const available = new Set(this.getAvailableSelectFields());
 
     // Filter to available fields
@@ -275,9 +286,7 @@ export abstract class ReadEndpoint<
    * Lifecycle hook: called after read operation.
    * Override to transform result before returning.
    */
-  async after(
-    data: ModelObject<M['model']>
-  ): Promise<ModelObject<M['model']>> {
+  async after(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
     return data;
   }
 
@@ -311,14 +320,13 @@ export abstract class ReadEndpoint<
   abstract read(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    includeOptions?: IncludeOptions
+    includeOptions?: IncludeOptions,
   ): Promise<ModelObject<M['model']> | null>;
 
   /**
    * Main handler for the read operation.
    */
   async handle(): Promise<Response> {
-
     // Validate tenant ID if multi-tenancy is enabled
     const tenantId = this.validateTenantId();
 
@@ -339,7 +347,7 @@ export abstract class ReadEndpoint<
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
     }
 
-    obj = await this.decryptOnRead(obj as Record<string, unknown>) as ModelObject<M['model']>;
+    obj = (await this.decryptOnRead(obj as Record<string, unknown>)) as ModelObject<M['model']>;
 
     // Apply policy `read` predicate. Treat denial as 404 to avoid leaking
     // resource existence to callers that aren't allowed to see it.
@@ -353,16 +361,14 @@ export abstract class ReadEndpoint<
 
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {
-      obj = await applyComputedFields(
+      obj = (await applyComputedFields(
         obj as Record<string, unknown>,
-        this._meta.model.computedFields
-      ) as ModelObject<M['model']>;
+        this._meta.model.computedFields,
+      )) as ModelObject<M['model']>;
     }
 
     // Apply serializer if defined
-    const serialized = this._meta.model.serializer
-      ? this._meta.model.serializer(obj)
-      : obj;
+    const serialized = this._meta.model.serializer ? this._meta.model.serializer(obj) : obj;
 
     // Apply default serialization profile (model.serializationProfile)
     const profiled = this.applyProfile(serialized as Record<string, unknown>);
@@ -371,9 +377,10 @@ export abstract class ReadEndpoint<
     const transformed = this.transform(profiled as ModelObject<M['model']>);
 
     // Apply field selection if enabled and fields were specified
-    const result = (fieldSelection.isActive && fieldSelection.fields.length > 0)
-      ? applyFieldSelection(transformed as Record<string, unknown>, fieldSelection)
-      : transformed;
+    const result =
+      fieldSelection.isActive && fieldSelection.fields.length > 0
+        ? applyFieldSelection(transformed as Record<string, unknown>, fieldSelection)
+        : transformed;
 
     // ETag support
     if (this.etagEnabled) {
@@ -385,7 +392,7 @@ export abstract class ReadEndpoint<
       if (matchesIfNoneMatch(ifNoneMatch, etag)) {
         return new Response(null, {
           status: 304,
-          headers: { 'ETag': etag },
+          headers: { ETag: etag },
         });
       }
 

@@ -15,19 +15,19 @@
  * 4. npx tsx examples/prisma/basic-crud.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   PrismaCreateEndpoint,
-  PrismaReadEndpoint,
-  PrismaUpdateEndpoint,
   PrismaDeleteEndpoint,
   PrismaListEndpoint,
+  PrismaReadEndpoint,
+  PrismaUpdateEndpoint,
 } from '@hono-crud/prisma';
-import { UserSchema, type User } from '../shared/schemas.js';
-import { prisma, initDb } from './db.js';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { type User, UserSchema } from '../shared/schemas.js';
+import { initDb, prisma } from './db.js';
 
 // Define the User model
 const UserModel = defineModel({
@@ -60,7 +60,8 @@ class UserList extends PrismaListEndpoint {
   schema = {
     tags: ['Users'],
     summary: 'List all users',
-    description: 'Returns a paginated list of users with optional filtering, searching, and sorting.',
+    description:
+      'Returns a paginated list of users with optional filtering, searching, and sorting.',
   };
 
   // Configure filtering

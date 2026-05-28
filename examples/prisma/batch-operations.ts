@@ -14,24 +14,24 @@
  * 4. npx tsx examples/prisma/batch-operations.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
-  PrismaCreateEndpoint,
-  PrismaReadEndpoint,
-  PrismaUpdateEndpoint,
-  PrismaDeleteEndpoint,
-  PrismaListEndpoint,
-  PrismaRestoreEndpoint,
   PrismaBatchCreateEndpoint,
-  PrismaBatchUpdateEndpoint,
   PrismaBatchDeleteEndpoint,
   PrismaBatchRestoreEndpoint,
+  PrismaBatchUpdateEndpoint,
+  PrismaCreateEndpoint,
+  PrismaDeleteEndpoint,
+  PrismaListEndpoint,
+  PrismaReadEndpoint,
+  PrismaRestoreEndpoint,
+  PrismaUpdateEndpoint,
 } from '@hono-crud/prisma';
-import { UserSchema, type User } from '../shared/schemas.js';
-import { prisma, initDb } from './db.js';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { type User, UserSchema } from '../shared/schemas.js';
+import { initDb, prisma } from './db.js';
 
 // ============================================================================
 // User Model with Soft Delete for Batch Restore
@@ -115,7 +115,8 @@ class UserBatchUpdate extends PrismaBatchUpdateEndpoint {
   schema = {
     tags: ['Users - Batch'],
     summary: 'Update multiple users',
-    description: 'Updates up to 100 users in a single request. Soft-deleted users cannot be updated.',
+    description:
+      'Updates up to 100 users in a single request. Soft-deleted users cannot be updated.',
   };
 
   maxBatchSize = 100;

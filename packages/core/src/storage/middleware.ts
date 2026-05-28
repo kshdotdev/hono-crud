@@ -50,7 +50,7 @@ import type { StorageEnv, StorageMiddlewareConfig } from './types';
  * ```
  */
 export function createStorageMiddleware<E extends Env = Env>(
-  config: StorageMiddlewareConfig
+  config: StorageMiddlewareConfig,
 ): MiddlewareHandler<E & StorageEnv> {
   return async (ctx, next) => {
     // Inject each configured storage into context
@@ -85,7 +85,7 @@ export function createStorageMiddleware<E extends Env = Env>(
  * @returns Middleware handler
  */
 export function createLoggingStorageMiddleware<E extends Env = Env>(
-  storage: NonNullable<StorageMiddlewareConfig['loggingStorage']>
+  storage: NonNullable<StorageMiddlewareConfig['loggingStorage']>,
 ): MiddlewareHandler<E & StorageEnv> {
   return createStorageMiddleware({ loggingStorage: storage });
 }
@@ -97,7 +97,7 @@ export function createLoggingStorageMiddleware<E extends Env = Env>(
  * @returns Middleware handler
  */
 export function createAuditStorageMiddleware<E extends Env = Env>(
-  storage: NonNullable<StorageMiddlewareConfig['auditStorage']>
+  storage: NonNullable<StorageMiddlewareConfig['auditStorage']>,
 ): MiddlewareHandler<E & StorageEnv> {
   return createStorageMiddleware({ auditStorage: storage });
 }
@@ -109,7 +109,7 @@ export function createAuditStorageMiddleware<E extends Env = Env>(
  * @returns Middleware handler
  */
 export function createVersioningStorageMiddleware<E extends Env = Env>(
-  storage: NonNullable<StorageMiddlewareConfig['versioningStorage']>
+  storage: NonNullable<StorageMiddlewareConfig['versioningStorage']>,
 ): MiddlewareHandler<E & StorageEnv> {
   return createStorageMiddleware({ versioningStorage: storage });
 }
@@ -121,7 +121,7 @@ export function createVersioningStorageMiddleware<E extends Env = Env>(
  * @returns Middleware handler
  */
 export function createAPIKeyStorageMiddleware<E extends Env = Env>(
-  storage: NonNullable<StorageMiddlewareConfig['apiKeyStorage']>
+  storage: NonNullable<StorageMiddlewareConfig['apiKeyStorage']>,
 ): MiddlewareHandler<E & StorageEnv> {
   return createStorageMiddleware({ apiKeyStorage: storage });
 }

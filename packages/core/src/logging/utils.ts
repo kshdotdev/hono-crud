@@ -1,13 +1,13 @@
 import type { Context, Env } from 'hono';
-import type { PathPattern, RedactField } from './types';
-import { getClientIp, getUserId as getUserIdShared } from '../utils/request-info';
+import { generateRequestId as sharedGenerateRequestId } from '../utils/context';
 import { matchPath as sharedMatchPath } from '../utils/path-match';
 import {
-  redactObject as sharedRedactObject,
   redactHeaders as sharedRedactHeaders,
+  redactObject as sharedRedactObject,
   shouldRedact as sharedShouldRedact,
 } from '../utils/redact';
-import { generateRequestId as sharedGenerateRequestId } from '../utils/context';
+import { getClientIp, getUserId as getUserIdShared } from '../utils/request-info';
+import type { PathPattern, RedactField } from './types';
 
 // ============================================================================
 // Redaction Utilities
@@ -23,7 +23,7 @@ export function redactObject(obj: unknown, patterns: RedactField[]): unknown {
 
 export function redactHeaders(
   headers: Record<string, string>,
-  patterns: RedactField[]
+  patterns: RedactField[],
 ): Record<string, string> {
   return sharedRedactHeaders(headers, patterns);
 }
@@ -39,7 +39,7 @@ export function matchPath(path: string, pattern: PathPattern): boolean {
 export function shouldExcludePath(
   path: string,
   includePaths: PathPattern[],
-  excludePaths: PathPattern[]
+  excludePaths: PathPattern[],
 ): boolean {
   for (const pattern of excludePaths) {
     if (sharedMatchPath(path, pattern)) return true;
@@ -57,8 +57,8 @@ export function shouldExcludePath(
 
 export function extractClientIp<E extends Env>(
   ctx: Context<E>,
-  ipHeader: string = 'X-Forwarded-For',
-  trustProxy: boolean = false
+  ipHeader = 'X-Forwarded-For',
+  trustProxy = false,
 ): string | undefined {
   // The logging extractor historically tried proxy headers regardless of
   // `trustProxy`, so preserve that behaviour by forcing `trustProxy` true here.
@@ -102,7 +102,7 @@ export function truncateBody(data: string | unknown, maxSize: number): unknown {
 
 export function isAllowedContentType(
   contentType: string | null | undefined,
-  allowedTypes: string[]
+  allowedTypes: string[],
 ): boolean {
   if (!contentType) return false;
   if (allowedTypes.length === 0) return true;

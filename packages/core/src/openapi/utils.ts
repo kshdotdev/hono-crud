@@ -1,6 +1,6 @@
-import { z } from 'zod';
 import type { Hook } from '@hono/zod-openapi';
 import type { Env } from 'hono';
+import { z } from 'zod';
 
 /**
  * Creates a JSON content type definition for OpenAPI responses.
@@ -27,7 +27,7 @@ import type { Env } from 'hono';
  */
 export function jsonContent<T extends z.ZodSchema>(
   schema: T,
-  description: string
+  description: string,
 ): {
   content: { 'application/json': { schema: T } };
   description: string;
@@ -63,7 +63,7 @@ export function jsonContent<T extends z.ZodSchema>(
  */
 export function jsonContentRequired<T extends z.ZodSchema>(
   schema: T,
-  description: string
+  description: string,
 ): {
   content: { 'application/json': { schema: T } };
   description: string;
@@ -123,9 +123,7 @@ export const ZodErrorSchema = z.object({
  * }
  * ```
  */
-export function createErrorSchema<T extends z.ZodSchema>(
-  _schema: T
-): typeof ZodErrorSchema {
+export function createErrorSchema<T extends z.ZodSchema>(_schema: T): typeof ZodErrorSchema {
   // The error schema format is the same regardless of input schema
   // The input schema parameter allows TypeScript to infer documentation context
   return ZodErrorSchema;
@@ -167,10 +165,7 @@ export interface ValidationHookResult<_E extends Env = Env> {
  * });
  * ```
  */
-export const openApiValidationHook: Hook<unknown, Env, '', unknown> = (
-  result,
-  c
-) => {
+export const openApiValidationHook: Hook<unknown, Env, '', unknown> = (result, c) => {
   if (!result.success) {
     return c.json(
       {
@@ -180,7 +175,7 @@ export const openApiValidationHook: Hook<unknown, Env, '', unknown> = (
           issues: result.error.issues,
         },
       },
-      422
+      422,
     );
   }
 };
@@ -209,7 +204,7 @@ export const openApiValidationHook: Hook<unknown, Env, '', unknown> = (
  */
 export function createValidationHook<T>(
   formatError: (error: z.ZodError) => T,
-  statusCode: 400 | 422 = 422
+  statusCode: 400 | 422 = 422,
 ): Hook<unknown, Env, '', unknown> {
   return (result, c) => {
     if (!result.success) {

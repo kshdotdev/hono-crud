@@ -1,3 +1,13 @@
+import {
+  MemoryBatchCreateEndpoint,
+  MemoryBatchUpdateEndpoint,
+  MemoryBatchUpsertEndpoint,
+  MemoryCloneEndpoint,
+  MemoryCreateEndpoint,
+  MemoryUpdateEndpoint,
+  MemoryUpsertEndpoint,
+} from '@hono-crud/memory';
+import { defineMeta, defineModel, getManagedInputExclusions } from 'hono-crud';
 /**
  * Engine-managed fields are excluded from every model-derived
  * request/input schema.
@@ -11,22 +21,8 @@
  * upsert, batch upsert and clone — symmetrically, with and without a
  * consumer body-schema override. Response/output schemas are unchanged.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import {
-  defineModel,
-  defineMeta,
-  getManagedInputExclusions,
-} from 'hono-crud';
-import {
-  MemoryCreateEndpoint,
-  MemoryBatchCreateEndpoint,
-  MemoryUpdateEndpoint,
-  MemoryBatchUpdateEndpoint,
-  MemoryUpsertEndpoint,
-  MemoryBatchUpsertEndpoint,
-  MemoryCloneEndpoint,
-} from '@hono-crud/memory';
 
 // ----------------------------------------------------------------------------
 // Helpers
@@ -42,10 +38,7 @@ const FullSchema = z.object({
   touched_at: z.number().optional(),
 });
 
-function metaFor(
-  overrides: Record<string, unknown> = {},
-  fields?: z.ZodObject
-) {
+function metaFor(overrides: Record<string, unknown> = {}, fields?: z.ZodObject) {
   const model = defineModel({
     tableName: 'mf_items',
     schema: FullSchema,
@@ -73,7 +66,7 @@ function allPropKeys(jsonSchema: unknown): string[][] {
 function inputKeys(
   EP: new () => { _meta: unknown; upsertKeys?: string[]; getBodySchema: () => z.ZodTypeAny },
   meta: unknown,
-  upsertKeys?: string[]
+  upsertKeys?: string[],
 ): string[] {
   const e = new EP();
   e._meta = meta;
@@ -107,11 +100,7 @@ describe('managed-field exclusion: timestamps:true + id generator', () => {
   // natural key (`email`), so `id` is engine-managed there too.
   for (const name of ['create', 'batchCreate', 'update', 'batchUpsert'] as const) {
     it(`${name} input excludes id/createdAt/updatedAt`, () => {
-      const keys = inputKeys(
-        ENDPOINTS[name],
-        meta,
-        name === 'batchUpsert' ? ['email'] : undefined
-      );
+      const keys = inputKeys(ENDPOINTS[name], meta, name === 'batchUpsert' ? ['email'] : undefined);
       expect(keys).not.toContain('id');
       expect(keys).not.toContain('createdAt');
       expect(keys).not.toContain('updatedAt');
@@ -128,7 +117,7 @@ describe('managed-field exclusion: timestamps:true + id generator', () => {
       const keys = inputKeys(
         EP,
         meta,
-        name.toLowerCase().includes('upsert') ? ['email'] : undefined
+        name.toLowerCase().includes('upsert') ? ['email'] : undefined,
       );
       expect(keys, name).not.toContain('createdAt');
       expect(keys, name).not.toContain('updatedAt');
@@ -152,9 +141,7 @@ describe('managed-field exclusion: timestamps:true + id generator', () => {
     }) as Record<string, unknown>;
     // items -> array -> object{ id, data } : the `data` props must not
     // contain id/createdAt/updatedAt.
-    const dataProps = JSON.stringify(bujs).match(
-      /"data":\{[^]*?"properties":\{([^}]*)\}/
-    );
+    const dataProps = JSON.stringify(bujs).match(/"data":\{[\s\S]*?"properties":\{([^}]*)\}/);
     expect(dataProps?.[1] ?? '').not.toContain('"id"');
     expect(dataProps?.[1] ?? '').not.toContain('"createdAt"');
     expect(dataProps?.[1] ?? '').not.toContain('"updatedAt"');
@@ -175,7 +162,7 @@ describe('managed-field exclusion: object-form timestamps rename', () => {
       const keys = inputKeys(
         EP,
         meta,
-        name.toLowerCase().includes('upsert') ? ['email'] : undefined
+        name.toLowerCase().includes('upsert') ? ['email'] : undefined,
       );
       expect(keys, name).not.toContain('made_at');
       expect(keys, name).not.toContain('touched_at');
@@ -191,13 +178,11 @@ describe('managed-field exclusion: object-form timestamps rename', () => {
       id: 'uuid' as const,
       timestamps: { createdAt: 'made_at', updatedAt: 'touched_at' },
     };
-    expect(getManagedInputExclusions(model).sort()).toEqual(
-      ['id', 'made_at', 'touched_at'].sort()
-    );
+    expect(getManagedInputExclusions(model).sort()).toEqual(['id', 'made_at', 'touched_at'].sort());
     // upsert opts out of PK exclusion
-    expect(
-      getManagedInputExclusions(model, { includePrimaryKeys: false }).sort()
-    ).toEqual(['made_at', 'touched_at'].sort());
+    expect(getManagedInputExclusions(model, { includePrimaryKeys: false }).sort()).toEqual(
+      ['made_at', 'touched_at'].sort(),
+    );
   });
 });
 
@@ -217,7 +202,7 @@ describe('regression: timestamps unset + default id (backward-compat)', () => {
       const keys = inputKeys(
         EP,
         meta,
-        name.toLowerCase().includes('upsert') ? ['email'] : undefined
+        name.toLowerCase().includes('upsert') ? ['email'] : undefined,
       );
       expect(keys, name).toContain('name');
       expect(keys, name).toContain('createdAt');
@@ -236,7 +221,7 @@ describe('regression: timestamps unset + default id (backward-compat)', () => {
         primaryKeys: ['id'],
         id: undefined,
         timestamps: undefined,
-      })
+      }),
     ).toEqual(['id']);
   });
 });
@@ -251,8 +236,7 @@ describe('response schemas keep the managed fields', () => {
   it('create 201 response still exposes id/createdAt/updatedAt', () => {
     const e = new MemoryCreateEndpoint();
     e._meta = meta as never;
-    const schema =
-      e.getSchema().responses![201].content!['application/json'].schema;
+    const schema = e.getSchema().responses![201].content!['application/json'].schema;
     const js = z.toJSONSchema(schema as z.ZodTypeAny, {
       io: 'output',
       unrepresentable: 'any',
@@ -266,8 +250,7 @@ describe('response schemas keep the managed fields', () => {
   it('batchCreate 201 response still exposes the managed fields', () => {
     const e = new MemoryBatchCreateEndpoint();
     e._meta = meta as never;
-    const schema =
-      e.getSchema().responses![201].content!['application/json'].schema;
+    const schema = e.getSchema().responses![201].content!['application/json'].schema;
     const js = z.toJSONSchema(schema as z.ZodTypeAny, {
       io: 'output',
       unrepresentable: 'any',
@@ -294,18 +277,12 @@ describe('consumer body-schema override takes precedence', () => {
 
     // single-create + update read `_meta.fields` directly.
     const createKeys = inputKeys(MemoryCreateEndpoint, meta);
-    expect(createKeys).toEqual(
-      expect.arrayContaining(['id', 'createdAt', 'name'])
-    );
+    expect(createKeys).toEqual(expect.arrayContaining(['id', 'createdAt', 'name']));
 
     const batchCreateKeys = inputKeys(MemoryBatchCreateEndpoint, meta);
-    expect(batchCreateKeys).toEqual(
-      expect.arrayContaining(['id', 'createdAt', 'name'])
-    );
+    expect(batchCreateKeys).toEqual(expect.arrayContaining(['id', 'createdAt', 'name']));
 
     const upsertKeys = inputKeys(MemoryUpsertEndpoint, meta);
-    expect(upsertKeys).toEqual(
-      expect.arrayContaining(['id', 'createdAt', 'name'])
-    );
+    expect(upsertKeys).toEqual(expect.arrayContaining(['id', 'createdAt', 'name']));
   });
 });

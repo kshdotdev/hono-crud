@@ -29,22 +29,14 @@
  * - `db` must be created per-request from `c.env.DB` (not a module-level singleton)
  */
 
-import { Hono } from 'hono';
-import { drizzle } from 'drizzle-orm/d1';
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { z } from 'zod';
-import {
-  fromHono,
-  registerCrud,
-  defineModel,
-  defineMeta,
-} from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import { KVCacheStorage } from '@hono-crud/cache';
-import {
-  createDrizzleCrud,
-  type DrizzleDatabase,
-} from '@hono-crud/drizzle';
+import { type DrizzleDatabase, createDrizzleCrud } from '@hono-crud/drizzle';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { drizzle } from 'drizzle-orm/d1';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { z } from 'zod';
 
 // ============================================================================
 // D1 Schema (SQLite via Drizzle)
@@ -67,7 +59,9 @@ export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
   description: text('description'),
-  status: text('status', { enum: ['todo', 'in_progress', 'done'] }).notNull().default('todo'),
+  status: text('status', { enum: ['todo', 'in_progress', 'done'] })
+    .notNull()
+    .default('todo'),
   priority: integer('priority').notNull().default(0),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -120,7 +114,7 @@ type Env = { Bindings: Bindings };
 
 const TaskCrud = createDrizzleCrud<typeof taskMeta, Env>(
   undefined as unknown as DrizzleDatabase,
-  taskMeta
+  taskMeta,
 );
 
 class TaskCreate extends TaskCrud.Create {
@@ -267,9 +261,7 @@ openApiApp.doc('/openapi.json', {
 setupSwaggerUI(openApiApp, { docsPath: '/docs', specPath: '/openapi.json' });
 
 // Health check
-openApiApp.get('/health', (c) =>
-  c.json({ status: 'ok', adapter: 'drizzle', database: 'd1' })
-);
+openApiApp.get('/health', (c) => c.json({ status: 'ok', adapter: 'drizzle', database: 'd1' }));
 
 // ============================================================================
 // Worker Export

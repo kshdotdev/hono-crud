@@ -1,14 +1,17 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getLogger } from '../core/logger';
-import type {MetaInput, OpenAPIRouteSchema, HookMode, HookContext, RelationConfig} from '../core/types';
+import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
+import type {
+  HookContext,
+  HookMode,
+  MetaInput,
+  OpenAPIRouteSchema,
+  RelationConfig,
+} from '../core/types';
 import { applyComputedFields, extractNestedData } from '../core/types';
-import { getSchemaFields, type ModelObject } from './types';
-import {
-  getManagedInputExclusions,
-  rethrowAsConstraintError,
-} from '../core/managed-fields';
+import { CrudEndpoint } from './base';
+import { type ModelObject, getSchemaFields } from './types';
 
 /**
  * Base endpoint for creating resources.
@@ -37,7 +40,6 @@ export abstract class CreateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   // Hook execution mode
   protected beforeHookMode: HookMode = 'sequential';
   protected afterHookMode: HookMode = 'sequential';
@@ -135,10 +137,7 @@ export abstract class CreateEndpoint<
       // Get the related schema without primary keys and foreign key
       // We exclude the foreign key because it's set automatically to the parent ID
       const excludeFields = ['id', relationConfig.foreignKey];
-      const relatedSchema = getSchemaFields(
-        relationConfig.schema,
-        excludeFields
-      );
+      const relatedSchema = getSchemaFields(relationConfig.schema, excludeFields);
 
       if (relationConfig.type === 'hasMany') {
         // Array of related records
@@ -173,9 +172,7 @@ export abstract class CreateEndpoint<
   /**
    * Extracts nested relation data from the request body.
    */
-  protected extractNestedData(
-    data: Record<string, unknown>
-  ): {
+  protected extractNestedData(data: Record<string, unknown>): {
     mainData: Record<string, unknown>;
     nestedData: Record<string, unknown>;
   } {
@@ -251,7 +248,7 @@ export abstract class CreateEndpoint<
    */
   async before(
     data: ModelObject<M['model']>,
-    _hookCtx: HookContext
+    _hookCtx: HookContext,
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -264,7 +261,7 @@ export abstract class CreateEndpoint<
    */
   async after(
     data: ModelObject<M['model']>,
-    _hookCtx: HookContext
+    _hookCtx: HookContext,
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -292,10 +289,7 @@ export abstract class CreateEndpoint<
    * Creates the resource in the database.
    * Must be implemented by ORM-specific subclasses.
    */
-  abstract create(
-    data: ModelObject<M['model']>,
-    tx?: unknown
-  ): Promise<ModelObject<M['model']>>;
+  abstract create(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>>;
 
   /**
    * Creates nested related records.
@@ -313,10 +307,12 @@ export abstract class CreateEndpoint<
     relationName: string,
     _relationConfig: RelationConfig,
     _data: unknown,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<unknown[]> {
     // Default implementation does nothing - override in adapter
-    getLogger().warn(`Nested writes not implemented for ${relationName}. Override createNested() in your adapter.`);
+    getLogger().warn(
+      `Nested writes not implemented for ${relationName}. Override createNested() in your adapter.`,
+    );
     return [];
   }
 
@@ -330,9 +326,7 @@ export abstract class CreateEndpoint<
     const rawData = await this.getObject();
 
     // Extract nested data from request
-    const { mainData, nestedData } = this.extractNestedData(
-      rawData as Record<string, unknown>
-    );
+    const { mainData, nestedData } = this.extractNestedData(rawData as Record<string, unknown>);
 
     // Process main record
     let obj = mainData as ModelObject<M['model']>;
@@ -342,14 +336,14 @@ export abstract class CreateEndpoint<
 
     const hookCtx = this.buildHookContext();
     obj = await this.before(obj, hookCtx);
-    obj = await this.encryptOnWrite(obj as Record<string, unknown>) as ModelObject<M['model']>;
+    obj = (await this.encryptOnWrite(obj as Record<string, unknown>)) as ModelObject<M['model']>;
     // Adapter insert call. Any UNIQUE-constraint violation thrown by the
     // underlying driver is mapped to the engine's standard 409 envelope
     // (see `rethrowAsConstraintError`) so callers receive a structured
     // `{success:false, error:{code:'CONFLICT', …}}` JSON instead of a
     // plaintext 500.
     obj = await this.create(obj, hookCtx.db.tx).catch(rethrowAsConstraintError);
-    obj = await this.decryptOnRead(obj as Record<string, unknown>) as ModelObject<M['model']>;
+    obj = (await this.decryptOnRead(obj as Record<string, unknown>)) as ModelObject<M['model']>;
 
     // Get the parent ID for nested writes
     const parentId = this.getParentId(obj);
@@ -363,12 +357,7 @@ export abstract class CreateEndpoint<
         const relationConfig = this._meta.model.relations?.[relationName];
         if (!relationConfig) continue;
 
-        const createdNested = await this.createNested(
-          parentId,
-          relationName,
-          relationConfig,
-          data
-        );
+        const createdNested = await this.createNested(parentId, relationName, relationConfig, data);
 
         nestedResults[relationName] = createdNested;
       }
@@ -404,12 +393,14 @@ export abstract class CreateEndpoint<
     // Audit logging
     if (this.isAuditEnabled() && parentId !== null) {
       const auditLogger = this.getAuditLogger();
-      this.runAfterResponse(auditLogger.logCreate(
-        this._meta.model.tableName,
-        parentId,
-        obj as Record<string, unknown>,
-        this.getAuditUserId()
-      ));
+      this.runAfterResponse(
+        auditLogger.logCreate(
+          this._meta.model.tableName,
+          parentId,
+          obj as Record<string, unknown>,
+          this.getAuditUserId(),
+        ),
+      );
     }
 
     // Emit created event
@@ -419,16 +410,14 @@ export abstract class CreateEndpoint<
 
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {
-      obj = await applyComputedFields(
+      obj = (await applyComputedFields(
         obj as Record<string, unknown>,
-        this._meta.model.computedFields
-      ) as ModelObject<M['model']>;
+        this._meta.model.computedFields,
+      )) as ModelObject<M['model']>;
     }
 
     // Apply serializer if defined
-    const serialized = this._meta.model.serializer
-      ? this._meta.model.serializer(obj)
-      : obj;
+    const serialized = this._meta.model.serializer ? this._meta.model.serializer(obj) : obj;
 
     // Apply default serialization profile (model.serializationProfile)
     const profiled = this.applyProfile(serialized as Record<string, unknown>);

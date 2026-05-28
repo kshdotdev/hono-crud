@@ -1,29 +1,29 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import {
+  // Types
+  type LogEntry,
+  type LogLevel,
+  type LoggingStorage,
+  // Storage
+  MemoryLoggingStorage,
   // Middleware
   createLoggingMiddleware,
-  setLoggingStorage,
+  extractHeaders,
+  generateRequestId,
   getLoggingStorage,
   getRequestId,
   getRequestStartTime,
+  isAllowedContentType,
+  matchLoggingPath,
+  redactHeaders,
+  redactObject,
+  setLoggingStorage,
+  shouldExcludePath,
   // Utilities
   shouldRedact,
-  redactObject,
-  redactHeaders,
-  matchLoggingPath,
-  shouldExcludePath,
-  extractHeaders,
   truncateBody,
-  isAllowedContentType,
-  generateRequestId,
-  // Storage
-  MemoryLoggingStorage,
-  // Types
-  type LogEntry,
-  type LoggingStorage,
-  type LogLevel,
 } from 'hono-crud';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ============================================================================
 // Utility Function Tests
@@ -103,7 +103,9 @@ describe('Logging Utilities', () => {
           { name: 'Bob', password: 'pass2' },
         ],
       };
-      const result = redactObject(obj, ['password']) as { users: { name: string; password: string }[] };
+      const result = redactObject(obj, ['password']) as {
+        users: { name: string; password: string }[];
+      };
 
       expect(result.users[0].password).toBe('[REDACTED]');
       expect(result.users[1].password).toBe('[REDACTED]');
@@ -237,7 +239,9 @@ describe('Logging Utilities', () => {
     });
 
     it('should match partial content types', () => {
-      expect(isAllowedContentType('application/json; charset=utf-8', ['application/json'])).toBe(true);
+      expect(isAllowedContentType('application/json; charset=utf-8', ['application/json'])).toBe(
+        true,
+      );
     });
 
     it('should return false for null/undefined', () => {
@@ -364,31 +368,39 @@ describe('MemoryLoggingStorage', () => {
   describe('query filtering', () => {
     beforeEach(async () => {
       // Create a variety of entries
-      await storage.store(createTestEntry({
-        id: 'info-get',
-        level: 'info',
-        request: { method: 'GET', path: '/api/users', url: 'http://localhost/api/users' },
-        response: { statusCode: 200, responseTimeMs: 10 },
-      }));
-      await storage.store(createTestEntry({
-        id: 'info-post',
-        level: 'info',
-        request: { method: 'POST', path: '/api/users', url: 'http://localhost/api/users' },
-        response: { statusCode: 201, responseTimeMs: 50 },
-      }));
-      await storage.store(createTestEntry({
-        id: 'warn-get',
-        level: 'warn',
-        request: { method: 'GET', path: '/api/users/123', url: 'http://localhost/api/users/123' },
-        response: { statusCode: 404, responseTimeMs: 5 },
-      }));
-      await storage.store(createTestEntry({
-        id: 'error-get',
-        level: 'error',
-        request: { method: 'GET', path: '/api/error', url: 'http://localhost/api/error' },
-        response: { statusCode: 500, responseTimeMs: 100 },
-        error: { message: 'Internal server error', name: 'Error' },
-      }));
+      await storage.store(
+        createTestEntry({
+          id: 'info-get',
+          level: 'info',
+          request: { method: 'GET', path: '/api/users', url: 'http://localhost/api/users' },
+          response: { statusCode: 200, responseTimeMs: 10 },
+        }),
+      );
+      await storage.store(
+        createTestEntry({
+          id: 'info-post',
+          level: 'info',
+          request: { method: 'POST', path: '/api/users', url: 'http://localhost/api/users' },
+          response: { statusCode: 201, responseTimeMs: 50 },
+        }),
+      );
+      await storage.store(
+        createTestEntry({
+          id: 'warn-get',
+          level: 'warn',
+          request: { method: 'GET', path: '/api/users/123', url: 'http://localhost/api/users/123' },
+          response: { statusCode: 404, responseTimeMs: 5 },
+        }),
+      );
+      await storage.store(
+        createTestEntry({
+          id: 'error-get',
+          level: 'error',
+          request: { method: 'GET', path: '/api/error', url: 'http://localhost/api/error' },
+          response: { statusCode: 500, responseTimeMs: 100 },
+          error: { message: 'Internal server error', name: 'Error' },
+        }),
+      );
     });
 
     it('should filter by level', async () => {
@@ -454,10 +466,12 @@ describe('MemoryLoggingStorage', () => {
   describe('query pagination and sorting', () => {
     beforeEach(async () => {
       for (let i = 0; i < 10; i++) {
-        await storage.store(createTestEntry({
-          id: `entry-${i}`,
-          response: { statusCode: 200, responseTimeMs: i * 10 },
-        }));
+        await storage.store(
+          createTestEntry({
+            id: `entry-${i}`,
+            response: { statusCode: 200, responseTimeMs: i * 10 },
+          }),
+        );
       }
     });
 
@@ -498,9 +512,15 @@ describe('MemoryLoggingStorage', () => {
 
     it('should sort by status code', async () => {
       await storage.clear();
-      await storage.store(createTestEntry({ id: 'a', response: { statusCode: 500, responseTimeMs: 10 } }));
-      await storage.store(createTestEntry({ id: 'b', response: { statusCode: 200, responseTimeMs: 10 } }));
-      await storage.store(createTestEntry({ id: 'c', response: { statusCode: 404, responseTimeMs: 10 } }));
+      await storage.store(
+        createTestEntry({ id: 'a', response: { statusCode: 500, responseTimeMs: 10 } }),
+      );
+      await storage.store(
+        createTestEntry({ id: 'b', response: { statusCode: 200, responseTimeMs: 10 } }),
+      );
+      await storage.store(
+        createTestEntry({ id: 'c', response: { statusCode: 404, responseTimeMs: 10 } }),
+      );
 
       const logs = await storage.query({
         sort: { field: 'statusCode', direction: 'asc' },
@@ -516,18 +536,24 @@ describe('MemoryLoggingStorage', () => {
     it('should filter by time range', async () => {
       const now = Date.now();
 
-      await storage.store(createTestEntry({
-        id: 'old',
-        timestamp: new Date(now - 3600000).toISOString(), // 1 hour ago
-      }));
-      await storage.store(createTestEntry({
-        id: 'recent',
-        timestamp: new Date(now - 60000).toISOString(), // 1 minute ago
-      }));
-      await storage.store(createTestEntry({
-        id: 'now',
-        timestamp: new Date(now).toISOString(),
-      }));
+      await storage.store(
+        createTestEntry({
+          id: 'old',
+          timestamp: new Date(now - 3600000).toISOString(), // 1 hour ago
+        }),
+      );
+      await storage.store(
+        createTestEntry({
+          id: 'recent',
+          timestamp: new Date(now - 60000).toISOString(), // 1 minute ago
+        }),
+      );
+      await storage.store(
+        createTestEntry({
+          id: 'now',
+          timestamp: new Date(now).toISOString(),
+        }),
+      );
 
       const recentLogs = await storage.query({
         timeRange: {
@@ -541,14 +567,18 @@ describe('MemoryLoggingStorage', () => {
     it('should delete entries older than maxAge', async () => {
       const now = Date.now();
 
-      await storage.store(createTestEntry({
-        id: 'old',
-        timestamp: new Date(now - 7200000).toISOString(), // 2 hours ago
-      }));
-      await storage.store(createTestEntry({
-        id: 'recent',
-        timestamp: new Date(now).toISOString(),
-      }));
+      await storage.store(
+        createTestEntry({
+          id: 'old',
+          timestamp: new Date(now - 7200000).toISOString(), // 2 hours ago
+        }),
+      );
+      await storage.store(
+        createTestEntry({
+          id: 'recent',
+          timestamp: new Date(now).toISOString(),
+        }),
+      );
 
       const deleted = await storage.deleteOlderThan(3600000); // 1 hour
       expect(deleted).toBe(1);
@@ -683,9 +713,12 @@ describe('Logging Middleware', () => {
 
     it('should use custom exclude paths', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        excludePaths: ['/internal/*', '/metrics'],
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          excludePaths: ['/internal/*', '/metrics'],
+        }),
+      );
       app.get('/internal/status', (c) => c.json({ ok: true }));
       app.get('/metrics', (c) => c.text('metrics'));
       app.get('/api/test', (c) => c.json({ ok: true }));
@@ -716,11 +749,15 @@ describe('Logging Middleware', () => {
       app.use('*', createLoggingMiddleware());
       app.get('/ok', (c) => c.json({ ok: true }));
       app.get('/not-found', (c) => c.json({ error: 'Not found' }, 404));
-      app.get('/error', () => { throw new Error('Server error'); });
+      app.get('/error', () => {
+        throw new Error('Server error');
+      });
 
       await app.request('/ok');
       await app.request('/not-found');
-      try { await app.request('/error'); } catch {}
+      try {
+        await app.request('/error');
+      } catch {}
       await new Promise((r) => setTimeout(r, 50));
 
       const logs = await storage.query({});
@@ -736,12 +773,15 @@ describe('Logging Middleware', () => {
 
     it('should use custom level resolver', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        levelResolver: (ctx, responseTimeMs, statusCode) => {
-          if (responseTimeMs > 100) return 'warn';
-          return 'debug';
-        },
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          levelResolver: (ctx, responseTimeMs, statusCode) => {
+            if (responseTimeMs > 100) return 'warn';
+            return 'debug';
+          },
+        }),
+      );
       app.get('/fast', (c) => c.json({ ok: true }));
       app.get('/slow', async (c) => {
         await new Promise((r) => setTimeout(r, 150));
@@ -831,9 +871,12 @@ describe('Logging Middleware', () => {
   describe('body logging', () => {
     it('should log request body when enabled', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        requestBody: { enabled: true },
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          requestBody: { enabled: true },
+        }),
+      );
       app.post('/api/users', async (c) => {
         await c.req.json();
         return c.json({ ok: true }, 201);
@@ -852,9 +895,12 @@ describe('Logging Middleware', () => {
 
     it('should redact sensitive body fields', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        requestBody: { enabled: true },
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          requestBody: { enabled: true },
+        }),
+      );
       app.post('/api/login', async (c) => {
         await c.req.json();
         return c.json({ ok: true });
@@ -876,9 +922,12 @@ describe('Logging Middleware', () => {
 
     it('should log response body when enabled', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        responseBody: { enabled: true },
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          responseBody: { enabled: true },
+        }),
+      );
       app.get('/api/users', (c) => c.json({ users: [{ id: 1, name: 'Alice' }] }));
 
       await app.request('/api/users');
@@ -890,14 +939,19 @@ describe('Logging Middleware', () => {
 
     it('should redact sensitive response body fields', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        responseBody: { enabled: true },
-      }));
-      app.get('/api/profile', (c) => c.json({
-        name: 'Alice',
-        apiKey: 'secret-key',
-        token: 'jwt-token',
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          responseBody: { enabled: true },
+        }),
+      );
+      app.get('/api/profile', (c) =>
+        c.json({
+          name: 'Alice',
+          apiKey: 'secret-key',
+          token: 'jwt-token',
+        }),
+      );
 
       await app.request('/api/profile');
       await new Promise((r) => setTimeout(r, 50));
@@ -911,9 +965,12 @@ describe('Logging Middleware', () => {
 
     it('should truncate large bodies', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        requestBody: { enabled: true, maxSize: 100 },
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          requestBody: { enabled: true, maxSize: 100 },
+        }),
+      );
       app.post('/api/data', async (c) => {
         await c.req.json();
         return c.json({ ok: true });
@@ -934,9 +991,12 @@ describe('Logging Middleware', () => {
 
     it('should filter body logging by content type', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        requestBody: { enabled: true, contentTypes: ['application/json'] },
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          requestBody: { enabled: true, contentTypes: ['application/json'] },
+        }),
+      );
       app.post('/api/json', async (c) => {
         await c.req.text();
         return c.json({ ok: true });
@@ -1045,9 +1105,12 @@ describe('Logging Middleware', () => {
   describe('metadata', () => {
     it('should add static metadata', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        metadata: { service: 'test-api', version: '1.0.0' },
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          metadata: { service: 'test-api', version: '1.0.0' },
+        }),
+      );
       app.get('/api/test', (c) => c.json({ ok: true }));
 
       await app.request('/api/test');
@@ -1059,12 +1122,15 @@ describe('Logging Middleware', () => {
 
     it('should add dynamic metadata from function', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        metadata: (ctx) => ({
-          userAgent: ctx.req.header('User-Agent'),
-          path: ctx.req.path,
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          metadata: (ctx) => ({
+            userAgent: ctx.req.header('User-Agent'),
+            path: ctx.req.path,
+          }),
         }),
-      }));
+      );
       app.get('/api/test', (c) => c.json({ ok: true }));
 
       await app.request('/api/test', {
@@ -1083,9 +1149,12 @@ describe('Logging Middleware', () => {
       const handler = vi.fn();
 
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        handlers: [handler],
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          handlers: [handler],
+        }),
+      );
       app.get('/api/test', (c) => c.json({ ok: true }));
 
       await app.request('/api/test');
@@ -1100,9 +1169,12 @@ describe('Logging Middleware', () => {
       const handler2 = vi.fn();
 
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        handlers: [handler1, handler2],
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          handlers: [handler1, handler2],
+        }),
+      );
       app.get('/api/test', (c) => c.json({ ok: true }));
 
       await app.request('/api/test');
@@ -1116,12 +1188,15 @@ describe('Logging Middleware', () => {
   describe('formatter', () => {
     it('should transform entries with formatter', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        formatter: (entry) => ({
-          ...entry,
-          metadata: { ...entry.metadata, transformed: true },
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          formatter: (entry) => ({
+            ...entry,
+            metadata: { ...entry.metadata, transformed: true },
+          }),
         }),
-      }));
+      );
       app.get('/api/test', (c) => c.json({ ok: true }));
 
       await app.request('/api/test');
@@ -1171,9 +1246,12 @@ describe('Logging Middleware', () => {
     it('should use custom request ID generator', async () => {
       let counter = 0;
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        generateRequestId: () => `custom-${++counter}`,
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          generateRequestId: () => `custom-${++counter}`,
+        }),
+      );
       app.get('/api/test', (c) => c.json({ ok: true }));
 
       const res1 = await app.request('/api/test');
@@ -1215,10 +1293,13 @@ describe('Logging Middleware', () => {
 
     it('should use custom IP header', async () => {
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        includeClientIp: true,
-        ipHeader: 'X-Custom-IP',
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          includeClientIp: true,
+          ipHeader: 'X-Custom-IP',
+        }),
+      );
       app.get('/api/test', (c) => c.json({ ok: true }));
 
       await app.request('/api/test', {
@@ -1235,7 +1316,9 @@ describe('Logging Middleware', () => {
     it('should call onError when storage fails', async () => {
       const onError = vi.fn();
       const failingStorage: LoggingStorage = {
-        store: async () => { throw new Error('Storage error'); },
+        store: async () => {
+          throw new Error('Storage error');
+        },
         query: async () => [],
         getById: async () => null,
         count: async () => 0,
@@ -1244,10 +1327,13 @@ describe('Logging Middleware', () => {
       };
 
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        storage: failingStorage,
-        onError,
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          storage: failingStorage,
+          onError,
+        }),
+      );
       app.get('/api/test', (c) => c.json({ ok: true }));
 
       await app.request('/api/test');
@@ -1261,12 +1347,17 @@ describe('Logging Middleware', () => {
       const onError = vi.fn();
 
       const app = new Hono();
-      app.use('*', createLoggingMiddleware({
-        handlers: [
-          () => { throw new Error('Handler error'); },
-        ],
-        onError,
-      }));
+      app.use(
+        '*',
+        createLoggingMiddleware({
+          handlers: [
+            () => {
+              throw new Error('Handler error');
+            },
+          ],
+          onError,
+        }),
+      );
       app.get('/api/test', (c) => c.json({ ok: true }));
 
       await app.request('/api/test');

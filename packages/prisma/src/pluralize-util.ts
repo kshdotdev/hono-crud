@@ -15,9 +15,7 @@ async function loadPluralize() {
     _pluralize = (await import('pluralize')).default;
     return _pluralize;
   } catch {
-    throw new Error(
-      'The "pluralize" package is required. Install it with: npm install pluralize'
-    );
+    throw new Error('The "pluralize" package is required. Install it with: npm install pluralize');
   }
 }
 
@@ -28,7 +26,7 @@ async function loadDistance() {
     return _distance;
   } catch {
     throw new Error(
-      'The "fastest-levenshtein" package is required. Install it with: npm install fastest-levenshtein'
+      'The "fastest-levenshtein" package is required. Install it with: npm install fastest-levenshtein',
     );
   }
 }

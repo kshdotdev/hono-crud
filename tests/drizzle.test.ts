@@ -1,33 +1,29 @@
+import {
+  DrizzleAggregateEndpoint,
+  DrizzleBatchCreateEndpoint,
+  DrizzleBatchDeleteEndpoint,
+  DrizzleCloneEndpoint,
+  DrizzleCreateEndpoint,
+  type DrizzleDatabase,
+  DrizzleDeleteEndpoint,
+  DrizzleListEndpoint,
+  DrizzleReadEndpoint,
+  DrizzleRestoreEndpoint,
+  DrizzleUpdateEndpoint,
+  DrizzleUpsertEndpoint,
+} from '@hono-crud/drizzle';
+import { createClient } from '@libsql/client';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { Hono } from 'hono';
+import { defineModel, fromHono, registerCrud } from 'hono-crud';
 /**
  * Tests for Drizzle ORM adapter.
  * Uses SQLite via libsql for testing.
  */
-import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { Hono } from 'hono';
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import { sql } from 'drizzle-orm';
-import {
-  defineModel,
-  fromHono,
-  registerCrud,
-} from 'hono-crud';
-import {
-  DrizzleCreateEndpoint,
-  DrizzleReadEndpoint,
-  DrizzleUpdateEndpoint,
-  DrizzleDeleteEndpoint,
-  DrizzleListEndpoint,
-  DrizzleRestoreEndpoint,
-  DrizzleUpsertEndpoint,
-  DrizzleBatchCreateEndpoint,
-  DrizzleBatchDeleteEndpoint,
-  DrizzleAggregateEndpoint,
-  DrizzleCloneEndpoint,
-  type DrizzleDatabase,
-} from '@hono-crud/drizzle';
 
 // ============================================================================
 // Database Setup
@@ -213,8 +209,10 @@ function createApp() {
   });
 
   // Helper to set context and call handle
-  const withContext = <T extends { setContext: (c: unknown) => void; handle: () => Promise<Response> }>(
-    EndpointClass: new () => T
+  const withContext = <
+    T extends { setContext: (c: unknown) => void; handle: () => Promise<Response> },
+  >(
+    EndpointClass: new () => T,
   ) => {
     return async (c: unknown) => {
       const endpoint = new EndpointClass();
@@ -296,7 +294,10 @@ describe('Drizzle Adapter', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { success: boolean; result: { id: string; name: string; email: string; role: string } };
+      const result = (await response.json()) as {
+        success: boolean;
+        result: { id: string; name: string; email: string; role: string };
+      };
       expect(result.success).toBe(true);
       expect(result.result.name).toBe('John Doe');
       expect(result.result.email).toBe('john@example.com');
@@ -306,29 +307,38 @@ describe('Drizzle Adapter', () => {
 
     it('should read a user', async () => {
       // Create user first
-      const created = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'Jane Doe',
-        email: 'jane@example.com',
-        role: 'user',
-      }).returning();
+      const created = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'Jane Doe',
+          email: 'jane@example.com',
+          role: 'user',
+        })
+        .returning();
 
       const response = await app.request(`/users/${created[0].id}`);
       expect(response.status).toBe(200);
 
-      const result = await response.json() as { success: boolean; result: { id: string; name: string } };
+      const result = (await response.json()) as {
+        success: boolean;
+        result: { id: string; name: string };
+      };
       expect(result.success).toBe(true);
       expect(result.result.name).toBe('Jane Doe');
     });
 
     it('should update a user', async () => {
       // Create user first
-      const created = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'Original Name',
-        email: 'test@example.com',
-        role: 'user',
-      }).returning();
+      const created = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'Original Name',
+          email: 'test@example.com',
+          role: 'user',
+        })
+        .returning();
 
       const response = await app.request(`/users/${created[0].id}`, {
         method: 'PATCH',
@@ -337,25 +347,28 @@ describe('Drizzle Adapter', () => {
       });
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { success: boolean; result: { name: string } };
+      const result = (await response.json()) as { success: boolean; result: { name: string } };
       expect(result.result.name).toBe('Updated Name');
     });
 
     it('should delete a user (soft delete)', async () => {
       // Create user first
-      const created = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'To Delete',
-        email: 'delete@example.com',
-        role: 'user',
-      }).returning();
+      const created = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'To Delete',
+          email: 'delete@example.com',
+          role: 'user',
+        })
+        .returning();
 
       const response = await app.request(`/users/${created[0].id}`, {
         method: 'DELETE',
       });
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { success: boolean; result: { deleted: boolean } };
+      const result = (await response.json()) as { success: boolean; result: { deleted: boolean } };
       expect(result.result.deleted).toBe(true);
 
       // Verify soft deleted
@@ -374,7 +387,10 @@ describe('Drizzle Adapter', () => {
       const response = await app.request('/users?per_page=2&page=1');
       expect(response.status).toBe(200);
 
-      const result = await response.json() as { result: unknown[]; result_info: { total_count: number; per_page: number } };
+      const result = (await response.json()) as {
+        result: unknown[];
+        result_info: { total_count: number; per_page: number };
+      };
       expect(result.result).toHaveLength(2);
       expect(result.result_info.total_count).toBe(3);
       expect(result.result_info.per_page).toBe(2);
@@ -387,7 +403,7 @@ describe('Drizzle Adapter', () => {
       ]);
 
       const response = await app.request('/users?role=admin');
-      const result = await response.json() as { result: Array<{ role: string }> };
+      const result = (await response.json()) as { result: Array<{ role: string }> };
 
       expect(result.result).toHaveLength(1);
       expect(result.result[0].role).toBe('admin');
@@ -395,18 +411,25 @@ describe('Drizzle Adapter', () => {
 
     it('should search users', async () => {
       await db.insert(usersTable).values([
-        { id: crypto.randomUUID(), name: 'John Smith', email: 'johnsmith@example.com', role: 'user' },
+        {
+          id: crypto.randomUUID(),
+          name: 'John Smith',
+          email: 'johnsmith@example.com',
+          role: 'user',
+        },
         { id: crypto.randomUUID(), name: 'Jane Doe', email: 'janedoe@example.com', role: 'user' },
       ]);
 
       // Using lowercase search since we're using LOWER() for case-insensitive search
       const response = await app.request('/users?search=john');
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: Array<{ name: string }> };
+      const result = (await response.json()) as { result: Array<{ name: string }> };
 
       // SQLite's LIKE with LOWER() for case-insensitive search
       expect(result.result.length).toBeGreaterThanOrEqual(1);
-      expect(result.result.some((u: { name: string }) => u.name.toLowerCase().includes('john'))).toBe(true);
+      expect(
+        result.result.some((u: { name: string }) => u.name.toLowerCase().includes('john')),
+      ).toBe(true);
     });
   });
 
@@ -414,12 +437,18 @@ describe('Drizzle Adapter', () => {
     it('should not return soft-deleted users in list', async () => {
       const userId = crypto.randomUUID();
       await db.insert(usersTable).values([
-        { id: userId, name: 'Deleted User', email: 'deleted@example.com', role: 'user', deletedAt: new Date().toISOString() },
+        {
+          id: userId,
+          name: 'Deleted User',
+          email: 'deleted@example.com',
+          role: 'user',
+          deletedAt: new Date().toISOString(),
+        },
         { id: crypto.randomUUID(), name: 'Active User', email: 'active@example.com', role: 'user' },
       ]);
 
       const response = await app.request('/users');
-      const result = await response.json() as { result: unknown[] };
+      const result = (await response.json()) as { result: unknown[] };
 
       expect(result.result).toHaveLength(1);
     });
@@ -439,7 +468,7 @@ describe('Drizzle Adapter', () => {
       });
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { success: boolean; result: { deletedAt: null } };
+      const result = (await response.json()) as { success: boolean; result: { deletedAt: null } };
       expect(result.result.deletedAt).toBeNull();
     });
   });
@@ -458,7 +487,7 @@ describe('Drizzle Adapter', () => {
 
       // Upsert returns 201 for create
       expect(response.status).toBe(201);
-      const result = await response.json() as { success: boolean; created: boolean };
+      const result = (await response.json()) as { success: boolean; created: boolean };
       expect(result.success).toBe(true);
       expect(result.created).toBe(true);
     });
@@ -484,7 +513,11 @@ describe('Drizzle Adapter', () => {
 
       // Upsert returns 200 for update
       expect(response.status).toBe(200);
-      const result = await response.json() as { success: boolean; created: boolean; result: { name: string; role: string } };
+      const result = (await response.json()) as {
+        success: boolean;
+        created: boolean;
+        result: { name: string; role: string };
+      };
       expect(result.success).toBe(true);
       expect(result.created).toBe(false);
       expect(result.result.name).toBe('Updated User');
@@ -506,25 +539,34 @@ describe('Drizzle Adapter', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { success: boolean; result: { created: unknown[] } };
+      const result = (await response.json()) as {
+        success: boolean;
+        result: { created: unknown[] };
+      };
       expect(result.success).toBe(true);
       expect(result.result.created).toHaveLength(2);
     });
 
     it('should batch delete users', async () => {
-      const user1 = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'User 1',
-        email: 'u1@example.com',
-        role: 'user',
-      }).returning();
+      const user1 = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'User 1',
+          email: 'u1@example.com',
+          role: 'user',
+        })
+        .returning();
 
-      const user2 = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'User 2',
-        email: 'u2@example.com',
-        role: 'user',
-      }).returning();
+      const user2 = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'User 2',
+          email: 'u2@example.com',
+          role: 'user',
+        })
+        .returning();
 
       const response = await app.request('/users/batch-delete', {
         method: 'POST',
@@ -535,7 +577,10 @@ describe('Drizzle Adapter', () => {
       });
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { success: boolean; result: { deleted: unknown[] } };
+      const result = (await response.json()) as {
+        success: boolean;
+        result: { deleted: unknown[] };
+      };
       expect(result.success).toBe(true);
       expect(result.result.deleted).toHaveLength(2);
     });
@@ -544,21 +589,36 @@ describe('Drizzle Adapter', () => {
   describe('Relations', () => {
     it('should include posts when reading a user', async () => {
       // Create user
-      const user = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'Author',
-        email: 'author@example.com',
-        role: 'user',
-      }).returning();
+      const user = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'Author',
+          email: 'author@example.com',
+          role: 'user',
+        })
+        .returning();
 
       // Create posts
       await db.insert(postsTable).values([
-        { id: crypto.randomUUID(), title: 'Post 1', content: 'Content 1', authorId: user[0].id, views: 10 },
-        { id: crypto.randomUUID(), title: 'Post 2', content: 'Content 2', authorId: user[0].id, views: 20 },
+        {
+          id: crypto.randomUUID(),
+          title: 'Post 1',
+          content: 'Content 1',
+          authorId: user[0].id,
+          views: 10,
+        },
+        {
+          id: crypto.randomUUID(),
+          title: 'Post 2',
+          content: 'Content 2',
+          authorId: user[0].id,
+          views: 20,
+        },
       ]);
 
       const response = await app.request(`/users/${user[0].id}?include=posts`);
-      const result = await response.json() as { result: { posts: unknown[] } };
+      const result = (await response.json()) as { result: { posts: unknown[] } };
 
       expect(result.result.posts).toHaveLength(2);
     });
@@ -586,7 +646,10 @@ describe('Drizzle Adapter', () => {
       const response = await app.request(`/posts/${postId}?include=author`);
       expect(response.status).toBe(200);
 
-      const json = await response.json() as { success: boolean; result: { author?: { name: string } } };
+      const json = (await response.json()) as {
+        success: boolean;
+        result: { author?: { name: string } };
+      };
       expect(json.success).toBe(true);
 
       // Note: belongsTo relations require explicit table reference
@@ -599,19 +662,25 @@ describe('Drizzle Adapter', () => {
   describe('Aggregations', () => {
     beforeEach(async () => {
       // Create users and posts for aggregation tests
-      const user1 = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'Author 1',
-        email: 'author1@example.com',
-        role: 'user',
-      }).returning();
+      const user1 = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'Author 1',
+          email: 'author1@example.com',
+          role: 'user',
+        })
+        .returning();
 
-      const user2 = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'Author 2',
-        email: 'author2@example.com',
-        role: 'user',
-      }).returning();
+      const user2 = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'Author 2',
+          email: 'author2@example.com',
+          role: 'user',
+        })
+        .returning();
 
       await db.insert(postsTable).values([
         { id: crypto.randomUUID(), title: 'Post 1', authorId: user1[0].id, views: 100 },
@@ -622,28 +691,28 @@ describe('Drizzle Adapter', () => {
 
     it('should count all posts', async () => {
       const response = await app.request('/posts/aggregate?count=*');
-      const result = await response.json() as { result: { values: { count: number } } };
+      const result = (await response.json()) as { result: { values: { count: number } } };
 
       expect(result.result.values.count).toBe(3);
     });
 
     it('should sum views', async () => {
       const response = await app.request('/posts/aggregate?sum=views');
-      const result = await response.json() as { result: { values: { sumViews: number } } };
+      const result = (await response.json()) as { result: { values: { sumViews: number } } };
 
       expect(result.result.values.sumViews).toBe(350);
     });
 
     it('should compute average views', async () => {
       const response = await app.request('/posts/aggregate?avg=views');
-      const result = await response.json() as { result: { values: { avgViews: number } } };
+      const result = (await response.json()) as { result: { values: { avgViews: number } } };
 
       expect(result.result.values.avgViews).toBeCloseTo(116.67, 1);
     });
 
     it('should group by authorId', async () => {
       const response = await app.request('/posts/aggregate?count=*&sum=views&groupBy=authorId');
-      const result = await response.json() as { result: { groups: unknown[] } };
+      const result = (await response.json()) as { result: { groups: unknown[] } };
 
       expect(result.result.groups).toHaveLength(2);
     });
@@ -651,12 +720,15 @@ describe('Drizzle Adapter', () => {
 
   describe('Clone', () => {
     it('should clone a record with a fresh primary key, copying source data', async () => {
-      const seed = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'Clone Source',
-        email: 'source@example.com',
-        role: 'user',
-      }).returning();
+      const seed = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'Clone Source',
+          email: 'source@example.com',
+          role: 'user',
+        })
+        .returning();
 
       const response = await app.request(`/users/${seed[0].id}/clone`, {
         method: 'POST',
@@ -665,7 +737,10 @@ describe('Drizzle Adapter', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { success: boolean; result: { id: string; name: string; email: string; role: string } };
+      const result = (await response.json()) as {
+        success: boolean;
+        result: { id: string; name: string; email: string; role: string };
+      };
       expect(result.success).toBe(true);
       expect(result.result.id).toBeDefined();
       expect(result.result.id).not.toBe(seed[0].id);
@@ -679,12 +754,15 @@ describe('Drizzle Adapter', () => {
     });
 
     it('applies body overrides on top of the cloned data', async () => {
-      const seed = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'Original Name',
-        email: 'orig@example.com',
-        role: 'user',
-      }).returning();
+      const seed = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'Original Name',
+          email: 'orig@example.com',
+          role: 'user',
+        })
+        .returning();
 
       const response = await app.request(`/users/${seed[0].id}/clone`, {
         method: 'POST',
@@ -693,7 +771,10 @@ describe('Drizzle Adapter', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { success: boolean; result: { name: string; email: string; role: string } };
+      const result = (await response.json()) as {
+        success: boolean;
+        result: { name: string; email: string; role: string };
+      };
       expect(result.result.name).toBe('Override Name');
       expect(result.result.email).toBe('new@example.com');
       expect(result.result.role).toBe('user');
@@ -709,18 +790,21 @@ describe('Drizzle Adapter', () => {
       // The test's app.onError handler converts every error to 400 — the
       // production error is a NotFoundException (status 404).
       expect(response.status).toBe(400);
-      const result = await response.json() as { error: { message: string } };
+      const result = (await response.json()) as { error: { message: string } };
       expect(result.error.message).toMatch(/not found/i);
     });
 
     it('returns NotFound when the source row is soft-deleted', async () => {
-      const seed = await db.insert(usersTable).values({
-        id: crypto.randomUUID(),
-        name: 'Soft Deleted',
-        email: 'sd@example.com',
-        role: 'user',
-        deletedAt: new Date().toISOString(),
-      }).returning();
+      const seed = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'Soft Deleted',
+          email: 'sd@example.com',
+          role: 'user',
+          deletedAt: new Date().toISOString(),
+        })
+        .returning();
 
       const response = await app.request(`/users/${seed[0].id}/clone`, {
         method: 'POST',
@@ -729,11 +813,10 @@ describe('Drizzle Adapter', () => {
       });
 
       expect(response.status).toBe(400);
-      const result = await response.json() as { error: { message: string } };
+      const result = (await response.json()) as { error: { message: string } };
       expect(result.error.message).toMatch(/not found/i);
     });
   });
-
 });
 
 // ============================================================================

@@ -1,5 +1,5 @@
-import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 import type { KVNamespace } from 'hono-crud/internal';
+import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 
 const KV_BATCH_CONCURRENCY = 50;
 
@@ -169,9 +169,8 @@ export class KVCacheStorage implements CacheStorage {
   async deletePattern(pattern: string): Promise<number> {
     // Convert glob pattern to prefix for KV list
     const prefixEnd = pattern.indexOf('*');
-    const searchPrefix = prefixEnd >= 0
-      ? this.getKey(pattern.substring(0, prefixEnd))
-      : this.getKey(pattern);
+    const searchPrefix =
+      prefixEnd >= 0 ? this.getKey(pattern.substring(0, prefixEnd)) : this.getKey(pattern);
 
     let count = 0;
     let cursor: string | undefined;

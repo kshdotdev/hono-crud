@@ -1,10 +1,10 @@
 import type { Context, Env } from 'hono';
-import type { ZodObject, ZodRawShape } from 'zod';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import type { ZodObject, ZodRawShape } from 'zod';
 import { getLogger } from './logger';
 import {
-  RESPONSE_ENVELOPE_CONTEXT_KEY,
   type OpenAPIRouteSchema,
+  RESPONSE_ENVELOPE_CONTEXT_KEY,
   type ResponseEnvelope,
   type ResponseEnvelopeInfo,
   type RouteOptions,
@@ -197,7 +197,7 @@ export abstract class OpenAPIRoute<
   protected successPaginated<T>(
     result: T,
     info: ResponseEnvelopeInfo,
-    status: ContentfulStatusCode = 200
+    status: ContentfulStatusCode = 200,
   ): Response {
     const envelope = this.getResponseEnvelope();
     const body = envelope
@@ -216,7 +216,9 @@ export abstract class OpenAPIRoute<
     try {
       const execCtx = this.getContext().executionCtx;
       if (execCtx && typeof (execCtx as { waitUntil?: unknown }).waitUntil === 'function') {
-        waitUntil = (execCtx as { waitUntil: (p: Promise<unknown>) => void }).waitUntil.bind(execCtx);
+        waitUntil = (execCtx as { waitUntil: (p: Promise<unknown>) => void }).waitUntil.bind(
+          execCtx,
+        );
       }
     } catch {
       // executionCtx getter throws when not in a Workers/edge runtime
@@ -224,8 +226,10 @@ export abstract class OpenAPIRoute<
     if (waitUntil) {
       waitUntil(promise);
     } else {
-      promise.catch(err => {
-        getLogger().error('Background task failed', { error: err instanceof Error ? err.message : String(err) });
+      promise.catch((err) => {
+        getLogger().error('Background task failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
     }
   }
@@ -245,9 +249,9 @@ export abstract class OpenAPIRoute<
    */
   protected error(
     message: string,
-    code: string = 'ERROR',
+    code = 'ERROR',
     status: ContentfulStatusCode = 400,
-    details?: unknown
+    details?: unknown,
   ): Response {
     const errorObj: { code: string; message: string; details?: unknown } = { code, message };
     if (details) {
@@ -262,12 +266,8 @@ export abstract class OpenAPIRoute<
 /**
  * Type guard to check if a class is an OpenAPIRoute.
  */
-export function isRouteClass(
-  cls: unknown
-): cls is typeof OpenAPIRoute & { isRoute: true } {
+export function isRouteClass(cls: unknown): cls is typeof OpenAPIRoute & { isRoute: true } {
   return (
-    typeof cls === 'function' &&
-    'isRoute' in cls &&
-    (cls as { isRoute: unknown }).isRoute === true
+    typeof cls === 'function' && 'isRoute' in cls && (cls as { isRoute: unknown }).isRoute === true
   );
 }

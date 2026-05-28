@@ -1,9 +1,16 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { ConflictException, NotFoundException } from '../core/exceptions';
 import { getLogger } from '../core/logger';
-import type {MetaInput, OpenAPIRouteSchema, HookMode, HookContext, RelationConfig, CascadeAction} from '../core/types';
-import { NotFoundException, ConflictException } from '../core/exceptions';
+import type {
+  CascadeAction,
+  HookContext,
+  HookMode,
+  MetaInput,
+  OpenAPIRouteSchema,
+  RelationConfig,
+} from '../core/types';
+import { CrudEndpoint } from './base';
 import type { ModelObject } from './types';
 
 /**
@@ -57,9 +64,8 @@ export abstract class DeleteEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   // Lookup configuration
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
   protected lookupFields?: string[];
   protected additionalFilters?: string[];
 
@@ -71,7 +77,7 @@ export abstract class DeleteEndpoint<
    * Whether to include cascade results in the response.
    * @default false
    */
-  protected includeCascadeResults: boolean = false;
+  protected includeCascadeResults = false;
 
   // Audit logging
 
@@ -132,7 +138,7 @@ export abstract class DeleteEndpoint<
    * Gets relations that have cascade configuration for the given action type.
    */
   protected getCascadeRelations(
-    actionType: 'onDelete' | 'onSoftDelete'
+    actionType: 'onDelete' | 'onSoftDelete',
   ): Array<{ name: string; config: RelationConfig; action: CascadeAction }> {
     const relations = this._meta.model.relations;
     if (!relations) return [];
@@ -207,10 +213,12 @@ export abstract class DeleteEndpoint<
                 error: z.object({
                   code: z.string(),
                   message: z.string(),
-                  details: z.object({
-                    relation: z.string(),
-                    count: z.number(),
-                  }).optional(),
+                  details: z
+                    .object({
+                      relation: z.string(),
+                      count: z.number(),
+                    })
+                    .optional(),
                 }),
               }),
             },
@@ -254,10 +262,7 @@ export abstract class DeleteEndpoint<
    * The optional `hookCtx` carries the in-flight transaction handle
    * (`hookCtx.db.tx`) plus tenant/org/user/agent identifiers.
    */
-  async before(
-    _lookupValue: string,
-    _hookCtx: HookContext
-  ): Promise<void> {
+  async before(_lookupValue: string, _hookCtx: HookContext): Promise<void> {
     // Override in subclass
   }
 
@@ -286,10 +291,7 @@ export abstract class DeleteEndpoint<
    * `afterHookMode === 'sequential'` AND the adapter wraps in a real
    * transaction.
    */
-  async after(
-    _prior: ModelObject<M['model']>,
-    _hookCtx: HookContext
-  ): Promise<void> {
+  async after(_prior: ModelObject<M['model']>, _hookCtx: HookContext): Promise<void> {
     // Override in subclass
   }
 
@@ -302,10 +304,12 @@ export abstract class DeleteEndpoint<
     _parentId: string | number,
     relationName: string,
     _relationConfig: RelationConfig,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<number> {
     // Default implementation returns 0 - override in adapter
-    getLogger().warn(`countRelated not implemented for ${relationName}. Override in your adapter for restrict cascade to work.`);
+    getLogger().warn(
+      `countRelated not implemented for ${relationName}. Override in your adapter for restrict cascade to work.`,
+    );
     return 0;
   }
 
@@ -317,10 +321,12 @@ export abstract class DeleteEndpoint<
     _parentId: string | number,
     relationName: string,
     _relationConfig: RelationConfig,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<number> {
     // Default implementation returns 0 - override in adapter
-    getLogger().warn(`deleteRelated not implemented for ${relationName}. Override in your adapter for cascade delete to work.`);
+    getLogger().warn(
+      `deleteRelated not implemented for ${relationName}. Override in your adapter for cascade delete to work.`,
+    );
     return 0;
   }
 
@@ -332,10 +338,12 @@ export abstract class DeleteEndpoint<
     _parentId: string | number,
     relationName: string,
     _relationConfig: RelationConfig,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<number> {
     // Default implementation returns 0 - override in adapter
-    getLogger().warn(`nullifyRelated not implemented for ${relationName}. Override in your adapter for setNull cascade to work.`);
+    getLogger().warn(
+      `nullifyRelated not implemented for ${relationName}. Override in your adapter for setNull cascade to work.`,
+    );
     return 0;
   }
 
@@ -347,7 +355,7 @@ export abstract class DeleteEndpoint<
   protected async processCascade(
     parentId: string | number,
     isSoftDelete: boolean,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<CascadeResult> {
     const actionType = isSoftDelete ? 'onSoftDelete' : 'onDelete';
     const cascadeRelations = this.getCascadeRelations(actionType);
@@ -386,7 +394,7 @@ export abstract class DeleteEndpoint<
   abstract findForDelete(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null>;
 
   /**
@@ -397,7 +405,7 @@ export abstract class DeleteEndpoint<
   abstract delete(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null>;
 
   /**
@@ -407,7 +415,7 @@ export abstract class DeleteEndpoint<
   protected async checkRestrictConstraints(
     parentId: string | number,
     isSoftDelete: boolean,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<void> {
     const actionType = isSoftDelete ? 'onSoftDelete' : 'onDelete';
     const cascadeRelations = this.getCascadeRelations(actionType);
@@ -418,8 +426,8 @@ export abstract class DeleteEndpoint<
         if (count > 0) {
           throw new ConflictException(
             `Cannot delete: ${count} related ${name} record(s) exist. ` +
-            `Remove them first or change the cascade configuration.`,
-            { relation: name, count }
+              `Remove them first or change the cascade configuration.`,
+            { relation: name, count },
           );
         }
       }
@@ -430,7 +438,6 @@ export abstract class DeleteEndpoint<
    * Main handler for the delete operation.
    */
   async handle(): Promise<Response> {
-
     // Validate tenant ID if multi-tenancy is enabled
     const tenantId = this.validateTenantId();
 
@@ -451,11 +458,7 @@ export abstract class DeleteEndpoint<
     // **pre-mutation snapshot** that `after(prior, ctx)` receives in
     // 0.10.0+ — for soft-delete, it's the row before `deletedAt` is set,
     // exactly what diff-based audit/CDC pipelines need.
-    const existingItem = await this.findForDelete(
-      lookupValue,
-      additionalFilters,
-      this._tx
-    );
+    const existingItem = await this.findForDelete(lookupValue, additionalFilters, this._tx);
 
     if (!existingItem) {
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
@@ -503,18 +506,20 @@ export abstract class DeleteEndpoint<
     // Audit logging
     if (this.isAuditEnabled() && parentId !== null) {
       const auditLogger = this.getAuditLogger();
-      this.runAfterResponse(auditLogger.logDelete(
-        this._meta.model.tableName,
-        parentId,
-        existingItem as Record<string, unknown>,
-        this.getAuditUserId()
-      ));
+      this.runAfterResponse(
+        auditLogger.logDelete(
+          this._meta.model.tableName,
+          parentId,
+          existingItem as Record<string, unknown>,
+          this.getAuditUserId(),
+        ),
+      );
     }
 
     // Emit deleted event
     if (parentId !== null) {
       this.runAfterResponse(
-        this.emitEvent('deleted', { recordId: parentId, previousData: existingItem })
+        this.emitEvent('deleted', { recordId: parentId, previousData: existingItem }),
       );
     }
 

@@ -1,10 +1,7 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import type { Env, MiddlewareHandler } from 'hono';
 import type { OpenAPIRoute } from './core/route';
-import {
-  RESPONSE_ENVELOPE_CONTEXT_KEY,
-  type ResponseEnvelope,
-} from './core/types';
+import { RESPONSE_ENVELOPE_CONTEXT_KEY, type ResponseEnvelope } from './core/types';
 import { setContextVar } from './utils/context';
 
 /**
@@ -137,26 +134,17 @@ export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
    * Register a GET endpoint with an OpenAPIRoute class
    */
   get(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
-  get(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
-  ): HonoOpenAPIApp<E>;
+  get(path: string, ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]): HonoOpenAPIApp<E>;
   /**
    * Register a POST endpoint with an OpenAPIRoute class
    */
   post(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
-  post(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
-  ): HonoOpenAPIApp<E>;
+  post(path: string, ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]): HonoOpenAPIApp<E>;
   /**
    * Register a PUT endpoint with an OpenAPIRoute class
    */
   put(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
-  put(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
-  ): HonoOpenAPIApp<E>;
+  put(path: string, ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]): HonoOpenAPIApp<E>;
   /**
    * Register a PATCH endpoint with an OpenAPIRoute class
    */
@@ -177,10 +165,7 @@ export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
 
 type RouteRegistrar<E extends Env> = {
   (path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
-  (
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
-  ): HonoOpenAPIApp<E>;
+  (path: string, ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]): HonoOpenAPIApp<E>;
 };
 
 /**
@@ -211,11 +196,9 @@ export function registerCrud<E extends Env = Env>(
   app: HonoOpenAPIApp<E> | OpenAPIHono<E>,
   basePath: string,
   endpoints: CrudEndpoints<E>,
-  options: RegisterCrudOptions<E> = {}
+  options: RegisterCrudOptions<E> = {},
 ): void {
-  const normalizedPath = basePath.endsWith('/')
-    ? basePath.slice(0, -1)
-    : basePath;
+  const normalizedPath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
   const typedApp = app as HonoOpenAPIApp<E>;
   const { middlewares = [], endpointMiddlewares = {}, responseEnvelope } = options;
 
@@ -245,8 +228,7 @@ export function registerCrud<E extends Env = Env>(
     const endpoint = endpoints[name];
     const classMiddlewares =
       endpoint && '_middlewares' in endpoint
-        ? (endpoint as { _middlewares?: MiddlewareHandler<E>[] })._middlewares ||
-          []
+        ? (endpoint as { _middlewares?: MiddlewareHandler<E>[] })._middlewares || []
         : [];
 
     return [
@@ -262,7 +244,7 @@ export function registerCrud<E extends Env = Env>(
     method: 'get' | 'post' | 'patch' | 'delete',
     path: string,
     name: CrudEndpointName,
-    endpoint: EndpointClass<E>
+    endpoint: EndpointClass<E>,
   ): void => {
     const mw = getMiddleware(name);
     const register = typedApp[method] as RouteRegistrar<E>;
@@ -297,7 +279,12 @@ export function registerCrud<E extends Env = Env>(
   }
 
   if (endpoints.batchRestore) {
-    registerRoute('post', `${normalizedPath}/batch/restore`, 'batchRestore', endpoints.batchRestore);
+    registerRoute(
+      'post',
+      `${normalizedPath}/batch/restore`,
+      'batchRestore',
+      endpoints.batchRestore,
+    );
   }
 
   if (endpoints.batchUpsert) {
@@ -384,7 +371,7 @@ export function successResponse<T>(schema: T) {
 /**
  * Creates a standardized error response schema.
  */
-export function errorResponse(description: string = 'Error') {
+export function errorResponse(description = 'Error') {
   return {
     description,
     ...contentJson({

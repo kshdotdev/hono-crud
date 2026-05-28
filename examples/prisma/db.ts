@@ -8,8 +8,8 @@
  * 4. Import and use: import { prisma, initDb } from './db.js';
  */
 
-import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
 
 // Database connection URL
 const DATABASE_URL =
@@ -70,33 +70,85 @@ export async function seedDb(): Promise<void> {
   // Seed users
   await prisma.user.createMany({
     data: [
-      { id: 'a0000000-0000-0000-0000-000000000001', email: 'alice@example.com', name: 'Alice Admin', role: 'admin', age: 35, status: 'active' },
-      { id: 'a0000000-0000-0000-0000-000000000002', email: 'bob@example.com', name: 'Bob User', role: 'user', age: 28, status: 'active' },
-      { id: 'a0000000-0000-0000-0000-000000000003', email: 'charlie@example.com', name: 'Charlie Guest', role: 'guest', age: 22, status: 'pending' },
+      {
+        id: 'a0000000-0000-0000-0000-000000000001',
+        email: 'alice@example.com',
+        name: 'Alice Admin',
+        role: 'admin',
+        age: 35,
+        status: 'active',
+      },
+      {
+        id: 'a0000000-0000-0000-0000-000000000002',
+        email: 'bob@example.com',
+        name: 'Bob User',
+        role: 'user',
+        age: 28,
+        status: 'active',
+      },
+      {
+        id: 'a0000000-0000-0000-0000-000000000003',
+        email: 'charlie@example.com',
+        name: 'Charlie Guest',
+        role: 'guest',
+        age: 22,
+        status: 'pending',
+      },
     ],
   });
 
   // Seed profiles
   await prisma.profile.createMany({
     data: [
-      { id: 'b0000000-0000-0000-0000-000000000001', userId: 'a0000000-0000-0000-0000-000000000001', bio: 'Alice is a developer', avatar: 'https://example.com/alice.jpg' },
-      { id: 'b0000000-0000-0000-0000-000000000002', userId: 'a0000000-0000-0000-0000-000000000002', bio: 'Bob is a designer' },
+      {
+        id: 'b0000000-0000-0000-0000-000000000001',
+        userId: 'a0000000-0000-0000-0000-000000000001',
+        bio: 'Alice is a developer',
+        avatar: 'https://example.com/alice.jpg',
+      },
+      {
+        id: 'b0000000-0000-0000-0000-000000000002',
+        userId: 'a0000000-0000-0000-0000-000000000002',
+        bio: 'Bob is a designer',
+      },
     ],
   });
 
   // Seed posts
   await prisma.post.createMany({
     data: [
-      { id: 'c0000000-0000-0000-0000-000000000001', title: 'Hello World', content: 'This is my first post!', authorId: 'a0000000-0000-0000-0000-000000000001', status: 'published' },
-      { id: 'c0000000-0000-0000-0000-000000000002', title: 'Design Tips', content: 'Here are some design tips...', authorId: 'a0000000-0000-0000-0000-000000000002', status: 'draft' },
+      {
+        id: 'c0000000-0000-0000-0000-000000000001',
+        title: 'Hello World',
+        content: 'This is my first post!',
+        authorId: 'a0000000-0000-0000-0000-000000000001',
+        status: 'published',
+      },
+      {
+        id: 'c0000000-0000-0000-0000-000000000002',
+        title: 'Design Tips',
+        content: 'Here are some design tips...',
+        authorId: 'a0000000-0000-0000-0000-000000000002',
+        status: 'draft',
+      },
     ],
   });
 
   // Seed comments
   await prisma.comment.createMany({
     data: [
-      { id: 'd0000000-0000-0000-0000-000000000001', content: 'Great post!', postId: 'c0000000-0000-0000-0000-000000000001', authorId: 'a0000000-0000-0000-0000-000000000002' },
-      { id: 'd0000000-0000-0000-0000-000000000002', content: 'Thanks for sharing!', postId: 'c0000000-0000-0000-0000-000000000001', authorId: 'a0000000-0000-0000-0000-000000000001' },
+      {
+        id: 'd0000000-0000-0000-0000-000000000001',
+        content: 'Great post!',
+        postId: 'c0000000-0000-0000-0000-000000000001',
+        authorId: 'a0000000-0000-0000-0000-000000000002',
+      },
+      {
+        id: 'd0000000-0000-0000-0000-000000000002',
+        content: 'Thanks for sharing!',
+        postId: 'c0000000-0000-0000-0000-000000000001',
+        authorId: 'a0000000-0000-0000-0000-000000000001',
+      },
     ],
   });
 

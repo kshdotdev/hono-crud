@@ -1,14 +1,14 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
-import { getLogger, setContextVar, createNullableRegistry } from 'hono-crud/internal';
+import { createNullableRegistry, getLogger, setContextVar } from 'hono-crud/internal';
+import { RateLimitExceededException } from './exceptions';
 import type {
+  KeyExtractor,
+  KeyStrategy,
   RateLimitConfig,
   RateLimitResult,
   RateLimitStorage,
-  KeyStrategy,
-  KeyExtractor,
 } from './types';
-import { RateLimitExceededException } from './exceptions';
-import { extractIP, extractUserId, extractAPIKey, shouldSkipPath, generateKey } from './utils';
+import { extractAPIKey, extractIP, extractUserId, generateKey, shouldSkipPath } from './utils';
 
 // ============================================================================
 // Global Storage
@@ -18,9 +18,8 @@ import { extractIP, extractUserId, extractAPIKey, shouldSkipPath, generateKey } 
  * Global rate limit storage registry.
  * Nullable -- no default storage is created unless explicitly set.
  */
-export const rateLimitStorageRegistry = createNullableRegistry<RateLimitStorage>(
-  'rateLimitStorage'
-);
+export const rateLimitStorageRegistry =
+  createNullableRegistry<RateLimitStorage>('rateLimitStorage');
 
 /**
  * Set the global rate limit storage.
@@ -54,7 +53,7 @@ export function getRateLimitStorage(): RateLimitStorage | null {
  */
 export function resolveRateLimitStorage<E extends Env>(
   ctx?: Context<E>,
-  explicitStorage?: RateLimitStorage
+  explicitStorage?: RateLimitStorage,
 ): RateLimitStorage | null {
   return rateLimitStorageRegistry.resolve(ctx, explicitStorage);
 }
@@ -112,7 +111,7 @@ function createKeyExtractorFactories<E extends Env>(): Record<KeyStrategy, KeyEx
  */
 function getKeyExtractor<E extends Env>(
   strategy: KeyStrategy | KeyExtractor<E>,
-  config: RateLimitConfig<E>
+  config: RateLimitConfig<E>,
 ): KeyExtractor<E> {
   if (typeof strategy === 'function') {
     return strategy;
@@ -140,7 +139,7 @@ async function checkFixedWindow(
   storage: RateLimitStorage,
   key: string,
   limit: number,
-  windowMs: number
+  windowMs: number,
 ): Promise<RateLimitResult> {
   const entry = await storage.increment(key, windowMs);
 
@@ -164,7 +163,7 @@ async function checkSlidingWindow(
   storage: RateLimitStorage,
   key: string,
   limit: number,
-  windowMs: number
+  windowMs: number,
 ): Promise<RateLimitResult> {
   const now = Date.now();
   const entry = await storage.addTimestamp(key, windowMs, now);
@@ -251,7 +250,7 @@ async function checkSlidingWindow(
  * ```
  */
 export function createRateLimitMiddleware<E extends Env = Env>(
-  config: RateLimitConfig<E> = {}
+  config: RateLimitConfig<E> = {},
 ): MiddlewareHandler<E> {
   // Default configuration
   const limit = config.limit ?? 100;
@@ -349,10 +348,7 @@ export function createRateLimitMiddleware<E extends Env = Env>(
  * @param key - The rate limit key to reset
  * @param storage - Optional storage instance (uses global if not provided)
  */
-export async function resetRateLimit(
-  key: string,
-  storage?: RateLimitStorage
-): Promise<void> {
+export async function resetRateLimit(key: string, storage?: RateLimitStorage): Promise<void> {
   const effectiveStorage = storage ?? rateLimitStorageRegistry.get();
   if (!effectiveStorage) {
     throw new Error('Rate limit storage not configured');

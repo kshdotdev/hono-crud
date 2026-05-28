@@ -16,7 +16,7 @@ export function parseIso8601Duration(input: string): number {
   const match = ISO_DURATION.exec(input);
   if (!match) {
     throw new Error(
-      `Invalid ISO 8601 duration: ${input}. Use P[nD][T[nH][nM][nS]] (years and months unsupported).`
+      `Invalid ISO 8601 duration: ${input}. Use P[nD][T[nH][nM][nS]] (years and months unsupported).`,
     );
   }
   const [, days, hours, minutes, seconds] = match;
@@ -26,9 +26,7 @@ export function parseIso8601Duration(input: string): number {
     (minutes ? Number(minutes) * 60_000 : 0) +
     (seconds ? Number(seconds) * 1_000 : 0);
   if (ms === 0 && input !== 'PT0S' && input !== 'P0D') {
-    throw new Error(
-      `ISO 8601 duration ${input} parsed to zero milliseconds — verify the format.`
-    );
+    throw new Error(`ISO 8601 duration ${input} parsed to zero milliseconds — verify the format.`);
   }
   return ms;
 }

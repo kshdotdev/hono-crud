@@ -2,9 +2,9 @@ import type { Env } from 'hono';
 import { UpsertEndpoint } from 'hono-crud/internal';
 import { CloneEndpoint } from 'hono-crud/internal';
 import {
+  VersionCompareEndpoint,
   VersionHistoryEndpoint,
   VersionReadEndpoint,
-  VersionCompareEndpoint,
   VersionRollbackEndpoint,
 } from 'hono-crud/internal';
 import { AggregateEndpoint, computeAggregations } from 'hono-crud/internal';
@@ -12,27 +12,27 @@ import { SearchEndpoint, searchInMemory } from 'hono-crud/internal';
 import { ExportEndpoint } from 'hono-crud/internal';
 import { ImportEndpoint } from 'hono-crud/internal';
 import type {
-  MetaInput,
-  PaginatedResult,
-  ListFilters,
-  SearchOptions,
-  SearchResult,
+  AggregateField,
   AggregateOptions,
   AggregateResult,
-  AggregateField,
   IncludeOptions,
+  ListFilters,
+  MetaInput,
+  PaginatedResult,
+  SearchOptions,
+  SearchResult,
 } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
 import {
   type PrismaClient,
   type PrismaModelOperations,
-  getPrismaModel,
-  getModelName,
-  getPrismaModelByName,
-  buildPrismaWhere,
   batchLoadPrismaRelations,
-  executePrismaQuery,
   buildPaginatedResult,
+  buildPrismaWhere,
+  executePrismaQuery,
+  getModelName,
+  getPrismaModel,
+  getPrismaModelByName,
 } from './helpers';
 
 /**
@@ -54,7 +54,7 @@ export abstract class PrismaSearchEndpoint<
    */
   protected buildSearchWhere(
     options: SearchOptions,
-    filters: ListFilters
+    filters: ListFilters,
   ): Record<string, unknown> {
     // Start with base filters
     let where = buildPrismaWhere(filters.filters);
@@ -118,7 +118,7 @@ export abstract class PrismaSearchEndpoint<
    */
   override async search(
     options: SearchOptions,
-    filters: ListFilters
+    filters: ListFilters,
   ): Promise<SearchResult<ModelObject<M['model']>>> {
     const model = await this.getModel();
 
@@ -152,23 +152,21 @@ export abstract class PrismaSearchEndpoint<
     // stricter per-field "all tokens in same field" gate dropping
     // correctly-matched rows. The score is used for ranking only — matching
     // was decided in the database query.
-    const scoringOptions = options.mode === 'all'
-      ? { ...options, mode: 'any' as const }
-      : options;
+    const scoringOptions = options.mode === 'all' ? { ...options, mode: 'any' as const } : options;
     const searchResults = searchInMemory(
       records as ModelObject<M['model']>[],
       scoringOptions,
-      this.getSearchableFields()
+      this.getSearchableFields(),
     );
 
     // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
-    const items = searchResults.map(r => r.item as Record<string, unknown>);
+    const items = searchResults.map((r) => r.item as Record<string, unknown>);
     const itemsWithRelations = await batchLoadPrismaRelations(
       this.prisma,
       items,
       this._meta,
-      includeOptions
+      includeOptions,
     );
 
     // Map relations back to search results
@@ -214,13 +212,10 @@ export abstract class PrismaExportEndpoint<
       this.prisma,
       queryResult.records as Record<string, unknown>[],
       this._meta,
-      includeOptions
+      includeOptions,
     );
 
-    return buildPaginatedResult(
-      itemsWithRelations as ModelObject<M['model']>[],
-      queryResult
-    );
+    return buildPaginatedResult(itemsWithRelations as ModelObject<M['model']>[], queryResult);
   }
 }
 
@@ -242,7 +237,7 @@ export abstract class PrismaImportEndpoint<
    * Finds an existing record by upsert keys.
    */
   override async findExisting(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
     const upsertKeys = this.getUpsertKeys();
@@ -267,16 +262,11 @@ export abstract class PrismaImportEndpoint<
   /**
    * Creates a new record.
    */
-  override async create(
-    data: Partial<ModelObject<M['model']>>
-  ): Promise<ModelObject<M['model']>> {
+  override async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'prisma'
-    );
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'prisma');
 
     const result = await model.create({ data: record });
     return result as ModelObject<M['model']>;
@@ -287,7 +277,7 @@ export abstract class PrismaImportEndpoint<
    */
   override async update(
     existing: ModelObject<M['model']>,
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
     const primaryKey = this._meta.model.primaryKeys[0];
@@ -312,7 +302,7 @@ export abstract class PrismaUpsertEndpoint<
   M extends MetaInput = MetaInput,
 > extends UpsertEndpoint<E, M> {
   abstract prisma: PrismaClient;
-  protected useTransaction: boolean = false;
+  protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
@@ -322,7 +312,7 @@ export abstract class PrismaUpsertEndpoint<
    * Finds an existing record by upsert keys.
    */
   override async findExisting(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
     const upsertKeys = this.getUpsertKeys();
@@ -347,16 +337,11 @@ export abstract class PrismaUpsertEndpoint<
   /**
    * Creates a new record.
    */
-  override async create(
-    data: Partial<ModelObject<M['model']>>
-  ): Promise<ModelObject<M['model']>> {
+  override async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'prisma'
-    );
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'prisma');
 
     const result = await model.create({ data: record });
     return result as ModelObject<M['model']>;
@@ -367,7 +352,7 @@ export abstract class PrismaUpsertEndpoint<
    */
   override async update(
     existing: ModelObject<M['model']>,
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
     const primaryKey = this._meta.model.primaryKeys[0];
@@ -385,7 +370,7 @@ export abstract class PrismaUpsertEndpoint<
    */
   protected override async nativeUpsert(
     data: Partial<ModelObject<M['model']>>,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<{ data: ModelObject<M['model']>; created: boolean }> {
     const model = await this.getModel();
     const upsertKeys = this.getUpsertKeys();
@@ -403,10 +388,7 @@ export abstract class PrismaUpsertEndpoint<
 
     // Resolve managed write-time fields for the CREATE branch
     // (Model.id strategy + createdAt/updatedAt).
-    const createData = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'prisma'
-    );
+    const createData = this.applyManagedInsertFields(data as Record<string, unknown>, 'prisma');
 
     // Build update data - exclude upsert keys and primary key, filter create-only fields
     const updateData: Record<string, unknown> = {};
@@ -496,7 +478,7 @@ export abstract class PrismaVersionRollbackEndpoint<
   override async rollback(
     lookupValue: string,
     versionData: Record<string, unknown>,
-    newVersion: number
+    newVersion: number,
   ): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
     const versionField = this.getVersioningConfig().field;
@@ -539,7 +521,7 @@ export abstract class PrismaAggregateEndpoint<
    * Set to false to fall back to in-memory computation.
    * Default: true
    */
-  protected useNativeAggregation: boolean = true;
+  protected useNativeAggregation = true;
 
   protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
@@ -681,7 +663,7 @@ export abstract class PrismaAggregateEndpoint<
   protected async aggregateSimple(
     model: PrismaModelOperations,
     where: Record<string, unknown>,
-    options: AggregateOptions
+    options: AggregateOptions,
   ): Promise<AggregateResult> {
     const aggregateArgs: Record<string, unknown> = { where };
     const values: Record<string, number | null> = {};
@@ -723,9 +705,11 @@ export abstract class PrismaAggregateEndpoint<
 
     // Execute native aggregation
     const modelName = await getModelName(this._meta.model.tableName);
-    const prismaModel = getPrismaModelByName(this.prisma, modelName) as unknown as {
-      aggregate: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
-    } | undefined;
+    const prismaModel = getPrismaModelByName(this.prisma, modelName) as unknown as
+      | {
+          aggregate: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+        }
+      | undefined;
     if (!prismaModel) {
       throw new Error(`Model '${modelName}' not found in Prisma client`);
     }
@@ -735,36 +719,43 @@ export abstract class PrismaAggregateEndpoint<
 
       // Map results to our format
       if (result._count !== undefined) {
-        values.count = typeof result._count === 'object'
-          ? (result._count as { _all?: number })._all ?? 0
-          : result._count as number;
+        values.count =
+          typeof result._count === 'object'
+            ? ((result._count as { _all?: number })._all ?? 0)
+            : (result._count as number);
       }
 
       if (result._sum && grouped.sum.length) {
         for (const field of grouped.sum) {
           const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-          values[`sum${camelField}`] = ((result._sum as Record<string, unknown>)[field] as number) ?? 0;
+          values[`sum${camelField}`] =
+            ((result._sum as Record<string, unknown>)[field] as number) ?? 0;
         }
       }
 
       if (result._avg && grouped.avg.length) {
         for (const field of grouped.avg) {
           const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-          values[`avg${camelField}`] = ((result._avg as Record<string, unknown>)[field] as number) ?? 0;
+          values[`avg${camelField}`] =
+            ((result._avg as Record<string, unknown>)[field] as number) ?? 0;
         }
       }
 
       if (result._min && grouped.min.length) {
         for (const field of grouped.min) {
           const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-          values[`min${camelField}`] = (result._min as Record<string, unknown>)[field] as number | null;
+          values[`min${camelField}`] = (result._min as Record<string, unknown>)[field] as
+            | number
+            | null;
         }
       }
 
       if (result._max && grouped.max.length) {
         for (const field of grouped.max) {
           const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-          values[`max${camelField}`] = (result._max as Record<string, unknown>)[field] as number | null;
+          values[`max${camelField}`] = (result._max as Record<string, unknown>)[field] as
+            | number
+            | null;
         }
       }
 
@@ -782,7 +773,7 @@ export abstract class PrismaAggregateEndpoint<
   protected async aggregateWithGroupBy(
     model: PrismaModelOperations,
     where: Record<string, unknown>,
-    options: AggregateOptions
+    options: AggregateOptions,
   ): Promise<AggregateResult> {
     const groupByArgs: Record<string, unknown> = {
       by: options.groupBy,
@@ -825,9 +816,11 @@ export abstract class PrismaAggregateEndpoint<
 
     // Execute native groupBy
     const modelName = await getModelName(this._meta.model.tableName);
-    const prismaModel = getPrismaModelByName(this.prisma, modelName) as unknown as {
-      groupBy: (args: Record<string, unknown>) => Promise<Record<string, unknown>[]>;
-    } | undefined;
+    const prismaModel = getPrismaModelByName(this.prisma, modelName) as unknown as
+      | {
+          groupBy: (args: Record<string, unknown>) => Promise<Record<string, unknown>[]>;
+        }
+      | undefined;
     if (!prismaModel) {
       throw new Error(`Model '${modelName}' not found in Prisma client`);
     }
@@ -836,51 +829,59 @@ export abstract class PrismaAggregateEndpoint<
       const results = await prismaModel.groupBy(groupByArgs);
 
       // Map results to our format
-      const groups: Array<{ key: Record<string, unknown>; values: Record<string, number | null> }> = results.map(result => {
-        const key: Record<string, unknown> = {};
-        const groupValues: Record<string, number | null> = {};
+      const groups: Array<{ key: Record<string, unknown>; values: Record<string, number | null> }> =
+        results.map((result) => {
+          const key: Record<string, unknown> = {};
+          const groupValues: Record<string, number | null> = {};
 
-        // Add group key values
-        for (const field of options.groupBy!) {
-          key[field] = result[field];
-        }
-
-        // Add count
-        groupValues.count = typeof result._count === 'object'
-          ? (result._count as { _all?: number })._all ?? 0
-          : (result._count as number) ?? 0;
-
-        // Add aggregations
-        if (result._sum && grouped.sum.length) {
-          for (const field of grouped.sum) {
-            const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-            groupValues[`sum${camelField}`] = ((result._sum as Record<string, unknown>)[field] as number) ?? 0;
+          // Add group key values
+          for (const field of options.groupBy!) {
+            key[field] = result[field];
           }
-        }
 
-        if (result._avg && grouped.avg.length) {
-          for (const field of grouped.avg) {
-            const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-            groupValues[`avg${camelField}`] = ((result._avg as Record<string, unknown>)[field] as number) ?? 0;
+          // Add count
+          groupValues.count =
+            typeof result._count === 'object'
+              ? ((result._count as { _all?: number })._all ?? 0)
+              : ((result._count as number) ?? 0);
+
+          // Add aggregations
+          if (result._sum && grouped.sum.length) {
+            for (const field of grouped.sum) {
+              const camelField = field.charAt(0).toUpperCase() + field.slice(1);
+              groupValues[`sum${camelField}`] =
+                ((result._sum as Record<string, unknown>)[field] as number) ?? 0;
+            }
           }
-        }
 
-        if (result._min && grouped.min.length) {
-          for (const field of grouped.min) {
-            const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-            groupValues[`min${camelField}`] = (result._min as Record<string, unknown>)[field] as number | null;
+          if (result._avg && grouped.avg.length) {
+            for (const field of grouped.avg) {
+              const camelField = field.charAt(0).toUpperCase() + field.slice(1);
+              groupValues[`avg${camelField}`] =
+                ((result._avg as Record<string, unknown>)[field] as number) ?? 0;
+            }
           }
-        }
 
-        if (result._max && grouped.max.length) {
-          for (const field of grouped.max) {
-            const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-            groupValues[`max${camelField}`] = (result._max as Record<string, unknown>)[field] as number | null;
+          if (result._min && grouped.min.length) {
+            for (const field of grouped.min) {
+              const camelField = field.charAt(0).toUpperCase() + field.slice(1);
+              groupValues[`min${camelField}`] = (result._min as Record<string, unknown>)[field] as
+                | number
+                | null;
+            }
           }
-        }
 
-        return { key, values: groupValues };
-      });
+          if (result._max && grouped.max.length) {
+            for (const field of grouped.max) {
+              const camelField = field.charAt(0).toUpperCase() + field.slice(1);
+              groupValues[`max${camelField}`] = (result._max as Record<string, unknown>)[field] as
+                | number
+                | null;
+            }
+          }
+
+          return { key, values: groupValues };
+        });
 
       // Calculate overall values from groups
       const values: Record<string, number | null> = {
@@ -930,7 +931,7 @@ export abstract class PrismaCloneEndpoint<
 
   override async findSource(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -950,18 +951,14 @@ export abstract class PrismaCloneEndpoint<
     return result as ModelObject<M['model']>;
   }
 
-  override async createClone(
-    data: ModelObject<M['model']>
-  ): Promise<ModelObject<M['model']>> {
+  override async createClone(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     // `generateId()` remains the overridable default-branch generator for
     // the `'uuid'`/unset strategy; `function`/`'database'` take precedence.
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'prisma',
-      () => this.generateId()
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'prisma', () =>
+      this.generateId(),
     );
 
     const result = await model.create({ data: record });

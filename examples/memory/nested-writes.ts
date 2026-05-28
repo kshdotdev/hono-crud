@@ -6,15 +6,15 @@
  * Run with: npx tsx examples/nested-writes.ts
  */
 
-import { Hono } from 'hono';
-import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
-  MemoryUpdateEndpoint,
   MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
 } from '@hono-crud/memory';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono } from 'hono-crud';
+import { z } from 'zod';
 
 // Clear storage
 clearStorage();
@@ -181,7 +181,7 @@ async function main() {
     }),
   });
 
-  const createResult = await createRes.json() as SuccessResponse<UserWithNested>;
+  const createResult = (await createRes.json()) as SuccessResponse<UserWithNested>;
   console.log('Created:', JSON.stringify(createResult.result, null, 2));
   const userId = createResult.result.id;
   const postId = createResult.result.posts[0].id;
@@ -203,14 +203,14 @@ async function main() {
     }),
   });
 
-  const updateResult = await updateRes.json() as SuccessResponse<UserWithNested>;
+  const updateResult = (await updateRes.json()) as SuccessResponse<UserWithNested>;
   console.log('Updated:', JSON.stringify(updateResult.result, null, 2));
   console.log();
 
   // 3. Read user with includes
   console.log('3. Reading user with profile and posts...');
   const readRes = await app.request(`/users/${userId}?include=profile,posts`);
-  const readResult = await readRes.json() as SuccessResponse<UserWithNested>;
+  const readResult = (await readRes.json()) as SuccessResponse<UserWithNested>;
   console.log('User with relations:', JSON.stringify(readResult.result, null, 2));
   console.log();
 
@@ -232,7 +232,7 @@ async function main() {
     }),
   });
 
-  const postResult = await postRes.json() as SuccessResponse<PostWithNested>;
+  const postResult = (await postRes.json()) as SuccessResponse<PostWithNested>;
   console.log('Created post:', JSON.stringify(postResult.result, null, 2));
   console.log();
 

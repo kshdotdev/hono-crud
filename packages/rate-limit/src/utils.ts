@@ -1,6 +1,10 @@
 import type { Context, Env } from 'hono';
+import {
+  getClientIp,
+  getUserId as getUserIdShared,
+  matchPath as sharedMatchPath,
+} from 'hono-crud/internal';
 import type { PathPattern } from './types';
-import { getClientIp, getUserId as getUserIdShared, matchPath as sharedMatchPath } from 'hono-crud/internal';
 
 // ============================================================================
 // IP Extraction
@@ -13,8 +17,8 @@ import { getClientIp, getUserId as getUserIdShared, matchPath as sharedMatchPath
  */
 export function extractIP<E extends Env>(
   ctx: Context<E>,
-  ipHeader: string = 'X-Forwarded-For',
-  trustProxy: boolean = false
+  ipHeader = 'X-Forwarded-For',
+  trustProxy = false,
 ): string {
   return getClientIp(ctx, { ipHeader, trustProxy }) ?? 'unknown';
 }
@@ -33,7 +37,7 @@ export function extractUserId<E extends Env>(ctx: Context<E>): string | null {
 
 export function extractAPIKey<E extends Env>(
   ctx: Context<E>,
-  headerName: string = 'X-API-Key'
+  headerName = 'X-API-Key',
 ): string | null {
   return ctx.req.header(headerName) || null;
 }

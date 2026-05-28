@@ -1,19 +1,19 @@
-/**
- * Tests for Multi-Tenancy functionality.
- */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { OpenAPIHono } from '@hono/zod-openapi';
-import { z } from 'zod';
-import { fromHono, defineModel, defineMeta, multiTenant } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
+  MemoryDeleteEndpoint,
   MemoryListEndpoint,
   MemoryReadEndpoint,
   MemoryUpdateEndpoint,
-  MemoryDeleteEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { defineMeta, defineModel, fromHono, multiTenant } from 'hono-crud';
+/**
+ * Tests for Multi-Tenancy functionality.
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // ============================================================================
 // Schema Definitions
@@ -115,7 +115,7 @@ describe('Multi-Tenancy', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { result: Document };
+      const result = (await response.json()) as { result: Document };
       expect(result.result.tenantId).toBe(TENANT_A);
       expect(result.result.title).toBe('Tenant A Document');
     });
@@ -156,7 +156,7 @@ describe('Multi-Tenancy', () => {
       });
 
       expect(responseA.status).toBe(200);
-      const resultA = await responseA.json() as { result: Document[] };
+      const resultA = (await responseA.json()) as { result: Document[] };
       expect(resultA.result).toHaveLength(2);
       expect(resultA.result.every((d) => d.tenantId === TENANT_A)).toBe(true);
 
@@ -167,7 +167,7 @@ describe('Multi-Tenancy', () => {
       });
 
       expect(responseB.status).toBe(200);
-      const resultB = await responseB.json() as { result: Document[] };
+      const resultB = (await responseB.json()) as { result: Document[] };
       expect(resultB.result).toHaveLength(1);
       expect(resultB.result[0].tenantId).toBe(TENANT_B);
     });
@@ -183,7 +183,7 @@ describe('Multi-Tenancy', () => {
         body: JSON.stringify({ title: 'Secret Doc' }),
       });
 
-      const created = (await createRes.json() as { result: Document }).result;
+      const created = ((await createRes.json()) as { result: Document }).result;
 
       // Try to read with Tenant B
       const response = await app.request(`/documents/${created.id}`, {
@@ -205,7 +205,7 @@ describe('Multi-Tenancy', () => {
         body: JSON.stringify({ title: 'Original Title' }),
       });
 
-      const created = (await createRes.json() as { result: Document }).result;
+      const created = ((await createRes.json()) as { result: Document }).result;
 
       // Try to update with Tenant B
       const response = await app.request(`/documents/${created.id}`, {
@@ -235,7 +235,7 @@ describe('Multi-Tenancy', () => {
         body: JSON.stringify({ title: 'Protected Doc' }),
       });
 
-      const created = (await createRes.json() as { result: Document }).result;
+      const created = ((await createRes.json()) as { result: Document }).result;
 
       // Try to delete with Tenant B
       const response = await app.request(`/documents/${created.id}`, {
@@ -271,7 +271,7 @@ describe('Multi-Tenancy', () => {
         body: JSON.stringify({ title: 'My Doc' }),
       });
 
-      const created = (await createRes.json() as { result: Document }).result;
+      const created = ((await createRes.json()) as { result: Document }).result;
 
       // Update with same tenant
       const response = await app.request(`/documents/${created.id}`, {
@@ -284,7 +284,7 @@ describe('Multi-Tenancy', () => {
       });
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: Document };
+      const result = (await response.json()) as { result: Document };
       expect(result.result.title).toBe('Updated Title');
       expect(result.result.tenantId).toBe(TENANT_A);
     });

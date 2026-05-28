@@ -1,14 +1,11 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema} from '../core/types';
-import { getSchemaFields, type ModelObject } from './types';
-import { parseCsv, validateCsvHeaders, type CsvParseOptions } from '../utils/csv';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { ConfigurationException, InputValidationException } from '../core/exceptions';
-import {
-  getManagedInputExclusions,
-  mapUniqueViolation,
-} from '../core/managed-fields';
+import { getManagedInputExclusions, mapUniqueViolation } from '../core/managed-fields';
+import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { type CsvParseOptions, parseCsv, validateCsvHeaders } from '../utils/csv';
+import { CrudEndpoint } from './base';
+import { type ModelObject, getSchemaFields } from './types';
 
 // ============================================================================
 // Import Types
@@ -127,18 +124,17 @@ export abstract class ImportEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   /** Maximum number of records per import request. */
-  protected maxBatchSize: number = 1000;
+  protected maxBatchSize = 1000;
 
   /** Number of rows to process concurrently in each batch. @default 100 */
-  protected importBatchSize: number = 100;
+  protected importBatchSize = 100;
 
   /** Whether to stop on first error. */
-  protected stopOnError: boolean = false;
+  protected stopOnError = false;
 
   /** Whether to skip rows that fail validation. */
-  protected skipInvalidRows: boolean = true;
+  protected skipInvalidRows = true;
 
   /** Default import mode. */
   protected defaultMode: ImportMode = 'create';
@@ -206,10 +202,7 @@ export abstract class ImportEndpoint<
   protected getImportSchema(): ZodObject<ZodRawShape> {
     const baseSchema = this._meta.fields
       ? this._meta.fields
-      : getSchemaFields(
-          this.getModelSchema(),
-          getManagedInputExclusions(this._meta.model)
-        );
+      : getSchemaFields(this.getModelSchema(), getManagedInputExclusions(this._meta.model));
 
     // Make all fields optional for partial validation
     // The actual validation will be done per-row with detailed errors
@@ -249,17 +242,23 @@ export abstract class ImportEndpoint<
                     skipped: z.number(),
                     failed: z.number(),
                   }),
-                  results: z.array(z.object({
-                    rowNumber: z.number(),
-                    status: z.enum(['created', 'updated', 'skipped', 'failed']),
-                    data: z.unknown().optional(),
-                    error: z.string().optional(),
-                    code: z.string().optional(),
-                    validationErrors: z.array(z.object({
-                      path: z.string(),
-                      message: z.string(),
-                    })).optional(),
-                  })),
+                  results: z.array(
+                    z.object({
+                      rowNumber: z.number(),
+                      status: z.enum(['created', 'updated', 'skipped', 'failed']),
+                      data: z.unknown().optional(),
+                      error: z.string().optional(),
+                      code: z.string().optional(),
+                      validationErrors: z
+                        .array(
+                          z.object({
+                            path: z.string(),
+                            message: z.string(),
+                          }),
+                        )
+                        .optional(),
+                    }),
+                  ),
                 }),
               }),
             },
@@ -279,17 +278,23 @@ export abstract class ImportEndpoint<
                     skipped: z.number(),
                     failed: z.number(),
                   }),
-                  results: z.array(z.object({
-                    rowNumber: z.number(),
-                    status: z.enum(['created', 'updated', 'skipped', 'failed']),
-                    data: z.unknown().optional(),
-                    error: z.string().optional(),
-                    code: z.string().optional(),
-                    validationErrors: z.array(z.object({
-                      path: z.string(),
-                      message: z.string(),
-                    })).optional(),
-                  })),
+                  results: z.array(
+                    z.object({
+                      rowNumber: z.number(),
+                      status: z.enum(['created', 'updated', 'skipped', 'failed']),
+                      data: z.unknown().optional(),
+                      error: z.string().optional(),
+                      code: z.string().optional(),
+                      validationErrors: z
+                        .array(
+                          z.object({
+                            path: z.string(),
+                            message: z.string(),
+                          }),
+                        )
+                        .optional(),
+                    }),
+                  ),
                 }),
               }),
             },
@@ -319,16 +324,18 @@ export abstract class ImportEndpoint<
    */
   protected async getImportOptions(): Promise<ImportOptions> {
     const { query } = await this.getValidatedData();
-    const skipInvalidRows = query?.skipInvalid === 'true'
-      ? true
-      : query?.skipInvalid === 'false'
-        ? false
-        : this.skipInvalidRows;
-    const stopOnError = query?.stopOnError === 'true'
-      ? true
-      : query?.stopOnError === 'false'
-        ? false
-        : this.stopOnError;
+    const skipInvalidRows =
+      query?.skipInvalid === 'true'
+        ? true
+        : query?.skipInvalid === 'false'
+          ? false
+          : this.skipInvalidRows;
+    const stopOnError =
+      query?.stopOnError === 'true'
+        ? true
+        : query?.stopOnError === 'false'
+          ? false
+          : this.stopOnError;
 
     return {
       mode: (query?.mode as ImportMode) || this.defaultMode,
@@ -351,7 +358,7 @@ export abstract class ImportEndpoint<
 
     // Handle JSON
     if (contentType.includes('application/json')) {
-      const body = await ctx.req.json() as { items?: unknown[] };
+      const body = (await ctx.req.json()) as { items?: unknown[] };
 
       if (!body) {
         throw new InputValidationException('Request body is empty');
@@ -370,7 +377,9 @@ export abstract class ImportEndpoint<
     if (contentType.includes('text/csv')) {
       const csvContent = await ctx.req.text();
       if (csvContent.length > this.maxBodySize) {
-        throw new InputValidationException(`Request body exceeds maximum size of ${this.maxBodySize} bytes`);
+        throw new InputValidationException(
+          `Request body exceeds maximum size of ${this.maxBodySize} bytes`,
+        );
       }
       return this.parseCsvData(csvContent);
     }
@@ -386,7 +395,9 @@ export abstract class ImportEndpoint<
 
       const content = await file.text();
       if (content.length > this.maxBodySize) {
-        throw new InputValidationException(`Uploaded file exceeds maximum size of ${this.maxBodySize} bytes`);
+        throw new InputValidationException(
+          `Uploaded file exceeds maximum size of ${this.maxBodySize} bytes`,
+        );
       }
       const filename = file.name.toLowerCase();
 
@@ -399,10 +410,14 @@ export abstract class ImportEndpoint<
         }
         const items = Array.isArray(body) ? body : body.items;
         if (!items || !Array.isArray(items)) {
-          throw new InputValidationException('JSON file must contain an array or an object with "items" array');
+          throw new InputValidationException(
+            'JSON file must contain an array or an object with "items" array',
+          );
         }
         if (items.length > this.maxBatchSize) {
-          throw new InputValidationException(`Maximum ${this.maxBatchSize} items allowed per import`);
+          throw new InputValidationException(
+            `Maximum ${this.maxBatchSize} items allowed per import`,
+          );
         }
         return items as Array<Partial<ModelObject<M['model']>>>;
       }
@@ -422,7 +437,9 @@ export abstract class ImportEndpoint<
         }
         const items = Array.isArray(body) ? body : body.items;
         if (!items || !Array.isArray(items)) {
-          throw new InputValidationException('JSON file must contain an array or an object with "items" array');
+          throw new InputValidationException(
+            'JSON file must contain an array or an object with "items" array',
+          );
         }
         return items as Array<Partial<ModelObject<M['model']>>>;
       }
@@ -432,7 +449,7 @@ export abstract class ImportEndpoint<
     }
 
     throw new InputValidationException(
-      'Unsupported content type. Use application/json, text/csv, or multipart/form-data'
+      'Unsupported content type. Use application/json, text/csv, or multipart/form-data',
     );
   }
 
@@ -444,7 +461,7 @@ export abstract class ImportEndpoint<
 
     if (result.errors.length > 0) {
       throw new InputValidationException(
-        `CSV parsing errors: ${result.errors.map(e => `Row ${e.row}: ${e.message}`).join('; ')}`
+        `CSV parsing errors: ${result.errors.map((e) => `Row ${e.row}: ${e.message}`).join('; ')}`,
       );
     }
 
@@ -465,7 +482,7 @@ export abstract class ImportEndpoint<
 
     if (!validation.valid && validation.missingFields.length > 0) {
       throw new InputValidationException(
-        `Missing required fields in CSV: ${validation.missingFields.join(', ')}`
+        `Missing required fields in CSV: ${validation.missingFields.join(', ')}`,
       );
     }
 
@@ -477,7 +494,7 @@ export abstract class ImportEndpoint<
    */
   protected validateRow(
     data: Partial<ModelObject<M['model']>>,
-    _rowNumber: number
+    _rowNumber: number,
   ): { valid: boolean; errors?: Array<{ path: string; message: string }> } {
     const schema = this._meta.fields || this.getModelSchema();
 
@@ -523,7 +540,7 @@ export abstract class ImportEndpoint<
    * Removes immutable fields from update data.
    */
   protected removeImmutableFields(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Partial<ModelObject<M['model']>> {
     if (this.immutableFields.length === 0) {
       return data;
@@ -546,7 +563,7 @@ export abstract class ImportEndpoint<
     data: Partial<ModelObject<M['model']>>,
     _rowNumber: number,
     _mode: ImportMode,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -559,7 +576,7 @@ export abstract class ImportEndpoint<
     result: ImportRowResult<ModelObject<M['model']>>,
     _rowNumber: number,
     _mode: ImportMode,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<ImportRowResult<ModelObject<M['model']>>> {
     return result;
   }
@@ -570,7 +587,7 @@ export abstract class ImportEndpoint<
    */
   abstract findExisting(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null>;
 
   /**
@@ -579,7 +596,7 @@ export abstract class ImportEndpoint<
    */
   abstract create(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']>>;
 
   /**
@@ -589,7 +606,7 @@ export abstract class ImportEndpoint<
   abstract update(
     existing: ModelObject<M['model']>,
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']>>;
 
   /**
@@ -599,7 +616,7 @@ export abstract class ImportEndpoint<
     data: Partial<ModelObject<M['model']>>,
     rowNumber: number,
     options: ImportOptions,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ImportRowResult<ModelObject<M['model']>>> {
     // Validate the row
     const validation = this.validateRow(data, rowNumber);
@@ -622,7 +639,7 @@ export abstract class ImportEndpoint<
 
     try {
       // Apply before hook
-      let processedData = await this.before(data, rowNumber, options.mode, tx);
+      const processedData = await this.before(data, rowNumber, options.mode, tx);
 
       if (options.mode === 'upsert') {
         // Check for existing record
@@ -693,7 +710,6 @@ export abstract class ImportEndpoint<
    * Main handler for the import operation.
    */
   async handle(): Promise<Response> {
-
     const options = await this.getImportOptions();
     const items = await this.parseImportData();
     if (!Number.isInteger(this.importBatchSize) || this.importBatchSize < 1) {
@@ -721,7 +737,7 @@ export abstract class ImportEndpoint<
           let result = await this.processRow(data, rowNumber, options);
           result = await this.after(result, rowNumber, options.mode);
           return result;
-        })
+        }),
       );
 
       for (const result of batchResults) {
@@ -755,7 +771,7 @@ export abstract class ImportEndpoint<
     if (this.isAuditEnabled()) {
       const auditLogger = this.getAuditLogger();
       const successfulResults = results.filter(
-        (r) => r.status === 'created' || r.status === 'updated'
+        (r) => r.status === 'created' || r.status === 'updated',
       );
 
       if (successfulResults.length > 0) {
@@ -772,12 +788,14 @@ export abstract class ImportEndpoint<
           .filter((r): r is NonNullable<typeof r> => r !== null);
 
         if (auditRecords.length > 0) {
-          this.runAfterResponse(auditLogger.logBatch(
-            options.mode === 'upsert' ? 'batch_upsert' : 'batch_create',
-            this._meta.model.tableName,
-            auditRecords,
-            this.getAuditUserId()
-          ));
+          this.runAfterResponse(
+            auditLogger.logBatch(
+              options.mode === 'upsert' ? 'batch_upsert' : 'batch_create',
+              this._meta.model.tableName,
+              auditRecords,
+              this.getAuditUserId(),
+            ),
+          );
         }
       }
     }

@@ -1,10 +1,6 @@
 import type { Context, Env } from 'hono';
-import type {
-  AuditAction,
-  AuditLogEntry,
-  NormalizedAuditConfig,
-} from '../core/types';
-import { calculateChanges, getAuditConfig, type AuditConfig } from '../core/types';
+import type { AuditAction, AuditLogEntry, NormalizedAuditConfig } from '../core/types';
+import { type AuditConfig, calculateChanges, getAuditConfig } from '../core/types';
 import { createRegistryWithDefault } from '../storage/registry';
 
 /**
@@ -23,7 +19,7 @@ export interface AuditLogStorage {
   getByRecordId?(
     tableName: string,
     recordId: string | number,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number },
   ): Promise<AuditLogEntry[]>;
 
   /**
@@ -53,10 +49,10 @@ export class MemoryAuditLogStorage implements AuditLogStorage {
   async getByRecordId(
     tableName: string,
     recordId: string | number,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number },
   ): Promise<AuditLogEntry[]> {
     const filtered = this.logs.filter(
-      (log) => log.tableName === tableName && log.recordId === recordId
+      (log) => log.tableName === tableName && log.recordId === recordId,
     );
 
     const offset = options?.offset || 0;
@@ -121,7 +117,7 @@ export class MemoryAuditLogStorage implements AuditLogStorage {
  */
 export const auditStorageRegistry = createRegistryWithDefault<AuditLogStorage>(
   'auditStorage',
-  () => new MemoryAuditLogStorage()
+  () => new MemoryAuditLogStorage(),
 );
 
 /**
@@ -153,7 +149,7 @@ export class AuditLogger {
   private getStorage(): AuditLogStorage {
     if (!this.storage) {
       throw new Error(
-        'Audit storage not configured. Pass storage explicitly or inject auditStorage with createCrudMiddleware().'
+        'Audit storage not configured. Pass storage explicitly or inject auditStorage with createCrudMiddleware().',
       );
     }
     return this.storage;
@@ -174,17 +170,11 @@ export class AuditLogger {
     recordId: string | number,
     record: Record<string, unknown>,
     userId?: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     if (!this.isEnabled('create')) return;
 
-    const entry = this.createEntry(
-      'create',
-      tableName,
-      recordId,
-      userId,
-      metadata
-    );
+    const entry = this.createEntry('create', tableName, recordId, userId, metadata);
 
     if (this.config.storeRecord) {
       entry.record = this.filterFields(record);
@@ -202,17 +192,11 @@ export class AuditLogger {
     previousRecord: Record<string, unknown>,
     newRecord: Record<string, unknown>,
     userId?: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     if (!this.isEnabled('update')) return;
 
-    const entry = this.createEntry(
-      'update',
-      tableName,
-      recordId,
-      userId,
-      metadata
-    );
+    const entry = this.createEntry('update', tableName, recordId, userId, metadata);
 
     if (this.config.storeRecord) {
       entry.record = this.filterFields(newRecord);
@@ -223,11 +207,7 @@ export class AuditLogger {
     }
 
     if (this.config.trackChanges) {
-      entry.changes = calculateChanges(
-        previousRecord,
-        newRecord,
-        this.config.excludeFields
-      );
+      entry.changes = calculateChanges(previousRecord, newRecord, this.config.excludeFields);
     }
 
     await this.getStorage().store(entry);
@@ -241,17 +221,11 @@ export class AuditLogger {
     recordId: string | number,
     previousRecord: Record<string, unknown>,
     userId?: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     if (!this.isEnabled('delete')) return;
 
-    const entry = this.createEntry(
-      'delete',
-      tableName,
-      recordId,
-      userId,
-      metadata
-    );
+    const entry = this.createEntry('delete', tableName, recordId, userId, metadata);
 
     if (this.config.storePreviousRecord) {
       entry.previousRecord = this.filterFields(previousRecord);
@@ -268,17 +242,11 @@ export class AuditLogger {
     recordId: string | number,
     record: Record<string, unknown>,
     userId?: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     if (!this.isEnabled('restore')) return;
 
-    const entry = this.createEntry(
-      'restore',
-      tableName,
-      recordId,
-      userId,
-      metadata
-    );
+    const entry = this.createEntry('restore', tableName, recordId, userId, metadata);
 
     if (this.config.storeRecord) {
       entry.record = this.filterFields(record);
@@ -297,17 +265,11 @@ export class AuditLogger {
     previousRecord: Record<string, unknown> | undefined,
     created: boolean,
     userId?: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     if (!this.isEnabled('upsert')) return;
 
-    const entry = this.createEntry(
-      'upsert',
-      tableName,
-      recordId,
-      userId,
-      { ...metadata, created }
-    );
+    const entry = this.createEntry('upsert', tableName, recordId, userId, { ...metadata, created });
 
     if (this.config.storeRecord) {
       entry.record = this.filterFields(record);
@@ -318,11 +280,7 @@ export class AuditLogger {
     }
 
     if (this.config.trackChanges && previousRecord) {
-      entry.changes = calculateChanges(
-        previousRecord,
-        record,
-        this.config.excludeFields
-      );
+      entry.changes = calculateChanges(previousRecord, record, this.config.excludeFields);
     }
 
     await this.getStorage().store(entry);
@@ -340,18 +298,12 @@ export class AuditLogger {
       previousRecord?: Record<string, unknown>;
     }>,
     userId?: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     if (!this.isEnabled(action)) return;
 
     for (const item of records) {
-      const entry = this.createEntry(
-        action,
-        tableName,
-        item.recordId,
-        userId,
-        metadata
-      );
+      const entry = this.createEntry(action, tableName, item.recordId, userId, metadata);
 
       if (this.config.storeRecord && item.record) {
         entry.record = this.filterFields(item.record);
@@ -365,7 +317,7 @@ export class AuditLogger {
         entry.changes = calculateChanges(
           item.previousRecord,
           item.record,
-          this.config.excludeFields
+          this.config.excludeFields,
         );
       }
 
@@ -381,7 +333,7 @@ export class AuditLogger {
     tableName: string,
     recordId: string | number,
     userId?: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): AuditLogEntry {
     return {
       id: crypto.randomUUID(),
@@ -397,9 +349,7 @@ export class AuditLogger {
   /**
    * Filter out excluded fields from a record.
    */
-  private filterFields(
-    record: Record<string, unknown>
-  ): Record<string, unknown> {
+  private filterFields(record: Record<string, unknown>): Record<string, unknown> {
     if (this.config.excludeFields.length === 0) {
       return record;
     }
@@ -437,7 +387,7 @@ export class AuditLogger {
 export function createAuditLogger(
   config: AuditConfig | undefined,
   storage?: AuditLogStorage,
-  ctx?: Context<Env>
+  ctx?: Context<Env>,
 ): AuditLogger {
   // Defer storage resolution to enable context-based lookup
   // The AuditLogger constructor will use resolveAuditStorage internally

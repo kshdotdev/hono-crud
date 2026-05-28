@@ -74,9 +74,7 @@ type RouteMethod = 'get' | 'post' | 'patch' | 'delete';
  * sub-routes, then `:id` item routes, then `:id`-scoped sub-routes) so a
  * caller iterating the result sees a stable, sensible order.
  */
-const ENDPOINT_ROUTES: ReadonlyArray<
-  readonly [keyof GeneratedEndpoints, RouteMethod, string]
-> = [
+const ENDPOINT_ROUTES: ReadonlyArray<readonly [keyof GeneratedEndpoints, RouteMethod, string]> = [
   ['create', 'post', ''],
   ['list', 'get', ''],
   ['batchCreate', 'post', '/batch'],
@@ -138,7 +136,7 @@ function normalizePath(basePath: string, subPath: string): string {
  */
 export function toOpenApiPaths(
   endpoints: GeneratedEndpoints,
-  options: ToOpenApiPathsOptions = {}
+  options: ToOpenApiPathsOptions = {},
 ): Record<string, OpenApiPathItem> {
   const basePath = options.basePath ?? '';
   const tagOverride = options.tag;
@@ -162,9 +160,7 @@ export function toOpenApiPaths(
     const schema = instance.getSchema();
 
     const effectiveSchema: OpenAPIRouteSchema =
-      tagOverride !== undefined
-        ? { ...schema, tags: [tagOverride] }
-        : schema;
+      tagOverride !== undefined ? { ...schema, tags: [tagOverride] } : schema;
 
     const path = normalizePath(basePath, toOpenApiPath(subPath));
 

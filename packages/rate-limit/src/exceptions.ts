@@ -9,7 +9,7 @@ import { ApiException } from 'hono-crud/internal';
  * ```
  */
 export class RateLimitExceededException extends ApiException {
-  constructor(message: string = 'Too many requests', retryAfter: number = 60) {
+  constructor(message = 'Too many requests', retryAfter = 60) {
     super(message, 429, 'RATE_LIMIT_EXCEEDED', { retryAfter });
     this.name = 'RateLimitExceededException';
   }

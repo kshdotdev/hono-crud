@@ -1,17 +1,17 @@
-/**
- * Tests for Nested Writes functionality.
- */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Hono } from 'hono';
-import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
-  MemoryUpdateEndpoint,
   MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono } from 'hono-crud';
+/**
+ * Tests for Nested Writes functionality.
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // ============================================================================
 // Schema Definitions
@@ -136,7 +136,10 @@ describe('Nested Writes', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { success: boolean; result: User & { profile?: Profile } };
+      const result = (await response.json()) as {
+        success: boolean;
+        result: User & { profile?: Profile };
+      };
       expect(result.success).toBe(true);
       expect(result.result.name).toBe('John Doe');
       expect(result.result.profile).toBeDefined();
@@ -158,7 +161,7 @@ describe('Nested Writes', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { result: User & { posts?: Post[] } };
+      const result = (await response.json()) as { result: User & { posts?: Post[] } };
       expect(result.result.posts).toBeDefined();
       expect(result.result.posts).toHaveLength(2);
     });
@@ -177,7 +180,7 @@ describe('Nested Writes', () => {
           email: 'john@example.com',
         }),
       });
-      const result = await response.json() as { result: User };
+      const result = (await response.json()) as { result: User };
       userId = result.result.id;
     });
 
@@ -194,7 +197,7 @@ describe('Nested Writes', () => {
       });
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: User & { posts: Post[] } };
+      const result = (await response.json()) as { result: User & { posts: Post[] } };
       expect(result.result.name).toBe('John Doe Updated');
       expect(result.result.posts).toHaveLength(1);
     });
@@ -210,7 +213,7 @@ describe('Nested Writes', () => {
           },
         }),
       });
-      const createResult = await createRes.json() as { result: { posts: Post[] } };
+      const createResult = (await createRes.json()) as { result: { posts: Post[] } };
       const postId = createResult.result.posts[0].id;
 
       // Then update it
@@ -240,7 +243,7 @@ describe('Nested Writes', () => {
           },
         }),
       });
-      const createResult = await createRes.json() as { result: { posts: Post[] } };
+      const createResult = (await createRes.json()) as { result: { posts: Post[] } };
       const postId = createResult.result.posts[0].id;
 
       expect(postStore.has(postId)).toBe(true);

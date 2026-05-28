@@ -16,34 +16,34 @@
  * Run with: npx tsx examples/drizzle/with-drizzle-zod.ts
  */
 
-import { Hono, type Env } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import {
-  fromHono,
-  registerCrud,
-  defineModel,
-  defineMeta,
-  // OpenAPI utilities
-  jsonContent,
-  createErrorSchema,
-  openApiValidationHook,
-} from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
-import { setupScalar } from '@hono-crud/scalar';
 import {
   DrizzleCreateEndpoint,
-  DrizzleReadEndpoint,
-  DrizzleUpdateEndpoint,
+  DrizzleDatabase,
   DrizzleDeleteEndpoint,
   DrizzleListEndpoint,
-  DrizzleDatabase,
+  DrizzleReadEndpoint,
+  DrizzleUpdateEndpoint,
   // drizzle-zod helpers
   createDrizzleSchemas,
 } from '@hono-crud/drizzle';
+import { setupScalar } from '@hono-crud/scalar';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { type Env, Hono } from 'hono';
+import {
+  createErrorSchema,
+  defineMeta,
+  defineModel,
+  fromHono,
+  // OpenAPI utilities
+  jsonContent,
+  openApiValidationHook,
+  registerCrud,
+} from 'hono-crud';
+import { z } from 'zod';
 
 // ============================================================================
 // Database Setup
@@ -255,7 +255,7 @@ export async function createApp() {
       status: 'ok',
       adapter: 'drizzle',
       features: ['drizzle-zod', 'scalar-ui'],
-    })
+    }),
   );
 
   return app;

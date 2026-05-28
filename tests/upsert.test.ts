@@ -1,17 +1,17 @@
-/**
- * Tests for Upsert functionality.
- */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Hono } from 'hono';
-import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from 'hono-crud';
 import {
-  MemoryUpsertEndpoint,
-  MemoryReadEndpoint,
   MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpsertEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono } from 'hono-crud';
+/**
+ * Tests for Upsert functionality.
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // ============================================================================
 // Schema Definitions
@@ -132,7 +132,11 @@ describe('Upsert', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { success: boolean; created: boolean; result: User };
+      const result = (await response.json()) as {
+        success: boolean;
+        created: boolean;
+        result: User;
+      };
       expect(result.success).toBe(true);
       expect(result.created).toBe(true);
       expect(result.result.email).toBe('john@example.com');
@@ -151,7 +155,7 @@ describe('Upsert', () => {
           role: 'admin',
         }),
       });
-      const createResult = await createRes.json() as { result: User };
+      const createResult = (await createRes.json()) as { result: User };
       const userId = createResult.result.id;
 
       // Then upsert with same email
@@ -166,7 +170,7 @@ describe('Upsert', () => {
       });
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { created: boolean; result: User };
+      const result = (await response.json()) as { created: boolean; result: User };
       expect(result.created).toBe(false);
       expect(result.result.id).toBe(userId);
       expect(result.result.name).toBe('John Doe Updated');
@@ -196,7 +200,7 @@ describe('Upsert', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { created: boolean };
+      const result = (await response.json()) as { created: boolean };
       expect(result.created).toBe(true);
       expect(userStore.size).toBe(2);
     });
@@ -215,7 +219,7 @@ describe('Upsert', () => {
           name: 'Test User',
         }),
       });
-      const result = await response.json() as { result: User };
+      const result = (await response.json()) as { result: User };
       userId = result.result.id;
     });
 
@@ -232,7 +236,7 @@ describe('Upsert', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { created: boolean };
+      const result = (await response.json()) as { created: boolean };
       expect(result.created).toBe(true);
     });
 
@@ -248,7 +252,7 @@ describe('Upsert', () => {
           startDate: '2024-01-01',
         }),
       });
-      const createResult = await createRes.json() as { result: Subscription };
+      const createResult = (await createRes.json()) as { result: Subscription };
       const subId = createResult.result.id;
 
       // Then upsert with same composite key
@@ -264,7 +268,7 @@ describe('Upsert', () => {
       });
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { created: boolean; result: Subscription };
+      const result = (await response.json()) as { created: boolean; result: Subscription };
       expect(result.created).toBe(false);
       expect(result.result.id).toBe(subId);
       expect(result.result.status).toBe('cancelled');
@@ -296,7 +300,7 @@ describe('Upsert', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { created: boolean };
+      const result = (await response.json()) as { created: boolean };
       expect(result.created).toBe(true);
       expect(subscriptionStore.size).toBe(2);
     });
@@ -315,7 +319,11 @@ describe('Upsert', () => {
       });
 
       expect(response.status).toBe(201);
-      const result = await response.json() as { success: boolean; created: boolean; result: User };
+      const result = (await response.json()) as {
+        success: boolean;
+        created: boolean;
+        result: User;
+      };
       expect(result.success).toBe(true);
       expect(result.created).toBe(true);
       expect(result.result.email).toBe('native@example.com');
@@ -333,7 +341,7 @@ describe('Upsert', () => {
           role: 'admin',
         }),
       });
-      const createResult = await createRes.json() as { result: User };
+      const createResult = (await createRes.json()) as { result: User };
       const userId = createResult.result.id;
 
       // Then upsert with same email
@@ -348,7 +356,7 @@ describe('Upsert', () => {
       });
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { created: boolean; result: User };
+      const result = (await response.json()) as { created: boolean; result: User };
       expect(result.created).toBe(false);
       expect(result.result.id).toBe(userId);
       expect(result.result.name).toBe('Native User Updated');
@@ -374,7 +382,7 @@ describe('Upsert', () => {
           name: 'User 2',
         }),
       });
-      const user2 = (await user2Res.json() as { result: User }).result;
+      const user2 = ((await user2Res.json()) as { result: User }).result;
 
       // Update user2 via native upsert
       const updateRes = await app.request('/users/native', {
@@ -385,7 +393,7 @@ describe('Upsert', () => {
           name: 'User 2 Updated',
         }),
       });
-      const updated = (await updateRes.json() as { result: User }).result;
+      const updated = ((await updateRes.json()) as { result: User }).result;
 
       expect(updated.id).toBe(user2.id);
       expect(updated.name).toBe('User 2 Updated');

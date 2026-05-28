@@ -9,12 +9,5 @@ export default defineConfig({
   minify: true,
   splitting: true,
   treeshake: true,
-  external: [
-    'hono-crud',
-    'hono-crud/internal',
-    'hono',
-    'zod',
-    'drizzle-orm',
-    'drizzle-zod',
-  ],
+  external: ['hono-crud', 'hono-crud/internal', 'hono', 'zod', 'drizzle-orm', 'drizzle-zod'],
 });

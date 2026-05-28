@@ -1,5 +1,5 @@
-import type { JWTClaims } from '../types';
 import { UnauthorizedException } from '../../core/exceptions';
+import type { JWTClaims } from '../types';
 
 /**
  * Options for JWT claims validation.
@@ -55,7 +55,7 @@ export interface JWTClaimsValidationOptions {
  */
 export function validateJWTClaims(
   claims: JWTClaims,
-  options: JWTClaimsValidationOptions = {}
+  options: JWTClaimsValidationOptions = {},
 ): void {
   const { clockTolerance = 0, issuer, audience, skipTimeValidation = false } = options;
 

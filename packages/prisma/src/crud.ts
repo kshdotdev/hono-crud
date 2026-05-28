@@ -4,21 +4,16 @@ import { ReadEndpoint } from 'hono-crud/internal';
 import { UpdateEndpoint } from 'hono-crud/internal';
 import { DeleteEndpoint } from 'hono-crud/internal';
 import { ListEndpoint } from 'hono-crud/internal';
-import type {
-  MetaInput,
-  PaginatedResult,
-  ListFilters,
-  IncludeOptions,
-} from 'hono-crud/internal';
+import type { IncludeOptions, ListFilters, MetaInput, PaginatedResult } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
 import {
   type PrismaClient,
   type PrismaModelOperations,
+  batchLoadPrismaRelations,
+  buildPaginatedResult,
+  executePrismaQuery,
   getPrismaModel,
   loadPrismaRelations,
-  batchLoadPrismaRelations,
-  executePrismaQuery,
-  buildPaginatedResult,
 } from './helpers';
 
 /**
@@ -29,7 +24,7 @@ export abstract class PrismaCreateEndpoint<
   M extends MetaInput = MetaInput,
 > extends CreateEndpoint<E, M> {
   abstract prisma: PrismaClient;
-  protected useTransaction: boolean = false;
+  protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
@@ -39,10 +34,7 @@ export abstract class PrismaCreateEndpoint<
     const model = await this.getModel();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'prisma'
-    );
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'prisma');
 
     const result = await model.create({ data: record });
     return result as ModelObject<M['model']>;
@@ -65,7 +57,7 @@ export abstract class PrismaReadEndpoint<
   override async read(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    includeOptions?: IncludeOptions
+    includeOptions?: IncludeOptions,
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
 
@@ -85,7 +77,7 @@ export abstract class PrismaReadEndpoint<
       this.prisma,
       result as Record<string, unknown>,
       this._meta,
-      includeOptions
+      includeOptions,
     );
 
     return itemWithRelations as ModelObject<M['model']>;
@@ -100,7 +92,7 @@ export abstract class PrismaUpdateEndpoint<
   M extends MetaInput = MetaInput,
 > extends UpdateEndpoint<E, M> {
   abstract prisma: PrismaClient;
-  protected useTransaction: boolean = false;
+  protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
@@ -109,7 +101,7 @@ export abstract class PrismaUpdateEndpoint<
   override async update(
     lookupValue: string,
     data: Partial<ModelObject<M['model']>>,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
 
@@ -143,7 +135,7 @@ export abstract class PrismaDeleteEndpoint<
   M extends MetaInput = MetaInput,
 > extends DeleteEndpoint<E, M> {
   abstract prisma: PrismaClient;
-  protected useTransaction: boolean = false;
+  protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
@@ -154,7 +146,7 @@ export abstract class PrismaDeleteEndpoint<
    */
   override async findForDelete(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -175,7 +167,7 @@ export abstract class PrismaDeleteEndpoint<
 
   override async delete(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -245,12 +237,9 @@ export abstract class PrismaListEndpoint<
       this.prisma,
       queryResult.records as Record<string, unknown>[],
       this._meta,
-      includeOptions
+      includeOptions,
     );
 
-    return buildPaginatedResult(
-      itemsWithRelations as ModelObject<M['model']>[],
-      queryResult
-    );
+    return buildPaginatedResult(itemsWithRelations as ModelObject<M['model']>[], queryResult);
   }
 }

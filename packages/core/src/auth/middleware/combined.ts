@@ -1,9 +1,9 @@
 import type { MiddlewareHandler } from 'hono';
-import type { AuthEnv, AuthConfig } from '../types';
 import { UnauthorizedException } from '../../core/exceptions';
 import { matchAny } from '../../utils/path-match';
-import { createJWTMiddleware } from './jwt';
+import type { AuthConfig, AuthEnv } from '../types';
 import { createAPIKeyMiddleware } from './api-key';
+import { createJWTMiddleware } from './jwt';
 
 // ============================================================================
 // Combined Auth Middleware
@@ -33,7 +33,7 @@ import { createAPIKeyMiddleware } from './api-key';
  * ```
  */
 export function createAuthMiddleware<E extends AuthEnv = AuthEnv>(
-  config: AuthConfig
+  config: AuthConfig,
 ): MiddlewareHandler<E> {
   const requireAuth = config.requireAuth ?? true;
   const skipPaths = config.skipPaths || [];
@@ -72,8 +72,7 @@ export function createAuthMiddleware<E extends AuthEnv = AuthEnv>(
           // Check if there's an API key
           const headerName = config.apiKey?.headerName || 'X-API-Key';
           const queryParam = config.apiKey?.queryParam;
-          const hasApiKey =
-            ctx.req.header(headerName) || (queryParam && ctx.req.query(queryParam));
+          const hasApiKey = ctx.req.header(headerName) || (queryParam && ctx.req.query(queryParam));
 
           if (hasApiKey) {
             await apiKeyMiddleware(ctx, async () => {});
@@ -120,7 +119,7 @@ export function createAuthMiddleware<E extends AuthEnv = AuthEnv>(
  * ```
  */
 export function optionalAuth<E extends AuthEnv = AuthEnv>(
-  config: Omit<AuthConfig, 'requireAuth'>
+  config: Omit<AuthConfig, 'requireAuth'>,
 ): MiddlewareHandler<E> {
   return createAuthMiddleware<E>({
     ...config,
@@ -135,7 +134,7 @@ export function optionalAuth<E extends AuthEnv = AuthEnv>(
  * This is a convenience wrapper around createAuthMiddleware with requireAuth: true.
  */
 export function requireAuthentication<E extends AuthEnv = AuthEnv>(
-  config: Omit<AuthConfig, 'requireAuth'>
+  config: Omit<AuthConfig, 'requireAuth'>,
 ): MiddlewareHandler<E> {
   return createAuthMiddleware<E>({
     ...config,

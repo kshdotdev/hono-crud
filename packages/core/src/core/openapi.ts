@@ -1,11 +1,11 @@
-import type { Hono, Env, Context, MiddlewareHandler } from 'hono';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import type { Context, Env, Hono, MiddlewareHandler } from 'hono';
+import { ApiException } from './exceptions';
 import type { OpenAPIRoute } from './route';
 import { isRouteClass, jsonResponse } from './route';
-import { ApiException } from './exceptions';
 import {
-  RESPONSE_ENVELOPE_CONTEXT_KEY,
   type OpenAPIRouteSchema,
+  RESPONSE_ENVELOPE_CONTEXT_KEY,
   type ResponseEnvelope,
 } from './types';
 
@@ -36,7 +36,11 @@ type OpenAPIRouteConstructor = new () => OpenAPIRoute<Env>;
  * Type for any class that extends OpenAPIRoute.
  * This uses a duck-typed approach to allow subclasses with different generic parameters.
  */
-type OpenAPIRouteClass = new () => { getSchema(): OpenAPIRouteSchema; handle(): Promise<Response>; setContext(ctx: Context<Env>): void };
+type OpenAPIRouteClass = new () => {
+  getSchema(): OpenAPIRouteSchema;
+  handle(): Promise<Response>;
+  setContext(ctx: Context<Env>): void;
+};
 
 /**
  * Per-route registration data. The `routeClass` reference is what
@@ -68,7 +72,7 @@ const HANDLER_REGISTRY: WeakMap<WeakKey, HonoOpenAPIHandler<Env>> = new WeakMap(
  * created via `fromHono(...)`.
  */
 export function getHandlerForApp<E extends Env = Env>(
-  app: HonoOpenAPIApp<E>
+  app: HonoOpenAPIApp<E>,
 ): HonoOpenAPIHandler<Env> | undefined {
   return HANDLER_REGISTRY.get(app);
 }
@@ -82,10 +86,7 @@ export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
    * Register a GET route with an OpenAPIRoute class.
    */
   get(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
-  get(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
-  ): HonoOpenAPIApp<E>;
+  get(path: string, ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]): HonoOpenAPIApp<E>;
   /**
    * Register a POST route with an OpenAPIRoute class.
    */
@@ -98,10 +99,7 @@ export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
    * Register a PUT route with an OpenAPIRoute class.
    */
   put(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
-  put(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
-  ): HonoOpenAPIApp<E>;
+  put(path: string, ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]): HonoOpenAPIApp<E>;
   /**
    * Register a PATCH route with an OpenAPIRoute class.
    */
@@ -165,7 +163,7 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
     method: RouteMethod,
     path: string,
     RouteClass: typeof OpenAPIRoute,
-    middlewares: MiddlewareHandler<E>[] = []
+    middlewares: MiddlewareHandler<E>[] = [],
   ): void {
     const routeKey = `${method.toUpperCase()} ${path}`;
 
@@ -317,12 +315,10 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
  */
 export function fromHono<E extends Env = Env>(
   router: Hono<E> | OpenAPIHono<E> = new OpenAPIHono<E>(),
-  options: RouterOptions = {}
+  options: RouterOptions = {},
 ): HonoOpenAPIApp<E> {
   // Use the router directly if it's an OpenAPIHono, otherwise create one
-  const app = 'openAPIRegistry' in router
-    ? (router as OpenAPIHono<E>)
-    : new OpenAPIHono<E>();
+  const app = 'openAPIRegistry' in router ? (router as OpenAPIHono<E>) : new OpenAPIHono<E>();
 
   const handler = new HonoOpenAPIHandler<E>(app, options);
   const methods: RouteMethod[] = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'];
@@ -346,7 +342,7 @@ export function fromHono<E extends Env = Env>(
           // Otherwise, use normal Hono routing
           return (target[prop as keyof typeof target] as (...args: unknown[]) => unknown)(
             path,
-            ...handlers
+            ...handlers,
           );
         };
       }

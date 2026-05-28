@@ -2,7 +2,11 @@ import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { app as drizzleApp } from '../../examples/drizzle/comprehensive';
 import { closeDb as closeDrizzleDb, initDb as initDrizzleDb } from '../../examples/drizzle/db';
 import { app as prismaApp } from '../../examples/prisma/comprehensive';
-import { clearDb as clearPrismaDb, closeDb as closePrismaDb, initDb as initPrismaDb } from '../../examples/prisma/db';
+import {
+  clearDb as clearPrismaDb,
+  closeDb as closePrismaDb,
+  initDb as initPrismaDb,
+} from '../../examples/prisma/db';
 import { clear, exerciseClone, exerciseComprehensiveCrud } from './harness';
 
 describe('database-backed comprehensive examples', () => {

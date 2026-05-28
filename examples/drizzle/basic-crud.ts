@@ -13,21 +13,21 @@
  * 2. npx tsx examples/drizzle/basic-crud.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   DrizzleCreateEndpoint,
-  DrizzleReadEndpoint,
-  DrizzleUpdateEndpoint,
+  type DrizzleDatabase,
   DrizzleDeleteEndpoint,
   DrizzleListEndpoint,
-  type DrizzleDatabase,
+  DrizzleReadEndpoint,
+  DrizzleUpdateEndpoint,
 } from '@hono-crud/drizzle';
-import { UserSchema, type User } from '../shared/schemas.js';
-import { users } from './schema.js';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { type User, UserSchema } from '../shared/schemas.js';
 import { db, initDb } from './db.js';
+import { users } from './schema.js';
 
 // Cast db to DrizzleDatabase for type safety
 const typedDb = db as unknown as DrizzleDatabase;
@@ -65,7 +65,8 @@ class UserList extends DrizzleListEndpoint {
   schema = {
     tags: ['Users'],
     summary: 'List all users',
-    description: 'Returns a paginated list of users with optional filtering, searching, and sorting.',
+    description:
+      'Returns a paginated list of users with optional filtering, searching, and sorting.',
   };
 
   // Configure filtering
@@ -144,7 +145,8 @@ app.doc('/openapi.json', {
   info: {
     title: 'Basic CRUD Example - Drizzle + PostgreSQL',
     version: '1.0.0',
-    description: 'Demonstrates basic CRUD operations with hono-crud using Drizzle ORM and PostgreSQL.',
+    description:
+      'Demonstrates basic CRUD operations with hono-crud using Drizzle ORM and PostgreSQL.',
   },
 });
 

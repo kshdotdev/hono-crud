@@ -1,13 +1,8 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
+import type { HookMode, ListFilters, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import type {
-  MetaInput,
-  OpenAPIRouteSchema,
-  HookMode,
-  ListFilters,
-} from '../core/types';
-import type { ModelObject, ListEndpointConfig } from './types';
+import type { ListEndpointConfig, ModelObject } from './types';
 import { parseListFilters } from './types';
 
 /**
@@ -36,15 +31,14 @@ export abstract class BulkPatchEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   /** Maximum number of records that can be updated in a single bulk operation */
-  protected maxBulkSize: number = 1000;
+  protected maxBulkSize = 1000;
 
   /** Require X-Confirm-Bulk header when this many or more records match */
-  protected confirmThreshold: number = 100;
+  protected confirmThreshold = 100;
 
   /** Whether to return updated records in the response */
-  protected returnRecords: boolean = false;
+  protected returnRecords = false;
 
   /** Hook execution mode */
   protected hookMode: HookMode = 'parallel';
@@ -64,20 +58,18 @@ export abstract class BulkPatchEndpoint<
   /** Apply patch to all matching records */
   protected abstract applyPatch(
     data: Partial<ModelObject<M['model']>>,
-    filters: ListFilters
+    filters: ListFilters,
   ): Promise<{ updated: number; records?: ModelObject<M['model']>[] }>;
 
   /** Before hook: called before the bulk patch is applied */
   protected async beforeBulkPatch?(
     data: Partial<ModelObject<M['model']>>,
     filters: ListFilters,
-    matchedCount: number
+    matchedCount: number,
   ): Promise<Partial<ModelObject<M['model']>>>;
 
   /** After hook: called after the bulk patch is applied */
-  protected async afterBulkPatch?(
-    result: BulkPatchResult<ModelObject<M['model']>>
-  ): Promise<void>;
+  protected async afterBulkPatch?(result: BulkPatchResult<ModelObject<M['model']>>): Promise<void>;
 
   getSchema(): OpenAPIRouteSchema {
     const updateSchema = this.getUpdateSchema();
@@ -91,9 +83,11 @@ export abstract class BulkPatchEndpoint<
             },
           },
         },
-        query: z.object({
-          dryRun: z.string().optional(),
-        }).passthrough(),
+        query: z
+          .object({
+            dryRun: z.string().optional(),
+          })
+          .passthrough(),
       },
       responses: {
         '200': {
@@ -130,7 +124,11 @@ export abstract class BulkPatchEndpoint<
     const body = data.body;
 
     if (!body || Object.keys(body).length === 0) {
-      return this.error('Request body is required with at least one field to update', 'EMPTY_BODY', 400);
+      return this.error(
+        'Request body is required with at least one field to update',
+        'EMPTY_BODY',
+        400,
+      );
     }
 
     // Parse dry run flag
@@ -144,7 +142,7 @@ export abstract class BulkPatchEndpoint<
         filterFields: this.filterFields,
         defaultPerPage: this.maxBulkSize,
         maxPerPage: this.maxBulkSize,
-      } as ListEndpointConfig
+      } as ListEndpointConfig,
     );
 
     // Count matching records
@@ -164,7 +162,7 @@ export abstract class BulkPatchEndpoint<
       return this.error(
         `Bulk patch affects ${matchedCount} records, exceeding the maximum of ${this.maxBulkSize}. Use more specific filters.`,
         'BULK_TOO_LARGE',
-        400
+        400,
       );
     }
 
@@ -175,7 +173,7 @@ export abstract class BulkPatchEndpoint<
         return this.error(
           `This operation will affect ${matchedCount} records. Set X-Confirm-Bulk: true header to confirm.`,
           'CONFIRMATION_REQUIRED',
-          400
+          400,
         );
       }
     }

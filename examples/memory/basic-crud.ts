@@ -11,20 +11,20 @@
  * Run with: npx tsx examples/memory/basic-crud.ts
  */
 
-import { Hono, type Env } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI, setupReDoc } from '@hono-crud/swagger';
-import { setupScalar } from '@hono-crud/scalar';
 import {
   MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
 } from '@hono-crud/memory';
+import { setupScalar } from '@hono-crud/scalar';
+import { setupReDoc, setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { type Env, Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { z } from 'zod';
 
 // Clear storage on start
 clearStorage();

@@ -12,9 +12,32 @@ import type { SearchFieldConfig, SearchMode } from '../core/types';
  * Common stop words to filter out during tokenization.
  */
 const STOP_WORDS = new Set([
-  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
-  'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'or', 'that',
-  'the', 'to', 'was', 'were', 'will', 'with',
+  'a',
+  'an',
+  'and',
+  'are',
+  'as',
+  'at',
+  'be',
+  'by',
+  'for',
+  'from',
+  'has',
+  'he',
+  'in',
+  'is',
+  'it',
+  'its',
+  'of',
+  'on',
+  'or',
+  'that',
+  'the',
+  'to',
+  'was',
+  'were',
+  'will',
+  'with',
 ]);
 
 /**
@@ -24,7 +47,7 @@ const STOP_WORDS = new Set([
  * @param removeStopWords - Whether to filter out common stop words
  * @returns Array of normalized tokens
  */
-export function tokenize(text: string, removeStopWords: boolean = true): string[] {
+export function tokenize(text: string, removeStopWords = true): string[] {
   if (!text || typeof text !== 'string') {
     return [];
   }
@@ -37,7 +60,7 @@ export function tokenize(text: string, removeStopWords: boolean = true): string[
     .filter(Boolean);
 
   if (removeStopWords) {
-    return tokens.filter(token => !STOP_WORDS.has(token) && token.length > 1);
+    return tokens.filter((token) => !STOP_WORDS.has(token) && token.length > 1);
   }
 
   return tokens;
@@ -71,7 +94,7 @@ export function tokenizeQuery(query: string, mode: SearchMode): string[] {
  */
 export function termFrequency(term: string, tokens: string[]): number {
   if (tokens.length === 0) return 0;
-  const count = tokens.filter(t => t === term || t.includes(term)).length;
+  const count = tokens.filter((t) => t === term || t.includes(term)).length;
   return count / tokens.length;
 }
 
@@ -89,7 +112,7 @@ export function calculateScore<T extends Record<string, unknown>>(
   record: T,
   queryTokens: string[],
   searchFields: Record<string, SearchFieldConfig>,
-  mode: SearchMode
+  mode: SearchMode,
 ): { score: number; matchedFields: string[] } {
   if (queryTokens.length === 0) {
     return { score: 0, matchedFields: [] };
@@ -187,8 +210,8 @@ export function generateHighlights(
   value: unknown,
   queryTokens: string[],
   mode: SearchMode,
-  tag: string = 'mark',
-  snippetLength: number = 150
+  tag = 'mark',
+  snippetLength = 150,
 ): string[] {
   if (value === undefined || value === null) {
     return [];
@@ -242,7 +265,7 @@ export function generateHighlights(
     for (const pos of matchPositions) {
       // Skip if we already have a snippet around this position
       const nearbyUsed = Array.from(usedPositions).some(
-        used => Math.abs(used - pos.start) < snippetLength
+        (used) => Math.abs(used - pos.start) < snippetLength,
       );
       if (nearbyUsed) continue;
 
@@ -268,7 +291,7 @@ function createSnippet(
   matchStart: number,
   matchLength: number,
   snippetLength: number,
-  tag: string
+  tag: string,
 ): string | null {
   // Calculate snippet boundaries
   const halfSnippet = Math.floor(snippetLength / 2);
@@ -305,7 +328,7 @@ function createSnippet(
   const highlightedSnippet = highlightTermsInText(
     snippet,
     [content.slice(matchStart, matchStart + matchLength)],
-    tag
+    tag,
   );
 
   return highlightedSnippet;
@@ -359,17 +382,20 @@ function highlightTermsInText(text: string, terms: string[], tag: string): strin
  */
 export function parseSearchFields(
   fieldsParam: string | undefined,
-  configuredFields: Record<string, SearchFieldConfig>
+  configuredFields: Record<string, SearchFieldConfig>,
 ): string[] {
   if (!fieldsParam) {
     return Object.keys(configuredFields);
   }
 
-  const requested = fieldsParam.split(',').map(f => f.trim()).filter(Boolean);
+  const requested = fieldsParam
+    .split(',')
+    .map((f) => f.trim())
+    .filter(Boolean);
   const available = Object.keys(configuredFields);
 
   // Filter to only configured fields
-  return requested.filter(f => available.includes(f));
+  return requested.filter((f) => available.includes(f));
 }
 
 /**
@@ -381,7 +407,7 @@ export function parseSearchFields(
  */
 export function buildSearchConfig(
   fields: string[],
-  weights?: Record<string, number>
+  weights?: Record<string, number>,
 ): Record<string, SearchFieldConfig> {
   const config: Record<string, SearchFieldConfig> = {};
 

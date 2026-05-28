@@ -1,14 +1,14 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import type { FilterConfig, MetaInput, OpenAPIRouteSchema, PaginatedResult } from '../core/types';
 import { applyComputedFieldsToArray } from '../core/types';
+import { CrudEndpoint } from './base';
 import {
-  parseListFilters,
-  applyFieldSelectionToArray,
   type ListEndpointConfig,
   type ListFilters,
   type ModelObject,
+  applyFieldSelectionToArray,
+  parseListFilters,
 } from './types';
 
 /**
@@ -25,14 +25,13 @@ export abstract class ListEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   // Filter configuration
   protected filterFields: string[] = [];
   protected filterConfig?: FilterConfig;
 
   // Search configuration
   protected searchFields: string[] = [];
-  protected searchFieldName: string = 'search';
+  protected searchFieldName = 'search';
 
   // Sorting configuration
   /** Fields that can be used for sorting. Use with ?sort=fieldName */
@@ -41,15 +40,15 @@ export abstract class ListEndpoint<
   protected defaultSort?: { field: string; order: 'asc' | 'desc' };
 
   // Pagination configuration
-  protected defaultPerPage: number = 20;
-  protected maxPerPage: number = 100;
+  protected defaultPerPage = 20;
+  protected maxPerPage = 100;
 
   /**
    * Enable cursor-based pagination.
    * When enabled, clients can use `?cursor=xxx&limit=N` alongside standard page/per_page.
    * The cursor is an opaque base64-encoded string representing the last item's sort key.
    */
-  protected cursorPaginationEnabled: boolean = false;
+  protected cursorPaginationEnabled = false;
 
   /**
    * The field used as the cursor key. Must be unique and sortable (e.g., primary key or timestamp).
@@ -63,7 +62,7 @@ export abstract class ListEndpoint<
 
   // Field selection configuration
   /** Enable field selection via ?fields=field1,field2 */
-  protected fieldSelectionEnabled: boolean = false;
+  protected fieldSelectionEnabled = false;
   /** Fields that are allowed to be selected. If empty, all schema fields are allowed. */
   protected allowedSelectFields: string[] = [];
   /** Fields that are never returned, even if requested. */
@@ -113,7 +112,10 @@ export abstract class ListEndpoint<
     };
 
     if (this.sortFields.length > 0) {
-      shape.sort = z.enum(this.sortFields as [string, ...string[]]).optional().describe('Field to sort by');
+      shape.sort = z
+        .enum(this.sortFields as [string, ...string[]])
+        .optional()
+        .describe('Field to sort by');
       shape.order = z.enum(['asc', 'desc']).optional().describe('Sort direction (asc or desc)');
     }
 
@@ -146,17 +148,23 @@ export abstract class ListEndpoint<
 
     // Add include parameter for relations
     if (this.allowedIncludes.length > 0) {
-      shape.include = z.string().optional().describe(
-        `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`
-      );
+      shape.include = z
+        .string()
+        .optional()
+        .describe(
+          `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
+        );
     }
 
     // Add fields parameter for field selection
     if (this.fieldSelectionEnabled) {
       const availableFields = this.getAvailableSelectFields();
-      shape.fields = z.string().optional().describe(
-        `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`
-      );
+      shape.fields = z
+        .string()
+        .optional()
+        .describe(
+          `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
+        );
     }
 
     // Add cursor-based pagination parameters
@@ -265,9 +273,7 @@ export abstract class ListEndpoint<
    * Lifecycle hook: called after list operation.
    * Override to transform results before returning.
    */
-  async after(
-    items: ModelObject<M['model']>[]
-  ): Promise<ModelObject<M['model']>[]> {
+  async after(items: ModelObject<M['model']>[]): Promise<ModelObject<M['model']>[]> {
     return items;
   }
 
@@ -300,7 +306,6 @@ export abstract class ListEndpoint<
    * Main handler for the list operation.
    */
   async handle(): Promise<Response> {
-
     // Validate tenant ID if multi-tenancy is enabled
     const tenantId = this.validateTenantId();
 
@@ -324,23 +329,23 @@ export abstract class ListEndpoint<
 
     // Decrypt encrypted fields on each record before further processing
     const decrypted = await Promise.all(
-      paginatedResult.result.map((r) => this.decryptOnRead(r as Record<string, unknown>))
+      paginatedResult.result.map((r) => this.decryptOnRead(r as Record<string, unknown>)),
     );
 
     // Apply policy `read` predicate post-fetch (catches whatever the
     // pushdown couldn't express) and `fields` mask. No-op when no policies.
     const policyFiltered = await this.applyReadPolicyToArray(
-      decrypted as ModelObject<M['model']>[]
+      decrypted as ModelObject<M['model']>[],
     );
 
     let items = await this.after(policyFiltered);
 
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {
-      items = await applyComputedFieldsToArray(
+      items = (await applyComputedFieldsToArray(
         items as Record<string, unknown>[],
-        this._meta.model.computedFields
-      ) as ModelObject<M['model']>[];
+        this._meta.model.computedFields,
+      )) as ModelObject<M['model']>[];
     }
 
     // Apply serializer if defined
@@ -352,15 +357,18 @@ export abstract class ListEndpoint<
     const profiled = this.applyProfileToArray(items as Record<string, unknown>[]);
 
     // Apply transform to each item
-    const transformedItems = profiled.map((item) => this.transform(item as ModelObject<M['model']>));
+    const transformedItems = profiled.map((item) =>
+      this.transform(item as ModelObject<M['model']>),
+    );
 
     // Apply field selection if enabled and fields were specified
-    const result = (this.fieldSelectionEnabled && filters.options.fields && filters.options.fields.length > 0)
-      ? applyFieldSelectionToArray(
-          transformedItems as Record<string, unknown>[],
-          { fields: filters.options.fields, isActive: true }
-        )
-      : transformedItems;
+    const result =
+      this.fieldSelectionEnabled && filters.options.fields && filters.options.fields.length > 0
+        ? applyFieldSelectionToArray(transformedItems as Record<string, unknown>[], {
+            fields: filters.options.fields,
+            isActive: true,
+          })
+        : transformedItems;
 
     return this.successPaginated(result, paginatedResult.result_info);
   }

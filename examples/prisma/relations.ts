@@ -13,22 +13,13 @@
  * 4. npx tsx examples/prisma/relations.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
+import { PrismaCreateEndpoint, PrismaListEndpoint, PrismaReadEndpoint } from '@hono-crud/prisma';
 import { setupSwaggerUI } from '@hono-crud/swagger';
-import {
-  PrismaCreateEndpoint,
-  PrismaReadEndpoint,
-  PrismaListEndpoint,
-} from '@hono-crud/prisma';
-import {
-  UserSchema,
-  PostSchema,
-  ProfileSchema,
-  CommentSchema,
-} from '../shared/schemas.js';
-import { prisma, initDb, seedDb } from './db.js';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { CommentSchema, PostSchema, ProfileSchema, UserSchema } from '../shared/schemas.js';
+import { initDb, prisma, seedDb } from './db.js';
 
 // ============================================================================
 // Models with Relations

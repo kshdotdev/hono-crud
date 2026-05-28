@@ -106,11 +106,11 @@ export interface CacheStats {
  * Invalidation strategy for mutation endpoints.
  */
 export type InvalidationStrategy =
-  | 'single'   // Invalidate only the modified record
-  | 'list'     // Invalidate only list caches
-  | 'all'      // Invalidate all caches for this model
-  | 'pattern'  // Use custom pattern
-  | 'tags';    // Invalidate by tags
+  | 'single' // Invalidate only the modified record
+  | 'list' // Invalidate only list caches
+  | 'all' // Invalidate all caches for this model
+  | 'pattern' // Use custom pattern
+  | 'tags'; // Invalidate by tags
 
 /**
  * Cache invalidation configuration.

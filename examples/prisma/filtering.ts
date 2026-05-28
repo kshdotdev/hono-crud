@@ -22,16 +22,13 @@
  * 4. npx tsx examples/prisma/filtering.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
+import { PrismaCreateEndpoint, PrismaListEndpoint } from '@hono-crud/prisma';
 import { setupSwaggerUI } from '@hono-crud/swagger';
-import {
-  PrismaCreateEndpoint,
-  PrismaListEndpoint,
-} from '@hono-crud/prisma';
-import { UserSchema, CategorySchema } from '../shared/schemas.js';
-import { prisma, initDb } from './db.js';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { CategorySchema, UserSchema } from '../shared/schemas.js';
+import { initDb, prisma } from './db.js';
 
 // ============================================================================
 // User Model with Advanced Filtering
@@ -161,11 +158,23 @@ app.get('/seed', async (c) => {
     data: [
       { name: 'Alice Admin', email: 'alice@example.com', role: 'admin', age: 35, status: 'active' },
       { name: 'Bob User', email: 'bob@example.com', role: 'user', age: 28, status: 'active' },
-      { name: 'Charlie Guest', email: 'charlie@example.com', role: 'guest', age: 22, status: 'pending' },
+      {
+        name: 'Charlie Guest',
+        email: 'charlie@example.com',
+        role: 'guest',
+        age: 22,
+        status: 'pending',
+      },
       { name: 'Diana User', email: 'diana@example.com', role: 'user', age: 45, status: 'active' },
       { name: 'Eve Admin', email: 'eve@example.com', role: 'admin', age: 31, status: 'inactive' },
       { name: 'Frank User', email: 'frank@example.com', role: 'user', age: null, status: 'active' },
-      { name: 'Grace Guest', email: 'grace@example.com', role: 'guest', age: 19, status: 'pending' },
+      {
+        name: 'Grace Guest',
+        email: 'grace@example.com',
+        role: 'guest',
+        age: 19,
+        status: 'pending',
+      },
       { name: 'Henry User', email: 'henry@example.com', role: 'user', age: 55, status: 'active' },
     ],
   });

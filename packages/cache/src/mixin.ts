@@ -1,14 +1,18 @@
 import type { Context, Env } from 'hono';
-import type { OpenAPIRoute, MetaInput, Constructor } from 'hono-crud/internal';
-import { getLogger, createRegistryWithDefault, ConfigurationException } from 'hono-crud/internal';
+import type { Constructor, MetaInput, OpenAPIRoute } from 'hono-crud/internal';
+import { ConfigurationException, createRegistryWithDefault, getLogger } from 'hono-crud/internal';
+import {
+  createInvalidationPattern,
+  createRelatedPatterns,
+  generateCacheKey,
+} from './key-generator';
+import { MemoryCacheStorage } from './storage/memory';
 import type {
   CacheConfig,
   CacheInvalidationConfig,
   CacheStorage,
   InvalidationStrategy,
 } from './types';
-import { generateCacheKey, createInvalidationPattern, createRelatedPatterns } from './key-generator';
-import { MemoryCacheStorage } from './storage/memory';
 
 /**
  * Read `_meta.model.tableName` off the endpoint instance and throw a clear
@@ -20,7 +24,7 @@ function getTableName(self: unknown): string {
   const tableName = meta?.model?.tableName;
   if (!tableName) {
     throw new ConfigurationException(
-      'Cache mixin requires `_meta.model.tableName`. Declare `_meta` on the endpoint or remove the cache mixin.'
+      'Cache mixin requires `_meta.model.tableName`. Declare `_meta` on the endpoint or remove the cache mixin.',
     );
   }
   return tableName;
@@ -37,7 +41,7 @@ function getTableName(self: unknown): string {
  */
 export const cacheStorageRegistry = createRegistryWithDefault<CacheStorage>(
   'cacheStorage',
-  () => new MemoryCacheStorage()
+  () => new MemoryCacheStorage(),
 );
 
 /**
@@ -73,7 +77,7 @@ export function getCacheStorage(): CacheStorage {
  */
 export function resolveCacheStorage<E extends Env>(
   ctx?: Context<E>,
-  explicitStorage?: CacheStorage
+  explicitStorage?: CacheStorage,
 ): CacheStorage | null {
   return cacheStorageRegistry.resolve(ctx, explicitStorage);
 }
@@ -147,7 +151,7 @@ export interface CacheInvalidationMethods {
  * ```
  */
 export function withCache<TBase extends Constructor<OpenAPIRoute>>(
-  Base: TBase
+  Base: TBase,
 ): TBase & Constructor<CacheEndpointMethods> {
   // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class CachedRoute extends Base implements CacheEndpointMethods {
@@ -205,7 +209,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
     }
 
     /** Track whether cache was hit for the current request */
-    private _cacheHit: boolean = false;
+    private _cacheHit = false;
 
     /**
      * Get cached response data.
@@ -243,7 +247,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
     /**
      * Create a response with cache header included.
      */
-    protected successWithCache<T>(result: T, status: number = 200): Response {
+    protected successWithCache<T>(result: T, status = 200): Response {
       return new Response(JSON.stringify({ success: true, result }), {
         status,
         headers: {
@@ -256,7 +260,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
     /**
      * Create a JSON response with cache header included.
      */
-    protected jsonWithCache<T>(data: T, status: number = 200): Response {
+    protected jsonWithCache<T>(data: T, status = 200): Response {
       return new Response(JSON.stringify(data), {
         status,
         headers: {
@@ -348,7 +352,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
  * ```
  */
 export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
-  Base: TBase
+  Base: TBase,
 ): TBase & Constructor<CacheInvalidationMethods> {
   // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class InvalidatingRoute extends Base implements CacheInvalidationMethods {
@@ -439,7 +443,7 @@ export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
 
         try {
           const cloned = response.clone();
-          const data = await cloned.json() as { result?: { id?: string | number } };
+          const data = (await cloned.json()) as { result?: { id?: string | number } };
           recordId = data?.result?.id;
         } catch {
           // Ignore parse errors

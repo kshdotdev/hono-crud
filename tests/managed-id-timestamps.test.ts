@@ -1,3 +1,35 @@
+import {
+  DrizzleCloneEndpoint,
+  DrizzleCreateEndpoint,
+  type DrizzleDatabase,
+  DrizzleUpsertEndpoint,
+} from '@hono-crud/drizzle';
+import {
+  MemoryBatchCreateEndpoint,
+  MemoryBatchUpdateEndpoint,
+  MemoryCloneEndpoint,
+  MemoryCreateEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
+  MemoryUpsertEndpoint,
+  clearStorage,
+  getStorage,
+} from '@hono-crud/memory';
+import { createClient } from '@libsql/client';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { Hono } from 'hono';
+import {
+  applyManagedInsertFields,
+  applyManagedUpdateFields,
+  defineMeta,
+  defineModel,
+  fromHono,
+  getTimestampsConfig,
+} from 'hono-crud';
+import type { IdStrategy } from 'hono-crud';
 /**
  * Tests for engine-managed write-time fields:
  *   - `Model.id` primary-key generation strategy
@@ -8,43 +40,10 @@
  * every write site (create / batchCreate / upsert / clone) and the update
  * sites (update / batchUpdate / upsert-update).
  */
-import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
-import { Hono } from 'hono';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import { sql } from 'drizzle-orm';
-import {
-  fromHono,
-  defineModel,
-  defineMeta,
-  applyManagedInsertFields,
-  applyManagedUpdateFields,
-  getTimestampsConfig,
-} from 'hono-crud';
-import type { IdStrategy } from 'hono-crud';
-import {
-  MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryUpdateEndpoint,
-  MemoryListEndpoint,
-  MemoryBatchCreateEndpoint,
-  MemoryBatchUpdateEndpoint,
-  MemoryUpsertEndpoint,
-  MemoryCloneEndpoint,
-  clearStorage,
-  getStorage,
-} from '@hono-crud/memory';
-import {
-  DrizzleCreateEndpoint,
-  DrizzleUpsertEndpoint,
-  DrizzleCloneEndpoint,
-  type DrizzleDatabase,
-} from '@hono-crud/drizzle';
 
-const UUID_V4 =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // ============================================================================
 // Schemas
@@ -66,10 +65,12 @@ type Item = z.infer<typeof ItemSchema>;
 let counter = 0;
 const seqId = (): string => `seq-${++counter}`;
 
-function memoryApp(modelOverrides: Partial<{
-  id: IdStrategy;
-  timestamps: boolean | { createdAt?: string; updatedAt?: string };
-}>) {
+function memoryApp(
+  modelOverrides: Partial<{
+    id: IdStrategy;
+    timestamps: boolean | { createdAt?: string; updatedAt?: string };
+  }>,
+) {
   const model = defineModel({
     tableName: 'items',
     schema: ItemSchema,
@@ -169,10 +170,7 @@ describe('Model.id strategy', () => {
       body: JSON.stringify({ items: [{ name: 'two' }, { name: 'three' }] }),
     });
     const batchBody = (await b.json()) as { result: { created: Item[] } };
-    expect(batchBody.result.created.map((r) => r.id)).toEqual([
-      'seq-2',
-      'seq-3',
-    ]);
+    expect(batchBody.result.created.map((r) => r.id)).toEqual(['seq-2', 'seq-3']);
 
     // upsert (create branch)
     const u = await app.request('/items/upsert', {
@@ -200,46 +198,31 @@ describe('Model.id strategy', () => {
     // The HTTP body schema strips the PK by framework design, so the
     // precedence is the centralized resolver's contract — assert it there.
     const fnModel = { id: seqId, primaryKeys: ['id'] as string[] };
-    expect(
-      applyManagedInsertFields({ id: 'mine', name: 'a' }, fnModel, 'memory').id
-    ).toBe('mine');
+    expect(applyManagedInsertFields({ id: 'mine', name: 'a' }, fnModel, 'memory').id).toBe('mine');
 
     const uuidModel = { id: 'uuid' as const, primaryKeys: ['id'] as string[] };
-    expect(
-      applyManagedInsertFields({ id: 'mine', name: 'a' }, uuidModel, 'drizzle')
-        .id
-    ).toBe('mine');
+    expect(applyManagedInsertFields({ id: 'mine', name: 'a' }, uuidModel, 'drizzle').id).toBe(
+      'mine',
+    );
 
     const dbModel = { id: 'database' as const, primaryKeys: ['id'] as string[] };
-    const out = applyManagedInsertFields(
-      { id: 'mine', name: 'a' },
-      dbModel,
-      'drizzle'
-    );
+    const out = applyManagedInsertFields({ id: 'mine', name: 'a' }, dbModel, 'drizzle');
     expect(out.id).toBe('mine'); // not deleted: caller supplied it
 
     // Empty-string / null PK is treated as "not supplied".
-    expect(
-      typeof applyManagedInsertFields({ id: '', name: 'a' }, uuidModel, 'memory')
-        .id
-    ).toBe('string');
-    expect(
-      applyManagedInsertFields({ id: '', name: 'a' }, uuidModel, 'memory').id
-    ).not.toBe('');
+    expect(typeof applyManagedInsertFields({ id: '', name: 'a' }, uuidModel, 'memory').id).toBe(
+      'string',
+    );
+    expect(applyManagedInsertFields({ id: '', name: 'a' }, uuidModel, 'memory').id).not.toBe('');
   });
 
   it('resolver: function/database strategy precedence + memory guard', () => {
     const dbModel = { id: 'database' as const, primaryKeys: ['id'] as string[] };
     // database strategy on a feasible adapter omits the PK entirely.
-    expect(
-      'id' in
-        applyManagedInsertFields({ name: 'a' }, dbModel, 'prisma')
-    ).toBe(false);
+    expect('id' in applyManagedInsertFields({ name: 'a' }, dbModel, 'prisma')).toBe(false);
     // memory adapter + database => throws the documented error.
-    expect(() =>
-      applyManagedInsertFields({ name: 'a' }, dbModel, 'memory')
-    ).toThrow(
-      "MemoryAdapter does not support id:'database' (no database to generate the key)"
+    expect(() => applyManagedInsertFields({ name: 'a' }, dbModel, 'memory')).toThrow(
+      "MemoryAdapter does not support id:'database' (no database to generate the key)",
     );
   });
 
@@ -253,7 +236,7 @@ describe('Model.id strategy', () => {
     expect(res.status).toBe(500);
     const body = (await res.json()) as { error: { message: string } };
     expect(body.error.message).toBe(
-      "MemoryAdapter does not support id:'database' (no database to generate the key)"
+      "MemoryAdapter does not support id:'database' (no database to generate the key)",
     );
   });
 });
@@ -307,7 +290,7 @@ describe("Model.id 'database' strategy (Drizzle $defaultFn)", () => {
 
   beforeAll(async () => {
     await db.run(
-      sql`CREATE TABLE IF NOT EXISTS db_items (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT)`
+      sql`CREATE TABLE IF NOT EXISTS db_items (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT)`,
     );
   });
 
@@ -317,7 +300,7 @@ describe("Model.id 'database' strategy (Drizzle $defaultFn)", () => {
     app.onError((err, c) => c.json({ error: { message: err.message } }, 400));
     const withCtx =
       <T extends { setContext: (c: unknown) => void; handle: () => Promise<Response> }>(
-        E: new () => T
+        E: new () => T,
       ) =>
       async (c: unknown) => {
         const e = new E();
@@ -362,11 +345,7 @@ describe("Model.id 'database' strategy (Drizzle $defaultFn)", () => {
 
   it('resolver omits PK for database strategy so RETURNING surfaces the $defaultFn value', () => {
     const dbModel = { id: 'database' as const, primaryKeys: ['id'] as string[] };
-    const payload = applyManagedInsertFields(
-      { name: 'gamma' },
-      dbModel,
-      'drizzle'
-    );
+    const payload = applyManagedInsertFields({ name: 'gamma' }, dbModel, 'drizzle');
     // PK omitted from the insert payload => Drizzle $defaultFn fills it,
     // then `.returning()` reflects the generated value (verified e2e above).
     expect('id' in payload).toBe(false);
@@ -446,8 +425,7 @@ describe('Model.timestamps', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: [{ id: created.id, data: { name: 'b' } }] }),
     });
-    const batchUpdated = ((await b.json()) as { result: { updated: Item[] } })
-      .result.updated[0];
+    const batchUpdated = ((await b.json()) as { result: { updated: Item[] } }).result.updated[0];
     expect(batchUpdated.createdAt).toBe(created.createdAt);
     expect(batchUpdated.updatedAt!).toBeGreaterThan(created.updatedAt!);
 
@@ -512,7 +490,7 @@ describe('Model.timestamps', () => {
     // createdAt never touched.
     const on = applyManagedUpdateFields(
       { name: 'a', updatedAt: 1, createdAt: 999 },
-      { timestamps: true }
+      { timestamps: true },
     );
     expect(on.updatedAt).not.toBe(1);
     expect(typeof on.updatedAt).toBe('number');
@@ -521,11 +499,9 @@ describe('Model.timestamps', () => {
     // object form resolves the renamed updated field.
     const renamed = applyManagedUpdateFields(
       { name: 'a' },
-      { timestamps: { updatedAt: 'updated_ms' } }
+      { timestamps: { updatedAt: 'updated_ms' } },
     );
-    expect(typeof (renamed as Record<string, unknown>).updated_ms).toBe(
-      'number'
-    );
+    expect(typeof (renamed as Record<string, unknown>).updated_ms).toBe('number');
 
     // getTimestampsConfig normalization
     expect(getTimestampsConfig(undefined).enabled).toBe(false);
@@ -569,7 +545,7 @@ describe('Model.timestamps', () => {
     const kept = applyManagedInsertFields(
       { id: 'x', name: 'a', createdAt: 12345 },
       model,
-      'memory'
+      'memory',
     );
     expect(kept.createdAt).toBe(12345);
     expect(typeof kept.updatedAt).toBe('number');

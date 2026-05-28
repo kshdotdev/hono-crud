@@ -14,26 +14,26 @@
  * Run with: npx tsx examples/memory/comprehensive.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI, setupReDoc } from '@hono-crud/swagger';
 import {
-  MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryUpdateEndpoint,
-  MemoryDeleteEndpoint,
-  MemoryListEndpoint,
-  MemoryRestoreEndpoint,
   MemoryBatchCreateEndpoint,
-  MemoryBatchUpdateEndpoint,
   MemoryBatchDeleteEndpoint,
   MemoryBatchRestoreEndpoint,
+  MemoryBatchUpdateEndpoint,
+  MemoryCreateEndpoint,
+  MemoryDeleteEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryRestoreEndpoint,
+  MemoryUpdateEndpoint,
   MemoryUpsertEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { setupReDoc, setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { z } from 'zod';
 
 // Clear storage on start
 clearStorage();
@@ -436,40 +436,120 @@ app.get('/seed', async (c) => {
 
   // Seed users
   const users: User[] = [
-    { id: 'a0000000-0000-0000-0000-000000000001', email: 'alice@example.com', name: 'Alice Admin', role: 'admin', age: 35, status: 'active', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), deletedAt: null },
-    { id: 'a0000000-0000-0000-0000-000000000002', email: 'bob@example.com', name: 'Bob User', role: 'user', age: 28, status: 'active', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), deletedAt: null },
-    { id: 'a0000000-0000-0000-0000-000000000003', email: 'charlie@example.com', name: 'Charlie Guest', role: 'guest', age: 22, status: 'pending', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), deletedAt: null },
+    {
+      id: 'a0000000-0000-0000-0000-000000000001',
+      email: 'alice@example.com',
+      name: 'Alice Admin',
+      role: 'admin',
+      age: 35,
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      deletedAt: null,
+    },
+    {
+      id: 'a0000000-0000-0000-0000-000000000002',
+      email: 'bob@example.com',
+      name: 'Bob User',
+      role: 'user',
+      age: 28,
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      deletedAt: null,
+    },
+    {
+      id: 'a0000000-0000-0000-0000-000000000003',
+      email: 'charlie@example.com',
+      name: 'Charlie Guest',
+      role: 'guest',
+      age: 22,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      deletedAt: null,
+    },
   ];
-  users.forEach(u => userStore.set(u.id, u));
+  users.forEach((u) => userStore.set(u.id, u));
 
   // Seed profiles
   const profiles: Profile[] = [
-    { id: 'b0000000-0000-0000-0000-000000000001', userId: 'a0000000-0000-0000-0000-000000000001', bio: 'Alice is a developer', avatar: 'https://example.com/alice.jpg', website: null },
-    { id: 'b0000000-0000-0000-0000-000000000002', userId: 'a0000000-0000-0000-0000-000000000002', bio: 'Bob is a designer', avatar: null, website: null },
+    {
+      id: 'b0000000-0000-0000-0000-000000000001',
+      userId: 'a0000000-0000-0000-0000-000000000001',
+      bio: 'Alice is a developer',
+      avatar: 'https://example.com/alice.jpg',
+      website: null,
+    },
+    {
+      id: 'b0000000-0000-0000-0000-000000000002',
+      userId: 'a0000000-0000-0000-0000-000000000002',
+      bio: 'Bob is a designer',
+      avatar: null,
+      website: null,
+    },
   ];
-  profiles.forEach(p => profileStore.set(p.id, p));
+  profiles.forEach((p) => profileStore.set(p.id, p));
 
   // Seed posts
   const posts: Post[] = [
-    { id: 'c0000000-0000-0000-0000-000000000001', title: 'Hello World', content: 'This is my first post!', authorId: 'a0000000-0000-0000-0000-000000000001', status: 'published', createdAt: new Date().toISOString(), deletedAt: null },
-    { id: 'c0000000-0000-0000-0000-000000000002', title: 'Design Tips', content: 'Here are some design tips...', authorId: 'a0000000-0000-0000-0000-000000000002', status: 'draft', createdAt: new Date().toISOString(), deletedAt: null },
+    {
+      id: 'c0000000-0000-0000-0000-000000000001',
+      title: 'Hello World',
+      content: 'This is my first post!',
+      authorId: 'a0000000-0000-0000-0000-000000000001',
+      status: 'published',
+      createdAt: new Date().toISOString(),
+      deletedAt: null,
+    },
+    {
+      id: 'c0000000-0000-0000-0000-000000000002',
+      title: 'Design Tips',
+      content: 'Here are some design tips...',
+      authorId: 'a0000000-0000-0000-0000-000000000002',
+      status: 'draft',
+      createdAt: new Date().toISOString(),
+      deletedAt: null,
+    },
   ];
-  posts.forEach(p => postStore.set(p.id, p));
+  posts.forEach((p) => postStore.set(p.id, p));
 
   // Seed comments
   const comments: Comment[] = [
-    { id: 'd0000000-0000-0000-0000-000000000001', content: 'Great post!', postId: 'c0000000-0000-0000-0000-000000000001', authorId: 'a0000000-0000-0000-0000-000000000002', createdAt: new Date().toISOString() },
-    { id: 'd0000000-0000-0000-0000-000000000002', content: 'Thanks for sharing!', postId: 'c0000000-0000-0000-0000-000000000001', authorId: 'a0000000-0000-0000-0000-000000000001', createdAt: new Date().toISOString() },
+    {
+      id: 'd0000000-0000-0000-0000-000000000001',
+      content: 'Great post!',
+      postId: 'c0000000-0000-0000-0000-000000000001',
+      authorId: 'a0000000-0000-0000-0000-000000000002',
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'd0000000-0000-0000-0000-000000000002',
+      content: 'Thanks for sharing!',
+      postId: 'c0000000-0000-0000-0000-000000000001',
+      authorId: 'a0000000-0000-0000-0000-000000000001',
+      createdAt: new Date().toISOString(),
+    },
   ];
-  comments.forEach(com => commentStore.set(com.id, com));
+  comments.forEach((com) => commentStore.set(com.id, com));
 
   // Seed categories
   const categories: Category[] = [
-    { id: 'e0000000-0000-0000-0000-000000000001', name: 'Technology', description: 'Tech related posts', sortOrder: 1 },
-    { id: 'e0000000-0000-0000-0000-000000000002', name: 'Science', description: 'Scientific articles', sortOrder: 2 },
+    {
+      id: 'e0000000-0000-0000-0000-000000000001',
+      name: 'Technology',
+      description: 'Tech related posts',
+      sortOrder: 1,
+    },
+    {
+      id: 'e0000000-0000-0000-0000-000000000002',
+      name: 'Science',
+      description: 'Scientific articles',
+      sortOrder: 2,
+    },
     { id: 'e0000000-0000-0000-0000-000000000003', name: 'Art', description: null, sortOrder: 3 },
   ];
-  categories.forEach(cat => categoryStore.set(cat.id, cat));
+  categories.forEach((cat) => categoryStore.set(cat.id, cat));
 
   return c.json({
     success: true,

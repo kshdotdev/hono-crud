@@ -1,8 +1,8 @@
 import type { Context, Env, ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { ZodError } from 'zod';
-import { ApiException, InputValidationException } from './exceptions';
 import { getRequestId } from '../logging/middleware';
+import { ApiException, InputValidationException } from './exceptions';
 import { getLogger } from './logger';
 import { jsonResponse } from './route';
 import {
@@ -17,7 +17,7 @@ import {
  */
 export type ErrorMapper<E extends Env = Env> = (
   error: Error,
-  ctx: Context<E>
+  ctx: Context<E>,
 ) => ApiException | undefined | Promise<ApiException | undefined>;
 
 /**
@@ -27,7 +27,7 @@ export type ErrorMapper<E extends Env = Env> = (
 export type ErrorHook<E extends Env = Env> = (
   error: Error,
   ctx: Context<E>,
-  apiException: ApiException
+  apiException: ApiException,
 ) => void | Promise<void>;
 
 /**
@@ -115,7 +115,7 @@ export const zodErrorMapper: ErrorMapper = (error: Error): ApiException | undefi
  * ```
  */
 export function createErrorHandler<E extends Env = Env>(
-  config: ErrorHandlerConfig<E> = {}
+  config: ErrorHandlerConfig<E> = {},
 ): ErrorHandler<E> {
   const {
     mappers = [],
@@ -143,11 +143,7 @@ export function createErrorHandler<E extends Env = Env>(
     }
     // Step 1b: Handle plain HTTPException (from Hono's built-in handlers)
     else if (err instanceof HTTPException) {
-      apiException = new ApiException(
-        err.message,
-        err.status,
-        'HTTP_ERROR'
-      );
+      apiException = new ApiException(err.message, err.status, 'HTTP_ERROR');
       wasMapped = true;
     } else {
       // Step 2: Try custom mappers in order
@@ -167,13 +163,11 @@ export function createErrorHandler<E extends Env = Env>(
       // Step 3: Fall back to generic 500 error
       if (!wasMapped) {
         if (logUnmappedErrors) {
-          getLogger().error('Unmapped error', { error: err instanceof Error ? err.message : String(err) });
+          getLogger().error('Unmapped error', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
-        apiException = new ApiException(
-          defaultErrorMessage,
-          500,
-          defaultErrorCode
-        );
+        apiException = new ApiException(defaultErrorMessage, 500, defaultErrorCode);
       }
     }
 
@@ -238,7 +232,7 @@ export function createErrorHandler<E extends Env = Env>(
  */
 export function resolveErrorEnvelope<E extends Env = Env>(
   ctx: Context<E>,
-  fallback?: ResponseEnvelope
+  fallback?: ResponseEnvelope,
 ): ResponseEnvelope | undefined {
   const fromCtx = (ctx as unknown as { var?: Record<string, unknown> })?.var?.[
     RESPONSE_ENVELOPE_CONTEXT_KEY

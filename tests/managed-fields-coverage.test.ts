@@ -1,3 +1,23 @@
+import { DrizzleCloneEndpoint, type DrizzleDatabase } from '@hono-crud/drizzle';
+import {
+  MemoryBatchCreateEndpoint,
+  MemoryCloneEndpoint,
+  MemoryImportEndpoint,
+  clearStorage,
+  getStorage,
+} from '@hono-crud/memory';
+import { createClient } from '@libsql/client';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { Hono } from 'hono';
+import {
+  defineMeta,
+  defineModel,
+  fromHono,
+  mapUniqueViolation,
+  stripManagedInsertFields,
+} from 'hono-crud';
 /**
  * Managed-field coverage gaps closed in 0.12.2 (follow-up to 0.12.1).
  *
@@ -24,31 +44,8 @@
  * managed-fields-input-schema) stay green; this file covers only the
  * follow-up surface.
  */
-import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
-import { Hono } from 'hono';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import { sql } from 'drizzle-orm';
-import {
-  fromHono,
-  defineModel,
-  defineMeta,
-  mapUniqueViolation,
-  stripManagedInsertFields,
-} from 'hono-crud';
-import {
-  MemoryImportEndpoint,
-  MemoryCloneEndpoint,
-  MemoryBatchCreateEndpoint,
-  clearStorage,
-  getStorage,
-} from '@hono-crud/memory';
-import {
-  DrizzleCloneEndpoint,
-  type DrizzleDatabase,
-} from '@hono-crud/drizzle';
 
 // ============================================================================
 // Schemas / app helpers
@@ -82,10 +79,7 @@ function memoryProductsApp() {
     // (not `optionalImportFields`) is what makes the minimal row pass.
     async create(data: any) {
       // Re-use the adapter's create path so engine-managed fields are stamped.
-      const record = this.applyManagedInsertFields(
-        data as Record<string, unknown>,
-        'memory'
-      );
+      const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'memory');
       const store = getStorage<Product>('mfc_products');
       store.set(String((record as any).id), record as Product);
       return record as Product;
@@ -114,10 +108,7 @@ function memoryProductsApp() {
     // Only used to seed the store in tests; never registered.
     _meta = meta;
     async create(data: any) {
-      const record = this.applyManagedInsertFields(
-        data as Record<string, unknown>,
-        'memory'
-      );
+      const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'memory');
       const store = getStorage<Product>('mfc_products');
       store.set(String((record as any).id), record as Product);
       return record as Product;
@@ -151,9 +142,7 @@ describe('import strip: engine-managed fields excluded from per-row validation',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        items: [
-          { name: 'A', slug: 'a', priceCents: 100, currency: 'USD', stock: 0 },
-        ],
+        items: [{ name: 'A', slug: 'a', priceCents: 100, currency: 'USD', stock: 0 }],
       }),
     });
     expect(res.status).toBe(200);
@@ -248,7 +237,7 @@ describe('clone fresh-stamping: timestamps + id are engine-fresh, not copied fro
         name: 'keep',
         slug: 'keep',
       } as Record<string, unknown>,
-      { primaryKeys: ['id'], id: 'uuid', timestamps: true }
+      { primaryKeys: ['id'], id: 'uuid', timestamps: true },
     );
     expect('id' in out).toBe(false);
     expect('createdAt' in out).toBe(false);
@@ -264,7 +253,7 @@ describe('clone fresh-stamping: timestamps + id are engine-fresh, not copied fro
         primaryKeys: ['id'],
         id: 'uuid',
         timestamps: { createdAt: 'made_at', updatedAt: 'touched_at' },
-      }
+      },
     );
     expect('made_at' in out).toBe(false);
     expect('touched_at' in out).toBe(false);
@@ -311,7 +300,7 @@ describe('clone unique-violation → 409 JSON envelope', () => {
 
   beforeAll(async () => {
     await db.run(
-      sql`CREATE TABLE IF NOT EXISTS mfc_products_drizzle (id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, price_cents INTEGER NOT NULL)`
+      sql`CREATE TABLE IF NOT EXISTS mfc_products_drizzle (id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, price_cents INTEGER NOT NULL)`,
     );
   });
 

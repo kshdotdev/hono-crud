@@ -1,6 +1,6 @@
-import type { z, ZodObject, ZodRawShape, ZodType } from 'zod';
-import type { Context, Env } from 'hono';
 import type { RouteConfig } from '@hono/zod-openapi';
+import type { Context, Env } from 'hono';
+import type { ZodObject, ZodRawShape, ZodType, z } from 'zod';
 import { getContextVar } from '../utils/context';
 
 // ============================================================================
@@ -23,17 +23,17 @@ export type SchemaKeys<T extends ZodObject<ZodRawShape>> = keyof z.infer<T>;
 
 // Filter operators for list queries
 export type FilterOperator =
-  | 'eq'      // equals
-  | 'ne'      // not equals
-  | 'gt'      // greater than
-  | 'gte'     // greater than or equal
-  | 'lt'      // less than
-  | 'lte'     // less than or equal
-  | 'in'      // in array
-  | 'nin'     // not in array
-  | 'like'    // SQL LIKE
-  | 'ilike'   // case-insensitive LIKE
-  | 'null'    // is null
+  | 'eq' // equals
+  | 'ne' // not equals
+  | 'gt' // greater than
+  | 'gte' // greater than or equal
+  | 'lt' // less than
+  | 'lte' // less than or equal
+  | 'in' // in array
+  | 'nin' // not in array
+  | 'like' // SQL LIKE
+  | 'ilike' // case-insensitive LIKE
+  | 'null' // is null
   | 'between'; // between two values
 
 export type FilterOperatorList = readonly FilterOperator[];
@@ -132,10 +132,10 @@ export type RelationType = 'hasOne' | 'hasMany' | 'belongsTo';
  * Cascade behavior when deleting a parent record.
  */
 export type CascadeAction =
-  | 'cascade'    // Delete related records
-  | 'setNull'    // Set foreign key to null
-  | 'restrict'   // Prevent delete if related records exist
-  | 'noAction';  // Do nothing (default)
+  | 'cascade' // Delete related records
+  | 'setNull' // Set foreign key to null
+  | 'restrict' // Prevent delete if related records exist
+  | 'noAction'; // Do nothing (default)
 
 /**
  * Configuration for cascade operations on a relation.
@@ -312,7 +312,7 @@ export interface NestedWriteResult<T = Record<string, unknown>> {
  */
 export function extractNestedData<T extends Record<string, unknown>>(
   data: T,
-  relationNames: string[]
+  relationNames: string[],
 ): {
   mainData: Record<string, unknown>;
   nestedData: Record<string, unknown>;
@@ -355,7 +355,17 @@ export function isDirectNestedData(data: unknown): boolean {
 /**
  * Type of operation that was performed.
  */
-export type AuditAction = 'create' | 'update' | 'delete' | 'restore' | 'batch_create' | 'batch_update' | 'batch_delete' | 'batch_restore' | 'upsert' | 'batch_upsert';
+export type AuditAction =
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'restore'
+  | 'batch_create'
+  | 'batch_update'
+  | 'batch_delete'
+  | 'batch_restore'
+  | 'upsert'
+  | 'batch_upsert';
 
 /**
  * A single field change in an audit log entry.
@@ -497,7 +507,7 @@ export function getAuditConfig(config?: AuditConfig): NormalizedAuditConfig {
 export function calculateChanges(
   oldRecord: Record<string, unknown> | undefined,
   newRecord: Record<string, unknown> | undefined,
-  excludeFields: string[] = []
+  excludeFields: string[] = [],
 ): AuditFieldChange[] {
   const changes: AuditFieldChange[] = [];
 
@@ -505,10 +515,7 @@ export function calculateChanges(
     return changes;
   }
 
-  const allKeys = new Set([
-    ...Object.keys(oldRecord || {}),
-    ...Object.keys(newRecord || {}),
-  ]);
+  const allKeys = new Set([...Object.keys(oldRecord || {}), ...Object.keys(newRecord || {})]);
 
   for (const key of allKeys) {
     if (excludeFields.includes(key)) continue;
@@ -596,7 +603,7 @@ export interface NormalizedVersioningConfig {
  */
 export function getVersioningConfig(
   config: VersioningConfig | undefined,
-  tableName: string
+  tableName: string,
 ): NormalizedVersioningConfig {
   if (!config || !config.enabled) {
     return {
@@ -716,7 +723,8 @@ export function parseAggregateField(value: string): AggregateField | null {
   }
 
   // Normalize countdistinct to countDistinct
-  const operation: AggregateOperation = rawOp === 'countdistinct' ? 'countDistinct' : rawOp as AggregateOperation;
+  const operation: AggregateOperation =
+    rawOp === 'countdistinct' ? 'countDistinct' : (rawOp as AggregateOperation);
 
   return {
     operation,
@@ -755,9 +763,9 @@ export function parseAggregateQuery(query: Record<string, unknown>): AggregateOp
   if (query.groupBy) {
     const groupByValue = query.groupBy;
     if (typeof groupByValue === 'string') {
-      groupBy = groupByValue.split(',').map(s => s.trim());
+      groupBy = groupByValue.split(',').map((s) => s.trim());
     } else if (Array.isArray(groupByValue)) {
-      groupBy = groupByValue.filter(s => typeof s === 'string') as string[];
+      groupBy = groupByValue.filter((s) => typeof s === 'string') as string[];
     }
   }
 
@@ -778,8 +786,8 @@ export function parseAggregateQuery(query: Record<string, unknown>): AggregateOp
   const orderDirection = query.orderDirection === 'desc' ? 'desc' : 'asc';
 
   // Parse pagination
-  const limit = typeof query.limit === 'string' ? parseInt(query.limit, 10) : undefined;
-  const offset = typeof query.offset === 'string' ? parseInt(query.offset, 10) : undefined;
+  const limit = typeof query.limit === 'string' ? Number.parseInt(query.limit, 10) : undefined;
+  const offset = typeof query.offset === 'string' ? Number.parseInt(query.offset, 10) : undefined;
 
   // Collect remaining params as filters
   const reservedParams = [...aggParams, 'groupBy', 'orderBy', 'orderDirection', 'limit', 'offset'];
@@ -811,7 +819,7 @@ export function parseAggregateQuery(query: Record<string, unknown>): AggregateOp
  * @template R - The return type of the computed field
  */
 export type ComputedFieldFn<T = Record<string, unknown>, R = unknown> = (
-  record: T
+  record: T,
 ) => R | Promise<R>;
 
 /**
@@ -854,7 +862,7 @@ export type ComputedFieldsConfig<T = Record<string, unknown>> = Record<
  */
 export async function applyComputedFields<T extends Record<string, unknown>>(
   record: T,
-  computedFields?: ComputedFieldsConfig<T>
+  computedFields?: ComputedFieldsConfig<T>,
 ): Promise<Record<string, unknown>> {
   if (!computedFields || Object.keys(computedFields).length === 0) {
     return record;
@@ -883,15 +891,13 @@ export async function applyComputedFields<T extends Record<string, unknown>>(
  */
 export async function applyComputedFieldsToArray<T extends Record<string, unknown>>(
   records: T[],
-  computedFields?: ComputedFieldsConfig<T>
+  computedFields?: ComputedFieldsConfig<T>,
 ): Promise<Array<Record<string, unknown>>> {
   if (!computedFields || Object.keys(computedFields).length === 0) {
     return records;
   }
 
-  return Promise.all(
-    records.map((record) => applyComputedFields(record, computedFields))
-  );
+  return Promise.all(records.map((record) => applyComputedFields(record, computedFields)));
 }
 
 // ============================================================================
@@ -1018,10 +1024,7 @@ export interface SchemaResolveContext {
  * - `() => string | number` — a custom JS generator (ulid / nanoid / ksuid /
  *   snowflake), invoked at every write site by every adapter.
  */
-export type IdStrategy =
-  | 'uuid'
-  | 'database'
-  | (() => string | number);
+export type IdStrategy = 'uuid' | 'database' | (() => string | number);
 
 /**
  * Model definition with strong typing.
@@ -1030,7 +1033,7 @@ export type IdStrategy =
  */
 export interface Model<
   T extends ZodObject<ZodRawShape> = ZodObject<ZodRawShape>,
-  TTable = unknown
+  TTable = unknown,
 > {
   /** Database table name */
   tableName: string;
@@ -1366,7 +1369,7 @@ export interface PolicyContext {
  */
 export interface MetaInput<
   T extends ZodObject<ZodRawShape> = ZodObject<ZodRawShape>,
-  TTable = unknown
+  TTable = unknown,
 > {
   /** The model configuration */
   model: Model<T, TTable>;
@@ -1394,10 +1397,9 @@ export interface MetaInput<
  * });
  * ```
  */
-export function defineModel<
-  T extends ZodObject<ZodRawShape>,
-  TTable = unknown
->(config: Model<T, TTable>): Model<T, TTable> {
+export function defineModel<T extends ZodObject<ZodRawShape>, TTable = unknown>(
+  config: Model<T, TTable>,
+): Model<T, TTable> {
   return config;
 }
 
@@ -1411,10 +1413,9 @@ export function defineModel<
  * });
  * ```
  */
-export function defineMeta<
-  T extends ZodObject<ZodRawShape>,
-  TTable = unknown
->(config: MetaInput<T, TTable>): MetaInput<T, TTable> {
+export function defineMeta<T extends ZodObject<ZodRawShape>, TTable = unknown>(
+  config: MetaInput<T, TTable>,
+): MetaInput<T, TTable> {
   return config;
 }
 
@@ -1437,7 +1438,7 @@ export interface NormalizedSoftDeleteConfig {
  * Returns a consistent config object with all defaults applied.
  */
 export function getSoftDeleteConfig(
-  softDelete: boolean | SoftDeleteConfig | undefined
+  softDelete: boolean | SoftDeleteConfig | undefined,
 ): NormalizedSoftDeleteConfig {
   if (!softDelete) {
     return {
@@ -1489,7 +1490,7 @@ export interface NormalizedMultiTenantConfig {
  * Returns a consistent config object with all defaults applied.
  */
 export function getMultiTenantConfig(
-  multiTenant: boolean | MultiTenantConfig | undefined
+  multiTenant: boolean | MultiTenantConfig | undefined,
 ): NormalizedMultiTenantConfig {
   const defaults: NormalizedMultiTenantConfig = {
     enabled: false,
@@ -1532,7 +1533,7 @@ export function getMultiTenantConfig(
  */
 export function extractTenantId(
   ctx: Context,
-  config: NormalizedMultiTenantConfig
+  config: NormalizedMultiTenantConfig,
 ): string | undefined {
   if (!config.enabled) {
     return undefined;
@@ -1597,7 +1598,7 @@ export type HookMode = 'sequential' | 'parallel' | 'fire-and-forget';
 // Hook function type
 export type HookFn<T = unknown, Tx = unknown> = (
   data: T,
-  tx?: Tx
+  tx?: Tx,
 ) => T | Promise<T> | void | Promise<void>;
 
 // Hook configuration
@@ -1628,7 +1629,7 @@ export interface HookConfig<T = unknown, Tx = unknown> {
 export type AfterUpdateHook<T = unknown> = (
   prior: T,
   current: T,
-  ctx: HookContext
+  ctx: HookContext,
 ) => Promise<void | T> | void | T;
 
 /**
@@ -1647,10 +1648,7 @@ export type AfterUpdateHook<T = unknown> = (
  * `afterHookMode === 'sequential'` AND the adapter wraps in a real
  * transaction. See `HookContext.db.tx`.
  */
-export type AfterDeleteHook<T = unknown> = (
-  prior: T,
-  ctx: HookContext
-) => Promise<void> | void;
+export type AfterDeleteHook<T = unknown> = (prior: T, ctx: HookContext) => Promise<void> | void;
 
 // OpenAPI route schema
 export interface OpenAPIRouteSchema {
@@ -1719,7 +1717,9 @@ export interface StructuredError {
  * and search responses. Mirrors `PaginatedResult.result_info` so envelope
  * authors don't have to re-import the wider type.
  */
-export type ResponseEnvelopeInfo = PaginatedResult<unknown>['result_info'] | Record<string, unknown>;
+export type ResponseEnvelopeInfo =
+  | PaginatedResult<unknown>['result_info']
+  | Record<string, unknown>;
 
 /**
  * Pluggable response envelope. When provided on `RegisterCrudOptions` (or

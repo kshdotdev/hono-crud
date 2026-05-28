@@ -1,3 +1,5 @@
+import { Hono } from 'hono';
+import type { StorageEnv } from 'hono-crud/storage/types';
 /**
  * Edge compatibility tests running inside miniflare.
  *
@@ -6,18 +8,14 @@
  *
  * Run with: vitest --config vitest.config.workers.ts
  */
-import { describe, it, expect } from 'vitest';
-import { Hono } from 'hono';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { StorageEnv } from 'hono-crud/storage/types';
 
 describe('Edge Runtime Compatibility (Workers)', () => {
   describe('Web Crypto API', () => {
     it('should generate UUIDs via crypto.randomUUID()', () => {
       const uuid = crypto.randomUUID();
-      expect(uuid).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
-      );
+      expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     });
 
     it('should have crypto.subtle available', () => {

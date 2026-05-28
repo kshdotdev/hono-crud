@@ -1,38 +1,30 @@
 import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi } from 'vitest';
-import { Hono } from 'hono';
-import { z } from 'zod';
-import {
   MemoryCacheStorage,
   RedisCacheStorage,
-  generateCacheKey,
   createInvalidationPattern,
   createRelatedPatterns,
+  generateCacheKey,
+  getCacheStorage,
   matchesPattern,
   parseCacheKey,
   setCacheStorage,
-  getCacheStorage,
   withCache,
   withCacheInvalidation,
 } from '@hono-crud/cache';
+import type { RedisClient } from '@hono-crud/cache';
 import {
-  MemoryReadEndpoint,
-  MemoryListEndpoint,
   MemoryCreateEndpoint,
-  MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
 } from '@hono-crud/memory';
-import { fromHono,
-  registerCrud,
-} from 'hono-crud';
+import { Hono } from 'hono';
+import { fromHono, registerCrud } from 'hono-crud';
 import type { MetaInput, Model } from 'hono-crud';
-import type { RedisClient } from '@hono-crud/cache';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 // Define test schema
 const UserSchema = z.object({
@@ -314,11 +306,14 @@ describe('RedisCacheStorage', () => {
     const cache = new RedisCacheStorage({ client, prefix: 'test:' });
     const now = Date.now();
 
-    await client.set('test:legacy', JSON.stringify({
-      data: { name: 'legacy' },
-      createdAt: new Date(now - 1000).toISOString(),
-      expiresAt: new Date(now + 60_000).toISOString(),
-    }));
+    await client.set(
+      'test:legacy',
+      JSON.stringify({
+        data: { name: 'legacy' },
+        createdAt: new Date(now - 1000).toISOString(),
+        expiresAt: new Date(now + 60_000).toISOString(),
+      }),
+    );
 
     const entry = await cache.get<{ name: string }>('legacy');
     expect(entry).not.toBeNull();

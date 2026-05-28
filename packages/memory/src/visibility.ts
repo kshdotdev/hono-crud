@@ -18,7 +18,7 @@ export interface SoftDeleteConfig {
 export function isVisible(
   record: unknown,
   softDelete: SoftDeleteConfig,
-  additionalFilters?: Record<string, string>
+  additionalFilters?: Record<string, string>,
 ): boolean {
   if (record === null || record === undefined || typeof record !== 'object') {
     return false;

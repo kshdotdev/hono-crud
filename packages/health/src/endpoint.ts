@@ -1,19 +1,11 @@
 import { Hono } from 'hono';
 import type { Env } from 'hono';
-import type {
-  HealthCheck,
-  HealthCheckResult,
-  HealthConfig,
-  HealthResponse,
-} from './types';
+import type { HealthCheck, HealthCheckResult, HealthConfig, HealthResponse } from './types';
 
 /**
  * Run a single health check with timeout.
  */
-async function runCheck(
-  check: HealthCheck,
-  defaultTimeout: number
-): Promise<HealthCheckResult> {
+async function runCheck(check: HealthCheck, defaultTimeout: number): Promise<HealthCheckResult> {
   const timeout = check.timeout ?? defaultTimeout;
   const start = Date.now();
 
@@ -50,15 +42,11 @@ async function runCheck(
  */
 async function runAllChecks(
   checks: HealthCheck[],
-  defaultTimeout: number
+  defaultTimeout: number,
 ): Promise<{ results: HealthCheckResult[]; status: HealthResponse['status'] }> {
-  const results = await Promise.all(
-    checks.map((c) => runCheck(c, defaultTimeout))
-  );
+  const results = await Promise.all(checks.map((c) => runCheck(c, defaultTimeout)));
 
-  const criticalFailed = results.some(
-    (r, i) => !r.healthy && (checks[i].critical ?? true)
-  );
+  const criticalFailed = results.some((r, i) => !r.healthy && (checks[i].critical ?? true));
   const anyFailed = results.some((r) => !r.healthy);
 
   let status: HealthResponse['status'] = 'healthy';
@@ -99,7 +87,7 @@ async function runAllChecks(
  */
 export function createHealthEndpoints<E extends Env = Env>(
   app: Hono<E>,
-  config: HealthConfig = {}
+  config: HealthConfig = {},
 ): void {
   const {
     checks = [],
@@ -130,7 +118,9 @@ export function createHealthEndpoints<E extends Env = Env>(
 
     const response: HealthResponse = {
       status,
-      checks: verbose ? results : results.map(({ name, healthy, latency }) => ({ name, healthy, latency })),
+      checks: verbose
+        ? results
+        : results.map(({ name, healthy, latency }) => ({ name, healthy, latency })),
       latency: totalLatency,
       timestamp: new Date().toISOString(),
       ...(version ? { version } : {}),

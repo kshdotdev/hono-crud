@@ -1,21 +1,21 @@
 import type { MiddlewareHandler } from 'hono';
 import { z } from 'zod';
+import { ForbiddenException, UnauthorizedException } from '../core/exceptions';
+import { getLogger } from '../core/logger';
+import type { ModelPolicies } from '../core/types';
+import { getContextVar, setContextVar } from '../utils/context';
+import { MemoryApprovalStorage } from './storage/approval-memory';
 import type {
-  AuthEnv,
-  AuthorizationCheck,
-  OwnershipExtractor,
-  Guard,
+  ActionSource,
   ApprovalConfig,
   ApprovalStorage,
+  AuthEnv,
+  AuthorizationCheck,
+  Guard,
+  OwnershipExtractor,
   PendingAction,
-  ActionSource,
 } from './types';
-import { ForbiddenException, UnauthorizedException } from '../core/exceptions';
-import { getContextVar, setContextVar } from '../utils/context';
-import type { ModelPolicies } from '../core/types';
 import { parseIso8601Duration } from './utils/duration';
-import { MemoryApprovalStorage } from './storage/approval-memory';
-import { getLogger } from '../core/logger';
 
 /**
  * Type predicate: narrows `unknown` to a string-indexed record. Used to
@@ -41,9 +41,9 @@ function getDefaultApprovalStorage(): MemoryApprovalStorage {
     _warnedAboutDefaultApprovalStorage = true;
     getLogger().warn(
       'requireApproval: no approvalStorage configured — using process-local in-memory storage. ' +
-      'NOT safe for multi-instance / serverless / edge-isolate deployments where phase 1 and ' +
-      'phase 2 may hit different processes. Pass an explicit approvalStorage (e.g. ' +
-      'PostgresApprovalStorage) for production. This warning is logged once per process.'
+        'NOT safe for multi-instance / serverless / edge-isolate deployments where phase 1 and ' +
+        'phase 2 may hit different processes. Pass an explicit approvalStorage (e.g. ' +
+        'PostgresApprovalStorage) for production. This warning is logged once per process.',
     );
   }
   return _defaultApprovalStorage;
@@ -191,7 +191,7 @@ export function requireAnyPermission<E extends AuthEnv = AuthEnv>(
  * ```
  */
 export function requireAuth<E extends AuthEnv = AuthEnv>(
-  check: AuthorizationCheck<E>
+  check: AuthorizationCheck<E>,
 ): MiddlewareHandler<E> {
   return async (ctx, next) => {
     const user = ctx.var.user;
@@ -224,7 +224,7 @@ export function requireAuth<E extends AuthEnv = AuthEnv>(
  * ```
  */
 export function requireOwnership<E extends AuthEnv = AuthEnv>(
-  getOwnerId: OwnershipExtractor<E>
+  getOwnerId: OwnershipExtractor<E>,
 ): MiddlewareHandler<E> {
   return async (ctx, next) => {
     const user = ctx.var.user;
@@ -298,9 +298,7 @@ export function requireOwnershipOrRole<E extends AuthEnv = AuthEnv>(
  * ));
  * ```
  */
-export function allOf<E extends AuthEnv = AuthEnv>(
-  ...guards: Guard<E>[]
-): MiddlewareHandler<E> {
+export function allOf<E extends AuthEnv = AuthEnv>(...guards: Guard<E>[]): MiddlewareHandler<E> {
   return async (ctx, next) => {
     // Run all guards - if any throws, the request is rejected
     for (const guard of guards) {
@@ -322,9 +320,7 @@ export function allOf<E extends AuthEnv = AuthEnv>(
  * ));
  * ```
  */
-export function anyOf<E extends AuthEnv = AuthEnv>(
-  ...guards: Guard<E>[]
-): MiddlewareHandler<E> {
+export function anyOf<E extends AuthEnv = AuthEnv>(...guards: Guard<E>[]): MiddlewareHandler<E> {
   return async (ctx, next) => {
     let lastError: Error | null = null;
 
@@ -361,7 +357,7 @@ export function anyOf<E extends AuthEnv = AuthEnv>(
  * ```
  */
 export function denyAll<E extends AuthEnv = AuthEnv>(
-  message: string = 'Access denied'
+  message = 'Access denied',
 ): MiddlewareHandler<E> {
   return async () => {
     throw new ForbiddenException(message);
@@ -423,7 +419,7 @@ export function requireAuthenticated<E extends AuthEnv = AuthEnv>(): MiddlewareH
  * ```
  */
 export function requirePolicy<T = unknown, E extends AuthEnv = AuthEnv>(
-  policies: ModelPolicies<T>
+  policies: ModelPolicies<T>,
 ): MiddlewareHandler<E> {
   return async (ctx, next) => {
     setContextVar(ctx, POLICIES_CONTEXT_KEY, policies);
@@ -465,7 +461,7 @@ export function requirePolicy<T = unknown, E extends AuthEnv = AuthEnv>(
  * ```
  */
 export function requireApproval<E extends AuthEnv = AuthEnv>(
-  config: ApprovalConfig
+  config: ApprovalConfig,
 ): MiddlewareHandler<E> {
   const storage: ApprovalStorage = config.approvalStorage ?? getDefaultApprovalStorage();
   const resumeMarker = config.resumeMarker ?? '_resume_';
@@ -503,7 +499,7 @@ export function requireApproval<E extends AuthEnv = AuthEnv>(
       }
       if (action.status !== 'approved') {
         throw new ForbiddenException(
-          `Pending action ${resumeId} is ${action.status}, cannot resume`
+          `Pending action ${resumeId} is ${action.status}, cannot resume`,
         );
       }
       // Replay the original input. Hono's req.json() caches parsed body —
@@ -523,8 +519,7 @@ export function requireApproval<E extends AuthEnv = AuthEnv>(
     const tenantId = getContextVar<string>(ctx, 'tenantId');
     const organizationId = getContextVar<string>(ctx, 'organizationId');
     const explicitSource = getContextVar<ActionSource>(ctx, 'actionSource');
-    const source: ActionSource =
-      explicitSource ?? (agentId ? 'agent-mcp' : 'http');
+    const source: ActionSource = explicitSource ?? (agentId ? 'agent-mcp' : 'http');
 
     const now = Date.now();
     const action: PendingAction = {
@@ -554,7 +549,7 @@ export function requireApproval<E extends AuthEnv = AuthEnv>(
         expiresAt: action.expiresAt,
         reason: action.reason,
       },
-      202
+      202,
     );
   };
 }
@@ -572,7 +567,7 @@ export function requireApproval<E extends AuthEnv = AuthEnv>(
  */
 function replayRequestBody(
   ctx: { req: { bodyCache?: Record<string, unknown> } },
-  input: unknown
+  input: unknown,
 ): void {
   const req = ctx.req;
   // Hono's `cachedBody` reads expect `bodyCache.text` to be a Promise<string>

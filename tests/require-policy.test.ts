@@ -10,28 +10,28 @@
  *   - `requirePolicy(...)` middleware override beats `Model.policies` defaults
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import {
-  fromHono,
-  defineModel,
-  defineMeta,
-  requirePolicy,
-  setContextVar,
-  type ModelPolicies,
-  type FilterCondition,
-} from 'hono-crud';
-import {
   MemoryCreateEndpoint,
+  MemoryDeleteEndpoint,
   MemoryListEndpoint,
   MemoryReadEndpoint,
   MemoryUpdateEndpoint,
-  MemoryDeleteEndpoint,
   clearStorage,
   getStore,
 } from '@hono-crud/memory';
+import {
+  type FilterCondition,
+  type ModelPolicies,
+  defineMeta,
+  defineModel,
+  fromHono,
+  requirePolicy,
+  setContextVar,
+} from 'hono-crud';
 
 // ============================================================================
 // Fixture
@@ -94,7 +94,7 @@ describe('Model.policies + requirePolicy', () => {
       const app = buildApp();
       const res = await app.request('/posts', { headers: { 'x-user-id': 'alice' } });
       expect(res.status).toBe(200);
-      const json = await res.json() as { result: Post[] };
+      const json = (await res.json()) as { result: Post[] };
       expect(json.result.map((p) => p.id).sort()).toEqual(['p1', 'p2']);
     });
 
@@ -123,7 +123,7 @@ describe('Model.policies + requirePolicy', () => {
       store.set('p1', { id: 'p1', authorId: 'alice', title: 'secret' });
 
       const res = await app.request('/posts');
-      const json = await res.json() as { result: Post[] };
+      const json = (await res.json()) as { result: Post[] };
       expect(json.result[0].title).toBe('***');
     });
 
@@ -172,7 +172,7 @@ describe('Model.policies + requirePolicy', () => {
       // The pushdown FilterCondition reached the adapter alongside any
       // tenant/middleware filters. Find ours.
       const fromPushdown = observedFilters.find(
-        (f) => f.field === 'authorId' && f.value === 'alice'
+        (f) => f.field === 'authorId' && f.value === 'alice',
       );
       expect(fromPushdown).toBeDefined();
     });
@@ -337,7 +337,7 @@ describe('Model.policies + requirePolicy', () => {
         requirePolicy<Post>({
           read: (ctx, post) => post.authorId === ctx.userId,
         }),
-        PostList
+        PostList,
       );
 
       const store = getStore<Post>('posts_mw');
@@ -345,7 +345,7 @@ describe('Model.policies + requirePolicy', () => {
       store.set('p2', { id: 'p2', authorId: 'bob', title: 'B' });
 
       const res = await app.request('/posts', { headers: { 'x-user-id': 'alice' } });
-      const json = await res.json() as { result: Post[] };
+      const json = (await res.json()) as { result: Post[] };
       expect(json.result.map((p) => p.id)).toEqual(['p1']);
     });
   });

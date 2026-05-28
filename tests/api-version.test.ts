@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
 import {
   apiVersion,
@@ -6,18 +5,19 @@ import {
   getApiVersionConfig,
   versionedResponse,
 } from 'hono-crud/api-version';
+import { describe, expect, it } from 'vitest';
 
 describe('API Versioning', () => {
   describe('header strategy', () => {
     it('should extract version from Accept-Version header', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [
-          { version: '2' },
-          { version: '1' },
-        ],
-        defaultVersion: '2',
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: '2' }, { version: '1' }],
+          defaultVersion: '2',
+        }),
+      );
       app.get('/test', (c) => {
         return c.json({ version: getApiVersion(c) });
       });
@@ -32,10 +32,13 @@ describe('API Versioning', () => {
 
     it('should use default version when no header', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [{ version: '2' }, { version: '1' }],
-        defaultVersion: '2',
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: '2' }, { version: '1' }],
+          defaultVersion: '2',
+        }),
+      );
       app.get('/test', (c) => c.json({ version: getApiVersion(c) }));
 
       const res = await app.request('/test');
@@ -45,9 +48,12 @@ describe('API Versioning', () => {
 
     it('should return 400 for unsupported version', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [{ version: '1' }],
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: '1' }],
+        }),
+      );
       app.get('/test', (c) => c.json({}));
       app.onError((err, c) => {
         return c.json({ error: err.message }, 400);
@@ -63,11 +69,14 @@ describe('API Versioning', () => {
   describe('query strategy', () => {
     it('should extract version from query parameter', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [{ version: '1' }, { version: '2' }],
-        strategy: 'query',
-        defaultVersion: '1',
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: '1' }, { version: '2' }],
+          strategy: 'query',
+          defaultVersion: '1',
+        }),
+      );
       app.get('/test', (c) => c.json({ version: getApiVersion(c) }));
 
       const res = await app.request('/test?version=2');
@@ -77,12 +86,15 @@ describe('API Versioning', () => {
 
     it('should use custom query param name', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [{ version: '1' }, { version: '2' }],
-        strategy: 'query',
-        queryParam: 'v',
-        defaultVersion: '1',
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: '1' }, { version: '2' }],
+          strategy: 'query',
+          queryParam: 'v',
+          defaultVersion: '1',
+        }),
+      );
       app.get('/test', (c) => c.json({ version: getApiVersion(c) }));
 
       const res = await app.request('/test?v=2');
@@ -94,11 +106,14 @@ describe('API Versioning', () => {
   describe('url strategy', () => {
     it('should extract version from URL path', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [{ version: '1' }, { version: '2' }],
-        strategy: 'url',
-        defaultVersion: '1',
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: '1' }, { version: '2' }],
+          strategy: 'url',
+          defaultVersion: '1',
+        }),
+      );
       app.get('/v1/test', (c) => c.json({ version: getApiVersion(c) }));
       app.get('/v2/test', (c) => c.json({ version: getApiVersion(c) }));
 
@@ -111,11 +126,14 @@ describe('API Versioning', () => {
   describe('custom extractor', () => {
     it('should use custom version extractor', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [{ version: 'v1' }, { version: 'v2' }],
-        extractVersion: (ctx) => ctx.req.header('X-Custom-Version'),
-        defaultVersion: 'v1',
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: 'v1' }, { version: 'v2' }],
+          extractVersion: (ctx) => ctx.req.header('X-Custom-Version'),
+          defaultVersion: 'v1',
+        }),
+      );
       app.get('/test', (c) => c.json({ version: getApiVersion(c) }));
 
       const res = await app.request('/test', {
@@ -129,9 +147,12 @@ describe('API Versioning', () => {
   describe('response headers', () => {
     it('should add X-API-Version header', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [{ version: '1' }],
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: '1' }],
+        }),
+      );
       app.get('/test', (c) => c.json({}));
 
       const res = await app.request('/test', {
@@ -142,11 +163,12 @@ describe('API Versioning', () => {
 
     it('should add Deprecation and Sunset headers', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [
-          { version: '1', deprecated: '2024-06-01', sunset: '2025-01-01' },
-        ],
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: '1', deprecated: '2024-06-01', sunset: '2025-01-01' }],
+        }),
+      );
       app.get('/test', (c) => c.json({}));
 
       const res = await app.request('/test', {
@@ -158,10 +180,13 @@ describe('API Versioning', () => {
 
     it('should skip headers when addHeaders is false', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [{ version: '1' }],
-        addHeaders: false,
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: '1' }],
+          addHeaders: false,
+        }),
+      );
       app.get('/test', (c) => c.json({}));
 
       const res = await app.request('/test', {
@@ -174,11 +199,12 @@ describe('API Versioning', () => {
   describe('getApiVersionConfig', () => {
     it('should return full version config from context', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [
-          { version: '1', deprecated: '2024-01-01' },
-        ],
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [{ version: '1', deprecated: '2024-01-01' }],
+        }),
+      );
       app.get('/test', (c) => {
         const config = getApiVersionConfig(c);
         return c.json({
@@ -199,19 +225,22 @@ describe('API Versioning', () => {
   describe('versionedResponse', () => {
     it('should transform response based on version', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [
-          { version: '2' },
-          {
-            version: '1',
-            responseTransformer: (data) => {
-              const { firstName, lastName, ...rest } = data;
-              return { ...rest, fullName: `${firstName} ${lastName}` };
+      app.use(
+        '*',
+        apiVersion({
+          versions: [
+            { version: '2' },
+            {
+              version: '1',
+              responseTransformer: (data) => {
+                const { firstName, lastName, ...rest } = data;
+                return { ...rest, fullName: `${firstName} ${lastName}` };
+              },
             },
-          },
-        ],
-        defaultVersion: '2',
-      }));
+          ],
+          defaultVersion: '2',
+        }),
+      );
       // versionedResponse must wrap the handler
       app.use('*', versionedResponse());
       app.get('/user', (c) => {
@@ -239,21 +268,24 @@ describe('API Versioning', () => {
   describe('version-specific middleware', () => {
     it('should apply version-specific middleware', async () => {
       const app = new Hono();
-      app.use('*', apiVersion({
-        versions: [
-          {
-            version: '2',
-            middleware: [
-              async (c, next) => {
-                c.header('X-V2-Applied', 'true');
-                await next();
-              },
-            ],
-          },
-          { version: '1' },
-        ],
-        defaultVersion: '1',
-      }));
+      app.use(
+        '*',
+        apiVersion({
+          versions: [
+            {
+              version: '2',
+              middleware: [
+                async (c, next) => {
+                  c.header('X-V2-Applied', 'true');
+                  await next();
+                },
+              ],
+            },
+            { version: '1' },
+          ],
+          defaultVersion: '1',
+        }),
+      );
       app.get('/test', (c) => c.json({}));
 
       const res = await app.request('/test', {

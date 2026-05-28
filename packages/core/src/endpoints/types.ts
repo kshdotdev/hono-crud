@@ -1,18 +1,18 @@
 import type { ZodObject, ZodRawShape, z } from 'zod';
 import type {
-  FilterConfig,
   FilterCondition,
+  FilterConfig,
   FilterOperator,
   HookMode,
+  InferMeta,
+  InferModel,
   ListFilters,
   ListOptions,
   MetaInput,
   Model,
-  InferModel,
-  InferMeta,
   SchemaKeys,
-  defineModel,
   defineMeta,
+  defineModel,
 } from '../core/types';
 
 // Re-export core types
@@ -29,7 +29,7 @@ export type {
   InferMeta,
   SchemaKeys,
 };
-export { defineModel, defineMeta };
+export type { defineModel, defineMeta };
 
 // List endpoint configuration
 export interface ListEndpointConfig {
@@ -95,9 +95,7 @@ function coerceFilterValue(operator: FilterOperator, raw: string): unknown {
 }
 
 // Parse query string filter syntax
-export function parseFilterValue(
-  value: string
-): { operator: FilterOperator; value: unknown } {
+export function parseFilterValue(value: string): { operator: FilterOperator; value: unknown } {
   // Check for operator syntax: field[operator]=value
   const operatorMatch = value.match(/^\[([a-z]+)\](.*)$/);
   if (operatorMatch) {
@@ -112,7 +110,7 @@ export function parseFilterValue(
 // Parse query parameters into list filters
 export function parseListFilters(
   query: Record<string, unknown>,
-  config: ListEndpointConfig
+  config: ListEndpointConfig,
 ): ListFilters {
   const filters: FilterCondition[] = [];
   const options: ListOptions = {};
@@ -154,17 +152,23 @@ export function parseListFilters(
       continue;
     }
     if (cursorPaginationEnabled && key === 'limit') {
-      options.limit = Math.min(maxPerPage, Math.max(1, parseInt(value, 10) || defaultPerPage));
+      options.limit = Math.min(
+        maxPerPage,
+        Math.max(1, Number.parseInt(value, 10) || defaultPerPage),
+      );
       continue;
     }
 
     // Handle pagination
     if (key === 'page') {
-      options.page = Math.max(1, parseInt(value, 10) || 1);
+      options.page = Math.max(1, Number.parseInt(value, 10) || 1);
       continue;
     }
     if (key === 'per_page') {
-      options.per_page = Math.min(maxPerPage, Math.max(1, parseInt(value, 10) || defaultPerPage));
+      options.per_page = Math.min(
+        maxPerPage,
+        Math.max(1, Number.parseInt(value, 10) || defaultPerPage),
+      );
       continue;
     }
 
@@ -200,7 +204,10 @@ export function parseListFilters(
 
     // Handle include parameter for relations
     if (key === 'include') {
-      const requested = value.split(',').map((v) => v.trim()).filter(Boolean);
+      const requested = value
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
       if (allowedIncludes && allowedIncludes.length > 0) {
         // Filter to only allowed includes
         options.include = requested.filter((r) => allowedIncludes.includes(r));
@@ -212,7 +219,10 @@ export function parseListFilters(
 
     // Handle fields parameter for field selection
     if (key === 'fields' && fieldSelectionEnabled) {
-      const requested = value.split(',').map((v) => v.trim()).filter(Boolean);
+      const requested = value
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
       let selected = requested;
 
       // Filter to allowed fields if specified
@@ -285,7 +295,7 @@ export function parseListFilters(
 // input-schema site robust.
 export function getSchemaFields<T extends ZodObject<ZodRawShape>>(
   schema: T,
-  exclude: string[] = []
+  exclude: string[] = [],
 ): ZodObject<ZodRawShape> {
   if (exclude.length === 0) return schema as ZodObject<ZodRawShape>;
   const present = new Set(Object.keys(schema.shape));
@@ -369,7 +379,7 @@ export function parseFieldSelection(
   config: FieldSelectionConfig = {},
   schemaFields: string[] = [],
   computedFields: string[] = [],
-  relationFields: string[] = []
+  relationFields: string[] = [],
 ): FieldSelection {
   const {
     allowedFields = [],
@@ -452,7 +462,7 @@ export function parseFieldSelection(
  */
 export function applyFieldSelection<T extends Record<string, unknown>>(
   record: T,
-  selection: FieldSelection
+  selection: FieldSelection,
 ): Record<string, unknown> {
   // If selection is not active, return all fields
   if (!selection.isActive || selection.fields.length === 0) {
@@ -477,7 +487,7 @@ export function applyFieldSelection<T extends Record<string, unknown>>(
  */
 export function applyFieldSelectionToArray<T extends Record<string, unknown>>(
   records: T[],
-  selection: FieldSelection
+  selection: FieldSelection,
 ): Array<Record<string, unknown>> {
   // If selection is not active, return all fields
   if (!selection.isActive || selection.fields.length === 0) {

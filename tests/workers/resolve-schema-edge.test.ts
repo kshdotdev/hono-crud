@@ -1,3 +1,5 @@
+import { env } from 'cloudflare:test';
+import { OpenAPIHono } from '@hono/zod-openapi';
 /**
  * Per-tenant schema resolution running inside miniflare.
  *
@@ -5,9 +7,7 @@
  * a Workers isolate (no Node APIs, KV-backed cache OK, dynamic root-entry
  * import succeeds).
  */
-import { describe, it, expect } from 'vitest';
-import { env } from 'cloudflare:test';
-import { OpenAPIHono } from '@hono/zod-openapi';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 describe('Per-tenant schema resolution (Workers)', () => {
@@ -18,12 +18,7 @@ describe('Per-tenant schema resolution (Workers)', () => {
   });
 
   it('emits a per-tenant OpenAPI document with the resolved schema', async () => {
-    const {
-      fromHono,
-      defineModel,
-      defineMeta,
-      buildPerTenantOpenApi,
-    } = await import('hono-crud');
+    const { fromHono, defineModel, defineMeta, buildPerTenantOpenApi } = await import('hono-crud');
     const { MemoryCreateEndpoint } = await import('@hono-crud/memory');
 
     const Base = z.object({
@@ -56,13 +51,8 @@ describe('Per-tenant schema resolution (Workers)', () => {
   });
 
   it('caches per-tenant OpenAPI via a KV-backed adapter', async () => {
-    const {
-      fromHono,
-      defineModel,
-      defineMeta,
-      buildPerTenantOpenApi,
-      wrapCacheStorageForOpenApi,
-    } = await import('hono-crud');
+    const { fromHono, defineModel, defineMeta, buildPerTenantOpenApi, wrapCacheStorageForOpenApi } =
+      await import('hono-crud');
     const { KVCacheStorage } = await import('@hono-crud/cache');
     const { MemoryCreateEndpoint } = await import('@hono-crud/memory');
 

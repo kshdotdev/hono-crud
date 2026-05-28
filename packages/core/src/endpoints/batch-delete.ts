@@ -1,7 +1,7 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
+import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
 import type { ModelObject } from './types';
 
 /**
@@ -29,15 +29,14 @@ export abstract class BatchDeleteEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   /** Maximum number of records that can be deleted in a single request */
-  protected maxBatchSize: number = 100;
+  protected maxBatchSize = 100;
 
   /** Whether to stop on first error or continue with remaining items */
-  protected stopOnError: boolean = false;
+  protected stopOnError = false;
 
   /** The field used to identify records */
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
 
   /** Hook execution mode */
   protected beforeHookMode: HookMode = 'sequential';
@@ -126,10 +125,14 @@ export abstract class BatchDeleteEndpoint<
                   deleted: z.array(this.getModelSchema()),
                   count: z.number(),
                   notFound: z.array(z.string()).optional(),
-                  errors: z.array(z.object({
-                    id: z.string(),
-                    error: z.string(),
-                  })).optional(),
+                  errors: z
+                    .array(
+                      z.object({
+                        id: z.string(),
+                        error: z.string(),
+                      }),
+                    )
+                    .optional(),
                 }),
               }),
             },
@@ -165,10 +168,7 @@ export abstract class BatchDeleteEndpoint<
    * Lifecycle hook: called before each item is deleted.
    * Override to perform checks or side effects.
    */
-  async before(
-    _id: string,
-    _tx?: unknown
-  ): Promise<void> {
+  async before(_id: string, _tx?: unknown): Promise<void> {
     // Override in subclass
   }
 
@@ -176,10 +176,7 @@ export abstract class BatchDeleteEndpoint<
    * Lifecycle hook: called after each item is deleted.
    * Override to perform side effects.
    */
-  async after(
-    data: ModelObject<M['model']>,
-    _tx?: unknown
-  ): Promise<ModelObject<M['model']>> {
+  async after(data: ModelObject<M['model']>, _tx?: unknown): Promise<ModelObject<M['model']>> {
     return data;
   }
 
@@ -195,14 +192,13 @@ export abstract class BatchDeleteEndpoint<
    */
   abstract batchDelete(
     ids: string[],
-    tx?: unknown
+    tx?: unknown,
   ): Promise<{ deleted: ModelObject<M['model']>[]; notFound: string[] }>;
 
   /**
    * Main handler for the batch delete operation.
    */
   async handle(): Promise<Response> {
-
     const ids = await this.getIds();
     const errors: Array<{ id: string; error: string }> = [];
 
@@ -258,12 +254,14 @@ export abstract class BatchDeleteEndpoint<
         .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (auditRecords.length > 0) {
-        this.runAfterResponse(auditLogger.logBatch(
-          'batch_delete',
-          this._meta.model.tableName,
-          auditRecords,
-          this.getAuditUserId()
-        ));
+        this.runAfterResponse(
+          auditLogger.logBatch(
+            'batch_delete',
+            this._meta.model.tableName,
+            auditRecords,
+            this.getAuditUserId(),
+          ),
+        );
       }
     }
 

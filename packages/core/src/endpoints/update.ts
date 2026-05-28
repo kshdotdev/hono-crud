@@ -1,13 +1,21 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
-import { getLogger } from '../core/logger';
-import type {MetaInput, OpenAPIRouteSchema, HookMode, HookContext, RelationConfig, NestedUpdateInput, NestedWriteResult} from '../core/types';
-import { applyComputedFields, extractNestedData, isDirectNestedData } from '../core/types';
-import { NotFoundException } from '../core/exceptions';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { generateETag, matchesIfMatch } from '../core/etag';
-import { getSchemaFields, type ModelObject } from './types';
+import { NotFoundException } from '../core/exceptions';
+import { getLogger } from '../core/logger';
 import { getManagedInputExclusions } from '../core/managed-fields';
+import type {
+  HookContext,
+  HookMode,
+  MetaInput,
+  NestedUpdateInput,
+  NestedWriteResult,
+  OpenAPIRouteSchema,
+  RelationConfig,
+} from '../core/types';
+import { applyComputedFields, extractNestedData, isDirectNestedData } from '../core/types';
+import { CrudEndpoint } from './base';
+import { type ModelObject, getSchemaFields } from './types';
 
 /**
  * Base endpoint for updating resources.
@@ -40,9 +48,8 @@ export abstract class UpdateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   // Lookup configuration
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
   protected lookupFields?: string[];
   protected additionalFilters?: string[];
 
@@ -60,7 +67,7 @@ export abstract class UpdateEndpoint<
 
   // ETag configuration
   /** Enable If-Match support for optimistic concurrency control */
-  protected etagEnabled: boolean = false;
+  protected etagEnabled = false;
 
   // Audit logging
 
@@ -159,11 +166,12 @@ export abstract class UpdateEndpoint<
       let schema = getSchemaFields(this.getModelSchema(), excludeFields);
 
       if (this.allowedUpdateFields) {
-        // Only include allowed fields
-        const pickObj = this.allowedUpdateFields.reduce(
-          (acc, key) => ({ ...acc, [key]: true }),
-          {}
-        );
+        // Only include allowed fields (mutating accumulator — avoids the
+        // accumulating-spread anti-pattern).
+        const pickObj: Record<string, true> = {};
+        for (const key of this.allowedUpdateFields) {
+          pickObj[key] = true;
+        }
         schema = schema.pick(pickObj) as unknown as ZodObject<ZodRawShape>;
       }
 
@@ -186,14 +194,18 @@ export abstract class UpdateEndpoint<
       const relatedSchema = relationConfig.schema;
 
       // Create a nested update input schema
-      const nestedUpdateSchema = z.object({
-        create: z.union([relatedSchema.partial(), z.array(relatedSchema.partial())]).optional(),
-        update: z.array(relatedSchema.partial().extend({ id: z.union([z.string(), z.number()]) })).optional(),
-        delete: z.array(z.union([z.string(), z.number()])).optional(),
-        connect: z.array(z.union([z.string(), z.number()])).optional(),
-        disconnect: z.array(z.union([z.string(), z.number()])).optional(),
-        set: relatedSchema.partial().nullable().optional(),
-      }).optional();
+      const nestedUpdateSchema = z
+        .object({
+          create: z.union([relatedSchema.partial(), z.array(relatedSchema.partial())]).optional(),
+          update: z
+            .array(relatedSchema.partial().extend({ id: z.union([z.string(), z.number()]) }))
+            .optional(),
+          delete: z.array(z.union([z.string(), z.number()])).optional(),
+          connect: z.array(z.union([z.string(), z.number()])).optional(),
+          disconnect: z.array(z.union([z.string(), z.number()])).optional(),
+          set: relatedSchema.partial().nullable().optional(),
+        })
+        .optional();
 
       shape[relationName] = nestedUpdateSchema;
     }
@@ -217,7 +229,14 @@ export abstract class UpdateEndpoint<
     return Object.entries(relations)
       .filter(([_, config]) => {
         const nw = config.nestedWrites;
-        return nw && (nw.allowCreate || nw.allowUpdate || nw.allowDelete || nw.allowConnect || nw.allowDisconnect);
+        return (
+          nw &&
+          (nw.allowCreate ||
+            nw.allowUpdate ||
+            nw.allowDelete ||
+            nw.allowConnect ||
+            nw.allowDisconnect)
+        );
       })
       .map(([name]) => name);
   }
@@ -225,9 +244,7 @@ export abstract class UpdateEndpoint<
   /**
    * Extracts nested relation data from the request body.
    */
-  protected extractNestedData(
-    data: Record<string, unknown>
-  ): {
+  protected extractNestedData(data: Record<string, unknown>): {
     mainData: Record<string, unknown>;
     nestedData: Record<string, unknown>;
   } {
@@ -341,7 +358,7 @@ export abstract class UpdateEndpoint<
    */
   async before(
     data: Partial<ModelObject<M['model']>>,
-    _hookCtx: HookContext
+    _hookCtx: HookContext,
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -367,7 +384,7 @@ export abstract class UpdateEndpoint<
   async after(
     _prior: ModelObject<M['model']>,
     current: ModelObject<M['model']>,
-    _hookCtx: HookContext
+    _hookCtx: HookContext,
   ): Promise<ModelObject<M['model']> | void> {
     return current;
   }
@@ -399,7 +416,7 @@ export abstract class UpdateEndpoint<
     lookupValue: string,
     data: Partial<ModelObject<M['model']>>,
     additionalFilters?: Record<string, string>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null>;
 
   /**
@@ -409,7 +426,7 @@ export abstract class UpdateEndpoint<
   protected async findExisting(
     _lookupValue: string,
     _additionalFilters?: Record<string, string>,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
     // Default implementation returns null - override in adapter
     return null;
@@ -431,10 +448,12 @@ export abstract class UpdateEndpoint<
     relationName: string,
     _relationConfig: RelationConfig,
     _operations: NestedUpdateInput,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<NestedWriteResult> {
     // Default implementation does nothing - override in adapter
-    getLogger().warn(`Nested writes not implemented for ${relationName}. Override processNestedWrites() in your adapter.`);
+    getLogger().warn(
+      `Nested writes not implemented for ${relationName}. Override processNestedWrites() in your adapter.`,
+    );
     return {
       created: [],
       updated: [],
@@ -448,7 +467,6 @@ export abstract class UpdateEndpoint<
    * Main handler for the update operation.
    */
   async handle(): Promise<Response> {
-
     // Validate tenant ID if multi-tenancy is enabled
     const tenantId = this.validateTenantId();
 
@@ -464,9 +482,7 @@ export abstract class UpdateEndpoint<
     const rawData = await this.getObject();
 
     // Extract nested data from request
-    const { mainData, nestedData } = this.extractNestedData(
-      rawData as Record<string, unknown>
-    );
+    const { mainData, nestedData } = this.extractNestedData(rawData as Record<string, unknown>);
 
     // Fetch the pre-mutation row inside the same tx as the parent UPDATE.
     // As of 0.10.0 this read is unconditional: `after(prior, current,
@@ -475,11 +491,7 @@ export abstract class UpdateEndpoint<
     // through `findExisting(lookup, filters, tx)` so the adapter sees the
     // tx handle when one is active (Drizzle `useTransaction = true`).
     const policies = this.getPolicies();
-    const previousRecord = await this.findExisting(
-      lookupValue,
-      additionalFilters,
-      this._tx
-    );
+    const previousRecord = await this.findExisting(lookupValue, additionalFilters, this._tx);
 
     // Run write-policy gate before any mutation. Throws 403 on denial.
     if (previousRecord && policies?.write) {
@@ -492,11 +504,7 @@ export abstract class UpdateEndpoint<
       if (ifMatch) {
         const currentEtag = await generateETag(previousRecord);
         if (!matchesIfMatch(ifMatch, currentEtag)) {
-          return this.error(
-            'Resource has been modified by another request',
-            'CONFLICT',
-            409
-          );
+          return this.error('Resource has been modified by another request', 'CONFLICT', 409);
         }
       }
     }
@@ -511,7 +519,7 @@ export abstract class UpdateEndpoint<
           parentId,
           previousRecord as Record<string, unknown>,
           undefined, // No previous-previous record needed
-          this.getVersioningUserId()
+          this.getVersioningUserId(),
         );
       }
     }
@@ -527,7 +535,9 @@ export abstract class UpdateEndpoint<
 
     const hookCtx = this.buildHookContext();
     data = await this.before(data, hookCtx);
-    data = await this.encryptOnWrite(data as Record<string, unknown>) as Partial<ModelObject<M['model']>>;
+    data = (await this.encryptOnWrite(data as Record<string, unknown>)) as Partial<
+      ModelObject<M['model']>
+    >;
 
     let obj = await this.update(lookupValue, data, additionalFilters, hookCtx.db.tx);
 
@@ -535,7 +545,7 @@ export abstract class UpdateEndpoint<
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
     }
 
-    obj = await this.decryptOnRead(obj as Record<string, unknown>) as ModelObject<M['model']>;
+    obj = (await this.decryptOnRead(obj as Record<string, unknown>)) as ModelObject<M['model']>;
 
     // Get the parent ID for nested writes
     const parentId = this.getParentId(obj);
@@ -562,7 +572,7 @@ export abstract class UpdateEndpoint<
           parentId,
           relationName,
           relationConfig,
-          parsedOps
+          parsedOps,
         );
 
         nestedResults[relationName] = result;
@@ -577,10 +587,7 @@ export abstract class UpdateEndpoint<
 
         // Attach created/updated records to response
         if (relationConfig.type === 'hasMany') {
-          (obj as Record<string, unknown>)[relationName] = [
-            ...result.created,
-            ...result.updated,
-          ];
+          (obj as Record<string, unknown>)[relationName] = [...result.created, ...result.updated];
         } else {
           (obj as Record<string, unknown>)[relationName] =
             result.created[0] || result.updated[0] || null;
@@ -610,13 +617,15 @@ export abstract class UpdateEndpoint<
     // Audit logging
     if (this.isAuditEnabled() && parentId !== null && previousRecord) {
       const auditLogger = this.getAuditLogger();
-      this.runAfterResponse(auditLogger.logUpdate(
-        this._meta.model.tableName,
-        parentId,
-        previousRecord as Record<string, unknown>,
-        obj as Record<string, unknown>,
-        this.getAuditUserId()
-      ));
+      this.runAfterResponse(
+        auditLogger.logUpdate(
+          this._meta.model.tableName,
+          parentId,
+          previousRecord as Record<string, unknown>,
+          obj as Record<string, unknown>,
+          this.getAuditUserId(),
+        ),
+      );
     }
 
     // Emit updated event
@@ -626,22 +635,20 @@ export abstract class UpdateEndpoint<
           recordId: parentId,
           data: obj,
           previousData: previousRecord ?? undefined,
-        })
+        }),
       );
     }
 
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {
-      obj = await applyComputedFields(
+      obj = (await applyComputedFields(
         obj as Record<string, unknown>,
-        this._meta.model.computedFields
-      ) as ModelObject<M['model']>;
+        this._meta.model.computedFields,
+      )) as ModelObject<M['model']>;
     }
 
     // Apply serializer if defined
-    const serialized = this._meta.model.serializer
-      ? this._meta.model.serializer(obj)
-      : obj;
+    const serialized = this._meta.model.serializer ? this._meta.model.serializer(obj) : obj;
 
     // Apply default serialization profile (model.serializationProfile)
     const profiled = this.applyProfile(serialized as Record<string, unknown>);

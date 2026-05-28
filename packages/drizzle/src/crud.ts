@@ -1,6 +1,6 @@
+import { and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import type { Column, SQL, Table } from 'drizzle-orm';
 import type { Env } from 'hono';
-import { eq, and, isNull, isNotNull, or, asc, desc, sql } from 'drizzle-orm';
-import type { SQL, Table, Column } from 'drizzle-orm';
 import { getLogger } from 'hono-crud/internal';
 import { CreateEndpoint } from 'hono-crud/internal';
 import { ReadEndpoint } from 'hono-crud/internal';
@@ -9,27 +9,27 @@ import { DeleteEndpoint } from 'hono-crud/internal';
 import { ListEndpoint } from 'hono-crud/internal';
 import { RestoreEndpoint } from 'hono-crud/internal';
 import type {
-  MetaInput,
-  PaginatedResult,
-  ListFilters,
   IncludeOptions,
-  RelationConfig,
+  ListFilters,
+  MetaInput,
   NestedUpdateInput,
   NestedWriteResult,
+  PaginatedResult,
+  RelationConfig,
 } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
+import { substringMatch } from './advanced';
+import { getDrizzleDb } from './connection';
 import {
   type DrizzleDatabase,
   type DrizzleDialect,
-  cast,
-  getTable,
-  getColumn,
-  loadDrizzleRelations,
   batchLoadDrizzleRelations,
   buildWhereCondition,
+  cast,
+  getColumn,
+  getTable,
+  loadDrizzleRelations,
 } from './helpers';
-import { substringMatch } from './advanced';
-import { getDrizzleDb } from './connection';
 
 /**
  * Drizzle Create endpoint.
@@ -76,7 +76,7 @@ export abstract class DrizzleCreateEndpoint<
    * When true, the entire create operation (including nested writes) will be atomic.
    * @default false
    */
-  protected useTransaction: boolean = false;
+  protected useTransaction = false;
 
   /** Current transaction context (set during transaction execution) */
   protected declare _tx?: DrizzleDatabase;
@@ -102,20 +102,17 @@ export abstract class DrizzleCreateEndpoint<
     return (relationConfig as RelationConfig<Table>).table;
   }
 
-  override async create(data: ModelObject<M['model']>, tx?: unknown): Promise<ModelObject<M['model']>> {
+  override async create(
+    data: ModelObject<M['model']>,
+    tx?: unknown,
+  ): Promise<ModelObject<M['model']>> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'drizzle'
-    );
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'drizzle');
 
-    const result = await cast(db)
-      .insert(table)
-      .values(record)
-      .returning();
+    const result = await cast(db).insert(table).values(record).returning();
 
     return result[0] as ModelObject<M['model']>;
   }
@@ -128,12 +125,14 @@ export abstract class DrizzleCreateEndpoint<
     relationName: string,
     relationConfig: RelationConfig,
     data: unknown,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<unknown[]> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) {
-      getLogger().warn(`Related table not found for ${relationName}. Add 'table' to the relation config.`);
+      getLogger().warn(
+        `Related table not found for ${relationName}. Add 'table' to the relation config.`,
+      );
       return [];
     }
 
@@ -214,7 +213,7 @@ export abstract class DrizzleReadEndpoint<
   override async read(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    includeOptions?: IncludeOptions
+    includeOptions?: IncludeOptions,
   ): Promise<ModelObject<M['model']> | null> {
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
@@ -249,7 +248,7 @@ export abstract class DrizzleReadEndpoint<
       this.getDb(),
       result[0] as Record<string, unknown>,
       this._meta,
-      includeOptions
+      includeOptions,
     );
 
     return itemWithRelations as ModelObject<M['model']>;
@@ -275,7 +274,7 @@ export abstract class DrizzleUpdateEndpoint<
    * When true, the entire update operation (including nested writes) will be atomic.
    * @default false
    */
-  protected useTransaction: boolean = false;
+  protected useTransaction = false;
 
   /** Current transaction context (set during transaction execution) */
   protected declare _tx?: DrizzleDatabase;
@@ -306,7 +305,7 @@ export abstract class DrizzleUpdateEndpoint<
   protected override async findExisting(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
@@ -340,7 +339,7 @@ export abstract class DrizzleUpdateEndpoint<
     lookupValue: string,
     data: Partial<ModelObject<M['model']>>,
     additionalFilters?: Record<string, string>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
@@ -378,12 +377,14 @@ export abstract class DrizzleUpdateEndpoint<
     relationName: string,
     relationConfig: RelationConfig,
     operations: NestedUpdateInput,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<NestedWriteResult> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) {
-      getLogger().warn(`Related table not found for ${relationName}. Add 'table' to the relation config.`);
+      getLogger().warn(
+        `Related table not found for ${relationName}. Add 'table' to the relation config.`,
+      );
       return {
         created: [],
         updated: [],
@@ -406,9 +407,7 @@ export abstract class DrizzleUpdateEndpoint<
 
     // Handle create operations
     if (operations.create) {
-      const items = Array.isArray(operations.create)
-        ? operations.create
-        : [operations.create];
+      const items = Array.isArray(operations.create) ? operations.create : [operations.create];
       for (const item of items) {
         if (typeof item !== 'object' || item === null) continue;
 
@@ -543,7 +542,7 @@ export abstract class DrizzleDeleteEndpoint<
    * When true, the entire delete operation (including cascade deletes) will be atomic.
    * @default false
    */
-  protected useTransaction: boolean = false;
+  protected useTransaction = false;
 
   /** Current transaction context (set during transaction execution) */
   protected declare _tx?: DrizzleDatabase;
@@ -574,7 +573,7 @@ export abstract class DrizzleDeleteEndpoint<
   override async findForDelete(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
@@ -607,7 +606,7 @@ export abstract class DrizzleDeleteEndpoint<
   override async delete(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();
@@ -655,7 +654,7 @@ export abstract class DrizzleDeleteEndpoint<
     parentId: string | number,
     _relationName: string,
     relationConfig: RelationConfig,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<number> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
@@ -678,7 +677,7 @@ export abstract class DrizzleDeleteEndpoint<
     parentId: string | number,
     _relationName: string,
     relationConfig: RelationConfig,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<number> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
@@ -686,10 +685,7 @@ export abstract class DrizzleDeleteEndpoint<
 
     const fkColumn = getColumn(relatedTable, relationConfig.foreignKey);
 
-    const result = await cast(db)
-      .delete(relatedTable)
-      .where(eq(fkColumn, parentId))
-      .returning();
+    const result = await cast(db).delete(relatedTable).where(eq(fkColumn, parentId)).returning();
 
     return result.length;
   }
@@ -701,7 +697,7 @@ export abstract class DrizzleDeleteEndpoint<
     parentId: string | number,
     _relationName: string,
     relationConfig: RelationConfig,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<number> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
@@ -860,7 +856,7 @@ export abstract class DrizzleListEndpoint<
       this.getDb(),
       result as Record<string, unknown>[],
       this._meta,
-      includeOptions
+      includeOptions,
     );
 
     const totalPages = Math.ceil(totalCount / perPage);
@@ -898,7 +894,7 @@ export abstract class DrizzleRestoreEndpoint<
    * Useful when combined with hooks that perform additional operations.
    * @default false
    */
-  protected useTransaction: boolean = false;
+  protected useTransaction = false;
 
   /** Current transaction context (set during transaction execution) */
   protected declare _tx?: DrizzleDatabase;
@@ -919,7 +915,7 @@ export abstract class DrizzleRestoreEndpoint<
   override async restore(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
     const db = (tx as DrizzleDatabase) ?? this.getDb();
     const table = this.getTable();

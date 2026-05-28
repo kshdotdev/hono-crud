@@ -35,17 +35,17 @@ type DrizzleTable = { _: { name: string; columns: Record<string, unknown> } };
 // These allow the module to compile even without drizzle-zod installed
 type CreateSelectSchema = <T extends DrizzleTable>(
   table: T,
-  refine?: Record<string, z.ZodTypeAny>
+  refine?: Record<string, z.ZodTypeAny>,
 ) => z.ZodObject<Record<string, z.ZodTypeAny>>;
 
 type CreateInsertSchema = <T extends DrizzleTable>(
   table: T,
-  refine?: Record<string, z.ZodTypeAny>
+  refine?: Record<string, z.ZodTypeAny>,
 ) => z.ZodObject<Record<string, z.ZodTypeAny>>;
 
 type CreateUpdateSchema = <T extends DrizzleTable>(
   table: T,
-  refine?: Record<string, z.ZodTypeAny>
+  refine?: Record<string, z.ZodTypeAny>,
 ) => z.ZodObject<Record<string, z.ZodTypeAny>>;
 
 // Cached drizzle-zod module
@@ -74,7 +74,7 @@ async function ensureDrizzleZod(): Promise<typeof _drizzleZod> {
     return _drizzleZod;
   } catch {
     _loadError = new Error(
-      'drizzle-zod is not installed. Please install it: npm install drizzle-zod'
+      'drizzle-zod is not installed. Please install it: npm install drizzle-zod',
     );
     throw _loadError;
   }
@@ -99,7 +99,7 @@ async function ensureDrizzleZod(): Promise<typeof _drizzleZod> {
  */
 export async function createSelectSchema<T extends DrizzleTable>(
   table: T,
-  refine?: Record<string, z.ZodTypeAny>
+  refine?: Record<string, z.ZodTypeAny>,
 ): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
   const drizzleZod = await ensureDrizzleZod();
   return drizzleZod!.createSelectSchema(table, refine);
@@ -124,7 +124,7 @@ export async function createSelectSchema<T extends DrizzleTable>(
  */
 export async function createInsertSchema<T extends DrizzleTable>(
   table: T,
-  refine?: Record<string, z.ZodTypeAny>
+  refine?: Record<string, z.ZodTypeAny>,
 ): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
   const drizzleZod = await ensureDrizzleZod();
   return drizzleZod!.createInsertSchema(table, refine);
@@ -152,7 +152,7 @@ export async function createInsertSchema<T extends DrizzleTable>(
  */
 export async function createUpdateSchema<T extends DrizzleTable>(
   table: T,
-  refine?: Record<string, z.ZodTypeAny>
+  refine?: Record<string, z.ZodTypeAny>,
 ): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
   const drizzleZod = await ensureDrizzleZod();
 
@@ -232,7 +232,7 @@ export async function createDrizzleSchemas<T extends DrizzleTable>(
     updateRefine?: Record<string, z.ZodTypeAny>;
     /** Whether to coerce date strings to Date objects. Default: true */
     coerceDates?: boolean;
-  }
+  },
 ): Promise<DrizzleSchemas> {
   const drizzleZod = await ensureDrizzleZod();
   const shouldCoerceDates = options?.coerceDates !== false;
@@ -248,7 +248,9 @@ export async function createDrizzleSchemas<T extends DrizzleTable>(
     update = drizzleZod!.createUpdateSchema(table, options?.updateRefine);
   } else {
     // Fallback for older drizzle-zod versions
-    update = drizzleZod!.createInsertSchema(table, options?.updateRefine).partial() as z.ZodObject<Record<string, z.ZodTypeAny>>;
+    update = drizzleZod!.createInsertSchema(table, options?.updateRefine).partial() as z.ZodObject<
+      Record<string, z.ZodTypeAny>
+    >;
   }
 
   // Apply date coercion to insert and update schemas (not select, as that's for output)
@@ -273,33 +275,27 @@ export function isDrizzleZodAvailable(): boolean {
  * A Zod schema that coerces ISO date strings to Date objects.
  * Accepts both Date objects and ISO 8601 date strings.
  */
-export const coercedDate = z.preprocess(
-  (val) => {
-    if (val instanceof Date) return val;
-    if (typeof val === 'string') {
-      const parsed = new Date(val);
-      if (!isNaN(parsed.getTime())) return parsed;
-    }
-    return val; // Return as-is, let z.date() handle validation
-  },
-  z.date()
-);
+export const coercedDate = z.preprocess((val) => {
+  if (val instanceof Date) return val;
+  if (typeof val === 'string') {
+    const parsed = new Date(val);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  return val; // Return as-is, let z.date() handle validation
+}, z.date());
 
 /**
  * A Zod schema that coerces ISO date strings to Date objects, allowing null.
  */
-export const coercedDateNullable = z.preprocess(
-  (val) => {
-    if (val === null || val === undefined) return null;
-    if (val instanceof Date) return val;
-    if (typeof val === 'string') {
-      const parsed = new Date(val);
-      if (!isNaN(parsed.getTime())) return parsed;
-    }
-    return val;
-  },
-  z.date().nullable()
-);
+export const coercedDateNullable = z.preprocess((val) => {
+  if (val === null || val === undefined) return null;
+  if (val instanceof Date) return val;
+  if (typeof val === 'string') {
+    const parsed = new Date(val);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  return val;
+}, z.date().nullable());
 
 /**
  * Detects timestamp/date columns in a Drizzle table and returns their names.
@@ -353,7 +349,7 @@ function getDateColumns<T extends DrizzleTable>(table: T): Set<string> {
  */
 function applyDateCoercion(
   schema: z.ZodObject<Record<string, z.ZodTypeAny>>,
-  dateColumns: Set<string>
+  dateColumns: Set<string>,
 ): z.ZodObject<Record<string, z.ZodTypeAny>> {
   if (dateColumns.size === 0) return schema;
 

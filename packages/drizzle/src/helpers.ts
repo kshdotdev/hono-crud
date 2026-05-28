@@ -1,9 +1,24 @@
-import { eq, ne, gt, gte, lt, lte, like, ilike, inArray, notInArray, isNull, isNotNull, between, getTableColumns } from 'drizzle-orm';
-import type { SQL, Table, Column } from 'drizzle-orm';
+import {
+  between,
+  eq,
+  getTableColumns,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  like,
+  lt,
+  lte,
+  ne,
+  notInArray,
+} from 'drizzle-orm';
+import type { Column, SQL, Table } from 'drizzle-orm';
 import type {
-  MetaInput,
   FilterCondition,
   IncludeOptions,
+  MetaInput,
   RelationConfig,
 } from 'hono-crud/internal';
 
@@ -23,7 +38,11 @@ export interface QueryBuilder extends PromiseLike<unknown[]> {
   set(data: Record<string, unknown>): QueryBuilder;
   values(data: Record<string, unknown> | Record<string, unknown>[]): QueryBuilder;
   returning(): QueryBuilder;
-  onConflictDoUpdate(config: { target: unknown[]; set: Record<string, unknown>; where?: unknown }): QueryBuilder;
+  onConflictDoUpdate(config: {
+    target: unknown[];
+    set: Record<string, unknown>;
+    where?: unknown;
+  }): QueryBuilder;
   onConflictDoNothing(config?: { target?: unknown[] }): QueryBuilder;
   onDuplicateKeyUpdate(config: { set: Record<string, unknown> }): QueryBuilder;
 }
@@ -149,7 +168,7 @@ export function getColumn(table: Table, field: string): Column {
   if (!column) {
     throw new Error(
       `Column '${field}' not found in table. ` +
-      `Available columns: ${Object.keys(columns).join(', ')}`
+        `Available columns: ${Object.keys(columns).join(', ')}`,
     );
   }
   return column as Column;
@@ -162,7 +181,7 @@ export async function loadDrizzleRelation<T extends Record<string, unknown>>(
   db: DrizzleDatabase,
   item: T,
   relationName: string,
-  relationConfig: RelationConfig<Table>
+  relationConfig: RelationConfig<Table>,
 ): Promise<T> {
   if (!relationConfig.table) {
     // Can't load relation without table reference
@@ -226,7 +245,7 @@ export async function loadDrizzleRelations<T extends Record<string, unknown>, M 
   db: DrizzleDatabase,
   item: T,
   meta: M,
-  includeOptions?: IncludeOptions
+  includeOptions?: IncludeOptions,
 ): Promise<T> {
   if (!includeOptions?.relations?.length || !meta.model.relations) {
     return item;
@@ -248,18 +267,16 @@ export async function loadDrizzleRelations<T extends Record<string, unknown>, M 
  * Batch loads relations for multiple items to avoid N+1 queries.
  * Instead of N queries per relation, this uses 1 query per relation using inArray().
  */
-export async function batchLoadDrizzleRelations<T extends Record<string, unknown>, M extends MetaInput>(
-  db: DrizzleDatabase,
-  items: T[],
-  meta: M,
-  includeOptions?: IncludeOptions
-): Promise<T[]> {
+export async function batchLoadDrizzleRelations<
+  T extends Record<string, unknown>,
+  M extends MetaInput,
+>(db: DrizzleDatabase, items: T[], meta: M, includeOptions?: IncludeOptions): Promise<T[]> {
   if (!items.length || !includeOptions?.relations?.length || !meta.model.relations) {
     return items;
   }
 
   // Clone all items to avoid mutation
-  let results = items.map(item => ({ ...item })) as T[];
+  let results = items.map((item) => ({ ...item })) as T[];
 
   for (const relationName of includeOptions.relations) {
     const relationConfig = meta.model.relations[relationName] as RelationConfig<Table> | undefined;
@@ -275,15 +292,17 @@ export async function batchLoadDrizzleRelations<T extends Record<string, unknown
         const localKey = relationConfig.localKey || 'id';
 
         // Collect all unique local values
-        const localValues = [...new Set(
-          results
-            .map(item => item[localKey])
-            .filter(val => val !== undefined && val !== null)
-        )];
+        const localValues = [
+          ...new Set(
+            results
+              .map((item) => item[localKey])
+              .filter((val) => val !== undefined && val !== null),
+          ),
+        ];
 
         if (localValues.length === 0) {
           // Set empty results for all items
-          results = results.map(item => ({
+          results = results.map((item) => ({
             ...item,
             [relationName]: relationConfig.type === 'hasMany' ? [] : null,
           }));
@@ -308,12 +327,12 @@ export async function batchLoadDrizzleRelations<T extends Record<string, unknown
         }
 
         // Map results back to items
-        results = results.map(item => {
+        results = results.map((item) => {
           const localValue = item[localKey];
           const related = recordsByForeignKey.get(localValue) || [];
           return {
             ...item,
-            [relationName]: relationConfig.type === 'hasMany' ? related : (related[0] || null),
+            [relationName]: relationConfig.type === 'hasMany' ? related : related[0] || null,
           };
         });
         break;
@@ -324,15 +343,17 @@ export async function batchLoadDrizzleRelations<T extends Record<string, unknown
         const refLocalKey = relationConfig.localKey || 'id';
 
         // Collect all unique foreign key values
-        const foreignValues = [...new Set(
-          results
-            .map(item => item[relationConfig.foreignKey])
-            .filter(val => val !== undefined && val !== null)
-        )];
+        const foreignValues = [
+          ...new Set(
+            results
+              .map((item) => item[relationConfig.foreignKey])
+              .filter((val) => val !== undefined && val !== null),
+          ),
+        ];
 
         if (foreignValues.length === 0) {
           // Set null for all items
-          results = results.map(item => ({
+          results = results.map((item) => ({
             ...item,
             [relationName]: null,
           }));
@@ -354,7 +375,7 @@ export async function batchLoadDrizzleRelations<T extends Record<string, unknown
         }
 
         // Map results back to items
-        results = results.map(item => {
+        results = results.map((item) => {
           const foreignValue = item[relationConfig.foreignKey];
           return {
             ...item,
@@ -372,10 +393,7 @@ export async function batchLoadDrizzleRelations<T extends Record<string, unknown
 /**
  * Builds a where condition from filter conditions.
  */
-export function buildWhereCondition(
-  table: Table,
-  filter: FilterCondition
-): SQL | undefined {
+export function buildWhereCondition(table: Table, filter: FilterCondition): SQL | undefined {
   const column = getColumn(table, filter.field);
 
   switch (filter.operator) {

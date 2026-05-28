@@ -7,6 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   schema: path.join(__dirname, 'schema.prisma'),
   datasource: {
-    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/hono_crud?schema=public',
+    url:
+      process.env.DATABASE_URL ||
+      'postgresql://postgres:postgres@localhost:5432/hono_crud?schema=public',
   },
 });
