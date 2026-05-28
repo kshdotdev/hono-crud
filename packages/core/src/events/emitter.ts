@@ -1,7 +1,7 @@
 import type { Context, Env } from 'hono';
-import { getContextVar } from '../core/context-helpers';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import { getLogger } from '../core/logger';
+import { createRegistryWithDefault } from '../storage/registry';
 import type {
   CrudEventListener,
   CrudEventPayload,
@@ -210,45 +210,42 @@ export class CrudEventEmitter {
 // Global Event Emitter
 // ============================================================================
 
-let globalEmitter: CrudEventEmitter | null = null;
-
 /**
- * Get or create the global event emitter.
+ * Global event-emitter registry. Uses the shared `StorageRegistry` so the
+ * resolve precedence (explicit > context > global) matches audit / versioning
+ * / logging / api-key instead of being hand-rolled here.
  *
  * Compatibility API only. In edge runtimes (Cloudflare Workers, Deno, Bun)
  * the global emitter is per-isolate state — listeners are not shared across
  * isolates and may surprise multi-tenant code. Prefer passing an emitter
  * explicitly or injecting one via `createCrudMiddleware`.
  */
+export const eventEmitterRegistry = createRegistryWithDefault<CrudEventEmitter>(
+  CONTEXT_KEYS.eventEmitter,
+  () => new CrudEventEmitter(),
+);
+
+/**
+ * Get or create the global event emitter (compatibility API).
+ */
 export function getEventEmitter(): CrudEventEmitter {
-  if (!globalEmitter) {
-    globalEmitter = new CrudEventEmitter();
-  }
-  return globalEmitter;
+  return eventEmitterRegistry.getRequired();
 }
 
 /**
  * Set a custom global event emitter.
  */
 export function setEventEmitter(emitter: CrudEventEmitter): void {
-  globalEmitter = emitter;
+  eventEmitterRegistry.set(emitter);
 }
 
 /**
  * Resolve an event emitter without creating a global instance.
+ * Priority: explicit > context > explicitly-configured global.
  */
 export function resolveEventEmitter<E extends Env>(
   ctx?: Context<E>,
   explicit?: CrudEventEmitter,
 ): CrudEventEmitter | null {
-  if (explicit) {
-    return explicit;
-  }
-  if (ctx) {
-    const contextEmitter = getContextVar<CrudEventEmitter>(ctx, CONTEXT_KEYS.eventEmitter);
-    if (contextEmitter) {
-      return contextEmitter;
-    }
-  }
-  return globalEmitter;
+  return eventEmitterRegistry.resolve(ctx, explicit);
 }

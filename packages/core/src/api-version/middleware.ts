@@ -79,24 +79,13 @@ export function apiVersion(config: VersioningMiddlewareConfig): MiddlewareHandle
   }
 
   return async (ctx, next) => {
-    // Extract version from request
-    let version: string | undefined;
-
-    if (customExtractor) {
-      version = customExtractor(ctx);
-    } else {
-      switch (strategy) {
-        case 'header':
-          version = extractFromHeader(ctx, headerName);
-          break;
-        case 'query':
-          version = extractFromQuery(ctx, queryParam);
-          break;
-        case 'url':
-          version = extractFromUrl(ctx, urlPattern);
-          break;
-      }
-    }
+    // Extract version from request. Strategy → extractor lookup map.
+    const strategyExtractors: Record<typeof strategy, () => string | undefined> = {
+      header: () => extractFromHeader(ctx, headerName),
+      query: () => extractFromQuery(ctx, queryParam),
+      url: () => extractFromUrl(ctx, urlPattern),
+    };
+    let version = customExtractor ? customExtractor(ctx) : strategyExtractors[strategy]();
 
     // Fall back to default
     version = version ?? defaultVersion;
