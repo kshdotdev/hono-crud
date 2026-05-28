@@ -60,6 +60,25 @@ function forwardHeaders(headers: ForwardHeaders | undefined, target: Headers): v
   }
 }
 
+type RequestSpec = { url: string; body?: string };
+
+/** Per-operation request builders: map a tool input + plan to a URL and optional JSON body. */
+const REQUEST_BUILDERS: Record<
+  OperationName,
+  (basePath: string, id: string, args: Args, plan: RequestPlan) => RequestSpec
+> = {
+  list: (basePath, _id, args) => ({ url: basePath + encodeQuery(args) }),
+  read: (basePath, id, args, plan) => ({
+    url: `${basePath}/${id}${encodeQuery(pick(args, plan.queryKeys))}`,
+  }),
+  create: (basePath, _id, args) => ({ url: basePath, body: JSON.stringify(args) }),
+  update: (basePath, id, args, plan) => ({
+    url: `${basePath}/${id}`,
+    body: JSON.stringify(omit(args, plan.paramKeys)),
+  }),
+  delete: (basePath, id) => ({ url: `${basePath}/${id}` }),
+};
+
 /**
  * Translate a tool call into an internal HTTP request and re-dispatch it through
  * the mounted Hono app, so the full CRUD pipeline (auth, validation, hooks,
@@ -79,30 +98,8 @@ export async function dispatch(
   const idKey = plan.paramKeys[0];
   const id = idKey ? encodeURIComponent(String(args[idKey])) : '';
 
-  let url = basePath;
-  let body: string | undefined;
-
-  switch (operation) {
-    case 'list':
-      url = basePath + encodeQuery(args);
-      break;
-    case 'read':
-      url = `${basePath}/${id}${encodeQuery(pick(args, plan.queryKeys))}`;
-      break;
-    case 'create':
-      url = basePath;
-      body = JSON.stringify(args);
-      requestHeaders.set('content-type', 'application/json');
-      break;
-    case 'update':
-      url = `${basePath}/${id}`;
-      body = JSON.stringify(omit(args, plan.paramKeys));
-      requestHeaders.set('content-type', 'application/json');
-      break;
-    case 'delete':
-      url = `${basePath}/${id}`;
-      break;
-  }
+  const { url, body } = REQUEST_BUILDERS[operation](basePath, id, args, plan);
+  if (body !== undefined) requestHeaders.set('content-type', 'application/json');
 
   return app.request(url, { method: METHOD[operation], headers: requestHeaders, body });
 }

@@ -20,6 +20,10 @@ export type { ModelObject } from './endpoints/types';
 // The contract adapter bundles implement, plus the generated-endpoints map.
 export type { AdapterBundle, GeneratedEndpoints } from './config/index';
 
+// App-scoped CRUD resource registry — lets addons enumerate registerCrud(...) calls.
+export { getRegisteredCrudResources } from './core/resource-registry';
+export type { RegisteredCrudResource } from './core/resource-registry';
+
 // Version-history endpoint primitives (not on the public barrel).
 export {
   VersionHistoryEndpoint,

@@ -76,6 +76,9 @@ export const app = fromHono(new Hono());
 registerCrud(app, '/users', userEndpoints);
 
 // 2. Expose those resources as MCP tools.
+//    `auto: true` discovers every registerCrud(...) resource — no per-resource
+//    wiring — and `resources` lets you override individual ones. (You can still
+//    call mcp.resource(path, endpoints, ...) explicitly for finer control.)
 const mcp = createCrudMcp(app, {
   name: 'user-management',
   version: '1.0.0',
@@ -85,14 +88,17 @@ const mcp = createCrudMcp(app, {
     strategy: 'verifier',
     verifyToken: (token) => (token === 'demo-token' ? { sub: 'demo-user' } : null),
   },
-});
-
-mcp.resource('/users', userEndpoints, {
-  description: 'User accounts.',
-  tools: {
-    // Disable destructive deletes over MCP for this demo.
-    delete: { enabled: false },
-    list: { description: 'Search users by name/email or filter by role.' },
+  auto: {
+    resources: {
+      '/users': {
+        description: 'User accounts.',
+        tools: {
+          // Disable destructive deletes over MCP for this demo.
+          delete: { enabled: false },
+          list: { description: 'Search users by name/email or filter by role.' },
+        },
+      },
+    },
   },
 });
 

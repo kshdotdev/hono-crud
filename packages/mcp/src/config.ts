@@ -29,23 +29,20 @@ function singular(resource: string): string {
   return resource.endsWith('s') ? resource.slice(0, -1) : resource;
 }
 
+/** Per-operation description templates. `resource` is plural, `one` is singularized. */
+const DESCRIPTIONS: Record<OperationName, (resource: string, one: string) => string> = {
+  list: (resource) => `List ${resource} with optional filters, search, sorting and pagination.`,
+  read: (_resource, one) => `Get a single ${one} by id.`,
+  create: (_resource, one) => `Create a new ${one}.`,
+  update: (_resource, one) => `Update an existing ${one} by id.`,
+  delete: (_resource, one) => `Delete a ${one} by id.`,
+};
+
 export function defaultDescription(
   resource: string,
   operation: OperationName,
   base?: string,
 ): string {
   const prefix = base ? `${base} ` : '';
-  const one = singular(resource);
-  switch (operation) {
-    case 'list':
-      return `${prefix}List ${resource} with optional filters, search, sorting and pagination.`;
-    case 'read':
-      return `${prefix}Get a single ${one} by id.`;
-    case 'create':
-      return `${prefix}Create a new ${one}.`;
-    case 'update':
-      return `${prefix}Update an existing ${one} by id.`;
-    case 'delete':
-      return `${prefix}Delete a ${one} by id.`;
-  }
+  return `${prefix}${DESCRIPTIONS[operation](resource, singular(resource))}`;
 }

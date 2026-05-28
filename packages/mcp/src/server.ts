@@ -1,10 +1,18 @@
 import { StreamableHTTPTransport } from '@hono/mcp';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Context, Hono } from 'hono';
-import { ConfigurationException } from 'hono-crud/internal';
+import {
+  ConfigurationException,
+  getRegisteredCrudResources,
+  isPathIncluded,
+} from 'hono-crud/internal';
 import { type ResolvedAuth, resolveAuth } from './auth';
 import { registerResourceTools } from './tools';
-import type { CrudMcpOptions, ResourceEndpoints, ResourceOptions } from './types';
+import type { AutoOptions, CrudMcpOptions, ResourceEndpoints, ResourceOptions } from './types';
+
+function normalizePath(path: string): string {
+  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+}
 
 /**
  * Exposes `hono-crud` resources as MCP tools over HTTP streaming transport.
@@ -16,6 +24,8 @@ export class CrudMcpServer {
   private readonly transport: StreamableHTTPTransport;
   private readonly auth: ResolvedAuth;
   private readonly toolNames = new Set<string>();
+  private readonly resourcePaths = new Set<string>();
+  private autoRegistered = false;
   private connectPromise?: Promise<void>;
 
   constructor(
@@ -50,11 +60,38 @@ export class CrudMcpServer {
       }
       this.toolNames.add(name);
     }
+    this.resourcePaths.add(normalizePath(path));
     return this;
+  }
+
+  /**
+   * Auto-register every resource registered via `registerCrud(...)` (when
+   * `options.auto` is set). Runs once, skipping paths already registered
+   * manually so explicit `mcp.resource()` calls take precedence.
+   */
+  private runAutoDiscovery(): void {
+    if (this.autoRegistered) return;
+    this.autoRegistered = true;
+    if (!this.options.auto) return;
+
+    const config: AutoOptions = this.options.auto === true ? {} : this.options.auto;
+    const include = config.include ?? [];
+    const exclude = config.exclude ?? [];
+
+    for (const { path, endpoints } of getRegisteredCrudResources(this.app)) {
+      const normalized = normalizePath(path);
+      if (this.resourcePaths.has(normalized)) continue; // manual registration wins
+      if (!isPathIncluded(normalized, include, exclude)) continue;
+
+      const override = config.resources?.[path] ?? config.resources?.[normalized] ?? {};
+      this.resource(normalized, endpoints, { operations: config.operations, ...override });
+    }
   }
 
   /** Hono handler for the MCP endpoint. Mount with `app.all('/mcp', mcp.handler())`. */
   handler(): (c: Context) => Promise<Response | undefined> {
+    // Runs once, after any manual `mcp.resource()` calls and all `registerCrud`.
+    this.runAutoDiscovery();
     return async (c: Context) => {
       const denied = await this.auth.gate(c);
       if (denied) return denied;

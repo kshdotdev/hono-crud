@@ -63,10 +63,94 @@ const endpoints = {
   delete: UserDelete,
 };
 
+const PostSchema = z.object({
+  id: z.uuid(),
+  title: z.string().min(1),
+  body: z.string(),
+});
+
+const PostModel: Model<typeof PostSchema> = {
+  tableName: 'posts',
+  schema: PostSchema,
+  primaryKeys: ['id'],
+};
+
+const postMeta: MetaInput<typeof PostSchema> = { model: PostModel };
+
+class PostCreate extends MemoryCreateEndpoint {
+  _meta = postMeta;
+}
+class PostList extends MemoryListEndpoint {
+  _meta = postMeta;
+}
+class PostRead extends MemoryReadEndpoint {
+  _meta = postMeta;
+}
+class PostUpdate extends MemoryUpdateEndpoint {
+  _meta = postMeta;
+}
+class PostDelete extends MemoryDeleteEndpoint {
+  _meta = postMeta;
+}
+
+const postEndpoints = {
+  create: PostCreate,
+  list: PostList,
+  read: PostRead,
+  update: PostUpdate,
+  delete: PostDelete,
+};
+
 function buildApp() {
   const app = fromHono(new Hono());
   registerCrud(app, '/users', endpoints);
   return app;
+}
+
+function buildAppUsersPosts() {
+  const app = fromHono(new Hono());
+  registerCrud(app, '/users', endpoints);
+  registerCrud(app, '/posts', postEndpoints);
+  return app;
+}
+
+// Parse a streamable-HTTP response body: SSE `data:` frames or plain JSON.
+function messages(text: string): Array<{ id?: number; result?: any }> {
+  const data = text
+    .split('\n')
+    .filter((l) => l.startsWith('data:'))
+    .map((l) => JSON.parse(l.slice(5).trim()));
+  if (data.length) return data;
+  try {
+    const json = JSON.parse(text);
+    return Array.isArray(json) ? json : [json];
+  } catch {
+    return [];
+  }
+}
+
+// Initialize an MCP session over /mcp and return the sorted tool names.
+// biome-ignore lint/suspicious/noExplicitAny: app of any Env/Schema is fine to request.
+async function toolNamesOverHttp(app: { request: (...args: any[]) => Promise<Response> }) {
+  const headers = (sid?: string): Record<string, string> => ({
+    'content-type': 'application/json',
+    accept: 'application/json, text/event-stream',
+    ...(sid ? { 'mcp-session-id': sid } : {}),
+  });
+  const post = (body: unknown, sid?: string) =>
+    app.request('/mcp', { method: 'POST', headers: headers(sid), body: JSON.stringify(body) });
+
+  const initRes = await post({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'c', version: '1' } },
+  });
+  const sid = initRes.headers.get('mcp-session-id') ?? undefined;
+  await post({ jsonrpc: '2.0', method: 'notifications/initialized' }, sid);
+  const listRes = await post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, sid);
+  const tools = messages(await listRes.text()).find((m) => m.id === 2)?.result?.tools ?? [];
+  return (tools as Array<{ name: string }>).map((t) => t.name).sort();
 }
 
 // Drive a freshly-built McpServer via an in-memory client.
@@ -259,21 +343,6 @@ describe('authentication', () => {
 });
 
 describe('HTTP streaming transport (end-to-end)', () => {
-  // Parse a streamable-HTTP response body: SSE `data:` frames or plain JSON.
-  function messages(text: string): Array<{ id?: number; result?: any }> {
-    const data = text
-      .split('\n')
-      .filter((l) => l.startsWith('data:'))
-      .map((l) => JSON.parse(l.slice(5).trim()));
-    if (data.length) return data;
-    try {
-      const json = JSON.parse(text);
-      return Array.isArray(json) ? json : [json];
-    } catch {
-      return [];
-    }
-  }
-
   it('serves initialize, tools/list and tools/call over /mcp', async () => {
     const app = buildApp();
     const mcp = createCrudMcp(app, serverInfo);
@@ -327,5 +396,53 @@ describe('HTTP streaming transport (end-to-end)', () => {
     const callResult = messages(await callRes.text()).find((m) => m.id === 3)?.result;
     const payload = JSON.parse(callResult.content[0].text);
     expect(payload.result.email).toBe('http@test.com');
+  });
+});
+
+describe('auto-discovery', () => {
+  it('auto-registers every registerCrud resource without per-resource calls', async () => {
+    const app = buildAppUsersPosts();
+    const mcp = createCrudMcp(app, { ...serverInfo, auto: true });
+    app.all('/mcp', mcp.handler());
+
+    const names = await toolNamesOverHttp(app);
+    expect(names.filter((n) => n.startsWith('users_'))).toHaveLength(5);
+    expect(names.filter((n) => n.startsWith('posts_'))).toHaveLength(5);
+    expect(names).toContain('posts_create');
+  });
+
+  it('respects include/exclude path patterns', async () => {
+    const app = buildAppUsersPosts();
+    const mcp = createCrudMcp(app, { ...serverInfo, auto: { exclude: ['/posts'] } });
+    app.all('/mcp', mcp.handler());
+
+    const names = await toolNamesOverHttp(app);
+    expect(names.some((n) => n.startsWith('users_'))).toBe(true);
+    expect(names.some((n) => n.startsWith('posts_'))).toBe(false);
+  });
+
+  it('applies default operations and per-resource overrides', async () => {
+    const app = buildAppUsersPosts();
+    const mcp = createCrudMcp(app, {
+      ...serverInfo,
+      auto: { operations: ['list', 'read'], resources: { '/users': { operations: ['list'] } } },
+    });
+    app.all('/mcp', mcp.handler());
+
+    const names = await toolNamesOverHttp(app);
+    expect(names.filter((n) => n.startsWith('users_'))).toEqual(['users_list']);
+    expect(names.filter((n) => n.startsWith('posts_'))).toEqual(['posts_list', 'posts_read']);
+  });
+
+  it('lets a manual mcp.resource() take precedence over auto for the same path', async () => {
+    const app = buildAppUsersPosts();
+    const mcp = createCrudMcp(app, { ...serverInfo, auto: true });
+    mcp.resource('/users', endpoints, { name: 'people', operations: ['list'] });
+    app.all('/mcp', mcp.handler());
+
+    const names = await toolNamesOverHttp(app);
+    expect(names).toContain('people_list'); // manual override wins for /users
+    expect(names.some((n) => n.startsWith('users_'))).toBe(false);
+    expect(names.filter((n) => n.startsWith('posts_'))).toHaveLength(5); // posts still auto
   });
 });

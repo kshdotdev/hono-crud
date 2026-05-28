@@ -1,6 +1,6 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
 import type { CrudEndpoints, OpenAPIRoute, OpenAPIRouteSchema } from 'hono-crud';
-import type { MetaInput } from 'hono-crud/internal';
+import type { MetaInput, PathPattern } from 'hono-crud/internal';
 
 /** The five standard CRUD operations exposed as MCP tools. */
 export type OperationName = 'list' | 'read' | 'create' | 'update' | 'delete';
@@ -52,6 +52,22 @@ export interface NamingContext {
   operation: OperationName;
 }
 
+/**
+ * Controls the auto-discovery pass that turns every `registerCrud(...)` resource
+ * into MCP tools without per-resource `mcp.resource()` calls. Set `auto: true`
+ * for defaults, or pass this object to scope and override.
+ */
+export interface AutoOptions {
+  /** Only auto-register resources whose path matches one of these (glob or RegExp). Default: all. */
+  include?: PathPattern[];
+  /** Skip resources whose path matches one of these. Excludes always win. */
+  exclude?: PathPattern[];
+  /** Default operation allow-list applied to every auto-registered resource. */
+  operations?: OperationName[];
+  /** Per-path overrides, keyed by the `registerCrud` path (e.g. `'/users'`). */
+  resources?: Record<string, ResourceOptions>;
+}
+
 export type Identity = Record<string, unknown>;
 
 /**
@@ -101,6 +117,12 @@ export interface CrudMcpOptions {
   naming?: (ctx: NamingContext) => string;
   /** Authentication for the `/mcp` endpoint. Defaults to none (open). */
   auth?: McpAuthOptions;
+  /**
+   * Auto-register every resource registered via `registerCrud(...)`. `true` uses
+   * defaults; pass {@link AutoOptions} to scope/override. Manual `mcp.resource()`
+   * calls still work and take precedence over auto for the same path.
+   */
+  auto?: boolean | AutoOptions;
 }
 
 /** The endpoints map — the same object passed to `registerCrud(app, path, endpoints)`. */

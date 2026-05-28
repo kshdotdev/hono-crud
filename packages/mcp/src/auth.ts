@@ -34,41 +34,48 @@ async function runGate(c: Context, middleware: MiddlewareHandler[]): Promise<Res
   return undefined;
 }
 
+const NO_AUTH: ResolvedAuth = { mount() {}, gate: async () => undefined };
+
+/** One resolver per auth strategy, each typed against its narrowed options. */
+type StrategyResolvers = {
+  [K in McpAuthOptions['strategy']]: (
+    options: Extract<McpAuthOptions, { strategy: K }>,
+  ) => ResolvedAuth;
+};
+
+const STRATEGIES: StrategyResolvers = {
+  verifier: (options) => ({
+    mount() {},
+    async gate(c) {
+      const token = bearerToken(c);
+      if (!token) return unauthorized(c, 'Missing bearer token');
+      const identity = await options.verifyToken(token, c);
+      if (!identity) return unauthorized(c, 'Invalid token');
+      (c.set as (key: string, value: unknown) => void)('auth', identity as Identity);
+      return undefined;
+    },
+  }),
+
+  middleware: (options) => {
+    const middleware = Array.isArray(options.middleware)
+      ? options.middleware
+      : [options.middleware];
+    return { mount() {}, gate: (c) => runGate(c, middleware) };
+  },
+
+  oauth: (options) => ({
+    mount(app) {
+      app.route(options.mountPath ?? '/', options.router);
+    },
+    gate: (c) => runGate(c, [options.bearer]),
+  }),
+};
+
 export function resolveAuth(options?: McpAuthOptions): ResolvedAuth {
-  if (!options) {
-    return { mount() {}, gate: async () => undefined };
-  }
-
-  switch (options.strategy) {
-    case 'verifier':
-      return {
-        mount() {},
-        async gate(c) {
-          const token = bearerToken(c);
-          if (!token) return unauthorized(c, 'Missing bearer token');
-          const identity = await options.verifyToken(token, c);
-          if (!identity) return unauthorized(c, 'Invalid token');
-          (c.set as (key: string, value: unknown) => void)('auth', identity as Identity);
-          return undefined;
-        },
-      };
-
-    case 'middleware': {
-      const middleware = Array.isArray(options.middleware)
-        ? options.middleware
-        : [options.middleware];
-      return {
-        mount() {},
-        gate: (c) => runGate(c, middleware),
-      };
-    }
-
-    case 'oauth':
-      return {
-        mount(app) {
-          app.route(options.mountPath ?? '/', options.router);
-        },
-        gate: (c) => runGate(c, [options.bearer]),
-      };
-  }
+  if (!options) return NO_AUTH;
+  // TS can't correlate the discriminant key with its value type at a dynamic
+  // index, so the dispatch needs one localized cast; each resolver is fully
+  // typed against its narrowed options via StrategyResolvers.
+  const resolver = STRATEGIES[options.strategy] as (o: McpAuthOptions) => ResolvedAuth;
+  return resolver(options);
 }

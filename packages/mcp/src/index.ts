@@ -1,5 +1,6 @@
 export { CrudMcpServer, createCrudMcp } from './server';
 export type {
+  AutoOptions,
   Awaitable,
   CrudMcpOptions,
   Identity,
