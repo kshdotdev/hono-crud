@@ -225,10 +225,8 @@ export abstract class RestoreEndpoint<
       this.runAfterResponse(this.emitEvent('restored', { recordId, data: restoredItem }));
     }
 
-    // Apply serializer if defined
-    const result = this._meta.model.serializer
-      ? this._meta.model.serializer(restoredItem)
-      : restoredItem;
+    // computed fields → serializer → profile → transform
+    const result = await this.finalizeRecord(restoredItem);
 
     return this.success(result);
   }

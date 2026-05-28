@@ -278,15 +278,8 @@ export abstract class BatchCreateEndpoint<
       }
     }
 
-    // Apply serializer if defined
-    const serializedItems = this._meta.model.serializer
-      ? results.map((item) => this._meta.model.serializer!(item) as ModelObject<M['model']>)
-      : results;
-
-    // Apply transform to each item
-    const transformed = serializedItems.map((item) =>
-      this.transform(item as ModelObject<M['model']>),
-    );
+    // computed fields → serializer → profile → transform
+    const transformed = await this.finalizeArray(results);
 
     const response = {
       success: true as const,

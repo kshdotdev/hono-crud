@@ -41,6 +41,8 @@ import {
   type PolicyContext,
   type SchemaResolveContext,
   type ValidatedData,
+  applyComputedFields,
+  applyComputedFieldsToArray,
   extractTenantId,
   getAuditConfig,
   getMultiTenantConfig,
@@ -53,6 +55,12 @@ import type { CrudEventType } from '../events/types';
 import { applyProfile, applyProfileToArray } from '../serialization/serialize';
 import { getContextVar, setContextVar } from '../utils/context';
 import { type VersionManager, createVersionManager } from '../versioning';
+import {
+  type FieldSelection,
+  type ModelObject,
+  applyFieldSelection,
+  applyFieldSelectionToArray,
+} from './types';
 
 /**
  * Per-request memoization key for `Model.resolveSchema(ctx)` results.
@@ -364,6 +372,69 @@ export abstract class CrudEndpoint<
   ): Record<string, unknown>[] {
     const profile = this._meta.model.serializationProfile;
     return profile ? applyProfileToArray(records, profile) : records;
+  }
+
+  // ============================================================================
+  // Read-shaping pipeline
+  // ============================================================================
+
+  /**
+   * Per-record output transform. Default is identity; concrete endpoints (and
+   * the generated config/builder subclasses) override it. Declared here so the
+   * shared `finalizeRecord` / `finalizeArray` tail can call it polymorphically.
+   */
+  protected transform(item: unknown): unknown {
+    return item;
+  }
+
+  /**
+   * Deterministic read-shaping tail shared by every record-returning verb:
+   * `computed fields → serializer → serialization profile → transform →
+   * field selection`. Each step runs only when the model/endpoint configured
+   * it. This is the single source of truth for the chain that was previously
+   * copy-pasted across ~14 endpoints — where omitting `applyProfile` silently
+   * leaked fields the profile was meant to strip.
+   *
+   * `decrypt`, policy reads, and the user `after` hook stay in each verb's
+   * `handle()` — they aren't uniform across verbs and run before this tail.
+   */
+  protected async finalizeRecord(
+    record: ModelObject<M['model']>,
+    fieldSelection?: FieldSelection,
+  ): Promise<unknown> {
+    const model = this._meta.model;
+    let obj: Record<string, unknown> = record as Record<string, unknown>;
+    if (model.computedFields) {
+      obj = await applyComputedFields(obj, model.computedFields);
+    }
+    const serialized = model.serializer ? model.serializer(obj as ModelObject<M['model']>) : obj;
+    const profiled = this.applyProfile(serialized as Record<string, unknown>);
+    const transformed = this.transform(profiled as ModelObject<M['model']>);
+    if (fieldSelection?.isActive && fieldSelection.fields.length > 0) {
+      return applyFieldSelection(transformed as Record<string, unknown>, fieldSelection);
+    }
+    return transformed;
+  }
+
+  /** Array variant of {@link finalizeRecord}. Same ordered chain, per element. */
+  protected async finalizeArray(
+    records: ModelObject<M['model']>[],
+    fieldSelection?: FieldSelection,
+  ): Promise<unknown[]> {
+    const model = this._meta.model;
+    let items: Record<string, unknown>[] = records as Record<string, unknown>[];
+    if (model.computedFields) {
+      items = await applyComputedFieldsToArray(items, model.computedFields);
+    }
+    const serialized = model.serializer
+      ? items.map((i) => model.serializer!(i as ModelObject<M['model']>))
+      : items;
+    const profiled = this.applyProfileToArray(serialized as Record<string, unknown>[]);
+    const transformed = profiled.map((i) => this.transform(i as ModelObject<M['model']>));
+    if (fieldSelection?.isActive && fieldSelection.fields.length > 0) {
+      return applyFieldSelectionToArray(transformed as Record<string, unknown>[], fieldSelection);
+    }
+    return transformed;
   }
 
   // ============================================================================

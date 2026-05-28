@@ -537,13 +537,19 @@ export abstract class BatchUpsertEndpoint<
       }
     }
 
-    // Apply serializer if defined
-    if (this._meta.model.serializer) {
-      result.items = result.items.map((item) => ({
+    // serializer → profile → transform per item (computed already applied above).
+    // Profile + transform were previously skipped here — running them closes the
+    // same serialization-profile leak fixed across the other write endpoints.
+    result.items = result.items.map((item) => {
+      const serialized = this._meta.model.serializer
+        ? this._meta.model.serializer(item.data)
+        : item.data;
+      const profiled = this.applyProfile(serialized as Record<string, unknown>);
+      return {
         ...item,
-        data: this._meta.model.serializer!(item.data) as ModelObject<M['model']>,
-      }));
-    }
+        data: this.transform(profiled as ModelObject<M['model']>) as ModelObject<M['model']>,
+      };
+    });
 
     return this.success(result);
   }

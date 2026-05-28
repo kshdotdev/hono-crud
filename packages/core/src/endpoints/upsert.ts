@@ -10,7 +10,7 @@ import type {
   OpenAPIRouteSchema,
   RelationConfig,
 } from '../core/types';
-import { applyComputedFields, extractNestedData, isDirectNestedData } from '../core/types';
+import { extractNestedData, isDirectNestedData } from '../core/types';
 import { CrudEndpoint } from './base';
 import { type ModelObject, getSchemaFields } from './types';
 
@@ -633,22 +633,14 @@ export abstract class UpsertEndpoint<
       );
     }
 
-    // Apply computed fields if defined
-    if (this._meta.model.computedFields) {
-      obj = (await applyComputedFields(
-        obj as Record<string, unknown>,
-        this._meta.model.computedFields,
-      )) as ModelObject<M['model']>;
-    }
-
-    // Apply serializer if defined
-    const serialized = this._meta.model.serializer ? this._meta.model.serializer(obj) : obj;
+    // computed fields → serializer → profile → transform
+    const finalized = await this.finalizeRecord(obj);
 
     // Return with created flag and appropriate status code
     return this.json(
       {
         success: true as const,
-        result: serialized,
+        result: finalized,
         created: result.created,
       },
       result.created ? 201 : 200,

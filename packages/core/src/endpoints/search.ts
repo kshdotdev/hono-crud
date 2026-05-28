@@ -11,7 +11,6 @@ import type {
   SearchResultItem,
 } from '../core/types';
 import { parseSearchMode } from '../core/types';
-import { applyComputedFieldsToArray } from '../core/types';
 import { CrudEndpoint } from './base';
 import {
   buildSearchConfig,
@@ -24,7 +23,6 @@ import {
   type ListFilterParseOptions,
   type ListFilters,
   type ModelObject,
-  applyFieldSelectionToArray,
   parseListFilters,
 } from './types';
 
@@ -535,40 +533,23 @@ export abstract class SearchEndpoint<
     const searchResult = await this.search(searchOptions, filters);
 
     // Call afterSearch hook
-    let items = await this.afterSearch(searchResult.items);
+    const items = await this.afterSearch(searchResult.items);
 
-    // Apply computed fields if defined
-    if (this._meta.model.computedFields) {
-      const records = items.map((item) => item.item);
-      const computedRecords = await applyComputedFieldsToArray(
-        records as Record<string, unknown>[],
-        this._meta.model.computedFields,
-      );
-      items = items.map((item, index) => ({
-        ...item,
-        item: computedRecords[index] as ModelObject<M['model']>,
-      }));
-    }
-
-    // Apply serializer if defined
-    if (this._meta.model.serializer) {
-      items = items.map((item) => ({
-        ...item,
-        item: this._meta.model.serializer!(item.item) as ModelObject<M['model']>,
-      }));
-    }
-
-    // Apply field selection if enabled
-    let result: unknown[] = items;
-    if (this.fieldSelectionEnabled && filters.options.fields && filters.options.fields.length > 0) {
-      result = items.map((item) => ({
-        ...item,
-        item: applyFieldSelectionToArray([item.item as Record<string, unknown>], {
-          fields: filters.options.fields!,
-          isActive: true,
-        })[0],
-      }));
-    }
+    // computed → serializer → profile → transform → field selection, applied to
+    // each result's `.item` payload. Profile + transform were previously skipped
+    // here — running them closes the serialization-profile leak.
+    const fieldSelection =
+      this.fieldSelectionEnabled && filters.options.fields && filters.options.fields.length > 0
+        ? { fields: filters.options.fields, isActive: true }
+        : undefined;
+    const finalized = await this.finalizeArray(
+      items.map((item) => item.item),
+      fieldSelection,
+    );
+    const result: unknown[] = items.map((item, index) => ({
+      ...item,
+      item: finalized[index],
+    }));
 
     // Calculate pagination info.
     //
