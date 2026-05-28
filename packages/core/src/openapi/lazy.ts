@@ -11,7 +11,7 @@
 
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { Context } from 'hono';
-import { z, type ZodObject, type ZodRawShape } from 'zod';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 
 import type { HonoOpenAPIApp } from '../core/openapi';
 import { getHandlerForApp } from '../core/openapi';
@@ -77,18 +77,17 @@ const DEFAULT_CONFIG: PerTenantOpenApiConfig = {
 export async function buildPerTenantOpenApi(
   app: HonoOpenAPIApp,
   ctx: SchemaResolveContext,
-  options: PerTenantOpenApiOptions = {}
+  options: PerTenantOpenApiOptions = {},
 ): Promise<unknown> {
   const handler = getHandlerForApp(app);
   if (!handler) {
     throw new Error(
-      'buildPerTenantOpenApi: app was not produced by fromHono(...). Cannot find route registry.'
+      'buildPerTenantOpenApi: app was not produced by fromHono(...). Cannot find route registry.',
     );
   }
 
   const config = options.config ?? DEFAULT_CONFIG;
-  const cacheKey =
-    `openapi:${ctx.tenantId ?? 'global'}:${config.info.version}`;
+  const cacheKey = `openapi:${ctx.tenantId ?? 'global'}:${config.info.version}`;
 
   if (options.cache) {
     const cached = await options.cache.get(cacheKey);

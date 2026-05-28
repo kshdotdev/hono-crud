@@ -1,3 +1,5 @@
+import { env } from 'cloudflare:test';
+import { KVCacheStorage } from '@hono-crud/cache/storage/cloudflare-kv';
 /**
  * KV Cache Storage tests running inside miniflare.
  *
@@ -6,9 +8,7 @@
  *
  * Run with: vitest --config vitest.config.workers.ts
  */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { env } from 'cloudflare:test';
-import { KVCacheStorage } from '@hono-crud/cache/storage/cloudflare-kv';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('KVCacheStorage (Workers)', () => {
   let cache: KVCacheStorage;

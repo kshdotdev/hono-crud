@@ -1,15 +1,15 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema} from '../core/types';
-import { applyComputedFields } from '../core/types';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { NotFoundException } from '../core/exceptions';
-import { getSchemaFields, type ModelObject } from './types';
 import {
   getManagedInputExclusions,
-  stripManagedInsertFields,
   rethrowAsConstraintError,
+  stripManagedInsertFields,
 } from '../core/managed-fields';
+import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { applyComputedFields } from '../core/types';
+import { CrudEndpoint } from './base';
+import { type ModelObject, getSchemaFields } from './types';
 
 /**
  * Base endpoint for cloning/duplicating a resource.
@@ -34,9 +34,8 @@ export abstract class CloneEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   // Lookup configuration
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
 
   /** Fields to exclude from the cloned record (besides primary keys). */
   protected excludeFromClone: string[] = [];
@@ -160,9 +159,7 @@ export abstract class CloneEndpoint<
    * Lifecycle hook: called before creating the clone.
    * Override to transform cloned data before saving.
    */
-  async before(
-    data: ModelObject<M['model']>
-  ): Promise<ModelObject<M['model']>> {
+  async before(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
     return data;
   }
 
@@ -170,9 +167,7 @@ export abstract class CloneEndpoint<
    * Lifecycle hook: called after creating the clone.
    * Override to transform result before returning.
    */
-  async after(
-    data: ModelObject<M['model']>
-  ): Promise<ModelObject<M['model']>> {
+  async after(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
     return data;
   }
 
@@ -182,16 +177,14 @@ export abstract class CloneEndpoint<
    */
   abstract findSource(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null>;
 
   /**
    * Creates the cloned record.
    * Must be implemented by ORM-specific subclasses.
    */
-  abstract createClone(
-    data: ModelObject<M['model']>
-  ): Promise<ModelObject<M['model']>>;
+  abstract createClone(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>>;
 
   /**
    * Main handler for the clone operation.
@@ -224,10 +217,7 @@ export abstract class CloneEndpoint<
     // `createdAt` / `updatedAt`, instead of copying the source's
     // values. Computed centrally so the precedence is never
     // duplicated.
-    const cloneData = stripManagedInsertFields(
-      source as Record<string, unknown>,
-      this._meta.model
-    );
+    const cloneData = stripManagedInsertFields(source as Record<string, unknown>, this._meta.model);
 
     // Remove excluded fields
     for (const field of this.excludeFromClone) {
@@ -238,7 +228,7 @@ export abstract class CloneEndpoint<
     Object.assign(cloneData, overrides);
 
     // Run before hook
-    let data = await this.before(cloneData as ModelObject<M['model']>);
+    const data = await this.before(cloneData as ModelObject<M['model']>);
 
     // Create the clone. A clone shares the source row's natural
     // identifiers (e.g. a `slug`) until the caller supplies an override
@@ -255,16 +245,14 @@ export abstract class CloneEndpoint<
 
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {
-      obj = await applyComputedFields(
+      obj = (await applyComputedFields(
         obj as Record<string, unknown>,
-        this._meta.model.computedFields
-      ) as ModelObject<M['model']>;
+        this._meta.model.computedFields,
+      )) as ModelObject<M['model']>;
     }
 
     // Apply serializer if defined
-    const serialized = this._meta.model.serializer
-      ? this._meta.model.serializer(obj)
-      : obj;
+    const serialized = this._meta.model.serializer ? this._meta.model.serializer(obj) : obj;
 
     return this.success(serialized, 201);
   }

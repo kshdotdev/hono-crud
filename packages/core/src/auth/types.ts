@@ -1,4 +1,4 @@
-import type { Env, Context, MiddlewareHandler } from 'hono';
+import type { Context, Env, MiddlewareHandler } from 'hono';
 import { z } from 'zod';
 
 // ============================================================================
@@ -65,7 +65,16 @@ export interface AuthEnv extends Env {
 /**
  * Supported JWT signing algorithms.
  */
-export type JWTAlgorithm = 'HS256' | 'HS384' | 'HS512' | 'RS256' | 'RS384' | 'RS512' | 'ES256' | 'ES384' | 'ES512';
+export type JWTAlgorithm =
+  | 'HS256'
+  | 'HS384'
+  | 'HS512'
+  | 'RS256'
+  | 'RS384'
+  | 'RS512'
+  | 'ES256'
+  | 'ES384'
+  | 'ES512';
 
 /**
  * Standard JWT claims.
@@ -387,7 +396,7 @@ export interface AuthConfig {
  */
 export type AuthorizationCheck<E extends AuthEnv = AuthEnv> = (
   user: AuthUser,
-  ctx: Context<E>
+  ctx: Context<E>,
 ) => boolean | Promise<boolean>;
 
 /**
@@ -395,7 +404,7 @@ export type AuthorizationCheck<E extends AuthEnv = AuthEnv> = (
  * Used for ownership-based authorization.
  */
 export type OwnershipExtractor<E extends AuthEnv = AuthEnv> = (
-  ctx: Context<E>
+  ctx: Context<E>,
 ) => string | Promise<string>;
 
 /**
@@ -448,13 +457,7 @@ export interface EndpointAuthConfig {
  * "human user via HTTP" from "agent acting on behalf of a user via MCP",
  * etc., so audit logs and approver UIs can render the right context.
  */
-export type ActionSource =
-  | 'http'
-  | 'agent-mcp'
-  | 'agent-code-mode'
-  | 'workflow'
-  | 'job'
-  | 'system';
+export type ActionSource = 'http' | 'agent-mcp' | 'agent-code-mode' | 'workflow' | 'job' | 'system';
 
 /**
  * Lifecycle state of a pending action.

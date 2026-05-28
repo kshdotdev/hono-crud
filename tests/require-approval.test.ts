@@ -12,14 +12,14 @@
  *   - ISO 8601 duration parser handles common shapes
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
 import { Hono } from 'hono';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
-  requireApproval,
+  ApiException,
   MemoryApprovalStorage,
   parseIso8601Duration,
-  ApiException,
+  requireApproval,
   setContextVar,
 } from 'hono-crud';
 
@@ -48,7 +48,7 @@ describe('requireApproval middleware', () => {
       async (c) => {
         const body = await c.req.json();
         return c.json({ ok: true, body }, 200);
-      }
+      },
     );
     return app;
   }
@@ -61,7 +61,7 @@ describe('requireApproval middleware', () => {
       body: JSON.stringify({ amount: 1000 }),
     });
     expect(res.status).toBe(202);
-    const json = await res.json() as { status: string; actionId: string; expiresAt: string };
+    const json = (await res.json()) as { status: string; actionId: string; expiresAt: string };
     expect(json.status).toBe('pending');
     expect(json.actionId).toMatch(/^[0-9a-f-]{36}$/);
     const stored = await storage.get(json.actionId);
@@ -79,7 +79,7 @@ describe('requireApproval middleware', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount: 2000, currency: 'USD' }),
     });
-    const { actionId } = await res1.json() as { actionId: string };
+    const { actionId } = (await res1.json()) as { actionId: string };
     // Approver signs off
     await storage.approve(actionId, 'approver-1');
     // Resume — the handler should run and see the ORIGINAL input
@@ -89,7 +89,7 @@ describe('requireApproval middleware', () => {
       body: JSON.stringify({ _resume_: actionId }),
     });
     expect(res2.status).toBe(200);
-    const json = await res2.json() as { ok: boolean; body: Record<string, unknown> };
+    const json = (await res2.json()) as { ok: boolean; body: Record<string, unknown> };
     expect(json.ok).toBe(true);
     expect(json.body).toEqual({ amount: 2000, currency: 'USD' });
   });
@@ -101,7 +101,7 @@ describe('requireApproval middleware', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount: 50 }),
     });
-    const { actionId } = await res1.json() as { actionId: string };
+    const { actionId } = (await res1.json()) as { actionId: string };
     // Manually fast-forward expiry: rewrite the stored action's expiresAt.
     const action = await storage.get(actionId);
     expect(action).not.toBeNull();
@@ -124,7 +124,7 @@ describe('requireApproval middleware', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount: 50 }),
     });
-    const { actionId } = await res1.json() as { actionId: string };
+    const { actionId } = (await res1.json()) as { actionId: string };
     // Don't approve. Try to resume.
     const res2 = await app.request('/transfers', {
       method: 'POST',
@@ -150,7 +150,7 @@ describe('requireApproval middleware', () => {
         reason: 'Funds transfer',
         approvalStorage: storage,
       }),
-      (c) => c.json({ ok: true })
+      (c) => c.json({ ok: true }),
     );
 
     const res = await app.request('/transfers', {
@@ -159,7 +159,7 @@ describe('requireApproval middleware', () => {
       body: JSON.stringify({ amount: 100 }),
     });
     expect(res.status).toBe(202);
-    const { actionId } = await res.json() as { actionId: string };
+    const { actionId } = (await res.json()) as { actionId: string };
     const action = await storage.get(actionId);
     expect(action?.actorUserId).toBe('u-42');
     expect(action?.userId).toBe('u-42');
@@ -182,7 +182,7 @@ describe('requireApproval middleware', () => {
         reason: 'Funds transfer',
         approvalStorage: storage,
       }),
-      (c) => c.json({ ok: true })
+      (c) => c.json({ ok: true }),
     );
 
     const res = await app.request('/transfers', {
@@ -190,7 +190,7 @@ describe('requireApproval middleware', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount: 100 }),
     });
-    const { actionId } = await res.json() as { actionId: string };
+    const { actionId } = (await res.json()) as { actionId: string };
     const action = await storage.get(actionId);
     expect(action?.source).toBe('http');
     expect(action?.agentId).toBeUndefined();
@@ -208,7 +208,7 @@ describe('requireApproval default storage', () => {
       '/quick',
       // No approvalStorage — POC path. Lib uses an internal singleton.
       requireApproval({ reason: 'POC' }),
-      (c) => c.json({ ok: true })
+      (c) => c.json({ ok: true }),
     );
 
     // First call → 202 + actionId (handler does NOT run)
@@ -218,7 +218,7 @@ describe('requireApproval default storage', () => {
       body: JSON.stringify({ payload: 'data' }),
     });
     expect(res1.status).toBe(202);
-    const json = await res1.json() as { actionId: string };
+    const json = (await res1.json()) as { actionId: string };
     expect(json.actionId).toMatch(/^[0-9a-f-]{36}$/);
   });
 });

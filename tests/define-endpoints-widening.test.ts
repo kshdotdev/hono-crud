@@ -1,20 +1,8 @@
-import {
-  describe,
-  it,
-  expect,
-  beforeEach } from 'vitest';
+import { MemoryAdapters, clearStorage } from '@hono-crud/memory';
 import { Hono } from 'hono';
+import { defineEndpoints, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import {
-  fromHono,
-  registerCrud,
-  defineEndpoints,
-  defineMeta,
-  defineModel,
-  } from 'hono-crud';
-import { clearStorage,
-  MemoryAdapters,
-} from '@hono-crud/memory';
 
 const WidgetSchema = z.object({
   id: z.string(),
@@ -86,10 +74,7 @@ describe('defineEndpoints widening to 17 verbs', () => {
   });
 
   it('skips slots not present in the config', () => {
-    const endpoints = defineEndpoints(
-      { meta: widgetMeta, create: {}, list: {} },
-      MemoryAdapters,
-    );
+    const endpoints = defineEndpoints({ meta: widgetMeta, create: {}, list: {} }, MemoryAdapters);
 
     expect(typeof endpoints.create).toBe('function');
     expect(typeof endpoints.list).toBe('function');
@@ -195,7 +180,11 @@ describe('defineEndpoints widening to 17 verbs', () => {
       { method: 'PATCH', path: '/widgets/batch', body: { items: [] } },
       { method: 'DELETE', path: '/widgets/batch', body: { ids: [] } },
       { method: 'POST', path: '/widgets/batch/restore', body: { ids: [] } },
-      { method: 'POST', path: '/widgets/batch/upsert', body: { items: [{ id: seedId, name: 'updated' }] } },
+      {
+        method: 'POST',
+        path: '/widgets/batch/upsert',
+        body: { items: [{ id: seedId, name: 'updated' }] },
+      },
       { method: 'POST', path: '/widgets/import', body: { items: [] } },
       { method: 'POST', path: '/widgets/upsert', body: { id: seedId, name: 'upserted' } },
       { method: 'GET', path: `/widgets/${seedId}` },
@@ -212,10 +201,7 @@ describe('defineEndpoints widening to 17 verbs', () => {
         init.body = JSON.stringify(probe.body);
       }
       const res = await app.request(probe.path, init);
-      expect(
-        res.status,
-        `${probe.method} ${probe.path} returned ${res.status}`,
-      ).toBeLessThan(500);
+      expect(res.status, `${probe.method} ${probe.path} returned ${res.status}`).toBeLessThan(500);
     }
   });
 

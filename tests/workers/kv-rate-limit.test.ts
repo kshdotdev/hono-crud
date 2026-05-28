@@ -1,3 +1,6 @@
+import { env } from 'cloudflare:test';
+import { KVRateLimitStorage } from '@hono-crud/rate-limit/storage/cloudflare-kv';
+import type { KVNamespace } from 'hono-crud/shared/kv-types';
 /**
  * KV Rate Limit Storage tests running inside miniflare.
  *
@@ -6,10 +9,7 @@
  *
  * Run with: vitest --config vitest.config.workers.ts
  */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { env } from 'cloudflare:test';
-import { KVRateLimitStorage } from '@hono-crud/rate-limit/storage/cloudflare-kv';
-import type { KVNamespace } from 'hono-crud/shared/kv-types';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 class SameKeyWriteLimitedKV implements KVNamespace {
   private values = new Map<string, string>();
@@ -32,7 +32,11 @@ class SameKeyWriteLimitedKV implements KVNamespace {
     this.values.delete(key);
   }
 
-  async list(): Promise<{ keys: Array<{ name: string; expiration?: number }>; list_complete: boolean; cursor?: string }> {
+  async list(): Promise<{
+    keys: Array<{ name: string; expiration?: number }>;
+    list_complete: boolean;
+    cursor?: string;
+  }> {
     return {
       keys: Array.from(this.values.keys()).map((name) => ({ name })),
       list_complete: true,

@@ -1,8 +1,8 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema} from '../core/types';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { ApiException, NotFoundException } from '../core/exceptions';
+import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { CrudEndpoint } from './base';
 import type { ModelObject } from './types';
 
 /**
@@ -16,11 +16,15 @@ const VersionEntrySchema = z.object({
   createdAt: z.date(),
   changedBy: z.string().optional(),
   changeReason: z.string().optional(),
-  changes: z.array(z.object({
-    field: z.string(),
-    oldValue: z.unknown().optional(),
-    newValue: z.unknown().optional(),
-  })).optional(),
+  changes: z
+    .array(
+      z.object({
+        field: z.string(),
+        oldValue: z.unknown().optional(),
+        newValue: z.unknown().optional(),
+      }),
+    )
+    .optional(),
 });
 
 /**
@@ -37,15 +41,14 @@ export abstract class VersionHistoryEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   /** The field used to identify the parent record */
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
 
   /** Default number of versions to return */
-  protected defaultLimit: number = 20;
+  protected defaultLimit = 20;
 
   /** Maximum number of versions to return */
-  protected maxLimit: number = 100;
+  protected maxLimit = 100;
 
   // Versioning
 
@@ -160,9 +163,7 @@ export abstract class VersionHistoryEndpoint<
    * Checks if the parent record exists.
    * Override in ORM-specific subclasses.
    */
-  protected async recordExists(
-    _lookupValue: string
-  ): Promise<boolean> {
+  protected async recordExists(_lookupValue: string): Promise<boolean> {
     // Default implementation - override in adapter
     return true;
   }
@@ -171,9 +172,12 @@ export abstract class VersionHistoryEndpoint<
    * Main handler.
    */
   async handle(): Promise<Response> {
-
     if (!this.isVersioningEnabled()) {
-      throw new ApiException('Versioning is not enabled for this model', 400, 'VERSIONING_NOT_ENABLED');
+      throw new ApiException(
+        'Versioning is not enabled for this model',
+        400,
+        'VERSIONING_NOT_ENABLED',
+      );
     }
 
     const lookupValue = await this.getLookupValue();
@@ -211,7 +215,7 @@ export abstract class VersionReadEndpoint<
   abstract _meta: M;
 
   /** The field used to identify the parent record */
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
 
   // Versioning
 
@@ -310,9 +314,12 @@ export abstract class VersionReadEndpoint<
    * Main handler.
    */
   async handle(): Promise<Response> {
-
     if (!this.isVersioningEnabled()) {
-      throw new ApiException('Versioning is not enabled for this model', 400, 'VERSIONING_NOT_ENABLED');
+      throw new ApiException(
+        'Versioning is not enabled for this model',
+        400,
+        'VERSIONING_NOT_ENABLED',
+      );
     }
 
     const lookupValue = await this.getLookupValue();
@@ -344,7 +351,7 @@ export abstract class VersionCompareEndpoint<
   abstract _meta: M;
 
   /** The field used to identify the parent record */
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
 
   // Versioning
 
@@ -399,11 +406,13 @@ export abstract class VersionCompareEndpoint<
                 result: z.object({
                   from: z.number(),
                   to: z.number(),
-                  changes: z.array(z.object({
-                    field: z.string(),
-                    oldValue: z.unknown().optional(),
-                    newValue: z.unknown().optional(),
-                  })),
+                  changes: z.array(
+                    z.object({
+                      field: z.string(),
+                      oldValue: z.unknown().optional(),
+                      newValue: z.unknown().optional(),
+                    }),
+                  ),
                 }),
               }),
             },
@@ -464,9 +473,12 @@ export abstract class VersionCompareEndpoint<
    * Main handler.
    */
   async handle(): Promise<Response> {
-
     if (!this.isVersioningEnabled()) {
-      throw new ApiException('Versioning is not enabled for this model', 400, 'VERSIONING_NOT_ENABLED');
+      throw new ApiException(
+        'Versioning is not enabled for this model',
+        400,
+        'VERSIONING_NOT_ENABLED',
+      );
     }
 
     const lookupValue = await this.getLookupValue();
@@ -498,7 +510,7 @@ export abstract class VersionRollbackEndpoint<
   abstract _meta: M;
 
   /** The field used to identify the parent record */
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
 
   // Versioning
 
@@ -607,16 +619,19 @@ export abstract class VersionRollbackEndpoint<
     lookupValue: string,
     versionData: Record<string, unknown>,
     newVersion: number,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']>>;
 
   /**
    * Main handler.
    */
   async handle(): Promise<Response> {
-
     if (!this.isVersioningEnabled()) {
-      throw new ApiException('Versioning is not enabled for this model', 400, 'VERSIONING_NOT_ENABLED');
+      throw new ApiException(
+        'Versioning is not enabled for this model',
+        400,
+        'VERSIONING_NOT_ENABLED',
+      );
     }
 
     const lookupValue = await this.getLookupValue();
@@ -637,9 +652,7 @@ export abstract class VersionRollbackEndpoint<
     const result = await this.rollback(lookupValue, version.data, newVersion);
 
     // Apply serializer if defined
-    const serialized = this._meta.model.serializer
-      ? this._meta.model.serializer(result)
-      : result;
+    const serialized = this._meta.model.serializer ? this._meta.model.serializer(result) : result;
 
     return this.success(serialized);
   }

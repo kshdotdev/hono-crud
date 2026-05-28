@@ -20,21 +20,21 @@
  *   6. Original record remains intact in the DB after clone
  */
 
-import { OpenAPIHono } from '@hono/zod-openapi';
-import type { Context } from 'hono';
-import { z } from 'zod';
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import { sql } from 'drizzle-orm';
-import { defineModel, defineMeta, registerCrud, fromHono } from 'hono-crud';
 import {
   DrizzleCloneEndpoint,
   DrizzleCreateEndpoint,
-  DrizzleReadEndpoint,
-  DrizzleListEndpoint,
   type DrizzleDatabase,
+  DrizzleListEndpoint,
+  DrizzleReadEndpoint,
 } from '@hono-crud/drizzle';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { createClient } from '@libsql/client';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { Context } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { z } from 'zod';
 
 // -----------------------------------------------------------------------------
 // Schema + DB
@@ -208,7 +208,11 @@ async function runDemo(): Promise<void> {
     check('status 201', res.status === 201, `got ${res.status}`);
     const body = (await res.json()) as OkBody<Article>;
     check('success flag', body.success === true);
-    check('fresh primary key', body.result.id !== sourceId, `clone id ${body.result.id} === source ${sourceId}`);
+    check(
+      'fresh primary key',
+      body.result.id !== sourceId,
+      `clone id ${body.result.id} === source ${sourceId}`,
+    );
     check('title copied', body.result.title === 'On Composition');
     check('body copied', body.result.body === 'Reuse beats reinvention.');
     check('publishedAt copied', body.result.publishedAt === '2026-05-01T10:00:00.000Z');
@@ -246,7 +250,10 @@ async function runDemo(): Promise<void> {
     });
     check('status 201', res.status === 201, `got ${res.status}`);
     const body = (await res.json()) as OkBody<Article>;
-    check('publishedAt stripped (null)', body.result.publishedAt === null || body.result.publishedAt === undefined);
+    check(
+      'publishedAt stripped (null)',
+      body.result.publishedAt === null || body.result.publishedAt === undefined,
+    );
     // status was excluded → falls back to schema default 'draft'
     check('status reset to draft', body.result.status === 'draft', `got ${body.result.status}`);
     check('title still copied', body.result.title === 'On Composition');
@@ -264,7 +271,11 @@ async function runDemo(): Promise<void> {
     });
     check('status 404', res.status === 404, `got ${res.status}`);
     const body = (await res.json()) as ErrBody;
-    check('error message mentions not found', /not found/i.test(body.error.message), body.error.message);
+    check(
+      'error message mentions not found',
+      /not found/i.test(body.error.message),
+      body.error.message,
+    );
   }
 
   // -------------------------------------------------------------------------

@@ -18,34 +18,34 @@
  * 4. npx tsx examples/prisma/comprehensive.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI, setupReDoc } from '@hono-crud/swagger';
 import {
-  PrismaCreateEndpoint,
-  PrismaReadEndpoint,
-  PrismaUpdateEndpoint,
-  PrismaDeleteEndpoint,
-  PrismaListEndpoint,
-  PrismaRestoreEndpoint,
   PrismaBatchCreateEndpoint,
-  PrismaBatchUpdateEndpoint,
   PrismaBatchDeleteEndpoint,
   PrismaBatchRestoreEndpoint,
-  PrismaUpsertEndpoint,
+  PrismaBatchUpdateEndpoint,
   PrismaCloneEndpoint,
+  PrismaCreateEndpoint,
+  PrismaDeleteEndpoint,
+  PrismaListEndpoint,
+  PrismaReadEndpoint,
+  PrismaRestoreEndpoint,
+  PrismaUpdateEndpoint,
+  PrismaUpsertEndpoint,
 } from '@hono-crud/prisma';
+import { setupReDoc, setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
 import {
-  UserSchema,
+  CategorySchema,
+  CommentSchema,
+  type Post,
   PostSchema,
   ProfileSchema,
-  CommentSchema,
-  CategorySchema,
   type User,
-  type Post,
+  UserSchema,
 } from '../shared/schemas.js';
-import { prisma, initDb, seedDb, clearDb } from './db.js';
+import { clearDb, initDb, prisma, seedDb } from './db.js';
 
 // ============================================================================
 // Models with Full Configuration

@@ -1,26 +1,26 @@
 import type { Env } from 'hono';
 import type { MetaInput } from 'hono-crud/internal';
 import type { AdapterBundle } from 'hono-crud/internal';
-import { type DrizzleDatabaseConstraint, type DrizzleDialect } from './helpers';
 import {
-  DrizzleCreateEndpoint,
-  DrizzleReadEndpoint,
-  DrizzleUpdateEndpoint,
-  DrizzleDeleteEndpoint,
-  DrizzleListEndpoint,
-  DrizzleRestoreEndpoint,
-} from './crud';
-import {
-  DrizzleBatchCreateEndpoint,
-  DrizzleBatchUpdateEndpoint,
-  DrizzleBatchDeleteEndpoint,
-  DrizzleBatchRestoreEndpoint,
-} from './batch';
-import {
-  DrizzleUpsertEndpoint,
   DrizzleBatchUpsertEndpoint,
   DrizzleSearchEndpoint,
+  DrizzleUpsertEndpoint,
 } from './advanced';
+import {
+  DrizzleBatchCreateEndpoint,
+  DrizzleBatchDeleteEndpoint,
+  DrizzleBatchRestoreEndpoint,
+  DrizzleBatchUpdateEndpoint,
+} from './batch';
+import {
+  DrizzleCreateEndpoint,
+  DrizzleDeleteEndpoint,
+  DrizzleListEndpoint,
+  DrizzleReadEndpoint,
+  DrizzleRestoreEndpoint,
+  DrizzleUpdateEndpoint,
+} from './crud';
+import { type DrizzleDatabaseConstraint, type DrizzleDialect } from './helpers';
 
 /**
  * Return type of createDrizzleCrud factory function.
@@ -97,7 +97,7 @@ export interface CreateDrizzleCrudOptions {
 export function createDrizzleCrud<M extends MetaInput, E extends Env = Env>(
   db: DrizzleDatabaseConstraint,
   meta: M,
-  options?: CreateDrizzleCrudOptions
+  options?: CreateDrizzleCrudOptions,
 ): DrizzleCrudClasses<M, E> {
   const dialect: DrizzleDialect = options?.dialect ?? 'sqlite';
 

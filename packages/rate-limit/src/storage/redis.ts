@@ -1,4 +1,9 @@
-import type { RateLimitStorage, FixedWindowEntry, SlidingWindowEntry, RateLimitEntry } from '../types';
+import type {
+  FixedWindowEntry,
+  RateLimitEntry,
+  RateLimitStorage,
+  SlidingWindowEntry,
+} from '../types';
 
 /**
  * Redis client interface for rate limiting.
@@ -166,11 +171,7 @@ export class RedisRateLimitStorage implements RateLimitStorage {
     // Try Lua script for atomic operation
     if (await this.checkLuaSupport()) {
       try {
-        const result = await this.client.eval!(
-          FIXED_WINDOW_LUA,
-          [fullKey],
-          [windowMs, now]
-        );
+        const result = await this.client.eval!(FIXED_WINDOW_LUA, [fullKey], [windowMs, now]);
         const entry = typeof result === 'string' ? JSON.parse(result) : result;
         return entry as FixedWindowEntry;
       } catch {
@@ -179,7 +180,7 @@ export class RedisRateLimitStorage implements RateLimitStorage {
     }
 
     // Fallback: non-atomic implementation
-    const existing = await this.get(key) as FixedWindowEntry | null;
+    const existing = (await this.get(key)) as FixedWindowEntry | null;
 
     if (existing && 'count' in existing) {
       const windowEnd = existing.windowStart + windowMs;
@@ -221,7 +222,7 @@ export class RedisRateLimitStorage implements RateLimitStorage {
           const result = await this.client.eval!(
             SLIDING_WINDOW_LUA,
             [fullKey],
-            [windowMs, currentTime]
+            [windowMs, currentTime],
           );
           const entry = typeof result === 'string' ? JSON.parse(result) : result;
           // Ensure timestamps are numbers
@@ -247,7 +248,7 @@ export class RedisRateLimitStorage implements RateLimitStorage {
     }
 
     // Fallback: use JSON storage (less efficient)
-    const existing = await this.get(key) as SlidingWindowEntry | null;
+    const existing = (await this.get(key)) as SlidingWindowEntry | null;
 
     let timestamps: number[];
     if (existing && 'timestamps' in existing) {

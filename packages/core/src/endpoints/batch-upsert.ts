@@ -1,14 +1,11 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getLogger } from '../core/logger';
-import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
-import {applyComputedFields} from '../core/types';
-import { getSchemaFields, type ModelObject } from './types';
-import {
-  getManagedInputExclusions,
-  rethrowAsConstraintError,
-} from '../core/managed-fields';
+import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
+import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { applyComputedFields } from '../core/types';
+import { CrudEndpoint } from './base';
+import { type ModelObject, getSchemaFields } from './types';
 
 /**
  * Result for a single item in a batch upsert operation.
@@ -74,7 +71,6 @@ export abstract class BatchUpsertEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   /**
    * Fields used to find existing record for upsert.
    * If record with these field values exists, it will be updated.
@@ -100,13 +96,13 @@ export abstract class BatchUpsertEndpoint<
    * Maximum number of items allowed in a single batch.
    * @default 100
    */
-  protected maxBatchSize: number = 100;
+  protected maxBatchSize = 100;
 
   /**
    * Whether to continue processing remaining items if one fails.
    * @default false
    */
-  protected continueOnError: boolean = false;
+  protected continueOnError = false;
 
   /**
    * Whether to use native database batch upsert (ON CONFLICT DO UPDATE).
@@ -124,7 +120,7 @@ export abstract class BatchUpsertEndpoint<
    *
    * @default false
    */
-  protected useNativeUpsert: boolean = false;
+  protected useNativeUpsert = false;
 
   // Hook execution mode
   protected beforeHookMode: HookMode = 'sequential';
@@ -243,7 +239,7 @@ export abstract class BatchUpsertEndpoint<
                       z.object({
                         index: z.number(),
                         error: z.string(),
-                      })
+                      }),
                     )
                     .optional(),
                 }),
@@ -286,7 +282,7 @@ export abstract class BatchUpsertEndpoint<
     data: Partial<ModelObject<M['model']>>,
     _index: number,
     _isCreate: boolean,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -299,7 +295,7 @@ export abstract class BatchUpsertEndpoint<
     data: ModelObject<M['model']>,
     _index: number,
     _created: boolean,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -309,7 +305,7 @@ export abstract class BatchUpsertEndpoint<
    */
   async beforeBatch(
     items: Partial<ModelObject<M['model']>>[],
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<Partial<ModelObject<M['model']>>[]> {
     return items;
   }
@@ -319,7 +315,7 @@ export abstract class BatchUpsertEndpoint<
    */
   async afterBatch(
     result: BatchUpsertResult<ModelObject<M['model']>>,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<BatchUpsertResult<ModelObject<M['model']>>> {
     return result;
   }
@@ -331,7 +327,7 @@ export abstract class BatchUpsertEndpoint<
    */
   abstract findExisting(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null>;
 
   /**
@@ -340,7 +336,7 @@ export abstract class BatchUpsertEndpoint<
    */
   abstract create(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']>>;
 
   /**
@@ -350,7 +346,7 @@ export abstract class BatchUpsertEndpoint<
   abstract update(
     existing: ModelObject<M['model']>,
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']>>;
 
   /**
@@ -359,13 +355,13 @@ export abstract class BatchUpsertEndpoint<
   protected async upsertOne(
     data: Partial<ModelObject<M['model']>>,
     index: number,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<BatchUpsertItemResult<ModelObject<M['model']>>> {
     const existing = await this.findExisting(data, tx);
     const isCreate = !existing;
 
     // Apply beforeItem hook
-    let processedData = await this.beforeItem(data, index, isCreate, tx);
+    const processedData = await this.beforeItem(data, index, isCreate, tx);
 
     let result: ModelObject<M['model']>;
 
@@ -409,11 +405,13 @@ export abstract class BatchUpsertEndpoint<
    */
   protected async nativeBatchUpsert(
     items: Partial<ModelObject<M['model']>>[],
-    tx?: unknown
+    tx?: unknown,
   ): Promise<BatchUpsertResult<ModelObject<M['model']>>> {
     // Default implementation falls back to non-native batch upsert
     // ORM adapters should override this method
-    getLogger().warn('Native batch upsert not implemented for this adapter. Falling back to item-by-item pattern.');
+    getLogger().warn(
+      'Native batch upsert not implemented for this adapter. Falling back to item-by-item pattern.',
+    );
     return this.performStandardBatchUpsert(items, tx);
   }
 
@@ -423,7 +421,7 @@ export abstract class BatchUpsertEndpoint<
    */
   protected async performStandardBatchUpsert(
     items: Partial<ModelObject<M['model']>>[],
-    tx?: unknown
+    tx?: unknown,
   ): Promise<BatchUpsertResult<ModelObject<M['model']>>> {
     const results: BatchUpsertItemResult<ModelObject<M['model']>>[] = [];
     const errors: Array<{ index: number; error: string }> = [];
@@ -472,7 +470,7 @@ export abstract class BatchUpsertEndpoint<
    */
   async batchUpsert(
     items: Partial<ModelObject<M['model']>>[],
-    tx?: unknown
+    tx?: unknown,
   ): Promise<BatchUpsertResult<ModelObject<M['model']>>> {
     if (this.useNativeUpsert) {
       return this.nativeBatchUpsert(items, tx);
@@ -484,7 +482,6 @@ export abstract class BatchUpsertEndpoint<
    * Main handler for the batch upsert operation.
    */
   async handle(): Promise<Response> {
-
     let items = await this.getItems();
 
     // Apply beforeBatch hook
@@ -508,9 +505,9 @@ export abstract class BatchUpsertEndpoint<
           ...item,
           data: (await applyComputedFields(
             item.data as Record<string, unknown>,
-            this._meta.model.computedFields!
+            this._meta.model.computedFields!,
           )) as ModelObject<M['model']>,
-        }))
+        })),
       );
     }
 
@@ -529,12 +526,14 @@ export abstract class BatchUpsertEndpoint<
         .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (auditRecords.length > 0) {
-        this.runAfterResponse(auditLogger.logBatch(
-          'batch_upsert',
-          this._meta.model.tableName,
-          auditRecords,
-          this.getAuditUserId()
-        ));
+        this.runAfterResponse(
+          auditLogger.logBatch(
+            'batch_upsert',
+            this._meta.model.tableName,
+            auditRecords,
+            this.getAuditUserId(),
+          ),
+        );
       }
     }
 

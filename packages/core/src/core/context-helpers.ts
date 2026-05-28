@@ -27,7 +27,7 @@ export function getUserId<E extends Env>(ctx: Context<E>): string | undefined {
 }
 
 export function getUser<E extends Env>(
-  ctx: Context<E>
+  ctx: Context<E>,
 ): { id: string; roles?: string[]; permissions?: string[] } | undefined {
   return getContextVar<{ id: string; roles?: string[]; permissions?: string[] }>(ctx, 'user');
 }
@@ -41,7 +41,7 @@ export function getUserPermissions<E extends Env>(ctx: Context<E>): string[] | u
 }
 
 export function getAuthType<E extends Env>(
-  ctx: Context<E>
+  ctx: Context<E>,
 ): 'jwt' | 'api-key' | 'none' | undefined {
   return getContextVar<'jwt' | 'api-key' | 'none'>(ctx, 'authType');
 }
@@ -70,7 +70,7 @@ export function hasAnyRole<E extends Env>(ctx: Context<E>, requiredRoles: string
 
 export function hasAllPermissions<E extends Env>(
   ctx: Context<E>,
-  requiredPermissions: string[]
+  requiredPermissions: string[],
 ): boolean {
   const permissions = getUserPermissions(ctx);
   if (!permissions) return false;

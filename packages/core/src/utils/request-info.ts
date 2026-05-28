@@ -29,7 +29,7 @@ interface NodeSocket {
 
 export function getClientIp<E extends Env>(
   ctx: Context<E>,
-  options: ClientIpOptions = {}
+  options: ClientIpOptions = {},
 ): string | undefined {
   const { ipHeader = 'X-Forwarded-For', trustProxy = true } = options;
 

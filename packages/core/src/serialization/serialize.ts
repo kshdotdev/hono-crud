@@ -1,11 +1,11 @@
-import type { SerializationProfile, SerializationConfig } from './types';
+import type { SerializationConfig, SerializationProfile } from './types';
 
 /**
  * Apply a serialization profile to a single record.
  */
 export function applyProfile(
   record: Record<string, unknown>,
-  profile: SerializationProfile
+  profile: SerializationProfile,
 ): Record<string, unknown> {
   let result: Record<string, unknown>;
 
@@ -51,7 +51,7 @@ export function applyProfile(
  */
 export function applyProfileToArray(
   records: Record<string, unknown>[],
-  profile: SerializationProfile
+  profile: SerializationProfile,
 ): Record<string, unknown>[] {
   return records.map((r) => applyProfile(r, profile));
 }
@@ -61,7 +61,7 @@ export function applyProfileToArray(
  */
 export function resolveProfile(
   config: SerializationConfig,
-  profileName?: string | null
+  profileName?: string | null,
 ): SerializationProfile | undefined {
   const name = profileName ?? config.defaultProfile;
   if (!name) return undefined;
@@ -74,7 +74,10 @@ export function resolveProfile(
  * and returns the serialized record.
  */
 export function createSerializer(config: SerializationConfig) {
-  return (record: Record<string, unknown>, profileName?: string | null): Record<string, unknown> => {
+  return (
+    record: Record<string, unknown>,
+    profileName?: string | null,
+  ): Record<string, unknown> => {
     const profile = resolveProfile(config, profileName);
     if (!profile) return record;
     return applyProfile(record, profile);
@@ -85,7 +88,10 @@ export function createSerializer(config: SerializationConfig) {
  * Create an array serializer from a config.
  */
 export function createArraySerializer(config: SerializationConfig) {
-  return (records: Record<string, unknown>[], profileName?: string | null): Record<string, unknown>[] => {
+  return (
+    records: Record<string, unknown>[],
+    profileName?: string | null,
+  ): Record<string, unknown>[] => {
     const profile = resolveProfile(config, profileName);
     if (!profile) return records;
     return applyProfileToArray(records, profile);

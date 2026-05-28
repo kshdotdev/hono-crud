@@ -1,5 +1,5 @@
-import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 import { matchesPattern } from '../key-generator';
+import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 
 /**
  * In-memory cache storage implementation.

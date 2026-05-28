@@ -12,25 +12,20 @@
  * Run with: npx tsx examples/field-selection.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import {
-  fromHono,
-  defineModel,
-  defineMeta,
-  type ComputedFieldsConfig,
-} from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryListEndpoint,
-  MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { type ComputedFieldsConfig, defineMeta, defineModel, fromHono } from 'hono-crud';
+import { z } from 'zod';
 
 // Clear storage on start
 clearStorage();
@@ -332,7 +327,9 @@ export function start(port: number = Number(process.env.PORT) || 3004): void {
   console.log(`\n4. Include computed fields:`);
   console.log(`   curl "http://localhost:${port}/users?fields=id,name,displayName,isAdmin" | jq`);
   console.log(`\n5. Single user with field selection:`);
-  console.log(`   curl "http://localhost:${port}/users/550e8400-e29b-41d4-a716-446655440001?fields=id,name,bio" | jq`);
+  console.log(
+    `   curl "http://localhost:${port}/users/550e8400-e29b-41d4-a716-446655440001?fields=id,name,bio" | jq`,
+  );
   console.log(`\n6. Note: password is NEVER returned (blocked):`);
   console.log(`   curl "http://localhost:${port}/users?fields=id,name,password" | jq`);
 

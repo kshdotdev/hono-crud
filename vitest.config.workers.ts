@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 /**
  * Vitest configuration for Cloudflare Workers edge runtime tests.
  *
@@ -15,7 +16,6 @@
  *   vitest --config vitest.config.workers.ts
  */
 import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
-import { fileURLToPath } from 'node:url';
 
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 

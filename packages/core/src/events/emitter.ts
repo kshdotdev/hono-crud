@@ -1,7 +1,12 @@
-import type { CrudEventType, CrudEventPayload, CrudEventListener, EventSubscription } from './types';
-import { getLogger } from '../core/logger';
 import type { Context, Env } from 'hono';
 import { getContextVar } from '../core/context-helpers';
+import { getLogger } from '../core/logger';
+import type {
+  CrudEventListener,
+  CrudEventPayload,
+  CrudEventType,
+  EventSubscription,
+} from './types';
 
 /**
  * Lightweight event emitter for CRUD operations.
@@ -58,7 +63,9 @@ export class CrudEventEmitter {
     }
     const set = this.listeners.get(key)!;
     if (this.maxListeners > 0 && set.size >= this.maxListeners) {
-      getLogger().warn(`Max listeners (${this.maxListeners}) reached for event "${key}". Listener not added.`);
+      getLogger().warn(
+        `Max listeners (${this.maxListeners}) reached for event "${key}". Listener not added.`,
+      );
       return { unsubscribe: () => {} };
     }
     set.add(listener);
@@ -79,7 +86,9 @@ export class CrudEventEmitter {
     }
     const set = this.tableListeners.get(table)!;
     if (this.maxListeners > 0 && set.size >= this.maxListeners) {
-      getLogger().warn(`Max listeners (${this.maxListeners}) reached for table "${table}". Listener not added.`);
+      getLogger().warn(
+        `Max listeners (${this.maxListeners}) reached for table "${table}". Listener not added.`,
+      );
       return { unsubscribe: () => {} };
     }
     set.add(listener);
@@ -162,7 +171,9 @@ export class CrudEventEmitter {
    */
   emitAsync(event: CrudEventPayload): void {
     this.emit(event).catch((err) => {
-      getLogger().error('Event emission error', { error: err instanceof Error ? err.message : String(err) });
+      getLogger().error('Event emission error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
   }
 
@@ -187,7 +198,9 @@ export class CrudEventEmitter {
     try {
       await listener(event);
     } catch (err) {
-      getLogger().error('Event listener error', { error: err instanceof Error ? err.message : String(err) });
+      getLogger().error('Event listener error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 }
@@ -225,7 +238,7 @@ export function setEventEmitter(emitter: CrudEventEmitter): void {
  */
 export function resolveEventEmitter<E extends Env>(
   ctx?: Context<E>,
-  explicit?: CrudEventEmitter
+  explicit?: CrudEventEmitter,
 ): CrudEventEmitter | null {
   if (explicit) {
     return explicit;

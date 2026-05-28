@@ -1,10 +1,10 @@
 import type { Context, Env } from 'hono';
 import type {
-  VersionHistoryEntry,
-  NormalizedVersioningConfig,
   AuditFieldChange,
+  NormalizedVersioningConfig,
+  VersionHistoryEntry,
 } from '../core/types';
-import { calculateChanges, getVersioningConfig, type VersioningConfig } from '../core/types';
+import { type VersioningConfig, calculateChanges, getVersioningConfig } from '../core/types';
 import { createRegistryWithDefault } from '../storage/registry';
 
 /**
@@ -23,7 +23,7 @@ export interface VersioningStorage {
   getByRecordId(
     tableName: string,
     recordId: string | number,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number },
   ): Promise<VersionHistoryEntry[]>;
 
   /**
@@ -32,33 +32,23 @@ export interface VersioningStorage {
   getVersion(
     tableName: string,
     recordId: string | number,
-    version: number
+    version: number,
   ): Promise<VersionHistoryEntry | null>;
 
   /**
    * Get the latest version number for a record.
    */
-  getLatestVersion(
-    tableName: string,
-    recordId: string | number
-  ): Promise<number>;
+  getLatestVersion(tableName: string, recordId: string | number): Promise<number>;
 
   /**
    * Delete old versions when maxVersions is exceeded.
    */
-  pruneVersions?(
-    tableName: string,
-    recordId: string | number,
-    keepCount: number
-  ): Promise<number>;
+  pruneVersions?(tableName: string, recordId: string | number, keepCount: number): Promise<number>;
 
   /**
    * Delete all versions for a record (for hard delete).
    */
-  deleteAllVersions?(
-    tableName: string,
-    recordId: string | number
-  ): Promise<number>;
+  deleteAllVersions?(tableName: string, recordId: string | number): Promise<number>;
 }
 
 /**
@@ -79,7 +69,7 @@ export class MemoryVersioningStorage implements VersioningStorage {
       (entry as VersionHistoryEntry & { tableName: string }).tableName ||
         entry.id.split(':')[0] ||
         'unknown',
-      entry.recordId
+      entry.recordId,
     );
 
     // Store tableName in the entry for retrieval
@@ -96,10 +86,7 @@ export class MemoryVersioningStorage implements VersioningStorage {
   /**
    * Store a version with explicit tableName.
    */
-  async store(
-    tableName: string,
-    entry: VersionHistoryEntry
-  ): Promise<void> {
+  async store(tableName: string, entry: VersionHistoryEntry): Promise<void> {
     const key = this.getKey(tableName, entry.recordId);
     const existing = this.versions.get(key) || [];
     existing.push({ ...entry, tableName } as VersionHistoryEntry & { tableName: string });
@@ -109,7 +96,7 @@ export class MemoryVersioningStorage implements VersioningStorage {
   async getByRecordId(
     tableName: string,
     recordId: string | number,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number },
   ): Promise<VersionHistoryEntry[]> {
     const key = this.getKey(tableName, recordId);
     const versions = this.versions.get(key) || [];
@@ -126,17 +113,14 @@ export class MemoryVersioningStorage implements VersioningStorage {
   async getVersion(
     tableName: string,
     recordId: string | number,
-    version: number
+    version: number,
   ): Promise<VersionHistoryEntry | null> {
     const key = this.getKey(tableName, recordId);
     const versions = this.versions.get(key) || [];
     return versions.find((v) => v.version === version) || null;
   }
 
-  async getLatestVersion(
-    tableName: string,
-    recordId: string | number
-  ): Promise<number> {
+  async getLatestVersion(tableName: string, recordId: string | number): Promise<number> {
     const key = this.getKey(tableName, recordId);
     const versions = this.versions.get(key) || [];
 
@@ -150,7 +134,7 @@ export class MemoryVersioningStorage implements VersioningStorage {
   async pruneVersions(
     tableName: string,
     recordId: string | number,
-    keepCount: number
+    keepCount: number,
   ): Promise<number> {
     const key = this.getKey(tableName, recordId);
     const versions = this.versions.get(key) || [];
@@ -168,10 +152,7 @@ export class MemoryVersioningStorage implements VersioningStorage {
     return deleted;
   }
 
-  async deleteAllVersions(
-    tableName: string,
-    recordId: string | number
-  ): Promise<number> {
+  async deleteAllVersions(tableName: string, recordId: string | number): Promise<number> {
     const key = this.getKey(tableName, recordId);
     const versions = this.versions.get(key) || [];
     const count = versions.length;
@@ -207,7 +188,7 @@ export class MemoryVersioningStorage implements VersioningStorage {
  */
 export const versioningStorageRegistry = createRegistryWithDefault<VersioningStorage>(
   'versioningStorage',
-  () => new MemoryVersioningStorage()
+  () => new MemoryVersioningStorage(),
 );
 
 /**
@@ -236,7 +217,7 @@ export class VersionManager {
     config: VersioningConfig | undefined,
     tableName: string,
     storage?: VersioningStorage,
-    ctx?: Context<Env>
+    ctx?: Context<Env>,
   ) {
     this.config = getVersioningConfig(config, tableName);
     this.tableName = tableName;
@@ -246,7 +227,7 @@ export class VersionManager {
   private getStorage(): VersioningStorage {
     if (!this.storage) {
       throw new Error(
-        'Versioning storage not configured. Pass storage explicitly or inject versioningStorage with createCrudMiddleware().'
+        'Versioning storage not configured. Pass storage explicitly or inject versioningStorage with createCrudMiddleware().',
       );
     }
     return this.storage;
@@ -282,7 +263,7 @@ export class VersionManager {
     currentData: Record<string, unknown>,
     previousData?: Record<string, unknown>,
     changedBy?: string,
-    changeReason?: string
+    changeReason?: string,
   ): Promise<number> {
     if (!this.isEnabled()) {
       return (currentData[this.config.field] as number) || 1;
@@ -329,11 +310,7 @@ export class VersionManager {
 
     // Prune old versions if maxVersions is set
     if (this.config.maxVersions && storage.pruneVersions) {
-      await storage.pruneVersions(
-        this.tableName,
-        recordId,
-        this.config.maxVersions
-      );
+      await storage.pruneVersions(this.tableName, recordId, this.config.maxVersions);
     }
 
     return newVersion;
@@ -344,7 +321,7 @@ export class VersionManager {
    */
   async getVersions(
     recordId: string | number,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number },
   ): Promise<VersionHistoryEntry[]> {
     return this.getStorage().getByRecordId(this.tableName, recordId, options);
   }
@@ -354,7 +331,7 @@ export class VersionManager {
    */
   async getVersion(
     recordId: string | number,
-    version: number
+    version: number,
   ): Promise<VersionHistoryEntry | null> {
     return this.getStorage().getVersion(this.tableName, recordId, version);
   }
@@ -364,7 +341,7 @@ export class VersionManager {
    */
   async getVersionData<T = Record<string, unknown>>(
     recordId: string | number,
-    version: number
+    version: number,
   ): Promise<T | null> {
     const entry = await this.getVersion(recordId, version);
     return entry ? (entry.data as T) : null;
@@ -383,7 +360,7 @@ export class VersionManager {
   async compareVersions(
     recordId: string | number,
     versionA: number,
-    versionB: number
+    versionB: number,
   ): Promise<AuditFieldChange[]> {
     const [entryA, entryB] = await Promise.all([
       this.getVersion(recordId, versionA),
@@ -394,11 +371,7 @@ export class VersionManager {
       return [];
     }
 
-    return calculateChanges(
-      entryA.data,
-      entryB.data,
-      this.config.excludeFields
-    );
+    return calculateChanges(entryA.data, entryB.data, this.config.excludeFields);
   }
 
   /**
@@ -455,7 +428,7 @@ export function createVersionManager(
   config: VersioningConfig | undefined,
   tableName: string,
   storage?: VersioningStorage,
-  ctx?: Context<Env>
+  ctx?: Context<Env>,
 ): VersionManager {
   return new VersionManager(config, tableName, storage, ctx);
 }

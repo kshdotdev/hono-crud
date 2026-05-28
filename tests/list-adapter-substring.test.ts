@@ -1,3 +1,10 @@
+import { type DrizzleDatabase, DrizzleListEndpoint, createDrizzleCrud } from '@hono-crud/drizzle';
+import { createClient } from '@libsql/client';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { Hono } from 'hono';
+import { defineMeta, defineModel } from 'hono-crud';
 /**
  * Tests for the drizzle list endpoint's `?search=` shorthand:
  *
@@ -16,19 +23,8 @@
  * stub `db` that captures the generated `where(...)` SQL without needing a
  * real driver for each dialect.
  */
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { Hono } from 'hono';
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import { sql } from 'drizzle-orm';
-import { defineModel, defineMeta } from 'hono-crud';
-import {
-  createDrizzleCrud,
-  DrizzleListEndpoint,
-  type DrizzleDatabase,
-} from '@hono-crud/drizzle';
 
 // ============================================================================
 // Shared fixture model
@@ -106,9 +102,7 @@ interface ListResponse {
   result_info: { total_count: number };
 }
 
-async function parseList(
-  response: Response
-): Promise<{ ids: string[]; totalCount: number }> {
+async function parseList(response: Response): Promise<{ ids: string[]; totalCount: number }> {
   expect(response.status).toBe(200);
   const data = (await response.json()) as ListResponse;
   return {
@@ -142,9 +136,7 @@ describe('Drizzle list adapter — ?search= literal substring semantics', () => 
     }
 
     app = new Hono();
-    app.onError((err, c) =>
-      c.json({ success: false, error: { message: err.message } }, 400)
-    );
+    app.onError((err, c) => c.json({ success: false, error: { message: err.message } }, 400));
     app.get('/products', async (c) => {
       const endpoint = new ProductList();
       endpoint.setContext(c);
@@ -276,8 +268,9 @@ function makeWhereCaptureDb(): { db: DrizzleDatabase; capture: WhereCapture } {
   mainChain.limit = () => mainChain;
   mainChain.offset = () => mainChain;
   // Make it thenable so `await query` resolves to an empty array.
+  // biome-ignore lint/suspicious/noThenProperty: intentional — emulates a Drizzle query builder's awaitability for tests
   (mainChain as unknown as PromiseLike<unknown[]>).then = (
-    onFulfilled?: (value: unknown[]) => unknown
+    onFulfilled?: (value: unknown[]) => unknown,
   ) => Promise.resolve([]).then(onFulfilled);
 
   const db = {
@@ -334,7 +327,7 @@ const stubProductMeta = defineMeta({ model: StubProductModel });
 
 async function runListWithSearch(
   ListCls: new () => DrizzleListEndpoint,
-  needle: string
+  needle: string,
 ): Promise<void> {
   class ProbeList extends ListCls {
     // The base class reads `searchFields` from the instance — declaring it
@@ -343,25 +336,21 @@ async function runListWithSearch(
   }
 
   const app = new Hono();
-  app.onError((err, c) =>
-    c.json({ success: false, error: { message: err.message } }, 400)
-  );
+  app.onError((err, c) => c.json({ success: false, error: { message: err.message } }, 400));
   app.get('/items', async (c) => {
     const endpoint = new ProbeList();
     endpoint.setContext(c);
     return endpoint.handle();
   });
 
-  const response = await app.request(
-    `/items?search=${encodeURIComponent(needle)}`
-  );
+  const response = await app.request(`/items?search=${encodeURIComponent(needle)}`);
   // We only care that the request executed enough to capture the WHERE SQL.
   // The stub's empty result is fine; the endpoint completes with a 200.
   expect(response.status).toBe(200);
 }
 
 describe('Drizzle list adapter — dialect-native ?search= SQL emission', () => {
-  it("sqlite (default) emits INSTR(LOWER(col), LOWER(needle)) > 0", async () => {
+  it('sqlite (default) emits INSTR(LOWER(col), LOWER(needle)) > 0', async () => {
     const { db, capture } = makeWhereCaptureDb();
     const Product = createDrizzleCrud(db, stubProductMeta);
 
@@ -376,7 +365,7 @@ describe('Drizzle list adapter — dialect-native ?search= SQL emission', () => 
     expect(text).not.toContain('ESCAPE');
   });
 
-  it("pg emits POSITION(LOWER(needle) IN LOWER(col)) > 0", async () => {
+  it('pg emits POSITION(LOWER(needle) IN LOWER(col)) > 0', async () => {
     const { db, capture } = makeWhereCaptureDb();
     const Product = createDrizzleCrud(db, stubProductMeta, { dialect: 'pg' });
 
@@ -392,7 +381,7 @@ describe('Drizzle list adapter — dialect-native ?search= SQL emission', () => 
     expect(text).not.toContain('ESCAPE');
   });
 
-  it("mysql emits LOCATE(LOWER(needle), LOWER(col)) > 0", async () => {
+  it('mysql emits LOCATE(LOWER(needle), LOWER(col)) > 0', async () => {
     const { db, capture } = makeWhereCaptureDb();
     const Product = createDrizzleCrud(db, stubProductMeta, { dialect: 'mysql' });
 
@@ -418,9 +407,7 @@ describe('Drizzle list adapter — dialect-native ?search= SQL emission', () => 
     }
 
     const app = new Hono();
-    app.onError((err, c) =>
-      c.json({ success: false, error: { message: err.message } }, 400)
-    );
+    app.onError((err, c) => c.json({ success: false, error: { message: err.message } }, 400));
     app.get('/items', async (c) => {
       const endpoint = new InheritList();
       endpoint.setContext(c);

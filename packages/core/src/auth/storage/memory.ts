@@ -1,5 +1,5 @@
-import type { APIKeyEntry, APIKeyLookupResult, APIKeyStorage } from '../types';
 import { createNullableRegistry } from '../../storage/registry';
+import type { APIKeyEntry, APIKeyLookupResult, APIKeyStorage } from '../types';
 
 // ============================================================================
 // In-Memory API Key Storage
@@ -178,7 +178,7 @@ export class MemoryAPIKeyStorage implements APIKeyStorage {
  * // Returns: "sk_a1b2c3d4e5f6g7h8i9j0..."
  * ```
  */
-export function generateAPIKey(prefix: string = 'sk', length: number = 32): string {
+export function generateAPIKey(prefix = 'sk', length = 32): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const randomBytes = new Uint8Array(length);
   crypto.getRandomValues(randomBytes);

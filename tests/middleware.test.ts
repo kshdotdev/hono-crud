@@ -1,19 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MemoryCreateEndpoint, MemoryListEndpoint } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { z } from 'zod';
-import type { MiddlewareHandler, Context, Next } from 'hono';
+import type { Context, MiddlewareHandler, Next } from 'hono';
 import type { MetaInput } from 'hono-crud';
-import {
-  fromHono,
-  registerCrud,
-  crud,
-  createCreate,
-  createList,
-} from 'hono-crud';
-import {
-  MemoryCreateEndpoint,
-  MemoryListEndpoint,
-} from '@hono-crud/memory';
+import { createCreate, createList, crud, fromHono, registerCrud } from 'hono-crud';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 // Define test schema
 const UserSchema = z.object({
@@ -107,9 +98,14 @@ describe('Middleware Support', () => {
       }
 
       const app = fromHono(new OpenAPIHono());
-      registerCrud(app, '/users', { create: UserCreate, list: UserList }, {
-        middlewares: [globalMiddleware],
-      });
+      registerCrud(
+        app,
+        '/users',
+        { create: UserCreate, list: UserList },
+        {
+          middlewares: [globalMiddleware],
+        },
+      );
 
       // Test POST
       calls.length = 0;
@@ -145,12 +141,17 @@ describe('Middleware Support', () => {
       }
 
       const app = fromHono(new OpenAPIHono());
-      registerCrud(app, '/users', { create: UserCreate, list: UserList }, {
-        endpointMiddlewares: {
-          create: [createMiddleware],
-          list: [listMiddleware],
+      registerCrud(
+        app,
+        '/users',
+        { create: UserCreate, list: UserList },
+        {
+          endpointMiddlewares: {
+            create: [createMiddleware],
+            list: [listMiddleware],
+          },
         },
-      });
+      );
 
       // Test POST
       calls.length = 0;
@@ -182,16 +183,21 @@ describe('Middleware Support', () => {
             _meta = userMeta;
             getStore = () => store.users;
             generateId = () => `user-${Date.now()}`;
-          }
+          },
         );
 
       const app = fromHono(new OpenAPIHono());
-      registerCrud(app, '/users', { create: UserCreate }, {
-        middlewares: [globalMiddleware],
-        endpointMiddlewares: {
-          create: [endpointMiddleware],
+      registerCrud(
+        app,
+        '/users',
+        { create: UserCreate },
+        {
+          middlewares: [globalMiddleware],
+          endpointMiddlewares: {
+            create: [endpointMiddleware],
+          },
         },
-      });
+      );
 
       await app.request('/users', {
         method: 'POST',
@@ -220,9 +226,14 @@ describe('Middleware Support', () => {
       }
 
       const app = fromHono(new OpenAPIHono());
-      registerCrud(app, '/users', { create: UserCreate }, {
-        middlewares: [authMiddleware],
-      });
+      registerCrud(
+        app,
+        '/users',
+        { create: UserCreate },
+        {
+          middlewares: [authMiddleware],
+        },
+      );
 
       // Without auth header - should be blocked
       const res1 = await app.request('/users', {
@@ -239,7 +250,7 @@ describe('Middleware Support', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer token',
+          Authorization: 'Bearer token',
         },
         body: JSON.stringify({ name: 'John', email: 'john@example.com', role: 'user' }),
       });
@@ -262,16 +273,21 @@ describe('Middleware Support', () => {
       }
 
       const app = fromHono(new OpenAPIHono());
-      registerCrud(app, '/users', { create: UserCreate, list: UserList }, {
-        middlewares: [authMiddleware], // All endpoints require auth
-        endpointMiddlewares: {
-          create: [adminMiddleware], // Create also requires admin
+      registerCrud(
+        app,
+        '/users',
+        { create: UserCreate, list: UserList },
+        {
+          middlewares: [authMiddleware], // All endpoints require auth
+          endpointMiddlewares: {
+            create: [adminMiddleware], // Create also requires admin
+          },
         },
-      });
+      );
 
       // List with auth but no admin - should succeed
       const listRes = await app.request('/users', {
-        headers: { 'Authorization': 'Bearer token' },
+        headers: { Authorization: 'Bearer token' },
       });
       expect(listRes.status).toBe(200);
 
@@ -280,7 +296,7 @@ describe('Middleware Support', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer token',
+          Authorization: 'Bearer token',
         },
         body: JSON.stringify({ name: 'John', email: 'john@example.com', role: 'user' }),
       });
@@ -291,7 +307,7 @@ describe('Middleware Support', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer token',
+          Authorization: 'Bearer token',
           'X-Role': 'admin',
         },
         body: JSON.stringify({ name: 'John', email: 'john@example.com', role: 'user' }),
@@ -315,7 +331,7 @@ describe('Middleware Support', () => {
             _meta = userMeta;
             getStore = () => store.users;
             generateId = () => `user-${Date.now()}`;
-          }
+          },
         );
 
       const app = fromHono(new OpenAPIHono());
@@ -342,7 +358,7 @@ describe('Middleware Support', () => {
           class extends MemoryListEndpoint<typeof userMeta> {
             _meta = userMeta;
             getStore = () => store.users;
-          }
+          },
         );
 
       const app = fromHono(new OpenAPIHono());
@@ -366,7 +382,7 @@ describe('Middleware Support', () => {
             _meta = userMeta;
             getStore = () => store.users;
             generateId = () => `user-${Date.now()}`;
-          }
+          },
         );
 
       const app = fromHono(new OpenAPIHono());
@@ -387,14 +403,17 @@ describe('Middleware Support', () => {
       const calls: string[] = [];
       const middleware = createTrackingMiddleware('functional', calls);
 
-      const UserCreate = createCreate({
-        meta: userMeta,
-        middlewares: [middleware],
-      }, class extends MemoryCreateEndpoint<typeof userMeta> {
-        _meta = userMeta;
-        getStore = () => store.users;
-        generateId = () => `user-${Date.now()}`;
-      });
+      const UserCreate = createCreate(
+        {
+          meta: userMeta,
+          middlewares: [middleware],
+        },
+        class extends MemoryCreateEndpoint<typeof userMeta> {
+          _meta = userMeta;
+          getStore = () => store.users;
+          generateId = () => `user-${Date.now()}`;
+        },
+      );
 
       const app = fromHono(new OpenAPIHono());
       registerCrud(app, '/users', { create: UserCreate });
@@ -412,13 +431,16 @@ describe('Middleware Support', () => {
       const calls: string[] = [];
       const middleware = createTrackingMiddleware('functional', calls);
 
-      const UserList = createList({
-        meta: userMeta,
-        middlewares: [middleware],
-      }, class extends MemoryListEndpoint<typeof userMeta> {
-        _meta = userMeta;
-        getStore = () => store.users;
-      });
+      const UserList = createList(
+        {
+          meta: userMeta,
+          middlewares: [middleware],
+        },
+        class extends MemoryListEndpoint<typeof userMeta> {
+          _meta = userMeta;
+          getStore = () => store.users;
+        },
+      );
 
       const app = fromHono(new OpenAPIHono());
       registerCrud(app, '/users', { list: UserList });
@@ -503,10 +525,15 @@ describe('Middleware Support', () => {
       }
 
       const app = fromHono(new OpenAPIHono());
-      registerCrud(app, '/users', { create: UserCreate }, {
-        middlewares: [],
-        endpointMiddlewares: {},
-      });
+      registerCrud(
+        app,
+        '/users',
+        { create: UserCreate },
+        {
+          middlewares: [],
+          endpointMiddlewares: {},
+        },
+      );
 
       const res = await app.request('/users', {
         method: 'POST',

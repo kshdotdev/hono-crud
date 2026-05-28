@@ -1,23 +1,19 @@
+import { MemorySearchEndpoint, clearStorage, getStorage } from '@hono-crud/memory';
+import { Hono } from 'hono';
+import {
+  buildSearchConfig,
+  calculateScore,
+  defineModel,
+  generateHighlights,
+  parseSearchFields,
+  tokenize,
+  tokenizeQuery,
+} from 'hono-crud';
 /**
  * Tests for search functionality.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { Hono } from 'hono';
-import {
-  defineModel,
-  tokenize,
-  tokenizeQuery,
-  calculateScore,
-  generateHighlights,
-  parseSearchFields,
-  buildSearchConfig,
-} from 'hono-crud';
-import {
-  MemorySearchEndpoint,
-  clearStorage,
-  getStorage,
-} from '@hono-crud/memory';
 
 // Define test schema
 const ArticleSchema = z.object({
@@ -120,12 +116,7 @@ describe('Search Utilities', () => {
         content: 'TypeScript is a typed superset of JavaScript',
       };
 
-      const { score, matchedFields } = calculateScore(
-        record,
-        ['typescript'],
-        searchFields,
-        'any'
-      );
+      const { score, matchedFields } = calculateScore(record, ['typescript'], searchFields, 'any');
 
       expect(score).toBeGreaterThan(0);
       expect(matchedFields).toContain('title');
@@ -138,12 +129,7 @@ describe('Search Utilities', () => {
         content: 'Python is a dynamic language',
       };
 
-      const { score, matchedFields } = calculateScore(
-        record,
-        ['typescript'],
-        searchFields,
-        'any'
-      );
+      const { score, matchedFields } = calculateScore(record, ['typescript'], searchFields, 'any');
 
       expect(score).toBe(0);
       expect(matchedFields).toHaveLength(0);
@@ -160,19 +146,9 @@ describe('Search Utilities', () => {
         content: 'Learn TypeScript today',
       };
 
-      const titleScore = calculateScore(
-        recordTitleMatch,
-        ['typescript'],
-        searchFields,
-        'any'
-      );
+      const titleScore = calculateScore(recordTitleMatch, ['typescript'], searchFields, 'any');
 
-      const contentScore = calculateScore(
-        recordContentMatch,
-        ['typescript'],
-        searchFields,
-        'any'
-      );
+      const contentScore = calculateScore(recordContentMatch, ['typescript'], searchFields, 'any');
 
       // Title has weight 2.0, content has weight 1.0
       expect(titleScore.score).toBeGreaterThan(contentScore.score);
@@ -184,19 +160,9 @@ describe('Search Utilities', () => {
         content: 'Introduction to TypeScript',
       };
 
-      const anyResult = calculateScore(
-        record,
-        ['typescript', 'python'],
-        searchFields,
-        'any'
-      );
+      const anyResult = calculateScore(record, ['typescript', 'python'], searchFields, 'any');
 
-      const allResult = calculateScore(
-        record,
-        ['typescript', 'python'],
-        searchFields,
-        'all'
-      );
+      const allResult = calculateScore(record, ['typescript', 'python'], searchFields, 'all');
 
       expect(anyResult.score).toBeGreaterThan(0);
       expect(allResult.score).toBe(0); // python not found
@@ -208,7 +174,7 @@ describe('Search Utilities', () => {
       const highlights = generateHighlights(
         'TypeScript is great for building applications',
         ['typescript'],
-        'any'
+        'any',
       );
 
       expect(highlights).toHaveLength(1);
@@ -219,7 +185,7 @@ describe('Search Utilities', () => {
       const highlights = generateHighlights(
         'The quick brown fox jumps over the lazy dog',
         ['quick brown'],
-        'phrase'
+        'phrase',
       );
 
       expect(highlights).toHaveLength(1);
@@ -227,21 +193,13 @@ describe('Search Utilities', () => {
     });
 
     it('should handle no matches', () => {
-      const highlights = generateHighlights(
-        'Hello world',
-        ['typescript'],
-        'any'
-      );
+      const highlights = generateHighlights('Hello world', ['typescript'], 'any');
 
       expect(highlights).toHaveLength(0);
     });
 
     it('should handle array values', () => {
-      const highlights = generateHighlights(
-        ['tag1', 'typescript', 'tag3'],
-        ['typescript'],
-        'any'
-      );
+      const highlights = generateHighlights(['tag1', 'typescript', 'tag3'], ['typescript'], 'any');
 
       expect(highlights).toHaveLength(1);
       expect(highlights[0]).toContain('<mark>typescript</mark>');
@@ -372,7 +330,7 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=typescript');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       success: boolean;
       result: Array<{ item: { title: string }; score: number }>;
       result_info: { total_count: number; query: string };
@@ -394,7 +352,7 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=typescript');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ score: number }>;
     };
 
@@ -408,12 +366,14 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=typescript&highlight=true');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ highlights?: Record<string, string[]> }>;
     };
 
     // At least some results should have highlights
-    const hasHighlights = data.result.some(r => r.highlights && Object.keys(r.highlights).length > 0);
+    const hasHighlights = data.result.some(
+      (r) => r.highlights && Object.keys(r.highlights).length > 0,
+    );
     expect(hasHighlights).toBe(true);
   });
 
@@ -421,7 +381,7 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=typescript&status=published');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ item: { status: string } }>;
     };
 
@@ -435,12 +395,12 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=deleted');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ item: { title: string } }>;
     };
 
     // Should not find the deleted article
-    const hasDeleted = data.result.some(r => r.item.title === 'Deleted Article');
+    const hasDeleted = data.result.some((r) => r.item.title === 'Deleted Article');
     expect(hasDeleted).toBe(false);
   });
 
@@ -448,7 +408,7 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=john&fields=author');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ item: { author: string }; matchedFields: string[] }>;
       result_info: { searchedFields: string[] };
     };
@@ -465,12 +425,12 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=Getting%20Started&mode=phrase');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ item: { title: string } }>;
     };
 
     // Should find "Getting Started with React"
-    const found = data.result.some(r => r.item.title.includes('Getting Started'));
+    const found = data.result.some((r) => r.item.title.includes('Getting Started'));
     expect(found).toBe(true);
   });
 
@@ -478,7 +438,7 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=typescript%20react&mode=all');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ item: { title: string; content: string } }>;
     };
 
@@ -494,7 +454,7 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=typescript&per_page=2&page=1');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<unknown>;
       result_info: { page: number; per_page: number; total_count: number };
     };
@@ -508,7 +468,7 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=a');
 
     expect(response.status).toBe(400);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       success: boolean;
       error: { code?: string; message: string };
     };
@@ -519,10 +479,12 @@ describe('MemorySearchEndpoint', () => {
   });
 
   it('should support sorting by field', async () => {
-    const response = await app.request('/articles/search?q=typescript&order_by=views&order_by_direction=desc');
+    const response = await app.request(
+      '/articles/search?q=typescript&order_by=views&order_by_direction=desc',
+    );
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ item: { views: number } }>;
     };
 
@@ -536,7 +498,7 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=john');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ matchedFields: string[] }>;
     };
 
@@ -551,7 +513,7 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=typescript&minScore=0.5');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ score: number }>;
     };
 
@@ -565,7 +527,7 @@ describe('MemorySearchEndpoint', () => {
     const response = await app.request('/articles/search?q=typescript&views[gte]=100');
 
     expect(response.status).toBe(200);
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result: Array<{ item: { views: number } }>;
     };
 

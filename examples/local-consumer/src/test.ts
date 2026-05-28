@@ -166,7 +166,7 @@ async function closeServer(server: unknown): Promise<void> {
 }
 
 async function json<T>(response: Response): Promise<T> {
-  return await response.json() as T;
+  return (await response.json()) as T;
 }
 
 async function expectOk(response: Response, label: string): Promise<void> {
@@ -175,7 +175,11 @@ async function expectOk(response: Response, label: string): Promise<void> {
   }
 }
 
-function jsonRequest(method: string, body?: JsonBody, headers: Record<string, string> = {}): RequestInit {
+function jsonRequest(
+  method: string,
+  body?: JsonBody,
+  headers: Record<string, string> = {},
+): RequestInit {
   return {
     method,
     headers: {
@@ -190,7 +194,7 @@ async function requestJson<T>(
   baseUrl: string,
   path: string,
   label: string,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, init);
   await expectOk(response, label);
@@ -217,12 +221,7 @@ async function waitForHealth(baseUrl: string): Promise<void> {
 }
 
 async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
-  const seed = await requestJson<SeedResponse>(
-    baseUrl,
-    '/seed',
-    'seed data',
-    jsonRequest('POST')
-  );
+  const seed = await requestJson<SeedResponse>(baseUrl, '/seed', 'seed data', jsonRequest('POST'));
 
   const email = `local-${crypto.randomUUID()}@example.com`;
   const created = await requestJson<SuccessResponse<User>>(
@@ -238,34 +237,46 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
       tenantId: 'tenant-a',
       secretNote: 'stored encrypted by the model config',
       internalNote: 'hidden by serialization profile',
-    })
+    }),
   );
   assert(created.result.email === email, 'Created user email did not round-trip');
 
   const read = await requestJson<SuccessResponse<User>>(
     baseUrl,
     `/users/${created.result.id}`,
-    'read user'
+    'read user',
   );
   assert(read.result.id === created.result.id, 'Read endpoint returned the wrong user');
   assert(!('internalNote' in read.result), 'Serialization profile leaked internalNote');
-  assert(read.result.displayName === 'Local Package User (admin)', 'Computed field was not returned');
+  assert(
+    read.result.displayName === 'Local Package User (admin)',
+    'Computed field was not returned',
+  );
 
   const related = await requestJson<SuccessResponse<User>>(
     baseUrl,
     `/users/${seed.userId}?include=posts`,
-    'read user with relation include'
+    'read user with relation include',
   );
   assert(Array.isArray(related.result.posts), 'Relation include did not return posts');
-  assert(related.result.posts.some((post) => post.id === seed.postId), 'Seed post was not included on user read');
+  assert(
+    related.result.posts.some((post) => post.id === seed.postId),
+    'Seed post was not included on user read',
+  );
 
   const listed = await requestJson<SuccessResponse<User[]>>(
     baseUrl,
     '/users?role=admin&fields=id,email,name,displayName&sort=email&order=asc&page=1&per_page=20',
-    'list users with filtering, sorting, pagination, and field selection'
+    'list users with filtering, sorting, pagination, and field selection',
   );
-  assert(listed.result.some((user) => user.id === created.result.id), 'Created user was not returned from list endpoint');
-  assert(typeof listed.result_info?.total_count === 'number', 'List endpoint did not return pagination metadata');
+  assert(
+    listed.result.some((user) => user.id === created.result.id),
+    'Created user was not returned from list endpoint',
+  );
+  assert(
+    typeof listed.result_info?.total_count === 'number',
+    'List endpoint did not return pagination metadata',
+  );
 
   const updated = await requestJson<SuccessResponse<User>>(
     baseUrl,
@@ -274,9 +285,12 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
     jsonRequest('PATCH', {
       name: 'Updated Local Package User',
       status: 'pending',
-    })
+    }),
   );
-  assert(updated.result.name === 'Updated Local Package User', 'Update endpoint did not apply the patch');
+  assert(
+    updated.result.name === 'Updated Local Package User',
+    'Update endpoint did not apply the patch',
+  );
 
   const batchCreated = await requestJson<SuccessResponse<BatchCreateResult<User>>>(
     baseUrl,
@@ -299,7 +313,7 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
           age: 31,
         },
       ],
-    })
+    }),
   );
   assert(batchCreated.result.count === 2, 'Batch create did not create both records');
 
@@ -314,9 +328,12 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
           data: { status: 'pending' },
         },
       ],
-    })
+    }),
   );
-  assert(batchUpdated.result.updated[0].status === 'pending', 'Batch update did not patch the selected user');
+  assert(
+    batchUpdated.result.updated[0].status === 'pending',
+    'Batch update did not patch the selected user',
+  );
 
   const batchDeleted = await requestJson<SuccessResponse<BatchDeleteResult<User>>>(
     baseUrl,
@@ -324,7 +341,7 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
     'batch delete users',
     jsonRequest('DELETE', {
       ids: [batchCreated.result.created[1].id],
-    })
+    }),
   );
   assert(batchDeleted.result.count === 1, 'Batch delete did not delete one user');
 
@@ -334,7 +351,7 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
     'batch restore users',
     jsonRequest('POST', {
       ids: [batchCreated.result.created[1].id],
-    })
+    }),
   );
   assert(batchRestored.result.count === 1, 'Batch restore did not restore one user');
 
@@ -347,7 +364,7 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
       name: 'Upserted Local Package User',
       role: 'admin',
       status: 'active',
-    })
+    }),
   );
   assert(upserted.created === false, 'Upsert should have updated the existing user');
   assert(upserted.result.name === 'Upserted Local Package User', 'Upsert update was not applied');
@@ -369,28 +386,31 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
         role: 'admin',
         status: 'active',
       },
-    ])
+    ]),
   );
   assert(batchUpserted.result.totalCount === 2, 'Batch upsert did not process both rows');
 
   const searched = await requestJson<SuccessResponse<SearchResult<User>>>(
     baseUrl,
     '/users/search?q=Sync',
-    'search users'
+    'search users',
   );
   assert(searched.result.length > 0, 'Search endpoint did not return matches');
 
   const aggregate = await requestJson<SuccessResponse<AggregateResult>>(
     baseUrl,
     '/users/aggregate?count=*&avg=age&groupBy=role',
-    'aggregate users'
+    'aggregate users',
   );
-  assert(Array.isArray(aggregate.result.groups), 'Aggregate endpoint did not return grouped results');
+  assert(
+    Array.isArray(aggregate.result.groups),
+    'Aggregate endpoint did not return grouped results',
+  );
 
   const exported = await requestJson<SuccessResponse<ExportResult>>(
     baseUrl,
     '/users/export?format=json&role=admin',
-    'export users'
+    'export users',
   );
   assert(exported.result.format === 'json', 'Export endpoint used the wrong format');
   assert(exported.result.count > 0, 'Export endpoint did not return data');
@@ -408,7 +428,7 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
           status: 'active',
         },
       ],
-    })
+    }),
   );
   assert(imported.result.summary.total === 1, 'Import endpoint did not process one row');
 
@@ -421,7 +441,7 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
       name: 'Cloned User',
       role: 'guest',
       status: 'active',
-    })
+    }),
   );
   assert(cloned.result.id !== created.result.id, 'Clone endpoint reused the source ID');
 
@@ -431,7 +451,7 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
     'bulk patch dry run',
     jsonRequest('PATCH', {
       status: 'pending',
-    })
+    }),
   );
   assert(dryRun.dryRun === true, 'Bulk patch dry run flag was not honored');
 
@@ -441,7 +461,7 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
     'bulk patch users',
     jsonRequest('PATCH', {
       status: 'active',
-    })
+    }),
   );
   assert(bulkPatched.updated >= 1, 'Bulk patch did not update matching guest users');
 
@@ -449,16 +469,19 @@ async function exerciseCrudFeatures(baseUrl: string): Promise<void> {
     baseUrl,
     `/users/${created.result.id}`,
     'soft delete user',
-    jsonRequest('DELETE')
+    jsonRequest('DELETE'),
   );
 
   const restored = await requestJson<SuccessResponse<User>>(
     baseUrl,
     `/users/${created.result.id}/restore`,
     'restore user',
-    jsonRequest('POST')
+    jsonRequest('POST'),
   );
-  assert(restored.result.deletedAt === null || restored.result.deletedAt === undefined, 'Restore endpoint did not clear deletedAt');
+  assert(
+    restored.result.deletedAt === null || restored.result.deletedAt === undefined,
+    'Restore endpoint did not clear deletedAt',
+  );
 }
 
 async function exerciseSupportFeatures(baseUrl: string): Promise<void> {
@@ -470,7 +493,7 @@ async function exerciseSupportFeatures(baseUrl: string): Promise<void> {
       headers: {
         'X-User-Role': 'admin',
       },
-    }
+    },
   );
   assert(admin.user.roles.includes('admin'), 'Auth guard did not receive admin role');
 
@@ -480,18 +503,38 @@ async function exerciseSupportFeatures(baseUrl: string): Promise<void> {
   assert(limited.status === 429, `Expected rate limit status 429, got ${limited.status}`);
 
   const idempotencyKey = crypto.randomUUID();
-  const firstOrder = await fetch(`${baseUrl}/idempotent/orders`, jsonRequest('POST', { sku: 'local-1' }, {
-    'Idempotency-Key': idempotencyKey,
-  }));
+  const firstOrder = await fetch(
+    `${baseUrl}/idempotent/orders`,
+    jsonRequest(
+      'POST',
+      { sku: 'local-1' },
+      {
+        'Idempotency-Key': idempotencyKey,
+      },
+    ),
+  );
   await expectOk(firstOrder, 'idempotency first request');
   const firstOrderBody = await firstOrder.text();
 
-  const replayedOrder = await fetch(`${baseUrl}/idempotent/orders`, jsonRequest('POST', { sku: 'local-1' }, {
-    'Idempotency-Key': idempotencyKey,
-  }));
+  const replayedOrder = await fetch(
+    `${baseUrl}/idempotent/orders`,
+    jsonRequest(
+      'POST',
+      { sku: 'local-1' },
+      {
+        'Idempotency-Key': idempotencyKey,
+      },
+    ),
+  );
   await expectOk(replayedOrder, 'idempotency replay request');
-  assert(replayedOrder.headers.get('Idempotency-Replayed') === 'true', 'Idempotency replay header was not set');
-  assert(await replayedOrder.text() === firstOrderBody, 'Idempotency replay did not return the cached body');
+  assert(
+    replayedOrder.headers.get('Idempotency-Replayed') === 'true',
+    'Idempotency replay header was not set',
+  );
+  assert(
+    (await replayedOrder.text()) === firstOrderBody,
+    'Idempotency replay did not return the cached body',
+  );
 
   const tenant = await requestJson<{ tenantId: string }>(
     baseUrl,
@@ -501,7 +544,7 @@ async function exerciseSupportFeatures(baseUrl: string): Promise<void> {
       headers: {
         'X-Tenant-ID': 'tenant-a',
       },
-    }
+    },
   );
   assert(tenant.tenantId === 'tenant-a', 'Tenant middleware did not set tenantId');
 
@@ -513,28 +556,31 @@ async function exerciseSupportFeatures(baseUrl: string): Promise<void> {
       headers: {
         'Accept-Version': '1',
       },
-    }
+    },
   );
   assert(versioned.version === '1', 'API versioning middleware did not resolve version 1');
 
   const firstCache = await requestJson<{ hit: boolean; value: string }>(
     baseUrl,
     '/cache/demo',
-    'cache miss'
+    'cache miss',
   );
   const secondCache = await requestJson<{ hit: boolean; value: string }>(
     baseUrl,
     '/cache/demo',
-    'cache hit'
+    'cache hit',
   );
-  assert(firstCache.hit === false && secondCache.hit === true, 'Cache endpoint did not miss then hit');
+  assert(
+    firstCache.hit === false && secondCache.hit === true,
+    'Cache endpoint did not miss then hit',
+  );
   assert(firstCache.value === secondCache.value, 'Cache endpoint returned inconsistent values');
 
   const cacheDeleted = await requestJson<{ deleted: number }>(
     baseUrl,
     '/cache/tag/local-consumer',
     'cache tag invalidation',
-    jsonRequest('DELETE')
+    jsonRequest('DELETE'),
   );
   assert(cacheDeleted.deleted >= 1, 'Cache tag invalidation did not remove an entry');
 
@@ -544,9 +590,12 @@ async function exerciseSupportFeatures(baseUrl: string): Promise<void> {
     'encryption roundtrip',
     jsonRequest('POST', {
       value: 'sensitive local value',
-    })
+    }),
   );
-  assert(encrypted.decrypted === 'sensitive local value', 'Encryption roundtrip did not decrypt to the original value');
+  assert(
+    encrypted.decrypted === 'sensitive local value',
+    'Encryption roundtrip did not decrypt to the original value',
+  );
 
   const serialized = await requestJson<Record<string, unknown>>(
     baseUrl,
@@ -557,7 +606,7 @@ async function exerciseSupportFeatures(baseUrl: string): Promise<void> {
       email: 'profile@example.com',
       internalNote: 'hidden',
       extra: 'kept',
-    })
+    }),
   );
   assert(!('internalNote' in serialized), 'Serialization profile did not exclude internalNote');
   assert(serialized.email === 'profile@example.com', 'Serialization profile did not include email');
@@ -565,21 +614,21 @@ async function exerciseSupportFeatures(baseUrl: string): Promise<void> {
   const events = await requestJson<{ count: number; events: unknown[] }>(
     baseUrl,
     '/events',
-    'events endpoint'
+    'events endpoint',
   );
   assert(Array.isArray(events.events), 'Events endpoint did not return an event array');
 
   const auditLogs = await requestJson<{ logs: unknown[] }>(
     baseUrl,
     '/audit-logs',
-    'audit logs endpoint'
+    'audit logs endpoint',
   );
   assert(Array.isArray(auditLogs.logs), 'Audit logs endpoint did not return a log array');
 
   const openApi = await requestJson<Record<string, unknown>>(
     baseUrl,
     '/openapi.json',
-    'OpenAPI document'
+    'OpenAPI document',
   );
   assert(openApi.openapi === '3.1.0', 'OpenAPI document was not generated');
 
@@ -595,7 +644,7 @@ async function exerciseDocumentFeatures(baseUrl: string): Promise<void> {
     jsonRequest('POST', {
       title: 'Versioned Local Document',
       content: 'Initial content',
-    })
+    }),
   );
 
   await requestJson<SuccessResponse<Document>>(
@@ -604,7 +653,7 @@ async function exerciseDocumentFeatures(baseUrl: string): Promise<void> {
     'first document update',
     jsonRequest('PATCH', {
       content: 'Second content',
-    })
+    }),
   );
 
   await requestJson<SuccessResponse<Document>>(
@@ -613,37 +662,41 @@ async function exerciseDocumentFeatures(baseUrl: string): Promise<void> {
     'second document update',
     jsonRequest('PATCH', {
       content: 'Third content',
-    })
+    }),
   );
 
   const history = await requestJson<SuccessResponse<VersionHistory>>(
     baseUrl,
     `/documents/${created.result.id}/versions`,
-    'version history'
+    'version history',
   );
   assert(history.result.totalVersions >= 1, 'Version history did not record updates');
 
   const versionOne = await requestJson<SuccessResponse<{ version: number }>>(
     baseUrl,
     `/documents/${created.result.id}/versions/1`,
-    'version read'
+    'version read',
   );
   assert(versionOne.result.version === 1, 'Version read did not return version 1');
 
-  const compared = await requestJson<SuccessResponse<{ from: number; to: number; changes: unknown[] }>>(
-    baseUrl,
-    `/documents/${created.result.id}/versions/compare?from=1&to=2`,
-    'version compare'
+  const compared = await requestJson<
+    SuccessResponse<{ from: number; to: number; changes: unknown[] }>
+  >(baseUrl, `/documents/${created.result.id}/versions/compare?from=1&to=2`, 'version compare');
+  assert(
+    compared.result.from === 1 && compared.result.to === 2,
+    'Version compare returned the wrong bounds',
   );
-  assert(compared.result.from === 1 && compared.result.to === 2, 'Version compare returned the wrong bounds');
 
   const rolledBack = await requestJson<SuccessResponse<Document>>(
     baseUrl,
     `/documents/${created.result.id}/versions/1/rollback`,
     'version rollback',
-    jsonRequest('POST')
+    jsonRequest('POST'),
   );
-  assert(rolledBack.result.id === created.result.id, 'Version rollback returned the wrong document');
+  assert(
+    rolledBack.result.id === created.result.id,
+    'Version rollback returned the wrong document',
+  );
 }
 
 async function exercisePostFeatures(baseUrl: string): Promise<void> {
@@ -656,7 +709,7 @@ async function exercisePostFeatures(baseUrl: string): Promise<void> {
       name: 'Post Owner',
       role: 'user',
       status: 'active',
-    })
+    }),
   );
 
   const post = await requestJson<SuccessResponse<Post>>(
@@ -668,21 +721,24 @@ async function exercisePostFeatures(baseUrl: string): Promise<void> {
       title: 'Local Consumer Post',
       content: 'Created through the file-installed package example',
       status: 'published',
-    })
+    }),
   );
   assert(post.result.authorId === user.result.id, 'Post create did not attach the owner ID');
 
   const listed = await requestJson<SuccessResponse<Post[]>>(
     baseUrl,
     `/posts?authorId=${user.result.id}`,
-    'list posts'
+    'list posts',
   );
-  assert(listed.result.some((item) => item.id === post.result.id), 'Post list did not return the created post');
+  assert(
+    listed.result.some((item) => item.id === post.result.id),
+    'Post list did not return the created post',
+  );
 
   const read = await requestJson<SuccessResponse<Post>>(
     baseUrl,
     `/posts/${post.result.id}`,
-    'read post'
+    'read post',
   );
   assert(read.result.title === 'Local Consumer Post', 'Post read returned the wrong record');
 }
@@ -706,7 +762,7 @@ async function exerciseResponseEnvelope(baseUrl: string): Promise<void> {
       name: 'Envelope Owner',
       role: 'user',
       status: 'active',
-    })
+    }),
   );
 
   const created = await requestJson<Envelope<Post>>(
@@ -718,34 +774,27 @@ async function exerciseResponseEnvelope(baseUrl: string): Promise<void> {
       title: 'Envelope Post',
       content: 'Wrapped in the custom response envelope',
       status: 'published',
-    })
+    }),
   );
   assert(
     'data' in created && created.data.title === 'Envelope Post',
-    'Custom envelope did not wrap created post in { data }'
+    'Custom envelope did not wrap created post in { data }',
   );
   assert(
     !('success' in (created as unknown as Record<string, unknown>)),
-    'Custom envelope must replace the legacy { success, result } shape'
+    'Custom envelope must replace the legacy { success, result } shape',
   );
 
-  const listed = await requestJson<Envelope<Post[]>>(
-    baseUrl,
-    '/v2/posts',
-    'envelope: list posts'
-  );
+  const listed = await requestJson<Envelope<Post[]>>(baseUrl, '/v2/posts', 'envelope: list posts');
   assert(Array.isArray(listed.data), 'Envelope list did not produce an array under data');
-  assert(
-    typeof listed.meta?.page === 'number',
-    'Envelope list did not surface pagination meta'
-  );
+  assert(typeof listed.meta?.page === 'number', 'Envelope list did not surface pagination meta');
 
   const errResponse = await fetch(`${baseUrl}/v2/posts/missing`);
   assert(errResponse.status === 404, `Envelope error: expected 404, got ${errResponse.status}`);
   const errBody = (await errResponse.json()) as EnvelopeError;
   assert(
     Array.isArray(errBody.errors) && errBody.errors[0]?.code === 'NOT_FOUND',
-    'Custom error envelope did not wrap a 404 into the { errors: [...] } shape'
+    'Custom error envelope did not wrap a 404 into the { errors: [...] } shape',
   );
 }
 
@@ -760,7 +809,10 @@ async function main(): Promise<void> {
     const health = await requestJson<HealthResponse>(baseUrl, '/health', 'health check');
     assert(health.package === 'hono-crud', `Unexpected package name: ${health.package}`);
     assert(health.install === 'file:../..', `Unexpected install type: ${health.install}`);
-    assert(health.features.includes('bulk-patch'), 'Health payload did not list the expanded feature set');
+    assert(
+      health.features.includes('bulk-patch'),
+      'Health payload did not list the expanded feature set',
+    );
 
     await requestJson<Record<string, unknown>>(baseUrl, '/ready', 'readiness check');
 

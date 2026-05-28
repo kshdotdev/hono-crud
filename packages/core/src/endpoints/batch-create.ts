@@ -1,12 +1,9 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
+import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
-import { getSchemaFields, type ModelObject } from './types';
-import {
-  getManagedInputExclusions,
-  rethrowAsConstraintError,
-} from '../core/managed-fields';
+import { type ModelObject, getSchemaFields } from './types';
 
 /**
  * Base endpoint for batch creating resources.
@@ -18,12 +15,11 @@ export abstract class BatchCreateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   /** Maximum number of records that can be created in a single request */
-  protected maxBatchSize: number = 100;
+  protected maxBatchSize = 100;
 
   /** Whether to stop on first error or continue with remaining items */
-  protected stopOnError: boolean = true;
+  protected stopOnError = true;
 
   /** Hook execution mode */
   protected beforeHookMode: HookMode = 'sequential';
@@ -66,10 +62,7 @@ export abstract class BatchCreateEndpoint<
   protected getBodySchema(): ZodObject<ZodRawShape> {
     const itemSchema = this._meta.fields
       ? this._meta.fields
-      : getSchemaFields(
-          this.getModelSchema(),
-          getManagedInputExclusions(this._meta.model)
-        );
+      : getSchemaFields(this.getModelSchema(), getManagedInputExclusions(this._meta.model));
 
     return z.object({
       items: z.array(itemSchema).min(1).max(this.maxBatchSize),
@@ -115,10 +108,14 @@ export abstract class BatchCreateEndpoint<
                 result: z.object({
                   created: z.array(this.getModelSchema()),
                   count: z.number(),
-                  errors: z.array(z.object({
-                    index: z.number(),
-                    error: z.string(),
-                  })).optional(),
+                  errors: z
+                    .array(
+                      z.object({
+                        index: z.number(),
+                        error: z.string(),
+                      }),
+                    )
+                    .optional(),
                 }),
               }),
             },
@@ -157,7 +154,7 @@ export abstract class BatchCreateEndpoint<
   async before(
     data: Partial<ModelObject<M['model']>>,
     _index: number,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -169,7 +166,7 @@ export abstract class BatchCreateEndpoint<
   async after(
     data: ModelObject<M['model']>,
     _index: number,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -203,15 +200,14 @@ export abstract class BatchCreateEndpoint<
    */
   abstract batchCreate(
     items: Partial<ModelObject<M['model']>>[],
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']>[]>;
 
   /**
    * Main handler for the batch create operation.
    */
   async handle(): Promise<Response> {
-
-    let items = await this.getItems();
+    const items = await this.getItems();
     const errors: Array<{ index: number; error: string }> = [];
 
     // Apply before hooks
@@ -235,7 +231,7 @@ export abstract class BatchCreateEndpoint<
     // aborts the call, which would otherwise bubble up as a plaintext
     // 500. Routed through the centralised mapper so the rule is never
     // duplicated per endpoint.
-    let created = await this.batchCreate(processedItems).catch(rethrowAsConstraintError);
+    const created = await this.batchCreate(processedItems).catch(rethrowAsConstraintError);
 
     // Apply after hooks
     const results: ModelObject<M['model']>[] = [];
@@ -271,12 +267,14 @@ export abstract class BatchCreateEndpoint<
         .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (auditRecords.length > 0) {
-        this.runAfterResponse(auditLogger.logBatch(
-          'batch_create',
-          this._meta.model.tableName,
-          auditRecords,
-          this.getAuditUserId()
-        ));
+        this.runAfterResponse(
+          auditLogger.logBatch(
+            'batch_create',
+            this._meta.model.tableName,
+            auditRecords,
+            this.getAuditUserId(),
+          ),
+        );
       }
     }
 
@@ -286,7 +284,9 @@ export abstract class BatchCreateEndpoint<
       : results;
 
     // Apply transform to each item
-    const transformed = serializedItems.map((item) => this.transform(item as ModelObject<M['model']>));
+    const transformed = serializedItems.map((item) =>
+      this.transform(item as ModelObject<M['model']>),
+    );
 
     const response = {
       success: true as const,

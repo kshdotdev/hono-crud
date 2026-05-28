@@ -1,4 +1,4 @@
-import type { Context, MiddlewareHandler, Env } from 'hono';
+import type { Context, Env, MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { setContextVar } from '../utils/context';
 
@@ -124,7 +124,7 @@ export interface MultiTenantMiddlewareOptions {
  * ```
  */
 export function multiTenant<E extends Env = Env>(
-  options: MultiTenantMiddlewareOptions = {}
+  options: MultiTenantMiddlewareOptions = {},
 ): MiddlewareHandler<E> {
   const {
     source = 'header',
@@ -215,4 +215,3 @@ export type TenantEnv<TenantKey extends string = 'tenantId'> = {
     [K in TenantKey]: string;
   };
 };
-

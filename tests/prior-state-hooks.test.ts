@@ -21,31 +21,23 @@
  *   - Delete Drizzle (libsql): same shape end-to-end.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Hono } from 'hono';
-import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { eq, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { Hono } from 'hono';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
+import { DrizzleDeleteEndpoint, DrizzleUpdateEndpoint } from '@hono-crud/drizzle';
 import {
-  defineModel,
-  defineMeta,
-  type HookContext,
-  type DrizzleDatabase,
-} from 'hono-crud';
-import {
-  MemoryUpdateEndpoint,
-  MemoryDeleteEndpoint,
   MEMORY_NOOP_TX,
+  MemoryDeleteEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
-import {
-  DrizzleUpdateEndpoint,
-  DrizzleDeleteEndpoint,
-} from '@hono-crud/drizzle';
+import { type DrizzleDatabase, type HookContext, defineMeta, defineModel } from 'hono-crud';
 
 // ============================================================================
 // Memory adapter — Update
@@ -256,7 +248,7 @@ describe('afterUpdate / afterDelete prior — drizzle adapter (real tx)', () => 
     const client = createClient({ url: ':memory:' });
     const db = drizzle(client);
     await db.run(
-      sql`CREATE TABLE rb_items (id TEXT PRIMARY KEY, name TEXT NOT NULL, counter INTEGER NOT NULL DEFAULT 0)`
+      sql`CREATE TABLE rb_items (id TEXT PRIMARY KEY, name TEXT NOT NULL, counter INTEGER NOT NULL DEFAULT 0)`,
     );
     await db.insert(Items).values({ id: 'r1', name: 'before', counter: 1 });
     return db;
@@ -322,11 +314,7 @@ describe('afterUpdate / afterDelete prior — drizzle adapter (real tx)', () => 
       db = tx.db;
       protected override useTransaction = true;
 
-      override async after(
-        prior: Row,
-        current: Row,
-        ctx: HookContext
-      ): Promise<Row | void> {
+      override async after(prior: Row, current: Row, ctx: HookContext): Promise<Row | void> {
         observedPrior = prior;
         observedCurrent = current;
         observedTx = ctx.db.tx;

@@ -1,3 +1,10 @@
+import {
+  MemoryCreateEndpoint,
+  MemoryDeleteEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
+} from '@hono-crud/memory';
 /**
  * Example: Audit Logging
  *
@@ -5,24 +12,17 @@
  * to track changes to your data.
  */
 import { Hono } from 'hono';
-import { z } from 'zod';
 import {
-  defineModel,
-  defineMeta,
-  fromHono,
-  MemoryAuditLogStorage,
-  setAuditStorage,
-  getAuditStorage,
-  type AuditLogStorage,
   type AuditLogEntry,
+  type AuditLogStorage,
+  MemoryAuditLogStorage,
+  defineMeta,
+  defineModel,
+  fromHono,
+  getAuditStorage,
+  setAuditStorage,
 } from 'hono-crud';
-import {
-  MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryUpdateEndpoint,
-  MemoryDeleteEndpoint,
-  MemoryListEndpoint,
-} from '@hono-crud/memory';
+import { z } from 'zod';
 
 type AppEnv = {
   Variables: {
@@ -114,11 +114,9 @@ class ConsoleAuditLogStorage implements AuditLogStorage {
   async getByRecordId(
     tableName: string,
     recordId: string | number,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number },
   ): Promise<AuditLogEntry[]> {
-    return this.logs.filter(
-      (log) => log.tableName === tableName && log.recordId === recordId
-    );
+    return this.logs.filter((log) => log.tableName === tableName && log.recordId === recordId);
   }
 
   async getAll(options?: {
@@ -251,7 +249,7 @@ async function main() {
       status: 'active',
     }),
   });
-  const createResult = await response.json() as { result: { id: string } };
+  const createResult = (await response.json()) as { result: { id: string } };
   const userId = createResult.result.id;
 
   // Wait for fire-and-forget audit
@@ -299,13 +297,13 @@ async function main() {
 
   console.log('\n=== All Audit Logs ===');
   response = await app.request('/audit-logs');
-  const auditResult = await response.json() as { result: AuditLogEntry[] };
+  const auditResult = (await response.json()) as { result: AuditLogEntry[] };
 
   console.log(`Total audit log entries: ${auditResult.result.length}`);
   console.log('\nAudit log summary:');
   for (const log of auditResult.result) {
     console.log(
-      `  - ${log.action.toUpperCase()} on ${log.tableName}#${log.recordId} at ${log.timestamp}`
+      `  - ${log.action.toUpperCase()} on ${log.tableName}#${log.recordId} at ${log.timestamp}`,
     );
   }
 }

@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { Hono } from 'hono';
 import { createHealthEndpoints, createHealthHandler } from '@hono-crud/health';
+import { Hono } from 'hono';
+import { describe, expect, it } from 'vitest';
 
 describe('Health Endpoints', () => {
   describe('createHealthEndpoints', () => {
@@ -62,7 +62,12 @@ describe('Health Endpoints', () => {
       const app = new Hono();
       createHealthEndpoints(app, {
         checks: [
-          { name: 'db', check: async () => { throw new Error('Connection refused'); } },
+          {
+            name: 'db',
+            check: async () => {
+              throw new Error('Connection refused');
+            },
+          },
           { name: 'cache', check: async () => true },
         ],
       });
@@ -82,7 +87,9 @@ describe('Health Endpoints', () => {
           { name: 'db', check: async () => true },
           {
             name: 'cache',
-            check: async () => { throw new Error('Cache down'); },
+            check: async () => {
+              throw new Error('Cache down');
+            },
             critical: false,
           },
         ],
@@ -118,9 +125,7 @@ describe('Health Endpoints', () => {
     it('should report latency', async () => {
       const app = new Hono();
       createHealthEndpoints(app, {
-        checks: [
-          { name: 'fast', check: async () => true },
-        ],
+        checks: [{ name: 'fast', check: async () => true }],
       });
 
       const res = await app.request('/ready');

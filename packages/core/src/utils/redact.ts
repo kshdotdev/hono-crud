@@ -42,7 +42,7 @@ export function redactObject(obj: unknown, patterns: RedactPattern[]): unknown {
 
 export function redactHeaders(
   headers: Record<string, string>,
-  patterns: RedactPattern[]
+  patterns: RedactPattern[],
 ): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {

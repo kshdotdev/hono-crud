@@ -1,5 +1,5 @@
-import type { CrudEventPayload, CrudEventListener } from './types';
-import { resolveEventEmitter, type CrudEventEmitter } from './emitter';
+import { type CrudEventEmitter, resolveEventEmitter } from './emitter';
+import type { CrudEventListener, CrudEventPayload } from './types';
 
 /**
  * Webhook endpoint configuration.
@@ -65,7 +65,7 @@ async function signPayload(payload: string, secret: string): Promise<string> {
     encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign'],
   );
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
   const hashArray = Array.from(new Uint8Array(signature));
@@ -75,10 +75,7 @@ async function signPayload(payload: string, secret: string): Promise<string> {
 /**
  * Check if an event matches a webhook endpoint's subscription filter.
  */
-function matchesFilter(
-  event: CrudEventPayload,
-  filters?: WebhookEndpoint['events']
-): boolean {
+function matchesFilter(event: CrudEventPayload, filters?: WebhookEndpoint['events']): boolean {
   if (!filters || filters.length === 0) return true;
   const eventKey = `${event.table}:${event.type}`;
   return filters.some((f) => f === '*' || f === eventKey);
@@ -89,7 +86,7 @@ function matchesFilter(
  */
 async function deliverToEndpoint(
   endpoint: WebhookEndpoint,
-  event: CrudEventPayload
+  event: CrudEventPayload,
 ): Promise<WebhookDeliveryResult> {
   const timeout = endpoint.timeout ?? 10000;
   const maxRetries = endpoint.retries ?? 2;
@@ -181,7 +178,9 @@ async function deliverToEndpoint(
 export function registerWebhooks(config: WebhookConfig): () => void {
   const emitter = resolveEventEmitter(undefined, config.emitter);
   if (!emitter) {
-    throw new Error('Event emitter not configured. Pass emitter explicitly or call setEventEmitter() first.');
+    throw new Error(
+      'Event emitter not configured. Pass emitter explicitly or call setEventEmitter() first.',
+    );
   }
 
   const listener: CrudEventListener = (event) => {
@@ -189,23 +188,17 @@ export function registerWebhooks(config: WebhookConfig): () => void {
       if (!matchesFilter(event, endpoint.events)) continue;
 
       // Fire and forget delivery
-      const deliveryPromise = deliverToEndpoint(endpoint, event).then((result) => {
-        if (!result.success && config.onError) {
-          config.onError(
-            endpoint,
-            event,
-            new Error(result.error ?? 'Unknown delivery error')
-          );
-        }
-      }).catch((err) => {
-        if (config.onError) {
-          config.onError(
-            endpoint,
-            event,
-            err instanceof Error ? err : new Error(String(err))
-          );
-        }
-      });
+      const deliveryPromise = deliverToEndpoint(endpoint, event)
+        .then((result) => {
+          if (!result.success && config.onError) {
+            config.onError(endpoint, event, new Error(result.error ?? 'Unknown delivery error'));
+          }
+        })
+        .catch((err) => {
+          if (config.onError) {
+            config.onError(endpoint, event, err instanceof Error ? err : new Error(String(err)));
+          }
+        });
 
       // Keep delivery alive past response in edge runtimes
       if (config.waitUntil) {

@@ -1,4 +1,4 @@
-import type { IdempotencyStorage, IdempotencyEntry } from '../types';
+import type { IdempotencyEntry, IdempotencyStorage } from '../types';
 
 /**
  * In-memory idempotency storage.
@@ -20,7 +20,7 @@ export class MemoryIdempotencyStorage implements IdempotencyStorage {
   /** Minimum interval between cleanup runs (ms) */
   private cleanupInterval: number;
   /** Timestamp of last cleanup run */
-  private lastCleanup: number = 0;
+  private lastCleanup = 0;
   /** Maximum number of entries before evicting oldest */
   private maxEntries: number;
 

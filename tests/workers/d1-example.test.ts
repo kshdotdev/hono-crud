@@ -1,19 +1,16 @@
-import { beforeEach, describe, expect, it } from 'vitest';
 import { env } from 'cloudflare:test';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { openApiApp } from '../../examples/drizzle/d1-crud';
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
-  return await openApiApp.fetch(
-    new Request(`https://example.com${path}`, init),
-    {
-      DB: env.DB,
-      CACHE_KV: env.CACHE_KV,
-    }
-  );
+  return await openApiApp.fetch(new Request(`https://example.com${path}`, init), {
+    DB: env.DB,
+    CACHE_KV: env.CACHE_KV,
+  });
 }
 
 async function json<T>(response: Response): Promise<T> {
-  return await response.json() as T;
+  return (await response.json()) as T;
 }
 
 describe('drizzle d1 worker example', () => {

@@ -3,7 +3,10 @@
  * that every cache/rate-limit storage backend repeated.
  */
 export class PrefixedKv {
-  constructor(private readonly prefix: string, private readonly separator: string = ':') {}
+  constructor(
+    private readonly prefix: string,
+    private readonly separator: string = ':',
+  ) {}
 
   key(suffix: string): string {
     return `${this.prefix}${this.separator}${suffix}`;

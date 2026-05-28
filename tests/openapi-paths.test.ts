@@ -1,15 +1,7 @@
 import { MemoryAdapters } from '@hono-crud/memory';
-import {
-  describe,
-  it,
-  expect } from 'vitest';
+import { defineEndpoints, defineMeta, defineModel, toOpenApiPaths } from 'hono-crud';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import {
-  defineEndpoints,
-  defineMeta,
-  defineModel,
-  toOpenApiPaths,
-} from 'hono-crud';
 
 // ============================================================================
 // Fixtures
@@ -57,7 +49,7 @@ function fullEndpoints() {
       batchRestore: {},
       batchUpsert: { conflictTarget: 'sku' },
     },
-    MemoryAdapters
+    MemoryAdapters,
   );
 }
 
@@ -107,7 +99,7 @@ describe('toOpenApiPaths — completeness', () => {
     expect(schema.type).toBe('object');
     // Model fields minus the primary key (id) flow into the create body.
     expect(Object.keys(schema.properties).sort()).toEqual(
-      ['inStock', 'name', 'price', 'sku'].sort()
+      ['inStock', 'name', 'price', 'sku'].sort(),
     );
     expect(schema.properties).not.toHaveProperty('id');
     // `name` is .min(1) and non-optional => required; `inStock` has a
@@ -178,9 +170,7 @@ describe('toOpenApiPaths — basePath', () => {
   });
 
   it('defaults basePath to "" (resource-relative keys)', () => {
-    const paths = toOpenApiPaths(
-      defineEndpoints({ meta: productMeta, list: {} }, MemoryAdapters)
-    );
+    const paths = toOpenApiPaths(defineEndpoints({ meta: productMeta, list: {} }, MemoryAdapters));
     expect(Object.keys(paths)).toEqual(['/']);
   });
 });
@@ -191,9 +181,7 @@ describe('toOpenApiPaths — basePath', () => {
 
 describe('toOpenApiPaths — tag resolution', () => {
   it('falls back to tableName when no model tag / no override', () => {
-    const paths = toOpenApiPaths(
-      defineEndpoints({ meta: productMeta, list: {} }, MemoryAdapters)
-    );
+    const paths = toOpenApiPaths(defineEndpoints({ meta: productMeta, list: {} }, MemoryAdapters));
     const get = paths['/'].get as { tags?: string[] };
     expect(get.tags).toEqual(['products']);
   });
@@ -207,7 +195,7 @@ describe('toOpenApiPaths — tag resolution', () => {
     });
     const endpoints = defineEndpoints(
       { meta: defineMeta({ model: taggedModel }), list: {}, create: {} },
-      MemoryAdapters
+      MemoryAdapters,
     );
     const paths = toOpenApiPaths(endpoints);
     expect((paths['/'].get as { tags?: string[] }).tags).toEqual(['Catalog']);
@@ -227,7 +215,7 @@ describe('toOpenApiPaths — tag resolution', () => {
         list: { openapi: { tags: ['ExplicitlyTagged'] } },
         create: {},
       },
-      MemoryAdapters
+      MemoryAdapters,
     );
     const paths = toOpenApiPaths(endpoints, { tag: 'Override' });
     expect((paths['/'].get as { tags?: string[] }).tags).toEqual(['Override']);
@@ -241,7 +229,7 @@ describe('toOpenApiPaths — tag resolution', () => {
         list: { openapi: { tags: ['CustomList'] } },
         create: {},
       },
-      MemoryAdapters
+      MemoryAdapters,
     );
     const paths = toOpenApiPaths(endpoints);
     // Explicit per-endpoint tag wins over the model/tableName default.
@@ -257,10 +245,7 @@ describe('toOpenApiPaths — tag resolution', () => {
 
 describe('toOpenApiPaths — disabled endpoints', () => {
   it('omits endpoints not present in the config', () => {
-    const endpoints = defineEndpoints(
-      { meta: productMeta, list: {}, read: {} },
-      MemoryAdapters
-    );
+    const endpoints = defineEndpoints({ meta: productMeta, list: {}, read: {} }, MemoryAdapters);
     const paths = toOpenApiPaths(endpoints);
     expect(paths['/']?.get).toBeDefined(); // list present
     expect(paths['/']?.post).toBeUndefined(); // create absent
@@ -279,10 +264,7 @@ describe('toOpenApiPaths — disabled endpoints', () => {
 
 describe('Model.tag flows into endpoint getSchema().tags', () => {
   it('defaults endpoint tags to tableName when model.tag unset', () => {
-    const endpoints = defineEndpoints(
-      { meta: productMeta, create: {}, list: {} },
-      MemoryAdapters
-    );
+    const endpoints = defineEndpoints({ meta: productMeta, create: {}, list: {} }, MemoryAdapters);
     const create = new endpoints.create!();
     const list = new endpoints.list!();
     expect(create.getSchema().tags).toEqual(['products']);
@@ -298,7 +280,7 @@ describe('Model.tag flows into endpoint getSchema().tags', () => {
     });
     const endpoints = defineEndpoints(
       { meta: defineMeta({ model: taggedModel }), create: {}, update: {} },
-      MemoryAdapters
+      MemoryAdapters,
     );
     expect(new endpoints.create!().getSchema().tags).toEqual(['Inventory']);
     expect(new endpoints.update!().getSchema().tags).toEqual(['Inventory']);
@@ -316,7 +298,7 @@ describe('Model.tag flows into endpoint getSchema().tags', () => {
         meta: defineMeta({ model: taggedModel }),
         create: { openapi: { tags: ['Special'] } },
       },
-      MemoryAdapters
+      MemoryAdapters,
     );
     expect(new endpoints.create!().getSchema().tags).toEqual(['Special']);
   });

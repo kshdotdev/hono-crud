@@ -23,9 +23,9 @@
  */
 
 import type { Env, MiddlewareHandler } from 'hono';
-import type { MetaInput, OpenAPIRouteSchema, HookMode, FilterConfig } from '../core/types';
-import type { ModelObject } from '../endpoints/types';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
+import type { FilterConfig, HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import type { ModelObject } from '../endpoints/types';
 
 // ============================================================================
 // Type Definitions
@@ -42,8 +42,14 @@ type OpenAPISchema = Partial<OpenAPIRouteSchema> & {
 export interface CreateConfig<M extends MetaInput, E extends Env = Env> {
   meta: M;
   schema?: OpenAPISchema;
-  before?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
-  after?: (data: ModelObject<M['model']>, tx?: unknown) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  before?: (
+    data: ModelObject<M['model']>,
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  after?: (
+    data: ModelObject<M['model']>,
+    tx?: unknown,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
   allowNestedCreate?: string[];
   beforeHookMode?: HookMode;
   afterHookMode?: HookMode;
@@ -70,7 +76,9 @@ export interface ListConfig<M extends MetaInput, E extends Env = Env> {
   blockedSelectFields?: string[];
   alwaysIncludeFields?: string[];
   defaultSelectFields?: string[];
-  after?: (items: ModelObject<M['model']>[]) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  after?: (
+    items: ModelObject<M['model']>[],
+  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
   transform?: (item: ModelObject<M['model']>) => unknown;
   middlewares?: MiddlewareHandler<E>[];
 }
@@ -86,7 +94,9 @@ export interface ReadConfig<M extends MetaInput, E extends Env = Env> {
   blockedSelectFields?: string[];
   alwaysIncludeFields?: string[];
   defaultSelectFields?: string[];
-  after?: (data: ModelObject<M['model']>) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  after?: (
+    data: ModelObject<M['model']>,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
   transform?: (item: ModelObject<M['model']>) => unknown;
   middlewares?: MiddlewareHandler<E>[];
 }
@@ -99,7 +109,10 @@ export interface UpdateConfig<M extends MetaInput, E extends Env = Env> {
   allowedUpdateFields?: string[];
   blockedUpdateFields?: string[];
   allowNestedWrites?: string[];
-  before?: (data: Partial<ModelObject<M['model']>>, tx?: unknown) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
+  before?: (
+    data: Partial<ModelObject<M['model']>>,
+    tx?: unknown,
+  ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
   /**
    * Update after-hook.
    *
@@ -111,7 +124,7 @@ export interface UpdateConfig<M extends MetaInput, E extends Env = Env> {
   after?: (
     prior: ModelObject<M['model']>,
     current: ModelObject<M['model']>,
-    ctx: unknown
+    ctx: unknown,
   ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void;
   beforeHookMode?: HookMode;
   afterHookMode?: HookMode;
@@ -165,7 +178,8 @@ export function createList<
   E extends Env = Env,
   B extends abstract new () => unknown = abstract new () => unknown,
 >(config: ListConfig<M, E>, BaseClass: B): GeneratedClass<B> {
-  const defaultSort = config.defaultSort ??
+  const defaultSort =
+    config.defaultSort ??
     (config.defaultOrderBy
       ? { field: config.defaultOrderBy, order: config.defaultOrderDirection ?? 'asc' }
       : undefined);

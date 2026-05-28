@@ -5,15 +5,13 @@ import { BatchDeleteEndpoint } from 'hono-crud/internal';
 import { BatchRestoreEndpoint } from 'hono-crud/internal';
 import { BatchUpsertEndpoint } from 'hono-crud/internal';
 import { RestoreEndpoint } from 'hono-crud/internal';
-import type {
-  MetaInput,
-} from 'hono-crud/internal';
+import type { MetaInput } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
 import {
   type PrismaClient,
   type PrismaModelOperations,
-  getPrismaModel,
   getModelName,
+  getPrismaModel,
   getPrismaModelByName,
   getPrismaTransaction,
 } from './helpers';
@@ -29,7 +27,7 @@ export abstract class PrismaRestoreEndpoint<
   M extends MetaInput = MetaInput,
 > extends RestoreEndpoint<E, M> {
   abstract prisma: PrismaClient;
-  protected useTransaction: boolean = false;
+  protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
@@ -37,7 +35,7 @@ export abstract class PrismaRestoreEndpoint<
 
   override async restore(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -82,11 +80,11 @@ export abstract class PrismaBatchCreateEndpoint<
   }
 
   override async batchCreate(
-    items: Partial<ModelObject<M['model']>>[]
+    items: Partial<ModelObject<M['model']>>[],
   ): Promise<ModelObject<M['model']>[]> {
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     const records = items.map((item) =>
-      this.applyManagedInsertFields(item as Record<string, unknown>, 'prisma')
+      this.applyManagedInsertFields(item as Record<string, unknown>, 'prisma'),
     );
 
     // Prisma's createMany doesn't return the created records, so we need to use
@@ -96,7 +94,9 @@ export abstract class PrismaBatchCreateEndpoint<
     await getPrismaTransaction(this.prisma)(async (tx) => {
       const txModel = getPrismaModelByName(tx, await getModelName(this._meta.model.tableName));
       if (!txModel) {
-        throw new Error(`Model '${this._meta.model.tableName}' not found in Prisma transaction client`);
+        throw new Error(
+          `Model '${this._meta.model.tableName}' not found in Prisma transaction client`,
+        );
       }
       for (const record of records) {
         const result = await txModel.create({ data: record });
@@ -125,7 +125,7 @@ export abstract class PrismaBatchUpdateEndpoint<
   }
 
   override async batchUpdate(
-    items: BatchUpdateItem<ModelObject<M['model']>>[]
+    items: BatchUpdateItem<ModelObject<M['model']>>[],
   ): Promise<{ updated: ModelObject<M['model']>[]; notFound: string[] }> {
     const model = await this.getModel();
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -134,7 +134,7 @@ export abstract class PrismaBatchUpdateEndpoint<
     const notFound: string[] = [];
 
     // Extract all IDs for batch lookup
-    const allIds = items.map(item => item.id);
+    const allIds = items.map((item) => item.id);
 
     // Build where clause for batch lookup
     const where: Record<string, unknown> = {
@@ -194,7 +194,7 @@ export abstract class PrismaBatchDeleteEndpoint<
   }
 
   override async batchDelete(
-    ids: string[]
+    ids: string[],
   ): Promise<{ deleted: ModelObject<M['model']>[]; notFound: string[] }> {
     const model = await this.getModel();
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -272,7 +272,7 @@ export abstract class PrismaBatchRestoreEndpoint<
   }
 
   override async batchRestore(
-    ids: string[]
+    ids: string[],
   ): Promise<{ restored: ModelObject<M['model']>[]; notFound: string[] }> {
     const model = await this.getModel();
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -330,7 +330,7 @@ export abstract class PrismaBatchUpsertEndpoint<
   M extends MetaInput = MetaInput,
 > extends BatchUpsertEndpoint<E, M> {
   abstract prisma: PrismaClient;
-  protected useTransaction: boolean = true;
+  protected useTransaction = true;
 
   protected async getModel(): Promise<PrismaModelOperations> {
     return getPrismaModel(this.prisma, this._meta.model.tableName);
@@ -340,7 +340,7 @@ export abstract class PrismaBatchUpsertEndpoint<
    * Finds an existing record by upsert keys.
    */
   override async findExisting(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
     const upsertKeys = this.getUpsertKeys();
@@ -365,16 +365,11 @@ export abstract class PrismaBatchUpsertEndpoint<
   /**
    * Creates a new record.
    */
-  override async create(
-    data: Partial<ModelObject<M['model']>>
-  ): Promise<ModelObject<M['model']>> {
+  override async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'prisma'
-    );
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'prisma');
 
     const result = await model.create({ data: record });
     return result as ModelObject<M['model']>;
@@ -385,7 +380,7 @@ export abstract class PrismaBatchUpsertEndpoint<
    */
   override async update(
     existing: ModelObject<M['model']>,
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']>> {
     const model = await this.getModel();
     const primaryKey = this._meta.model.primaryKeys[0];
@@ -403,7 +398,7 @@ export abstract class PrismaBatchUpsertEndpoint<
    */
   protected override async nativeBatchUpsert(
     items: Partial<ModelObject<M['model']>>[],
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<{
     items: Array<{ data: ModelObject<M['model']>; created: boolean; index: number }>;
     createdCount: number;
@@ -425,7 +420,10 @@ export abstract class PrismaBatchUpsertEndpoint<
     const timestamps = this.getTimestampsConfig();
 
     const executeUpserts = async (prismaClient: PrismaClient) => {
-      const model = getPrismaModelByName(prismaClient, await getModelName(this._meta.model.tableName));
+      const model = getPrismaModelByName(
+        prismaClient,
+        await getModelName(this._meta.model.tableName),
+      );
       if (!model) {
         throw new Error(`Model '${this._meta.model.tableName}' not found in Prisma client`);
       }
@@ -449,7 +447,7 @@ export abstract class PrismaBatchUpsertEndpoint<
           // (Model.id strategy + createdAt/updatedAt).
           const createData = this.applyManagedInsertFields(
             item as Record<string, unknown>,
-            'prisma'
+            'prisma',
           );
 
           // Build update data - exclude upsert keys and primary key, filter create-only fields
@@ -493,7 +491,12 @@ export abstract class PrismaBatchUpsertEndpoint<
       return { results, errors };
     };
 
-    let outcome: { results: typeof items extends unknown[] ? Array<{ data: ModelObject<M['model']>; created: boolean; index: number }> : never; errors: Array<{ index: number; error: string }> };
+    let outcome: {
+      results: typeof items extends unknown[]
+        ? Array<{ data: ModelObject<M['model']>; created: boolean; index: number }>
+        : never;
+      errors: Array<{ index: number; error: string }>;
+    };
 
     if (this.useTransaction) {
       outcome = await getPrismaTransaction(this.prisma)(executeUpserts);

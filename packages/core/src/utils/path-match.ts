@@ -44,7 +44,7 @@ export function matchAny(path: string, patterns: PathPattern[]): boolean {
 export function isPathIncluded(
   path: string,
   includes: PathPattern[],
-  excludes: PathPattern[]
+  excludes: PathPattern[],
 ): boolean {
   if (matchAny(path, excludes)) return false;
   if (includes.length === 0) return true;

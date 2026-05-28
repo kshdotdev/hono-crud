@@ -1,4 +1,4 @@
-import type { LoggingStorage, LogEntry, LogQueryOptions, PathPattern } from '../types';
+import type { LogEntry, LogQueryOptions, LoggingStorage, PathPattern } from '../types';
 import { matchPath } from '../utils';
 
 /**
@@ -73,7 +73,7 @@ export class MemoryLoggingStorage implements LoggingStorage {
   private cleanupInterval: number;
 
   /** Timestamp of last cleanup run */
-  private lastCleanup: number = 0;
+  private lastCleanup = 0;
 
   constructor(options?: MemoryLoggingStorageOptions) {
     this.maxEntries = options?.maxEntries ?? 10000;

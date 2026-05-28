@@ -42,7 +42,7 @@ export class MemoryApprovalStorage implements ApprovalStorage {
     }
     if (action.status !== 'pending') {
       throw new Error(
-        `Pending action ${actionId} cannot be approved from status '${action.status}'`
+        `Pending action ${actionId} cannot be approved from status '${action.status}'`,
       );
     }
     this.store.set(actionId, {
@@ -60,7 +60,7 @@ export class MemoryApprovalStorage implements ApprovalStorage {
     }
     if (action.status !== 'pending') {
       throw new Error(
-        `Pending action ${actionId} cannot be rejected from status '${action.status}'`
+        `Pending action ${actionId} cannot be rejected from status '${action.status}'`,
       );
     }
     this.store.set(actionId, {

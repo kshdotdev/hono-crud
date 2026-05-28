@@ -1,9 +1,9 @@
 import type { Env } from 'hono';
-import type { LoggingStorage } from '../logging/types';
 import type { AuditLogStorage } from '../audit';
-import type { VersioningStorage } from '../versioning';
 import type { APIKeyStorage } from '../auth/types';
 import type { CrudEventEmitter } from '../events/emitter';
+import type { LoggingStorage } from '../logging/types';
+import type { VersioningStorage } from '../versioning';
 
 /**
  * Extended Hono environment with storage context variables.

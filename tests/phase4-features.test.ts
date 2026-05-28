@@ -1,26 +1,26 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { MemoryBulkPatchEndpoint } from '@hono-crud/memory';
 import { Hono } from 'hono';
-import { z } from 'zod';
+import { fromHono } from 'hono-crud/core/openapi';
+import { defineMeta, defineModel } from 'hono-crud/core/types';
+import {
+  StaticKeyProvider,
+  decryptFields,
+  decryptValue,
+  encryptFields,
+  encryptValue,
+  isEncryptedValue,
+} from 'hono-crud/encryption';
+import type { EncryptedValue } from 'hono-crud/encryption';
 import {
   applyProfile,
   applyProfileToArray,
-  resolveProfile,
-  createSerializer,
   createArraySerializer,
+  createSerializer,
+  resolveProfile,
 } from 'hono-crud/serialization';
-import type { SerializationProfile, SerializationConfig } from 'hono-crud/serialization';
-import {
-  encryptValue,
-  decryptValue,
-  isEncryptedValue,
-  encryptFields,
-  decryptFields,
-  StaticKeyProvider,
-} from 'hono-crud/encryption';
-import type { EncryptedValue } from 'hono-crud/encryption';
-import { fromHono } from 'hono-crud/core/openapi';
-import { defineModel, defineMeta } from 'hono-crud/core/types';
-import { MemoryBulkPatchEndpoint } from '@hono-crud/memory';
+import type { SerializationConfig, SerializationProfile } from 'hono-crud/serialization';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // ============================================================================
 // Serialization Profiles
@@ -129,9 +129,7 @@ describe('Serialization Profiles', () => {
   describe('createSerializer', () => {
     it('should create a reusable serializer', () => {
       const config: SerializationConfig = {
-        profiles: [
-          { name: 'public', include: ['id', 'name'] },
-        ],
+        profiles: [{ name: 'public', include: ['id', 'name'] }],
       };
       const serialize = createSerializer(config);
       const result = serialize(record, 'public');
@@ -149,9 +147,7 @@ describe('Serialization Profiles', () => {
   describe('createArraySerializer', () => {
     it('should create a reusable array serializer', () => {
       const config: SerializationConfig = {
-        profiles: [
-          { name: 'public', include: ['id'] },
-        ],
+        profiles: [{ name: 'public', include: ['id'] }],
       };
       const serialize = createArraySerializer(config);
       const result = serialize([record], 'public');
@@ -244,7 +240,7 @@ describe('Field-Level Encryption', () => {
       const encrypted = await encryptFields(
         record as Record<string, unknown>,
         ['ssn', 'email'],
-        keyProvider
+        keyProvider,
       );
       expect(encrypted.ssn).toBeNull();
       expect(encrypted.email).toBeUndefined();
@@ -265,9 +261,7 @@ describe('Field-Level Encryption', () => {
     });
 
     it('should throw for unknown key ID', async () => {
-      await expect(
-        keyProvider.getKeyById('unknown')
-      ).rejects.toThrow('Unknown key ID');
+      await expect(keyProvider.getKeyById('unknown')).rejects.toThrow('Unknown key ID');
     });
   });
 });
@@ -324,7 +318,9 @@ describe('Bulk Patch Endpoint', () => {
     seedApp.post('/seed', async (c) => {
       const body = await c.req.json();
       // Access the internal store directly
-      const memStore = (globalThis as Record<string, unknown>).__test_store as Map<string, unknown> | undefined;
+      const memStore = (globalThis as Record<string, unknown>).__test_store as
+        | Map<string, unknown>
+        | undefined;
       if (memStore) {
         for (const item of body) {
           memStore.set(item.id, item);

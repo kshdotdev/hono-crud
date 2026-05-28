@@ -1,20 +1,16 @@
-/**
- * Tests for aggregation functionality.
- */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { MemoryAggregateEndpoint, clearStorage, getStorage } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import {
+  computeAggregations,
   defineModel,
   parseAggregateField,
   parseAggregateQuery,
-  computeAggregations,
 } from 'hono-crud';
-import {
-  MemoryAggregateEndpoint,
-  clearStorage,
-  getStorage,
-} from '@hono-crud/memory';
+/**
+ * Tests for aggregation functionality.
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // Define test schema
 const ProductSchema = z.object({
@@ -56,9 +52,23 @@ describe('Aggregations', () => {
     const store = getStorage<Record<string, unknown>>('products');
 
     const products = [
-      { id: '1', name: 'Laptop', category: 'electronics', price: 999, quantity: 10, isActive: true },
+      {
+        id: '1',
+        name: 'Laptop',
+        category: 'electronics',
+        price: 999,
+        quantity: 10,
+        isActive: true,
+      },
       { id: '2', name: 'Phone', category: 'electronics', price: 599, quantity: 25, isActive: true },
-      { id: '3', name: 'Tablet', category: 'electronics', price: 399, quantity: 15, isActive: false },
+      {
+        id: '3',
+        name: 'Tablet',
+        category: 'electronics',
+        price: 399,
+        quantity: 15,
+        isActive: false,
+      },
       { id: '4', name: 'Desk', category: 'furniture', price: 299, quantity: 5, isActive: true },
       { id: '5', name: 'Chair', category: 'furniture', price: 199, quantity: 20, isActive: true },
       { id: '6', name: 'Lamp', category: 'furniture', price: 49, quantity: 50, isActive: false },
@@ -228,8 +238,8 @@ describe('Aggregations', () => {
       expect(result.groups).toHaveLength(2);
       expect(result.totalGroups).toBe(2);
 
-      const groupA = result.groups!.find(g => g.key.category === 'A');
-      const groupB = result.groups!.find(g => g.key.category === 'B');
+      const groupA = result.groups!.find((g) => g.key.category === 'A');
+      const groupB = result.groups!.find((g) => g.key.category === 'B');
 
       expect(groupA?.values.count).toBe(2);
       expect(groupA?.values.sumValue).toBe(30);
@@ -294,7 +304,7 @@ describe('Aggregations', () => {
       const response = await app.request('/products/aggregate?count=*');
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { values: Record<string, number> } };
+      const result = (await response.json()) as { result: { values: Record<string, number> } };
       expect(result.result.values.count).toBe(8);
     });
 
@@ -302,7 +312,7 @@ describe('Aggregations', () => {
       const response = await app.request('/products/aggregate?sum=price');
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { values: Record<string, number> } };
+      const result = (await response.json()) as { result: { values: Record<string, number> } };
       expect(result.result.values.sumPrice).toBe(2572); // Sum of all prices
     });
 
@@ -310,7 +320,7 @@ describe('Aggregations', () => {
       const response = await app.request('/products/aggregate?avg=price');
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { values: Record<string, number> } };
+      const result = (await response.json()) as { result: { values: Record<string, number> } };
       expect(result.result.values.avgPrice).toBe(321.5); // 2572 / 8
     });
 
@@ -318,7 +328,7 @@ describe('Aggregations', () => {
       const response = await app.request('/products/aggregate?min=price&max=price');
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { values: Record<string, number> } };
+      const result = (await response.json()) as { result: { values: Record<string, number> } };
       expect(result.result.values.minPrice).toBe(9);
       expect(result.result.values.maxPrice).toBe(999);
     });
@@ -327,13 +337,15 @@ describe('Aggregations', () => {
       const response = await app.request('/products/aggregate?count=*&groupBy=category');
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { groups: Array<{ key: { category: string }; values: { count: number } }> } };
+      const result = (await response.json()) as {
+        result: { groups: Array<{ key: { category: string }; values: { count: number } }> };
+      };
 
       expect(result.result.groups).toHaveLength(3);
 
-      const electronics = result.result.groups.find(g => g.key.category === 'electronics');
-      const furniture = result.result.groups.find(g => g.key.category === 'furniture');
-      const books = result.result.groups.find(g => g.key.category === 'books');
+      const electronics = result.result.groups.find((g) => g.key.category === 'electronics');
+      const furniture = result.result.groups.find((g) => g.key.category === 'furniture');
+      const books = result.result.groups.find((g) => g.key.category === 'books');
 
       expect(electronics?.values.count).toBe(3);
       expect(furniture?.values.count).toBe(3);
@@ -341,12 +353,16 @@ describe('Aggregations', () => {
     });
 
     it('should compute multiple aggregations with groupBy', async () => {
-      const response = await app.request('/products/aggregate?count=*&sum=price&avg=price&groupBy=category');
+      const response = await app.request(
+        '/products/aggregate?count=*&sum=price&avg=price&groupBy=category',
+      );
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { groups: Array<{ key: { category: string }; values: Record<string, number> }> } };
+      const result = (await response.json()) as {
+        result: { groups: Array<{ key: { category: string }; values: Record<string, number> }> };
+      };
 
-      const electronics = result.result.groups.find(g => g.key.category === 'electronics');
+      const electronics = result.result.groups.find((g) => g.key.category === 'electronics');
       expect(electronics?.values.count).toBe(3);
       expect(electronics?.values.sumPrice).toBe(1997); // 999 + 599 + 399
       expect(electronics?.values.avgPrice).toBeCloseTo(665.67, 1);
@@ -356,24 +372,32 @@ describe('Aggregations', () => {
       const response = await app.request('/products/aggregate?count=*&isActive=true');
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { values: Record<string, number> } };
+      const result = (await response.json()) as { result: { values: Record<string, number> } };
       expect(result.result.values.count).toBe(6); // Only active products
     });
 
     it('should apply having filter', async () => {
-      const response = await app.request('/products/aggregate?count=*&groupBy=category&having[count][gte]=3');
+      const response = await app.request(
+        '/products/aggregate?count=*&groupBy=category&having[count][gte]=3',
+      );
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { groups: Array<{ key: { category: string } }> } };
+      const result = (await response.json()) as {
+        result: { groups: Array<{ key: { category: string } }> };
+      };
 
       expect(result.result.groups).toHaveLength(2); // electronics (3) and furniture (3)
     });
 
     it('should order by aggregated value', async () => {
-      const response = await app.request('/products/aggregate?sum=price&groupBy=category&orderBy=sumPrice&orderDirection=desc');
+      const response = await app.request(
+        '/products/aggregate?sum=price&groupBy=category&orderBy=sumPrice&orderDirection=desc',
+      );
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { groups: Array<{ key: { category: string } }> } };
+      const result = (await response.json()) as {
+        result: { groups: Array<{ key: { category: string } }> };
+      };
 
       // electronics (1997) > furniture (547) > books (28)
       expect(result.result.groups[0].key.category).toBe('electronics');
@@ -385,7 +409,7 @@ describe('Aggregations', () => {
       const response = await app.request('/products/aggregate?countDistinct=category');
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { values: Record<string, number> } };
+      const result = (await response.json()) as { result: { values: Record<string, number> } };
       expect(result.result.values.countDistinctCategory).toBe(3);
     });
 
@@ -393,7 +417,7 @@ describe('Aggregations', () => {
       const response = await app.request('/products/aggregate');
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { values: Record<string, number> } };
+      const result = (await response.json()) as { result: { values: Record<string, number> } };
       expect(result.result.values.count).toBe(8);
     });
 
@@ -401,7 +425,9 @@ describe('Aggregations', () => {
       const response = await app.request('/products/aggregate?count=*&groupBy=category,isActive');
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { groups: Array<{ key: { category: string; isActive: string } }> } };
+      const result = (await response.json()) as {
+        result: { groups: Array<{ key: { category: string; isActive: string } }> };
+      };
 
       // Should have groups for each category + isActive combination
       expect(result.result.groups.length).toBeGreaterThan(3);

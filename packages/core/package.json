@@ -73,7 +73,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist .tsup"
+    "clean": "rm -rf dist .tsup",
+    "lint": "biome check src/"
   },
   "keywords": [
     "hono",
@@ -88,12 +89,7 @@
     "cloudflare-workers"
   ],
   "sideEffects": false,
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
-  ],
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
   "engines": {
     "node": ">=20.19.0"
   },

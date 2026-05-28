@@ -1,13 +1,13 @@
 import type { Context, Env } from 'hono';
-import type { LoggingStorage } from '../logging/types';
 import type { AuditLogStorage } from '../audit';
-import type { VersioningStorage } from '../versioning';
-import type { APIKeyStorage } from '../auth/types';
-import type { StorageEnv } from './types';
-import { loggingStorageRegistry } from '../logging/middleware';
 import { auditStorageRegistry } from '../audit';
-import { versioningStorageRegistry } from '../versioning';
 import { apiKeyStorageRegistry } from '../auth/storage/memory';
+import type { APIKeyStorage } from '../auth/types';
+import { loggingStorageRegistry } from '../logging/middleware';
+import type { LoggingStorage } from '../logging/types';
+import type { VersioningStorage } from '../versioning';
+import { versioningStorageRegistry } from '../versioning';
+import type { StorageEnv } from './types';
 
 // Re-export getters for backward compatibility (used by other modules)
 export { getLoggingStorage } from '../logging/middleware';
@@ -47,7 +47,7 @@ type StorageKey = keyof StorageEnv['Variables'];
  */
 export function getStorage<K extends StorageKey>(
   ctx: Context<StorageEnv>,
-  key: K
+  key: K,
 ): StorageEnv['Variables'][K] {
   return ctx.var[key];
 }
@@ -80,7 +80,7 @@ export function getContextVar<T>(ctx: unknown, key: string): T | undefined {
  */
 export function resolveLoggingStorage<E extends Env>(
   ctx?: Context<E>,
-  explicitStorage?: LoggingStorage
+  explicitStorage?: LoggingStorage,
 ): LoggingStorage | null {
   return loggingStorageRegistry.resolve(ctx, explicitStorage);
 }
@@ -94,7 +94,7 @@ export function resolveLoggingStorage<E extends Env>(
  */
 export function resolveAuditStorage<E extends Env>(
   ctx?: Context<E>,
-  explicitStorage?: AuditLogStorage
+  explicitStorage?: AuditLogStorage,
 ): AuditLogStorage | null {
   return auditStorageRegistry.resolve(ctx, explicitStorage);
 }
@@ -108,7 +108,7 @@ export function resolveAuditStorage<E extends Env>(
  */
 export function resolveVersioningStorage<E extends Env>(
   ctx?: Context<E>,
-  explicitStorage?: VersioningStorage
+  explicitStorage?: VersioningStorage,
 ): VersioningStorage | null {
   return versioningStorageRegistry.resolve(ctx, explicitStorage);
 }
@@ -122,7 +122,7 @@ export function resolveVersioningStorage<E extends Env>(
  */
 export function resolveAPIKeyStorage<E extends Env>(
   ctx?: Context<E>,
-  explicitStorage?: APIKeyStorage
+  explicitStorage?: APIKeyStorage,
 ): APIKeyStorage | null {
   return apiKeyStorageRegistry.resolve(ctx, explicitStorage);
 }

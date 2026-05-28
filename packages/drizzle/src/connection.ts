@@ -34,6 +34,6 @@ export function getDrizzleDb(self: unknown): DrizzleDatabase {
     'Database not configured. Either:\n' +
       '1. Set db property: db = myDb;\n' +
       '2. Use middleware: c.set("db", myDb);\n' +
-      '3. Use factory: createDrizzleCrud(db, meta)'
+      '3. Use factory: createDrizzleCrud(db, meta)',
   );
 }

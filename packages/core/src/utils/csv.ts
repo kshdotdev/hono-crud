@@ -96,7 +96,7 @@ export interface CsvValidationResult {
  */
 export function escapeCsvValue(
   value: unknown,
-  options: Pick<CsvGenerateOptions, 'delimiter' | 'nullValue' | 'dateFormat'> = {}
+  options: Pick<CsvGenerateOptions, 'delimiter' | 'nullValue' | 'dateFormat'> = {},
 ): string {
   const { delimiter = ',', nullValue = '', dateFormat = 'iso' } = options;
 
@@ -112,8 +112,8 @@ export function escapeCsvValue(
         return String(value.getTime());
       case 'locale':
         return value.toLocaleString();
-      case 'iso':
       default:
+        // 'iso' (default)
         return value.toISOString();
     }
   }
@@ -134,17 +134,21 @@ export function escapeCsvValue(
   // Sanitize CSV formula injection (OWASP recommendation)
   // Values starting with formula triggers are prefixed with a tab character
   const firstChar = str.charAt(0);
-  if (firstChar === '=' || firstChar === '+' || firstChar === '-' || firstChar === '@' || firstChar === '\t' || firstChar === '\r') {
+  if (
+    firstChar === '=' ||
+    firstChar === '+' ||
+    firstChar === '-' ||
+    firstChar === '@' ||
+    firstChar === '\t' ||
+    firstChar === '\r'
+  ) {
     const escaped = str.replace(/"/g, '""');
     return `"\t${escaped}"`;
   }
 
   // Check if quoting is needed (contains delimiter, quotes, or newlines)
   const needsQuoting =
-    str.includes(delimiter) ||
-    str.includes('"') ||
-    str.includes('\n') ||
-    str.includes('\r');
+    str.includes(delimiter) || str.includes('"') || str.includes('\n') || str.includes('\r');
 
   if (needsQuoting) {
     // Escape double quotes by doubling them
@@ -176,7 +180,7 @@ export function escapeCsvValue(
  */
 export function generateCsv<T extends Record<string, unknown>>(
   records: T[],
-  options: CsvGenerateOptions = {}
+  options: CsvGenerateOptions = {},
 ): string {
   const {
     delimiter = ',',
@@ -248,7 +252,7 @@ export function generateCsv<T extends Record<string, unknown>>(
  */
 export function createCsvStream<T extends Record<string, unknown>>(
   records: T[],
-  options: CsvGenerateOptions = {}
+  options: CsvGenerateOptions = {},
 ): ReadableStream<Uint8Array> {
   const {
     delimiter = ',',
@@ -438,7 +442,7 @@ function splitCsvLines(content: string): string[] {
  */
 export function parseCsv<T = Record<string, unknown>>(
   content: string,
-  options: CsvParseOptions = {}
+  options: CsvParseOptions = {},
 ): CsvParseResult<T> {
   const {
     delimiter = ',',
@@ -467,9 +471,7 @@ export function parseCsv<T = Record<string, unknown>>(
   // Extract headers
   if (hasHeader) {
     const headerLine = lines[0];
-    result.headers = parseCsvLine(headerLine, delimiter).map((h) =>
-      trimValues ? h.trim() : h
-    );
+    result.headers = parseCsvLine(headerLine, delimiter).map((h) => (trimValues ? h.trim() : h));
     startIndex = 1;
   } else if (options.headers) {
     result.headers = options.headers;
@@ -575,7 +577,7 @@ export function parseCsv<T = Record<string, unknown>>(
 export function validateCsvHeaders<T extends ZodObject<ZodRawShape>>(
   headers: string[],
   schema: T,
-  options: { allowUnknownFields?: boolean; optionalFields?: string[] } = {}
+  options: { allowUnknownFields?: boolean; optionalFields?: string[] } = {},
 ): CsvValidationResult {
   const { allowUnknownFields = false, optionalFields = [] } = options;
 
@@ -621,7 +623,7 @@ export function validateCsvHeaders<T extends ZodObject<ZodRawShape>>(
  */
 export function inferCsvContentType(
   filename?: string,
-  content?: string
+  content?: string,
 ): 'csv' | 'json' | 'unknown' {
   if (filename) {
     const ext = filename.toLowerCase().split('.').pop();
@@ -648,7 +650,7 @@ export function inferCsvContentType(
  */
 export function jsonToCsv<T extends Record<string, unknown>>(
   json: T[],
-  options: CsvGenerateOptions = {}
+  options: CsvGenerateOptions = {},
 ): string {
   return generateCsv(json, options);
 }
@@ -658,7 +660,7 @@ export function jsonToCsv<T extends Record<string, unknown>>(
  */
 export function csvToJson<T = Record<string, unknown>>(
   csv: string,
-  options: CsvParseOptions = {}
+  options: CsvParseOptions = {},
 ): T[] {
   const result = parseCsv<T>(csv, options);
   return result.data;

@@ -15,20 +15,20 @@
  * 4. npx tsx examples/prisma/soft-delete.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   PrismaCreateEndpoint,
-  PrismaReadEndpoint,
-  PrismaUpdateEndpoint,
   PrismaDeleteEndpoint,
   PrismaListEndpoint,
+  PrismaReadEndpoint,
   PrismaRestoreEndpoint,
+  PrismaUpdateEndpoint,
 } from '@hono-crud/prisma';
-import { UserSchema, type User } from '../shared/schemas.js';
-import { prisma, initDb } from './db.js';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { type User, UserSchema } from '../shared/schemas.js';
+import { initDb, prisma } from './db.js';
 
 // ============================================================================
 // User Model with Soft Delete Enabled
@@ -148,9 +148,15 @@ app.get('/seed', async (c) => {
   await prisma.user.deleteMany();
 
   const createdUsers = await Promise.all([
-    prisma.user.create({ data: { name: 'Alice', email: 'alice@example.com', role: 'admin', status: 'active' } }),
-    prisma.user.create({ data: { name: 'Bob', email: 'bob@example.com', role: 'user', status: 'active' } }),
-    prisma.user.create({ data: { name: 'Charlie', email: 'charlie@example.com', role: 'user', status: 'active' } }),
+    prisma.user.create({
+      data: { name: 'Alice', email: 'alice@example.com', role: 'admin', status: 'active' },
+    }),
+    prisma.user.create({
+      data: { name: 'Bob', email: 'bob@example.com', role: 'user', status: 'active' },
+    }),
+    prisma.user.create({
+      data: { name: 'Charlie', email: 'charlie@example.com', role: 'user', status: 'active' },
+    }),
   ]);
 
   return c.json({

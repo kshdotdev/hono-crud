@@ -1,7 +1,7 @@
+import { clearStorage } from '@hono-crud/memory';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../examples/memory/alternative-apis';
-import { clearStorage } from '@hono-crud/memory';
-import { expectOk, json, type ListResponse, type SuccessResponse } from './harness';
+import { type ListResponse, type SuccessResponse, expectOk, json } from './harness';
 
 type User = {
   id: string;

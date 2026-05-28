@@ -1,21 +1,14 @@
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import type { Column, SQL, Table } from 'drizzle-orm';
 import type { Env } from 'hono';
-import { eq, and, isNull, isNotNull, inArray } from 'drizzle-orm';
-import type { SQL, Table, Column } from 'drizzle-orm';
 import { BatchCreateEndpoint } from 'hono-crud/internal';
 import { BatchUpdateEndpoint, type BatchUpdateItem } from 'hono-crud/internal';
 import { BatchDeleteEndpoint } from 'hono-crud/internal';
 import { BatchRestoreEndpoint } from 'hono-crud/internal';
-import type {
-  MetaInput,
-} from 'hono-crud/internal';
+import type { MetaInput } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
-import {
-  type DrizzleDatabase,
-  cast,
-  getTable,
-  getColumn,
-} from './helpers';
 import { getDrizzleDb } from './connection';
+import { type DrizzleDatabase, cast, getColumn, getTable } from './helpers';
 
 /**
  * Drizzle Batch Create endpoint.
@@ -38,19 +31,16 @@ export abstract class DrizzleBatchCreateEndpoint<
   }
 
   override async batchCreate(
-    items: Partial<ModelObject<M['model']>>[]
+    items: Partial<ModelObject<M['model']>>[],
   ): Promise<ModelObject<M['model']>[]> {
     const table = this.getTable();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     const records = items.map((item) =>
-      this.applyManagedInsertFields(item as Record<string, unknown>, 'drizzle')
+      this.applyManagedInsertFields(item as Record<string, unknown>, 'drizzle'),
     );
 
-    const result = await cast(this.getDb())
-      .insert(table)
-      .values(records)
-      .returning();
+    const result = await cast(this.getDb()).insert(table).values(records).returning();
 
     return result as ModelObject<M['model']>[];
   }
@@ -83,7 +73,7 @@ export abstract class DrizzleBatchUpdateEndpoint<
   }
 
   override async batchUpdate(
-    items: BatchUpdateItem<ModelObject<M['model']>>[]
+    items: BatchUpdateItem<ModelObject<M['model']>>[],
   ): Promise<{ updated: ModelObject<M['model']>[]; notFound: string[] }> {
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
@@ -144,7 +134,7 @@ export abstract class DrizzleBatchDeleteEndpoint<
   }
 
   override async batchDelete(
-    ids: string[]
+    ids: string[],
   ): Promise<{ deleted: ModelObject<M['model']>[]; notFound: string[] }> {
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
@@ -176,7 +166,9 @@ export abstract class DrizzleBatchDeleteEndpoint<
     }
 
     const deleted = result as ModelObject<M['model']>[];
-    const deletedIds = new Set(deleted.map((item) => String((item as Record<string, unknown>)[this.lookupField])));
+    const deletedIds = new Set(
+      deleted.map((item) => String((item as Record<string, unknown>)[this.lookupField])),
+    );
     const notFound = ids.filter((id) => !deletedIds.has(id));
 
     return { deleted, notFound };
@@ -210,7 +202,7 @@ export abstract class DrizzleBatchRestoreEndpoint<
   }
 
   override async batchRestore(
-    ids: string[]
+    ids: string[],
   ): Promise<{ restored: ModelObject<M['model']>[]; notFound: string[] }> {
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
@@ -230,7 +222,9 @@ export abstract class DrizzleBatchRestoreEndpoint<
       .returning();
 
     const restored = result as ModelObject<M['model']>[];
-    const restoredIds = new Set(restored.map((item) => String((item as Record<string, unknown>)[this.lookupField])));
+    const restoredIds = new Set(
+      restored.map((item) => String((item as Record<string, unknown>)[this.lookupField])),
+    );
     const notFound = ids.filter((id) => !restoredIds.has(id));
 
     return { restored, notFound };

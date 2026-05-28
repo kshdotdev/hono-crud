@@ -1,3 +1,25 @@
+import {
+  DrizzleBatchCreateEndpoint,
+  DrizzleBatchUpsertEndpoint,
+  DrizzleCreateEndpoint,
+  type DrizzleDatabase,
+  DrizzleImportEndpoint,
+  DrizzleUpsertEndpoint,
+} from '@hono-crud/drizzle';
+import { createClient } from '@libsql/client';
+import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { Hono } from 'hono';
+import {
+  ConflictException,
+  causeChain,
+  defineMeta,
+  defineModel,
+  fromHono,
+  mapUniqueViolation,
+  rethrowAsConstraintError,
+} from 'hono-crud';
 /**
  * Widen UNIQUE-violation → 409 mapping to every insert path.
  *
@@ -16,30 +38,8 @@
  * directly via `.catch(...)` at each insert site) is also regression-tested
  * here against the same fixtures the previous inline implementation passed.
  */
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { Hono } from 'hono';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import { sql } from 'drizzle-orm';
-import {
-  fromHono,
-  defineModel,
-  defineMeta,
-  mapUniqueViolation,
-  causeChain,
-  rethrowAsConstraintError,
-  ConflictException,
-} from 'hono-crud';
-import {
-  DrizzleCreateEndpoint,
-  DrizzleBatchCreateEndpoint,
-  DrizzleUpsertEndpoint,
-  DrizzleBatchUpsertEndpoint,
-  DrizzleImportEndpoint,
-  type DrizzleDatabase,
-} from '@hono-crud/drizzle';
 
 // ============================================================================
 // Shared drizzle/libsql fixture — a table with a non-PK UNIQUE column.
@@ -107,7 +107,7 @@ function buildApp(): Hono {
 
 beforeAll(async () => {
   await db.run(
-    sql`CREATE TABLE IF NOT EXISTS w409_widgets (id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL, price_cents INTEGER NOT NULL)`
+    sql`CREATE TABLE IF NOT EXISTS w409_widgets (id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL, price_cents INTEGER NOT NULL)`,
   );
 });
 

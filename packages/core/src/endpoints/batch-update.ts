@@ -1,9 +1,9 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema, HookMode} from '../core/types';
-import { getSchemaFields, type ModelObject } from './types';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getManagedInputExclusions } from '../core/managed-fields';
+import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { CrudEndpoint } from './base';
+import { type ModelObject, getSchemaFields } from './types';
 
 /**
  * Item format for batch updates.
@@ -39,15 +39,14 @@ export abstract class BatchUpdateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   /** Maximum number of records that can be updated in a single request */
-  protected maxBatchSize: number = 100;
+  protected maxBatchSize = 100;
 
   /** Whether to stop on first error or continue with remaining items */
-  protected stopOnError: boolean = false;
+  protected stopOnError = false;
 
   /** The field used to identify records */
-  protected lookupField: string = 'id';
+  protected lookupField = 'id';
 
   /** Fields that can be updated (whitelist) */
   protected allowedUpdateFields?: string[];
@@ -97,15 +96,17 @@ export abstract class BatchUpdateEndpoint<
     // consistent. A consumer-supplied body schema still wins.
     const dataSchema = this._meta.fields
       ? this._meta.fields
-      : getSchemaFields(
-          this.getModelSchema(),
-          getManagedInputExclusions(this._meta.model)
-        );
+      : getSchemaFields(this.getModelSchema(), getManagedInputExclusions(this._meta.model));
     return z.object({
-      items: z.array(z.object({
-        id: z.string(),
-        data: dataSchema.partial(),
-      })).min(1).max(this.maxBatchSize),
+      items: z
+        .array(
+          z.object({
+            id: z.string(),
+            data: dataSchema.partial(),
+          }),
+        )
+        .min(1)
+        .max(this.maxBatchSize),
     }) as unknown as ZodObject<ZodRawShape>;
   }
 
@@ -150,10 +151,14 @@ export abstract class BatchUpdateEndpoint<
                   updated: z.array(this.getModelSchema()),
                   count: z.number(),
                   notFound: z.array(z.string()).optional(),
-                  errors: z.array(z.object({
-                    id: z.string(),
-                    error: z.string(),
-                  })).optional(),
+                  errors: z
+                    .array(
+                      z.object({
+                        id: z.string(),
+                        error: z.string(),
+                      }),
+                    )
+                    .optional(),
                 }),
               }),
             },
@@ -181,7 +186,9 @@ export abstract class BatchUpdateEndpoint<
    * Gets the array of update items from the request body.
    */
   protected async getItems(): Promise<BatchUpdateItem<ModelObject<M['model']>>[]> {
-    const { body } = await this.getValidatedData<{ items: BatchUpdateItem<ModelObject<M['model']>>[] }>();
+    const { body } = await this.getValidatedData<{
+      items: BatchUpdateItem<ModelObject<M['model']>>[];
+    }>();
     return body?.items || [];
   }
 
@@ -189,16 +196,14 @@ export abstract class BatchUpdateEndpoint<
    * Filters update data to only allowed fields.
    */
   protected filterUpdateData(
-    data: Partial<ModelObject<M['model']>>
+    data: Partial<ModelObject<M['model']>>,
   ): Partial<ModelObject<M['model']>> {
     let filtered = { ...data } as Record<string, unknown>;
 
     // Apply whitelist
     if (this.allowedUpdateFields) {
       const allowed = new Set(this.allowedUpdateFields);
-      filtered = Object.fromEntries(
-        Object.entries(filtered).filter(([key]) => allowed.has(key))
-      );
+      filtered = Object.fromEntries(Object.entries(filtered).filter(([key]) => allowed.has(key)));
     }
 
     // Apply blacklist
@@ -223,7 +228,7 @@ export abstract class BatchUpdateEndpoint<
   async before(
     _id: string,
     data: Partial<ModelObject<M['model']>>,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -232,10 +237,7 @@ export abstract class BatchUpdateEndpoint<
    * Lifecycle hook: called after each item is updated.
    * Override to transform result before returning.
    */
-  async after(
-    data: ModelObject<M['model']>,
-    _tx?: unknown
-  ): Promise<ModelObject<M['model']>> {
+  async after(data: ModelObject<M['model']>, _tx?: unknown): Promise<ModelObject<M['model']>> {
     return data;
   }
 
@@ -249,14 +251,13 @@ export abstract class BatchUpdateEndpoint<
    */
   abstract batchUpdate(
     items: BatchUpdateItem<ModelObject<M['model']>>[],
-    tx?: unknown
+    tx?: unknown,
   ): Promise<{ updated: ModelObject<M['model']>[]; notFound: string[] }>;
 
   /**
    * Main handler for the batch update operation.
    */
   async handle(): Promise<Response> {
-
     const items = await this.getItems();
     const errors: Array<{ id: string; error: string }> = [];
 
@@ -313,12 +314,14 @@ export abstract class BatchUpdateEndpoint<
         .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (auditRecords.length > 0) {
-        this.runAfterResponse(auditLogger.logBatch(
-          'batch_update',
-          this._meta.model.tableName,
-          auditRecords,
-          this.getAuditUserId()
-        ));
+        this.runAfterResponse(
+          auditLogger.logBatch(
+            'batch_update',
+            this._meta.model.tableName,
+            auditRecords,
+            this.getAuditUserId(),
+          ),
+        );
       }
     }
 

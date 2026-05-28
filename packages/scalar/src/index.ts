@@ -1,6 +1,6 @@
 import { apiReference } from '@scalar/hono-api-reference';
 import type { ApiReferenceConfiguration } from '@scalar/hono-api-reference';
-import type { Hono, Env } from 'hono';
+import type { Env, Hono } from 'hono';
 
 /**
  * Available Scalar themes.
@@ -166,8 +166,8 @@ export function scalarUI(config: ScalarConfig = {}) {
  */
 export function setupScalar<E extends Env>(
   app: Hono<E>,
-  path: string = '/reference',
-  config: ScalarConfig = {}
+  path = '/reference',
+  config: ScalarConfig = {},
 ): void {
   app.get(path, scalarUI(config));
 }

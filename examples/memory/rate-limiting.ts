@@ -13,30 +13,24 @@
  * - Callback for exceeded limits
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import {
-  fromHono,
-  registerCrud,
-  defineModel,
-  defineMeta,
-  type AuthEnv,
-} from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
-import {
-  createRateLimitMiddleware,
-  setRateLimitStorage,
-  MemoryRateLimitStorage,
-  RateLimitExceededException,
-  type RateLimitEnv,
-} from '@hono-crud/rate-limit';
 import {
   MemoryCreateEndpoint,
-  MemoryReadEndpoint,
   MemoryListEndpoint,
+  MemoryReadEndpoint,
   clearStorage,
 } from '@hono-crud/memory';
+import {
+  MemoryRateLimitStorage,
+  type RateLimitEnv,
+  RateLimitExceededException,
+  createRateLimitMiddleware,
+  setRateLimitStorage,
+} from '@hono-crud/rate-limit';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { type AuthEnv, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { z } from 'zod';
 
 // Clear storage on start
 clearStorage();
@@ -60,12 +54,13 @@ process.on('SIGTERM', () => {
 // ============================================================================
 
 // Combine AuthEnv and RateLimitEnv for type-safe context
-type AppEnv = AuthEnv & RateLimitEnv & {
-  Variables: {
-    userId?: string;
-    user?: { id: string; tier?: 'free' | 'premium' };
+type AppEnv = AuthEnv &
+  RateLimitEnv & {
+    Variables: {
+      userId?: string;
+      user?: { id: string; tier?: 'free' | 'premium' };
+    };
   };
-};
 
 // ============================================================================
 // User Model
@@ -121,15 +116,21 @@ app.onError((err, c) => {
 
   // Handle other ApiException types
   if ('status' in err && typeof err.status === 'number' && 'toJSON' in err) {
-    return c.json((err as RateLimitExceededException).toJSON(), err.status as 400 | 404 | 429 | 500);
+    return c.json(
+      (err as RateLimitExceededException).toJSON(),
+      err.status as 400 | 404 | 429 | 500,
+    );
   }
 
   // Generic error
   console.error('Unhandled error:', err);
-  return c.json({
-    success: false,
-    error: { code: 'INTERNAL_ERROR', message: err.message },
-  }, 500);
+  return c.json(
+    {
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: err.message },
+    },
+    500,
+  );
 });
 
 // ============================================================================
@@ -138,30 +139,36 @@ app.onError((err, c) => {
 
 // Global rate limit: 100 requests per minute per IP
 // Skip health check and docs paths
-app.use('*', createRateLimitMiddleware<AppEnv>({
-  limit: 100,
-  windowSeconds: 60,
-  keyStrategy: 'ip',
-  skipPaths: ['/health', '/docs', '/docs/*', '/openapi.json'],
-  includeHeaders: true,
-  onRateLimitExceeded: async (ctx, result, key) => {
-    console.log(`Rate limit exceeded for key: ${key}`);
-    console.log(`Limit: ${result.limit}, Remaining: ${result.remaining}`);
-  },
-}));
+app.use(
+  '*',
+  createRateLimitMiddleware<AppEnv>({
+    limit: 100,
+    windowSeconds: 60,
+    keyStrategy: 'ip',
+    skipPaths: ['/health', '/docs', '/docs/*', '/openapi.json'],
+    includeHeaders: true,
+    onRateLimitExceeded: async (ctx, result, key) => {
+      console.log(`Rate limit exceeded for key: ${key}`);
+      console.log(`Limit: ${result.limit}, Remaining: ${result.remaining}`);
+    },
+  }),
+);
 
 // ============================================================================
 // Example 2: Stricter Rate Limit for Specific Endpoints
 // ============================================================================
 
 // Export endpoint: Only 5 requests per minute
-app.use('/api/export/*', createRateLimitMiddleware<AppEnv>({
-  limit: 5,
-  windowSeconds: 60,
-  keyPrefix: 'rl:export',
-  algorithm: 'fixed-window', // Use fixed window for simpler quota management
-  errorMessage: 'Export rate limit exceeded. Please wait before trying again.',
-}));
+app.use(
+  '/api/export/*',
+  createRateLimitMiddleware<AppEnv>({
+    limit: 5,
+    windowSeconds: 60,
+    keyPrefix: 'rl:export',
+    algorithm: 'fixed-window', // Use fixed window for simpler quota management
+    errorMessage: 'Export rate limit exceeded. Please wait before trying again.',
+  }),
+);
 
 // ============================================================================
 // Example 3: Per-User Rate Limiting with Tiers
@@ -181,31 +188,37 @@ app.use('/api/*', async (ctx, next) => {
 });
 
 // Per-user rate limiting with different limits based on tier
-app.use('/api/*', createRateLimitMiddleware<AppEnv>({
-  keyStrategy: 'user',
-  keyPrefix: 'rl:api',
-  getTier: async (ctx) => {
-    const user = ctx.get('user');
-    if (user?.tier === 'premium') {
-      // Premium users get 1000 requests per minute
-      return { limit: 1000, windowSeconds: 60 };
-    }
-    // Free users get 100 requests per minute
-    return { limit: 100, windowSeconds: 60 };
-  },
-}));
+app.use(
+  '/api/*',
+  createRateLimitMiddleware<AppEnv>({
+    keyStrategy: 'user',
+    keyPrefix: 'rl:api',
+    getTier: async (ctx) => {
+      const user = ctx.get('user');
+      if (user?.tier === 'premium') {
+        // Premium users get 1000 requests per minute
+        return { limit: 1000, windowSeconds: 60 };
+      }
+      // Free users get 100 requests per minute
+      return { limit: 100, windowSeconds: 60 };
+    },
+  }),
+);
 
 // ============================================================================
 // Example 4: Combined Key Strategy
 // ============================================================================
 
 // Sensitive endpoint: Combined IP + User ID for extra security
-app.use('/api/sensitive/*', createRateLimitMiddleware<AppEnv>({
-  keyStrategy: 'combined',
-  limit: 10,
-  windowSeconds: 60,
-  keyPrefix: 'rl:sensitive',
-}));
+app.use(
+  '/api/sensitive/*',
+  createRateLimitMiddleware<AppEnv>({
+    keyStrategy: 'combined',
+    limit: 10,
+    windowSeconds: 60,
+    keyPrefix: 'rl:sensitive',
+  }),
+);
 
 // ============================================================================
 // Register Endpoints

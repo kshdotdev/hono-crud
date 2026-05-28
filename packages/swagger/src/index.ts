@@ -1,5 +1,5 @@
-import type { Hono, Env } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
+import type { Env, Hono } from 'hono';
 
 export interface UIOptions {
   /**
@@ -27,14 +27,8 @@ export interface UIOptions {
 /**
  * Sets up Swagger UI endpoint.
  */
-export function setupSwaggerUI<E extends Env>(
-  app: Hono<E>,
-  options: UIOptions = {}
-): void {
-  const {
-    docsPath = '/docs',
-    specPath = '/openapi.json',
-  } = options;
+export function setupSwaggerUI<E extends Env>(app: Hono<E>, options: UIOptions = {}): void {
+  const { docsPath = '/docs', specPath = '/openapi.json' } = options;
 
   app.get(docsPath, swaggerUI({ url: specPath }));
 }
@@ -42,15 +36,8 @@ export function setupSwaggerUI<E extends Env>(
 /**
  * Sets up ReDoc endpoint using CDN.
  */
-export function setupReDoc<E extends Env>(
-  app: Hono<E>,
-  options: UIOptions = {}
-): void {
-  const {
-    redocPath = '/redoc',
-    specPath = '/openapi.json',
-    title = 'API Documentation',
-  } = options;
+export function setupReDoc<E extends Env>(app: Hono<E>, options: UIOptions = {}): void {
+  const { redocPath = '/redoc', specPath = '/openapi.json', title = 'API Documentation' } = options;
 
   app.get(redocPath, (c) => {
     const html = `<!DOCTYPE html>
@@ -78,7 +65,7 @@ export function setupReDoc<E extends Env>(
  */
 export function setupDocsIndex<E extends Env>(
   app: Hono<E>,
-  options: UIOptions & { indexPath?: string } = {}
+  options: UIOptions & { indexPath?: string } = {},
 ): void {
   const {
     indexPath = '/',

@@ -23,9 +23,5 @@ export default defineConfig({
   minify: true,
   splitting: true,
   treeshake: true,
-  external: [
-    'hono',
-    '@hono/zod-openapi',
-    'zod',
-  ],
+  external: ['hono', '@hono/zod-openapi', 'zod'],
 });

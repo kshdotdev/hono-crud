@@ -1,3 +1,9 @@
+import { MemorySearchEndpoint, clearStorage, getStorage } from '@hono-crud/memory';
+import { Hono } from 'hono';
+import { defineModel } from 'hono-crud';
+import type { SearchOptions, SearchResult } from 'hono-crud/core/types';
+import { SearchEndpoint } from 'hono-crud/endpoints/search';
+import type { ListFilters } from 'hono-crud/endpoints/types';
 /**
  * Tests for three abstract-layer fixes on SearchEndpoint (v0.12.3 audit):
  *
@@ -15,18 +21,8 @@
  *      layer via the optional `SearchResult.postFilteredCount` contract —
  *      `handle()` prefers it when present.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { Hono } from 'hono';
-import { defineModel } from 'hono-crud';
-import type { ListFilters } from 'hono-crud/endpoints/types';
-import type { SearchOptions, SearchResult } from 'hono-crud/core/types';
-import { SearchEndpoint } from 'hono-crud/endpoints/search';
-import {
-  MemorySearchEndpoint,
-  clearStorage,
-  getStorage,
-} from '@hono-crud/memory';
 
 // ============================================================================
 // Fix 1: Zod 4 searchable-field auto-detection
@@ -317,9 +313,7 @@ describe('Fix 3 — result_info.total_count reflects post-filter result set', ()
         void filters;
         // SQL matched 100 candidates; minScore clamp left 25.
         return {
-          items: [
-            { item: { id: '1', name: 'foo' }, score: 1, matchedFields: ['name'] },
-          ],
+          items: [{ item: { id: '1', name: 'foo' }, score: 1, matchedFields: ['name'] }],
           totalCount: 100,
           postFilteredCount: 25,
         };

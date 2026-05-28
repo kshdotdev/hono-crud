@@ -1,9 +1,9 @@
-import { z } from 'zod';
 import type { Context } from 'hono';
-import type { AuthEnv, AuthUser, EndpointAuthConfig } from './types';
-import type { OpenAPIRouteSchema, MetaInput, Constructor } from '../core/types';
+import { z } from 'zod';
+import { ForbiddenException, UnauthorizedException } from '../core/exceptions';
 import { OpenAPIRoute } from '../core/route';
-import { UnauthorizedException, ForbiddenException } from '../core/exceptions';
+import type { Constructor, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import type { AuthEnv, AuthUser, EndpointAuthConfig } from './types';
 
 // ============================================================================
 // Type Helpers
@@ -59,7 +59,7 @@ export abstract class AuthenticatedEndpoint<
    * Whether authentication is required for this endpoint.
    * @default true
    */
-  requiresAuth: boolean = true;
+  requiresAuth = true;
 
   /**
    * Required roles (user must have at least one).
@@ -75,7 +75,7 @@ export abstract class AuthenticatedEndpoint<
    * Whether all roles are required (AND logic) vs any role (OR logic).
    * @default false (OR logic)
    */
-  requireAllRoles: boolean = false;
+  requireAllRoles = false;
 
   /**
    * Custom authorization check.
@@ -219,16 +219,12 @@ export abstract class AuthenticatedEndpoint<
       if (this.requireAllRoles) {
         const hasAllRoles = this.requiredRoles.every((role) => userRoles.includes(role));
         if (!hasAllRoles) {
-          throw new ForbiddenException(
-            `Required roles: ${this.requiredRoles.join(' and ')}`
-          );
+          throw new ForbiddenException(`Required roles: ${this.requiredRoles.join(' and ')}`);
         }
       } else {
         const hasAnyRole = this.requiredRoles.some((role) => userRoles.includes(role));
         if (!hasAnyRole) {
-          throw new ForbiddenException(
-            `Required role: ${this.requiredRoles.join(' or ')}`
-          );
+          throw new ForbiddenException(`Required role: ${this.requiredRoles.join(' or ')}`);
         }
       }
     }
@@ -237,11 +233,11 @@ export abstract class AuthenticatedEndpoint<
     if (this.requiredPermissions && this.requiredPermissions.length > 0) {
       const userPermissions = user.permissions || [];
       const hasAllPermissions = this.requiredPermissions.every((perm) =>
-        userPermissions.includes(perm)
+        userPermissions.includes(perm),
       );
       if (!hasAllPermissions) {
         throw new ForbiddenException(
-          `Required permissions: ${this.requiredPermissions.join(', ')}`
+          `Required permissions: ${this.requiredPermissions.join(', ')}`,
         );
       }
     }
@@ -333,7 +329,7 @@ export abstract class AuthenticatedEndpoint<
  * ```
  */
 export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
-  Base: TBase
+  Base: TBase,
 ): TBase & Constructor<EndpointAuthConfig & AuthEndpointMethods> {
   // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class AuthenticatedRoute extends Base implements EndpointAuthConfig {
@@ -341,7 +337,7 @@ export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
      * Whether authentication is required for this endpoint.
      * @default true
      */
-    requiresAuth: boolean = true;
+    requiresAuth = true;
 
     /**
      * Required roles (user must have at least one).
@@ -357,7 +353,7 @@ export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
      * Whether all roles are required (AND logic) vs any role (OR logic).
      * @default false (OR logic)
      */
-    requireAllRoles: boolean = false;
+    requireAllRoles = false;
 
     /**
      * Custom authorization check.
@@ -505,16 +501,12 @@ export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
         if (this.requireAllRoles) {
           const hasAllRoles = this.requiredRoles.every((role) => userRoles.includes(role));
           if (!hasAllRoles) {
-            throw new ForbiddenException(
-              `Required roles: ${this.requiredRoles.join(' and ')}`
-            );
+            throw new ForbiddenException(`Required roles: ${this.requiredRoles.join(' and ')}`);
           }
         } else {
           const hasAnyRole = this.requiredRoles.some((role) => userRoles.includes(role));
           if (!hasAnyRole) {
-            throw new ForbiddenException(
-              `Required role: ${this.requiredRoles.join(' or ')}`
-            );
+            throw new ForbiddenException(`Required role: ${this.requiredRoles.join(' or ')}`);
           }
         }
       }
@@ -523,11 +515,11 @@ export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
       if (this.requiredPermissions && this.requiredPermissions.length > 0) {
         const userPermissions = user.permissions || [];
         const hasAllPermissions = this.requiredPermissions.every((perm) =>
-          userPermissions.includes(perm)
+          userPermissions.includes(perm),
         );
         if (!hasAllPermissions) {
           throw new ForbiddenException(
-            `Required permissions: ${this.requiredPermissions.join(', ')}`
+            `Required permissions: ${this.requiredPermissions.join(', ')}`,
           );
         }
       }
@@ -595,5 +587,6 @@ export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
     }
   }
 
-  return AuthenticatedRoute as unknown as TBase & Constructor<EndpointAuthConfig & AuthEndpointMethods>;
+  return AuthenticatedRoute as unknown as TBase &
+    Constructor<EndpointAuthConfig & AuthEndpointMethods>;
 }

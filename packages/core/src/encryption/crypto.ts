@@ -28,13 +28,7 @@ function base64ToBuffer(base64: string): ArrayBuffer {
  * Import a raw key for AES-GCM.
  */
 async function importKey(rawKey: ArrayBuffer): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'raw',
-    rawKey,
-    { name: 'AES-GCM' },
-    false,
-    ['encrypt', 'decrypt']
-  );
+  return crypto.subtle.importKey('raw', rawKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
 /**
@@ -43,7 +37,7 @@ async function importKey(rawKey: ArrayBuffer): Promise<CryptoKey> {
  */
 export async function encryptValue(
   value: string,
-  keyProvider: EncryptionKeyProvider
+  keyProvider: EncryptionKeyProvider,
 ): Promise<EncryptedValue> {
   const rawKey = await keyProvider.getKey();
   const cryptoKey = await importKey(rawKey);
@@ -54,11 +48,7 @@ export async function encryptValue(
   const encoder = new TextEncoder();
   const plaintext = encoder.encode(value);
 
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    cryptoKey,
-    plaintext
-  );
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, plaintext);
 
   const result: EncryptedValue = {
     ct: bufferToBase64(ciphertext),
@@ -78,7 +68,7 @@ export async function encryptValue(
  */
 export async function decryptValue(
   encrypted: EncryptedValue,
-  keyProvider: EncryptionKeyProvider
+  keyProvider: EncryptionKeyProvider,
 ): Promise<string> {
   let rawKey: ArrayBuffer;
 
@@ -95,7 +85,7 @@ export async function decryptValue(
   const plaintext = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: new Uint8Array(iv) },
     cryptoKey,
-    ciphertext
+    ciphertext,
   );
 
   const decoder = new TextDecoder();
@@ -108,11 +98,7 @@ export async function decryptValue(
 export function isEncryptedValue(value: unknown): value is EncryptedValue {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return (
-    typeof obj.ct === 'string' &&
-    typeof obj.iv === 'string' &&
-    obj.v === 1
-  );
+  return typeof obj.ct === 'string' && typeof obj.iv === 'string' && obj.v === 1;
 }
 
 /**
@@ -121,7 +107,7 @@ export function isEncryptedValue(value: unknown): value is EncryptedValue {
 export async function encryptFields(
   record: Record<string, unknown>,
   fields: string[],
-  keyProvider: EncryptionKeyProvider
+  keyProvider: EncryptionKeyProvider,
 ): Promise<Record<string, unknown>> {
   const result = { ...record };
 
@@ -141,16 +127,13 @@ export async function encryptFields(
 export async function decryptFields(
   record: Record<string, unknown>,
   fields: string[],
-  keyProvider: EncryptionKeyProvider
+  keyProvider: EncryptionKeyProvider,
 ): Promise<Record<string, unknown>> {
   const result = { ...record };
 
   for (const field of fields) {
     if (field in result && isEncryptedValue(result[field])) {
-      result[field] = await decryptValue(
-        result[field] as EncryptedValue,
-        keyProvider
-      );
+      result[field] = await decryptValue(result[field] as EncryptedValue, keyProvider);
     }
   }
 
@@ -165,7 +148,7 @@ export class StaticKeyProvider implements EncryptionKeyProvider {
   private key: ArrayBuffer;
   private keyId: string;
 
-  constructor(keyBase64: string, keyId: string = 'default') {
+  constructor(keyBase64: string, keyId = 'default') {
     this.key = base64ToBuffer(keyBase64);
     this.keyId = keyId;
   }

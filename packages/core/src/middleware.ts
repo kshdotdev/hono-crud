@@ -1,9 +1,9 @@
 import type { Env, MiddlewareHandler } from 'hono';
-import type { LoggingStorage } from './logging/types';
 import type { AuditLogStorage } from './audit';
-import type { VersioningStorage } from './versioning';
 import type { CrudEventEmitter } from './events/emitter';
+import type { LoggingStorage } from './logging/types';
 import type { StorageEnv } from './storage/types';
+import type { VersioningStorage } from './versioning';
 
 /**
  * Unified configuration for hono-crud middleware.
@@ -42,7 +42,7 @@ export interface CrudMiddlewareConfig {
  * @returns Hono middleware handler
  */
 export function createCrudMiddleware<E extends Env = Env>(
-  config: CrudMiddlewareConfig
+  config: CrudMiddlewareConfig,
 ): MiddlewareHandler<E & StorageEnv> {
   return async (c, next) => {
     if (config.audit) c.set('auditStorage', config.audit);

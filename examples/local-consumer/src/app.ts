@@ -1,47 +1,11 @@
-import { Hono, type Context, type MiddlewareHandler } from 'hono';
-import { z } from 'zod';
-import {
-  StaticKeyProvider,
-  applyProfile,
-  apiVersion,
-  createErrorHandler,
-  decryptValue,
-  defineMeta,
-  defineModel,
-  encryptValue,
-  fromHono,
-  getApiVersion,
-  multiTenant,
-  registerCrud,
-  requireRoles,
-  setAuditStorage,
-  setEventEmitter,
-  setVersioningStorage,
-  MemoryAuditLogStorage,
-  MemoryVersioningStorage,
-  CrudEventEmitter,
-  type AuthEnv,
-  type AuthUser,
-  type CrudEventPayload,
-  type ResponseEnvelope,
-  type SerializationProfile,
-} from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
+import { MemoryCacheStorage } from '@hono-crud/cache';
 import { createHealthEndpoints } from '@hono-crud/health';
 import {
-  createRateLimitMiddleware,
-  setRateLimitStorage,
-  MemoryRateLimitStorage,
-} from '@hono-crud/rate-limit';
-import {
+  MemoryIdempotencyStorage,
   idempotency,
   setIdempotencyStorage,
-  MemoryIdempotencyStorage,
 } from '@hono-crud/idempotency';
-import { MemoryCacheStorage } from '@hono-crud/cache';
 import {
-  clearStorage,
-  getStorage,
   MemoryAggregateEndpoint,
   MemoryBatchCreateEndpoint,
   MemoryBatchDeleteEndpoint,
@@ -64,7 +28,43 @@ import {
   MemoryVersionHistoryEndpoint,
   MemoryVersionReadEndpoint,
   MemoryVersionRollbackEndpoint,
+  clearStorage,
+  getStorage,
 } from '@hono-crud/memory';
+import {
+  MemoryRateLimitStorage,
+  createRateLimitMiddleware,
+  setRateLimitStorage,
+} from '@hono-crud/rate-limit';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { type Context, Hono, type MiddlewareHandler } from 'hono';
+import {
+  type AuthEnv,
+  type AuthUser,
+  CrudEventEmitter,
+  type CrudEventPayload,
+  MemoryAuditLogStorage,
+  MemoryVersioningStorage,
+  type ResponseEnvelope,
+  type SerializationProfile,
+  StaticKeyProvider,
+  apiVersion,
+  applyProfile,
+  createErrorHandler,
+  decryptValue,
+  defineMeta,
+  defineModel,
+  encryptValue,
+  fromHono,
+  getApiVersion,
+  multiTenant,
+  registerCrud,
+  requireRoles,
+  setAuditStorage,
+  setEventEmitter,
+  setVersioningStorage,
+} from 'hono-crud';
+import { z } from 'zod';
 
 type AppEnv = AuthEnv & {
   Variables: AuthEnv['Variables'] & {
@@ -95,7 +95,7 @@ const publicUserProfile: SerializationProfile = {
 
 const encryptionKeyProvider = new StaticKeyProvider(
   'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-  'local-example-key'
+  'local-example-key',
 );
 
 const PostSchema = z.object({
@@ -166,7 +166,18 @@ const UserModel = defineModel({
   },
   audit: {
     enabled: true,
-    actions: ['create', 'update', 'delete', 'restore', 'batch_create', 'batch_update', 'batch_delete', 'batch_restore', 'upsert', 'batch_upsert'],
+    actions: [
+      'create',
+      'update',
+      'delete',
+      'restore',
+      'batch_create',
+      'batch_update',
+      'batch_delete',
+      'batch_restore',
+      'upsert',
+      'batch_upsert',
+    ],
     excludeFields: ['secretNote'],
   },
   fieldEncryption: {
@@ -245,7 +256,18 @@ class UserList extends MemoryListEndpoint<AppEnv, typeof userMeta> {
   defaultSort = { field: 'createdAt', order: 'desc' as const };
   allowedIncludes = ['posts'];
   fieldSelectionEnabled = true;
-  allowedSelectFields = ['id', 'email', 'name', 'role', 'status', 'age', 'tenantId', 'displayName', 'createdAt', 'updatedAt'];
+  allowedSelectFields = [
+    'id',
+    'email',
+    'name',
+    'role',
+    'status',
+    'age',
+    'tenantId',
+    'displayName',
+    'createdAt',
+    'updatedAt',
+  ];
   blockedSelectFields = ['secretNote', 'internalNote'];
 }
 
@@ -254,14 +276,34 @@ class UserRead extends MemoryReadEndpoint<AppEnv, typeof userMeta> {
   schema = { tags: ['Users'], summary: 'Read a user' };
   allowedIncludes = ['posts'];
   fieldSelectionEnabled = true;
-  allowedSelectFields = ['id', 'email', 'name', 'role', 'status', 'age', 'tenantId', 'displayName', 'createdAt', 'updatedAt'];
+  allowedSelectFields = [
+    'id',
+    'email',
+    'name',
+    'role',
+    'status',
+    'age',
+    'tenantId',
+    'displayName',
+    'createdAt',
+    'updatedAt',
+  ];
   blockedSelectFields = ['secretNote', 'internalNote'];
 }
 
 class UserUpdate extends MemoryUpdateEndpoint<AppEnv, typeof userMeta> {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Update a user' };
-  allowedUpdateFields = ['email', 'name', 'role', 'status', 'age', 'tenantId', 'secretNote', 'internalNote'];
+  allowedUpdateFields = [
+    'email',
+    'name',
+    'role',
+    'status',
+    'age',
+    'tenantId',
+    'secretNote',
+    'internalNote',
+  ];
 
   override async before(data: Partial<User>): Promise<Partial<User>> {
     return {
@@ -345,7 +387,16 @@ class UserImport extends MemoryImportEndpoint<AppEnv, typeof userMeta> {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Import users from JSON or CSV' };
   upsertKeys = ['email'];
-  optionalImportFields = ['id', 'age', 'tenantId', 'secretNote', 'internalNote', 'createdAt', 'updatedAt', 'deletedAt'];
+  optionalImportFields = [
+    'id',
+    'age',
+    'tenantId',
+    'secretNote',
+    'internalNote',
+    'createdAt',
+    'updatedAt',
+    'deletedAt',
+  ];
 }
 
 class UserClone extends MemoryCloneEndpoint<AppEnv, typeof userMeta> {
@@ -461,19 +512,25 @@ export function createApp() {
   const app = fromHono(hono);
 
   app.use('/admin/*', authFromHeaders(), requireRoles<AppEnv>('admin'));
-  app.use('/limited/*', createRateLimitMiddleware<AppEnv>({
-    limit: 2,
-    windowSeconds: 60,
-    keyStrategy: 'ip',
-    storage: rateLimitStorage,
-  }));
+  app.use(
+    '/limited/*',
+    createRateLimitMiddleware<AppEnv>({
+      limit: 2,
+      windowSeconds: 60,
+      keyStrategy: 'ip',
+      storage: rateLimitStorage,
+    }),
+  );
   app.use('/idempotent/*', idempotency({ storage: idempotencyStorage }));
   app.use('/tenant/*', multiTenant<AppEnv>({ source: 'header', required: true }));
-  app.use('/versioned/*', apiVersion({
-    versions: [{ version: '1' }, { version: '2' }],
-    defaultVersion: '2',
-    strategy: 'header',
-  }));
+  app.use(
+    '/versioned/*',
+    apiVersion({
+      versions: [{ version: '1' }, { version: '2' }],
+      defaultVersion: '2',
+      strategy: 'header',
+    }),
+  );
 
   app.patch('/users/bulk', endpoint(UserBulkPatch));
   app.put('/users', endpoint(UserUpsert));
@@ -508,8 +565,7 @@ export function createApp() {
   // `{ data, meta?, errors? }` — proves library composability with a
   // house API standard from a real-installed-package consumer.
   const apiEnvelope: ResponseEnvelope = {
-    success: (result, info) =>
-      info ? { data: result, meta: info } : { data: result },
+    success: (result, info) => (info ? { data: result, meta: info } : { data: result }),
     error: (err) => ({
       errors: [{ status: 'error', code: err.code, title: err.message, source: err.details }],
     }),
@@ -523,7 +579,7 @@ export function createApp() {
       list: PostList,
       read: PostRead,
     },
-    { responseEnvelope: apiEnvelope }
+    { responseEnvelope: apiEnvelope },
   );
 
   registerCrud(app, '/documents', {
@@ -539,7 +595,7 @@ export function createApp() {
   app.get('/admin/ping', (c) => c.json({ ok: true, user: c.var.user }));
   app.get('/limited/ping', (c) => c.json({ ok: true }));
   app.post('/idempotent/orders', async (c) => {
-    const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
     return c.json({ orderId: crypto.randomUUID(), body });
   });
   app.get('/tenant/context', (c) => c.json({ tenantId: c.var.tenantId }));
@@ -561,13 +617,13 @@ export function createApp() {
     return c.json({ deleted });
   });
   app.post('/crypto/roundtrip', async (c) => {
-    const body = await c.req.json() as { value?: string };
+    const body = (await c.req.json()) as { value?: string };
     const encrypted = await encryptValue(body.value ?? 'secret', encryptionKeyProvider);
     const decrypted = await decryptValue(encrypted, encryptionKeyProvider);
     return c.json({ encrypted, decrypted });
   });
   app.post('/serialization/public-user', async (c) => {
-    const body = await c.req.json() as Record<string, unknown>;
+    const body = (await c.req.json()) as Record<string, unknown>;
     return c.json(applyProfile(body, publicUserProfile));
   });
   app.post('/seed', (c) => {
@@ -605,7 +661,11 @@ export function createApp() {
     version: 'local-consumer',
     checks: [
       { name: 'memory-users', check: async () => `${getStorage<User>('users').size} users` },
-      { name: 'memory-cache', check: async () => `${cacheStorage.getStats().size} cache entries`, critical: false },
+      {
+        name: 'memory-cache',
+        check: async () => `${cacheStorage.getStats().size} cache entries`,
+        critical: false,
+      },
     ],
   });
 
@@ -641,7 +701,7 @@ export function createApp() {
         'events',
         'openapi-ui',
       ],
-    })
+    }),
   );
 
   app.doc('/openapi.json', {
@@ -649,7 +709,8 @@ export function createApp() {
     info: {
       title: 'hono-crud local file install feature lab',
       version: '1.0.0',
-      description: 'Consumer app that imports hono-crud via file:../.. and exposes routes for the public feature families.',
+      description:
+        'Consumer app that imports hono-crud via file:../.. and exposes routes for the public feature families.',
     },
   });
 

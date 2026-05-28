@@ -5,15 +5,15 @@ import { UpdateEndpoint } from 'hono-crud/internal';
 import { DeleteEndpoint } from 'hono-crud/internal';
 import { ListEndpoint } from 'hono-crud/internal';
 import { RestoreEndpoint } from 'hono-crud/internal';
-import { encodeCursor, decodeCursor } from 'hono-crud/internal';
+import { decodeCursor, encodeCursor } from 'hono-crud/internal';
 import type {
-  MetaInput,
-  PaginatedResult,
-  ListFilters,
   IncludeOptions,
-  RelationConfig,
+  ListFilters,
+  MetaInput,
   NestedUpdateInput,
   NestedWriteResult,
+  PaginatedResult,
+  RelationConfig,
 } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
 import { getStore, loadRelations } from './helpers';
@@ -55,10 +55,8 @@ export abstract class MemoryCreateEndpoint<
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     // `generateId()` stays the overridable default-branch generator;
     // `id:'database'` throws here (memory has no database).
-    const record = this.applyManagedInsertFields(
-      data as Record<string, unknown>,
-      'memory',
-      () => this.generateId()
+    const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'memory', () =>
+      this.generateId(),
     ) as ModelObject<M['model']>;
 
     const id = String((record as Record<string, unknown>)[primaryKey]);
@@ -74,7 +72,7 @@ export abstract class MemoryCreateEndpoint<
     parentId: string | number,
     _relationName: string,
     relationConfig: RelationConfig,
-    data: unknown
+    data: unknown,
   ): Promise<unknown[]> {
     const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);
     const created: Record<string, unknown>[] = [];
@@ -110,7 +108,7 @@ export abstract class MemoryReadEndpoint<
   async read(
     lookupValue: string,
     additionalFilters?: Record<string, string>,
-    includeOptions?: IncludeOptions
+    includeOptions?: IncludeOptions,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const record = store.get(lookupValue);
@@ -125,7 +123,11 @@ export abstract class MemoryReadEndpoint<
     }
 
     // Load relations if requested
-    return loadRelations(record as Record<string, unknown>, this._meta, includeOptions) as ModelObject<M['model']>;
+    return loadRelations(
+      record as Record<string, unknown>,
+      this._meta,
+      includeOptions,
+    ) as ModelObject<M['model']>;
   }
 }
 
@@ -145,7 +147,7 @@ export abstract class MemoryUpdateEndpoint<
    */
   protected async findExisting(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const existing = store.get(lookupValue);
@@ -166,7 +168,7 @@ export abstract class MemoryUpdateEndpoint<
   async update(
     lookupValue: string,
     data: Partial<ModelObject<M['model']>>,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const existing = store.get(lookupValue);
@@ -196,7 +198,7 @@ export abstract class MemoryUpdateEndpoint<
     parentId: string | number,
     _relationName: string,
     relationConfig: RelationConfig,
-    operations: NestedUpdateInput
+    operations: NestedUpdateInput,
   ): Promise<NestedWriteResult> {
     const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);
     const result: NestedWriteResult = {
@@ -288,7 +290,7 @@ export abstract class MemoryUpdateEndpoint<
     if (operations.set !== undefined) {
       // First, disconnect any existing related record
       const existingRelated = Array.from(relatedStore.values()).filter(
-        (r) => r[relationConfig.foreignKey] === parentId
+        (r) => r[relationConfig.foreignKey] === parentId,
       );
       for (const existing of existingRelated) {
         if (existing.id) {
@@ -330,7 +332,7 @@ export abstract class MemoryDeleteEndpoint<
    */
   async findForDelete(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const existing = store.get(lookupValue);
@@ -353,7 +355,7 @@ export abstract class MemoryDeleteEndpoint<
   protected async countRelated(
     parentId: string | number,
     _relationName: string,
-    relationConfig: RelationConfig
+    relationConfig: RelationConfig,
   ): Promise<number> {
     const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);
     let count = 0;
@@ -373,7 +375,7 @@ export abstract class MemoryDeleteEndpoint<
   protected async deleteRelated(
     parentId: string | number,
     _relationName: string,
-    relationConfig: RelationConfig
+    relationConfig: RelationConfig,
   ): Promise<number> {
     const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);
     let deletedCount = 0;
@@ -395,7 +397,7 @@ export abstract class MemoryDeleteEndpoint<
   protected async nullifyRelated(
     parentId: string | number,
     _relationName: string,
-    relationConfig: RelationConfig
+    relationConfig: RelationConfig,
   ): Promise<number> {
     const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);
     let nullifiedCount = 0;
@@ -414,7 +416,7 @@ export abstract class MemoryDeleteEndpoint<
 
   async delete(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const existing = store.get(lookupValue);
@@ -522,7 +524,7 @@ export abstract class MemoryListEndpoint<
         this.searchFields.some((field) => {
           const value = (item as Record<string, unknown>)[field];
           return String(value).toLowerCase().includes(searchTerm);
-        })
+        }),
       );
     }
 
@@ -553,8 +555,8 @@ export abstract class MemoryListEndpoint<
       if (filters.options.cursor) {
         const cursorValue = decodeCursor(filters.options.cursor);
         if (cursorValue !== null) {
-          const cursorIdx = items.findIndex((item) =>
-            String((item as Record<string, unknown>)[cursorField]) === cursorValue
+          const cursorIdx = items.findIndex(
+            (item) => String((item as Record<string, unknown>)[cursorField]) === cursorValue,
           );
           if (cursorIdx !== -1) {
             startIndex = cursorIdx + 1; // Start after the cursor item
@@ -566,8 +568,11 @@ export abstract class MemoryListEndpoint<
 
       // Load relations if requested
       const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
-      const itemsWithRelations = paginatedItems.map((item) =>
-        loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<M['model']>
+      const itemsWithRelations = paginatedItems.map(
+        (item) =>
+          loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<
+            M['model']
+          >,
       );
 
       const hasNextPage = startIndex + limit < items.length;
@@ -609,8 +614,11 @@ export abstract class MemoryListEndpoint<
 
     // Load relations if requested
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
-    const itemsWithRelations = paginatedItems.map((item) =>
-      loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<M['model']>
+    const itemsWithRelations = paginatedItems.map(
+      (item) =>
+        loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<
+          M['model']
+        >,
     );
 
     const totalPages = Math.ceil(totalCount / perPage);
@@ -639,7 +647,7 @@ export abstract class MemoryRestoreEndpoint<
 > extends RestoreEndpoint<E, M> {
   async restore(
     lookupValue: string,
-    additionalFilters?: Record<string, string>
+    additionalFilters?: Record<string, string>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const existing = store.get(lookupValue);

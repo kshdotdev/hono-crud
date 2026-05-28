@@ -7,22 +7,19 @@ import type { Context, Env } from 'hono';
 
 export function extractFromHeader<E extends Env>(
   ctx: Context<E>,
-  name: string
+  name: string,
 ): string | undefined {
   return ctx.req.header(name)?.trim() || undefined;
 }
 
-export function extractFromQuery<E extends Env>(
-  ctx: Context<E>,
-  name: string
-): string | undefined {
+export function extractFromQuery<E extends Env>(ctx: Context<E>, name: string): string | undefined {
   const v = ctx.req.query(name);
   return v ? v.trim() || undefined : undefined;
 }
 
 export function extractBearerToken<E extends Env>(
   ctx: Context<E>,
-  headerName = 'Authorization'
+  headerName = 'Authorization',
 ): string | undefined {
   const header = ctx.req.header(headerName);
   if (!header) return undefined;

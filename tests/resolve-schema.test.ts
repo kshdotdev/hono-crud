@@ -10,21 +10,11 @@
  *   5. Resolver throws → structured 500 (`SCHEMA_RESOLVE_ERROR`), not a crash.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { MemoryCreateEndpoint, MemoryListEndpoint, clearStorage } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { buildPerTenantOpenApi, defineMeta, defineModel, fromHono, multiTenant } from 'hono-crud';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import {
-  fromHono,
-  defineModel,
-  defineMeta,
-  multiTenant,
-  buildPerTenantOpenApi,
-} from 'hono-crud';
-import {
-  MemoryCreateEndpoint,
-  MemoryListEndpoint,
-  clearStorage,
-} from '@hono-crud/memory';
 
 // ============================================================================
 // Test fixtures
@@ -91,7 +81,7 @@ describe('Model.resolveSchema', () => {
         body: JSON.stringify({ title: 'hello' }),
       });
       expect(res.status).toBe(201);
-      const json = await res.json() as { result: { title: string } };
+      const json = (await res.json()) as { result: { title: string } };
       expect(json.result.title).toBe('hello');
     });
   });
@@ -105,8 +95,7 @@ describe('Model.resolveSchema', () => {
       schema: BaseTaskSchema,
       primaryKeys: ['id'],
       multiTenant: true,
-      resolveSchema: (ctx) =>
-        ctx.tenantId === TENANT_EXT ? ExtendedTaskSchema : BaseTaskSchema,
+      resolveSchema: (ctx) => (ctx.tenantId === TENANT_EXT ? ExtendedTaskSchema : BaseTaskSchema),
     });
     const meta = defineMeta({ model: Model });
 
@@ -133,7 +122,7 @@ describe('Model.resolveSchema', () => {
         body: JSON.stringify({ title: 'no priority' }),
       });
       expect(res.status).toBe(400);
-      const json = await res.json() as {
+      const json = (await res.json()) as {
         error: { code: string; details: unknown };
       };
       expect(json.error.code).toBe('VALIDATION_ERROR');
@@ -150,7 +139,7 @@ describe('Model.resolveSchema', () => {
         body: JSON.stringify({ title: 'with priority', priority: 'high' }),
       });
       expect(res.status).toBe(201);
-      const json = await res.json() as { result: { priority?: string } };
+      const json = (await res.json()) as { result: { priority?: string } };
       expect(json.result.priority).toBe('high');
     });
 
@@ -176,8 +165,7 @@ describe('Model.resolveSchema', () => {
       tableName: 'tasks_openapi',
       schema: BaseTaskSchema,
       primaryKeys: ['id'],
-      resolveSchema: (ctx) =>
-        ctx.tenantId === TENANT_EXT ? ExtendedTaskSchema : BaseTaskSchema,
+      resolveSchema: (ctx) => (ctx.tenantId === TENANT_EXT ? ExtendedTaskSchema : BaseTaskSchema),
     });
     const meta = defineMeta({ model: Model });
 
@@ -194,7 +182,7 @@ describe('Model.resolveSchema', () => {
 
     it('emits the extended schema for the extending tenant', async () => {
       const app = buildApp();
-      const doc = await buildPerTenantOpenApi(app, { tenantId: TENANT_EXT }) as {
+      const doc = (await buildPerTenantOpenApi(app, { tenantId: TENANT_EXT })) as {
         components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
       };
       // The body schema appears in the request.body.content['application/json'].schema
@@ -357,7 +345,7 @@ describe('Model.resolveSchema', () => {
         body: JSON.stringify({ title: 'kapow' }),
       });
       expect(res.status).toBe(500);
-      const json = await res.json() as { error: { code: string; message: string } };
+      const json = (await res.json()) as { error: { code: string; message: string } };
       expect(json.error.code).toBe('SCHEMA_RESOLVE_ERROR');
       expect(json.error.message).toContain('resolver-bang');
     });

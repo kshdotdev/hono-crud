@@ -1,5 +1,5 @@
-import type { APIKeyEntry } from '../types';
 import { UnauthorizedException } from '../../core/exceptions';
+import type { APIKeyEntry } from '../types';
 
 /**
  * Validates an API key entry (after lookup).

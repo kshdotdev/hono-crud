@@ -1,14 +1,14 @@
+import {
+  type FieldSelection,
+  type FieldSelectionConfig,
+  applyFieldSelection,
+  applyFieldSelectionToArray,
+  parseFieldSelection,
+} from 'hono-crud';
 /**
  * Tests for Field Selection functionality.
  */
-import { describe, it, expect } from 'vitest';
-import {
-  parseFieldSelection,
-  applyFieldSelection,
-  applyFieldSelectionToArray,
-  type FieldSelection,
-  type FieldSelectionConfig,
-} from 'hono-crud';
+import { describe, expect, it } from 'vitest';
 
 // ============================================================================
 // Test Data
@@ -44,11 +44,14 @@ const testRecords = [
 describe('Field Selection', () => {
   describe('parseFieldSelection', () => {
     it('should parse comma-separated field names', () => {
-      const selection = parseFieldSelection(
-        'id,name,email',
-        {},
-        ['id', 'name', 'email', 'password', 'role', 'createdAt']
-      );
+      const selection = parseFieldSelection('id,name,email', {}, [
+        'id',
+        'name',
+        'email',
+        'password',
+        'role',
+        'createdAt',
+      ]);
 
       expect(selection.isActive).toBe(true);
       expect(selection.fields).toHaveLength(3);
@@ -61,11 +64,13 @@ describe('Field Selection', () => {
       const config: FieldSelectionConfig = {
         blockedFields: ['password'],
       };
-      const selection = parseFieldSelection(
-        'id,name,password',
-        config,
-        ['id', 'name', 'email', 'password', 'role']
-      );
+      const selection = parseFieldSelection('id,name,password', config, [
+        'id',
+        'name',
+        'email',
+        'password',
+        'role',
+      ]);
 
       expect(selection.fields).not.toContain('password');
       expect(selection.fields).toContain('id');
@@ -76,11 +81,13 @@ describe('Field Selection', () => {
       const config: FieldSelectionConfig = {
         allowedFields: ['id', 'name', 'email'],
       };
-      const selection = parseFieldSelection(
-        'id,name,role,password',
-        config,
-        ['id', 'name', 'email', 'password', 'role']
-      );
+      const selection = parseFieldSelection('id,name,role,password', config, [
+        'id',
+        'name',
+        'email',
+        'password',
+        'role',
+      ]);
 
       expect(selection.fields).toContain('id');
       expect(selection.fields).toContain('name');
@@ -92,11 +99,13 @@ describe('Field Selection', () => {
       const config: FieldSelectionConfig = {
         alwaysIncludeFields: ['id'],
       };
-      const selection = parseFieldSelection(
-        'name,email',
-        config,
-        ['id', 'name', 'email', 'password', 'role']
-      );
+      const selection = parseFieldSelection('name,email', config, [
+        'id',
+        'name',
+        'email',
+        'password',
+        'role',
+      ]);
 
       expect(selection.fields).toContain('id');
       expect(selection.fields).toContain('name');
@@ -123,11 +132,14 @@ describe('Field Selection', () => {
         defaultFields: ['id', 'name'],
         alwaysIncludeFields: ['createdAt'],
       };
-      const selection = parseFieldSelection(
-        undefined,
-        config,
-        ['id', 'name', 'email', 'password', 'role', 'createdAt']
-      );
+      const selection = parseFieldSelection(undefined, config, [
+        'id',
+        'name',
+        'email',
+        'password',
+        'role',
+        'createdAt',
+      ]);
 
       expect(selection.isActive).toBe(false);
       expect(selection.fields).toContain('id');
@@ -140,8 +152,8 @@ describe('Field Selection', () => {
         'id,name,fullName,posts',
         {},
         ['id', 'name', 'email'],
-        ['fullName', 'age'],  // computed fields
-        ['posts', 'profile']  // relation fields
+        ['fullName', 'age'], // computed fields
+        ['posts', 'profile'], // relation fields
       );
 
       expect(selection.fields).toContain('id');
@@ -159,7 +171,7 @@ describe('Field Selection', () => {
         config,
         ['id', 'name'],
         ['fullName'],
-        []
+        [],
       );
 
       expect(selection.fields).toContain('id');

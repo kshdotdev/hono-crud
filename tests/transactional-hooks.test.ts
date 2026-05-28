@@ -9,31 +9,24 @@
  *   - Fire-and-forget mode does NOT roll back (response already sent)
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Hono } from 'hono';
-import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/libsql';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { Hono } from 'hono';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
+import { DrizzleCreateEndpoint } from '@hono-crud/drizzle';
 import {
-  defineModel,
-  defineMeta,
-  type HookContext,
-  type DrizzleDatabase,
-} from 'hono-crud';
-import {
-  MemoryCreateEndpoint,
-  MemoryUpdateEndpoint,
-  MemoryDeleteEndpoint,
   MEMORY_NOOP_TX,
+  MemoryCreateEndpoint,
+  MemoryDeleteEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
-import {
-  DrizzleCreateEndpoint,
-} from '@hono-crud/drizzle';
+import { type DrizzleDatabase, type HookContext, defineMeta, defineModel } from 'hono-crud';
 
 // ============================================================================
 // Memory-adapter cases
@@ -208,7 +201,7 @@ describe('Transactional hooks — drizzle adapter', () => {
 
       override async after(
         data: z.infer<typeof Schema>,
-        ctx?: HookContext
+        ctx?: HookContext,
       ): Promise<z.infer<typeof Schema>> {
         hookCtxTx = ctx?.db.tx;
         throw new Error('rollback-bang');

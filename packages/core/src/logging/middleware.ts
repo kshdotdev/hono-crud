@@ -1,29 +1,29 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
+import { getContextVar, setContextVar } from '../core/context-helpers';
 import { getLogger } from '../core/logger';
+import { resolveLoggingStorage } from '../storage/helpers';
+import { createNullableRegistry } from '../storage/registry';
+import { toError } from '../utils/errors';
 import type {
-  LoggingConfig,
-  LoggingStorage,
   LogEntry,
   LogLevel,
-  RedactField,
+  LoggingConfig,
+  LoggingStorage,
   PathPattern,
+  RedactField,
 } from './types';
 import {
-  shouldExcludePath,
+  generateRequestId as defaultGenerateRequestId,
   extractClientIp,
   extractHeaders,
   extractQuery,
   extractUserId,
+  isAllowedContentType,
   redactHeaders,
   redactObject,
+  shouldExcludePath,
   truncateBody,
-  isAllowedContentType,
-  generateRequestId as defaultGenerateRequestId,
 } from './utils';
-import { resolveLoggingStorage } from '../storage/helpers';
-import { toError } from '../utils/errors';
-import { getContextVar, setContextVar } from '../core/context-helpers';
-import { createNullableRegistry } from '../storage/registry';
 
 // ============================================================================
 // Global Storage
@@ -33,9 +33,7 @@ import { createNullableRegistry } from '../storage/registry';
  * Global logging storage registry.
  * Nullable -- no default storage is created unless explicitly set.
  */
-export const loggingStorageRegistry = createNullableRegistry<LoggingStorage>(
-  'loggingStorage'
-);
+export const loggingStorageRegistry = createNullableRegistry<LoggingStorage>('loggingStorage');
 
 /**
  * Set the global logging storage.
@@ -65,7 +63,12 @@ export function getLoggingStorage(): LoggingStorage | null {
 // ============================================================================
 
 /** Default headers to redact */
-const DEFAULT_REDACT_HEADERS: RedactField[] = ['authorization', 'cookie', 'x-api-key', 'x-auth-token'];
+const DEFAULT_REDACT_HEADERS: RedactField[] = [
+  'authorization',
+  'cookie',
+  'x-api-key',
+  'x-auth-token',
+];
 
 /** Default body fields to redact */
 const DEFAULT_REDACT_BODY_FIELDS: RedactField[] = [
@@ -175,7 +178,7 @@ export function getRequestStartTime<E extends Env>(ctx: Context<E>): number | un
  * ```
  */
 export function createLoggingMiddleware<E extends Env = Env>(
-  config: LoggingConfig<E> = {}
+  config: LoggingConfig<E> = {},
 ): MiddlewareHandler<E> {
   // Default configuration
   const enabled = config.enabled ?? true;
@@ -292,6 +295,7 @@ export function createLoggingMiddleware<E extends Env = Env>(
 
       // Skip logging if below minimum response time
       if (responseTimeMs < minResponseTimeMs) {
+        // biome-ignore lint/correctness/noUnsafeFinally: pre-existing early-skip pattern; refactor target
         return;
       }
 
@@ -396,7 +400,10 @@ export function createLoggingMiddleware<E extends Env = Env>(
             await storage.store(entry);
           } catch (storageError) {
             if (config.onError) {
-              config.onError(storageError instanceof Error ? storageError : new Error(String(storageError)), entry);
+              config.onError(
+                storageError instanceof Error ? storageError : new Error(String(storageError)),
+                entry,
+              );
             }
           }
         }
@@ -408,7 +415,10 @@ export function createLoggingMiddleware<E extends Env = Env>(
               await handler(entry);
             } catch (handlerError) {
               if (config.onError) {
-                config.onError(handlerError instanceof Error ? handlerError : new Error(String(handlerError)), entry);
+                config.onError(
+                  handlerError instanceof Error ? handlerError : new Error(String(handlerError)),
+                  entry,
+                );
               }
             }
           }

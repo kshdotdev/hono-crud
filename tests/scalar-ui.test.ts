@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { Hono } from 'hono';
 import { scalarUI, setupScalar } from '@hono-crud/scalar';
 import type { ScalarConfig, ScalarTheme } from '@hono-crud/scalar';
+import { Hono } from 'hono';
+import { describe, expect, it } from 'vitest';
 
 // ============================================================================
 // scalarUI() Tests
@@ -260,7 +260,7 @@ describe('Scalar Integration', () => {
             },
           },
         },
-      })
+      }),
     );
 
     // Scalar UI

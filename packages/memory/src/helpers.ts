@@ -1,8 +1,4 @@
-import type {
-  MetaInput,
-  IncludeOptions,
-  RelationConfig,
-} from 'hono-crud/internal';
+import type { IncludeOptions, MetaInput, RelationConfig } from 'hono-crud/internal';
 
 /**
  * Module-level in-memory storage.
@@ -33,7 +29,7 @@ export function getStore<T>(tableName: string): Map<string, T> {
 export function loadRelation<T extends Record<string, unknown>>(
   item: T,
   relationName: string,
-  relationConfig: RelationConfig
+  relationConfig: RelationConfig,
 ): T {
   const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);
   const localKey = relationConfig.localKey || 'id';
@@ -59,7 +55,7 @@ export function loadRelation<T extends Record<string, unknown>>(
         return { ...item, [relationName]: null };
       }
       const parentItem = Array.from(relatedStore.values()).find(
-        (r) => r[relationConfig.localKey || 'id'] === foreignValue
+        (r) => r[relationConfig.localKey || 'id'] === foreignValue,
       );
       return { ...item, [relationName]: parentItem || null };
     }
@@ -74,7 +70,7 @@ export function loadRelation<T extends Record<string, unknown>>(
 export function loadRelations<T extends Record<string, unknown>, M extends MetaInput>(
   item: T,
   meta: M,
-  includeOptions?: IncludeOptions
+  includeOptions?: IncludeOptions,
 ): T {
   if (!includeOptions?.relations?.length || !meta.model.relations) {
     return item;

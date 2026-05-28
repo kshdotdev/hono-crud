@@ -1,9 +1,17 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
-import type {MetaInput, OpenAPIRouteSchema, AggregateOperation, AggregateField, AggregateOptions, AggregateResult, AggregateConfig} from '../core/types';
-import {parseAggregateQuery} from '../core/types';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { InputValidationException } from '../core/exceptions';
+import type {
+  AggregateConfig,
+  AggregateField,
+  AggregateOperation,
+  AggregateOptions,
+  AggregateResult,
+  MetaInput,
+  OpenAPIRouteSchema,
+} from '../core/types';
+import { parseAggregateQuery } from '../core/types';
+import { CrudEndpoint } from './base';
 
 /**
  * Default aggregate configuration.
@@ -36,7 +44,6 @@ export abstract class AggregateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   /**
    * Configuration for allowed aggregations.
    * Override to restrict which fields can be aggregated.
@@ -47,7 +54,7 @@ export abstract class AggregateEndpoint<
    * Maximum number of GROUP BY fields allowed per query.
    * Prevents cardinality explosion from too many grouping dimensions.
    */
-  protected maxGroupByFields: number = 5;
+  protected maxGroupByFields = 5;
 
   /**
    * Fields that can be used for filtering.
@@ -77,25 +84,27 @@ export abstract class AggregateEndpoint<
    * Returns the query parameter schema for aggregations.
    */
   protected getQuerySchema(): ZodObject<ZodRawShape> {
-    return z.object({
-      // Aggregation operations
-      count: z.union([z.string(), z.array(z.string())]).optional(),
-      sum: z.union([z.string(), z.array(z.string())]).optional(),
-      avg: z.union([z.string(), z.array(z.string())]).optional(),
-      min: z.union([z.string(), z.array(z.string())]).optional(),
-      max: z.union([z.string(), z.array(z.string())]).optional(),
-      countDistinct: z.union([z.string(), z.array(z.string())]).optional(),
-      // Grouping
-      groupBy: z.string().optional(),
-      // Ordering
-      orderBy: z.string().optional(),
-      orderDirection: z.enum(['asc', 'desc']).optional(),
-      // Pagination
-      limit: z.coerce.number().optional(),
-      offset: z.coerce.number().optional(),
-      // Include soft-deleted records
-      withDeleted: z.coerce.boolean().optional(),
-    }).passthrough() as unknown as ZodObject<ZodRawShape>;
+    return z
+      .object({
+        // Aggregation operations
+        count: z.union([z.string(), z.array(z.string())]).optional(),
+        sum: z.union([z.string(), z.array(z.string())]).optional(),
+        avg: z.union([z.string(), z.array(z.string())]).optional(),
+        min: z.union([z.string(), z.array(z.string())]).optional(),
+        max: z.union([z.string(), z.array(z.string())]).optional(),
+        countDistinct: z.union([z.string(), z.array(z.string())]).optional(),
+        // Grouping
+        groupBy: z.string().optional(),
+        // Ordering
+        orderBy: z.string().optional(),
+        orderDirection: z.enum(['asc', 'desc']).optional(),
+        // Pagination
+        limit: z.coerce.number().optional(),
+        offset: z.coerce.number().optional(),
+        // Include soft-deleted records
+        withDeleted: z.coerce.boolean().optional(),
+      })
+      .passthrough() as unknown as ZodObject<ZodRawShape>;
   }
 
   /**
@@ -186,7 +195,10 @@ export abstract class AggregateEndpoint<
           }
           break;
         case 'countDistinct':
-          if (config.countDistinctFields.length > 0 && !config.countDistinctFields.includes(agg.field)) {
+          if (
+            config.countDistinctFields.length > 0 &&
+            !config.countDistinctFields.includes(agg.field)
+          ) {
             throw new Error(`Field '${agg.field}' is not allowed for COUNT DISTINCT aggregation`);
           }
           break;
@@ -197,7 +209,7 @@ export abstract class AggregateEndpoint<
     if (options.groupBy) {
       if (options.groupBy.length > this.maxGroupByFields) {
         throw new InputValidationException(
-          `Maximum ${this.maxGroupByFields} GROUP BY fields allowed`
+          `Maximum ${this.maxGroupByFields} GROUP BY fields allowed`,
         );
       }
       for (const field of options.groupBy) {
@@ -242,7 +254,6 @@ export abstract class AggregateEndpoint<
    * Main handler for the aggregate operation.
    */
   async handle(): Promise<Response> {
-
     const options = await this.getAggregateOptions();
 
     // Ensure at least one aggregation is requested
@@ -302,7 +313,7 @@ function getOrCreateGroup<K, V>(map: Map<K, V[]>, key: K): V[] {
  */
 export function computeAggregations<T extends Record<string, unknown>>(
   records: T[],
-  options: AggregateOptions
+  options: AggregateOptions,
 ): AggregateResult {
   const { aggregations, groupBy, having, orderBy, orderDirection, limit, offset } = options;
 
@@ -322,7 +333,7 @@ export function computeAggregations<T extends Record<string, unknown>>(
   const groups = new Map<string, T[]>();
 
   for (const record of records) {
-    const keyParts = groupBy.map(field => String(record[field] ?? 'null'));
+    const keyParts = groupBy.map((field) => String(record[field] ?? 'null'));
     const key = keyParts.join('|');
     getOrCreateGroup(groups, key).push(record);
   }
@@ -351,7 +362,7 @@ export function computeAggregations<T extends Record<string, unknown>>(
 
   // Apply HAVING filter using comparison operators map
   if (having) {
-    groupResults = groupResults.filter(group => {
+    groupResults = groupResults.filter((group) => {
       for (const [alias, conditions] of Object.entries(having)) {
         const value = group.values[alias];
         if (value === null) continue;
@@ -411,11 +422,9 @@ export function computeAggregations<T extends Record<string, unknown>>(
  */
 function getNumericValues<T extends Record<string, unknown>>(
   records: T[],
-  field: string
+  field: string,
 ): number[] {
-  return records
-    .map(r => r[field])
-    .filter((v): v is number => typeof v === 'number');
+  return records.map((r) => r[field]).filter((v): v is number => typeof v === 'number');
 }
 
 /**
@@ -423,7 +432,7 @@ function getNumericValues<T extends Record<string, unknown>>(
  */
 type AggregationFn = <T extends Record<string, unknown>>(
   records: T[],
-  field: string
+  field: string,
 ) => number | null;
 
 /**
@@ -435,15 +444,15 @@ const AGGREGATION_OPERATIONS: Record<AggregateOperation, AggregationFn> = {
     if (field === '*') {
       return records.length;
     }
-    return records.filter(r => r[field] !== null && r[field] !== undefined).length;
+    return records.filter((r) => r[field] !== null && r[field] !== undefined).length;
   },
 
   countDistinct: (records, field) => {
     const uniqueValues = new Set(
       records
-        .map(r => r[field])
-        .filter(v => v !== null && v !== undefined)
-        .map(v => String(v))
+        .map((r) => r[field])
+        .filter((v) => v !== null && v !== undefined)
+        .map((v) => String(v)),
     );
     return uniqueValues.size;
   },
@@ -484,7 +493,7 @@ const AGGREGATION_OPERATIONS: Record<AggregateOperation, AggregationFn> = {
  */
 function computeSingleAggregation<T extends Record<string, unknown>>(
   records: T[],
-  agg: AggregateField
+  agg: AggregateField,
 ): number | null {
   if (records.length === 0) {
     return agg.operation === 'count' ? 0 : null;

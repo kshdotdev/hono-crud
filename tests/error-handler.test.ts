@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
-import { z, ZodError } from 'zod';
 import {
-  createErrorHandler,
-  zodErrorMapper,
   ApiException,
-  InputValidationException,
-  NotFoundException,
   ConflictException,
+  type ErrorHook,
+  type ErrorMapper,
+  InputValidationException,
+  type LoggingStorage,
+  MemoryLoggingStorage,
+  NotFoundException,
+  createErrorHandler,
   createLoggingMiddleware,
   setLoggingStorage,
-  MemoryLoggingStorage,
-  type ErrorMapper,
-  type ErrorHook,
-  type LoggingStorage,
+  zodErrorMapper,
 } from 'hono-crud';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ZodError, z } from 'zod';
 
 // ============================================================================
 // Built-in Mapper Tests
@@ -103,10 +103,12 @@ describe('createErrorHandler', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const app = new Hono();
-      app.onError(createErrorHandler({
-        defaultErrorCode: 'SERVER_ERROR',
-        defaultErrorMessage: 'Something unexpected happened',
-      }));
+      app.onError(
+        createErrorHandler({
+          defaultErrorCode: 'SERVER_ERROR',
+          defaultErrorMessage: 'Something unexpected happened',
+        }),
+      );
       app.get('/test', () => {
         throw new Error('Internal failure');
       });
@@ -141,9 +143,11 @@ describe('createErrorHandler', () => {
       };
 
       const app = new Hono();
-      app.onError(createErrorHandler({
-        mappers: [dbErrorMapper],
-      }));
+      app.onError(
+        createErrorHandler({
+          mappers: [dbErrorMapper],
+        }),
+      );
       app.get('/test', () => {
         throw new DatabaseError('Unique constraint failed', 'P2002');
       });
@@ -162,9 +166,11 @@ describe('createErrorHandler', () => {
       const mapper3 = vi.fn().mockReturnValue(new ConflictException('Duplicate'));
 
       const app = new Hono();
-      app.onError(createErrorHandler({
-        mappers: [mapper1, mapper2, mapper3],
-      }));
+      app.onError(
+        createErrorHandler({
+          mappers: [mapper1, mapper2, mapper3],
+        }),
+      );
       app.get('/test', () => {
         throw new Error('Test error');
       });
@@ -190,9 +196,11 @@ describe('createErrorHandler', () => {
       };
 
       const app = new Hono();
-      app.onError(createErrorHandler({
-        mappers: [asyncMapper],
-      }));
+      app.onError(
+        createErrorHandler({
+          mappers: [asyncMapper],
+        }),
+      );
       app.get('/test', () => {
         throw new Error('async test');
       });
@@ -213,9 +221,11 @@ describe('createErrorHandler', () => {
       };
 
       const app = new Hono();
-      app.onError(createErrorHandler({
-        mappers: [throwingMapper, workingMapper],
-      }));
+      app.onError(
+        createErrorHandler({
+          mappers: [throwingMapper, workingMapper],
+        }),
+      );
       app.get('/test', () => {
         throw new Error('Test');
       });
@@ -259,9 +269,11 @@ describe('createErrorHandler', () => {
       const hook = vi.fn();
 
       const app = new Hono();
-      app.onError(createErrorHandler({
-        hooks: [hook],
-      }));
+      app.onError(
+        createErrorHandler({
+          hooks: [hook],
+        }),
+      );
       app.get('/test', () => {
         throw new NotFoundException('Item', '456');
       });
@@ -282,9 +294,11 @@ describe('createErrorHandler', () => {
       const hook3 = vi.fn();
 
       const app = new Hono();
-      app.onError(createErrorHandler({
-        hooks: [hook1, hook2, hook3],
-      }));
+      app.onError(
+        createErrorHandler({
+          hooks: [hook1, hook2, hook3],
+        }),
+      );
       app.get('/test', () => {
         throw new Error('Test');
       });
@@ -305,9 +319,11 @@ describe('createErrorHandler', () => {
       };
 
       const app = new Hono();
-      app.onError(createErrorHandler({
-        hooks: [asyncHook],
-      }));
+      app.onError(
+        createErrorHandler({
+          hooks: [asyncHook],
+        }),
+      );
       app.get('/test', () => {
         throw new Error('Test');
       });
@@ -325,10 +341,12 @@ describe('createErrorHandler', () => {
       };
 
       const app = new Hono();
-      app.onError(createErrorHandler({
-        hooks: [throwingHook],
-        onHookError,
-      }));
+      app.onError(
+        createErrorHandler({
+          hooks: [throwingHook],
+          onHookError,
+        }),
+      );
       app.get('/test', () => {
         throw new Error('Original error');
       });
@@ -351,10 +369,12 @@ describe('createErrorHandler', () => {
       };
 
       const app = new Hono();
-      app.onError(createErrorHandler({
-        hooks: [asyncThrowingHook],
-        onHookError,
-      }));
+      app.onError(
+        createErrorHandler({
+          hooks: [asyncThrowingHook],
+          onHookError,
+        }),
+      );
       app.get('/test', () => {
         throw new Error('Test');
       });
@@ -571,11 +591,13 @@ describe('Error Handler Integration', () => {
     };
 
     const app = new Hono();
-    app.onError(createErrorHandler({
-      mappers: [dbMapper],
-      hooks: [loggingHook],
-      logUnmappedErrors: false,
-    }));
+    app.onError(
+      createErrorHandler({
+        mappers: [dbMapper],
+        hooks: [loggingHook],
+        logUnmappedErrors: false,
+      }),
+    );
 
     // Test route for different errors
     app.get('/api-exception', () => {
@@ -649,10 +671,12 @@ describe('Error Handler Integration', () => {
     };
 
     const app = new Hono();
-    app.onError(createErrorHandler({
-      hooks: [sentryHook],
-      logUnmappedErrors: false,
-    }));
+    app.onError(
+      createErrorHandler({
+        hooks: [sentryHook],
+        logUnmappedErrors: false,
+      }),
+    );
 
     app.get('/client-error', () => {
       throw new NotFoundException('Item');

@@ -1,37 +1,37 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Hono } from 'hono';
-import { z } from 'zod';
 import {
-  createAuthMiddleware,
-  createJWTMiddleware,
-  createAPIKeyMiddleware,
-  optionalAuth,
-  requireRoles,
-  requireAllRoles,
-  requirePermissions,
-  requireAnyPermission,
-  requireOwnership,
-  requireOwnershipOrRole,
-  allOf,
-  anyOf,
-  withAuth,
-  MemoryAPIKeyStorage,
-  generateAPIKey,
-  hashAPIKey,
-  isValidAPIKeyFormat,
-  fromHono,
-  registerCrud,
+  MemoryCreateEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  clearStorage,
+} from '@hono-crud/memory';
+import { Hono } from 'hono';
+import {
   ApiException,
   type AuthEnv,
   type JWTClaims,
+  MemoryAPIKeyStorage,
+  allOf,
+  anyOf,
+  createAPIKeyMiddleware,
+  createAuthMiddleware,
+  createJWTMiddleware,
+  fromHono,
+  generateAPIKey,
+  hashAPIKey,
+  isValidAPIKeyFormat,
+  optionalAuth,
+  registerCrud,
+  requireAllRoles,
+  requireAnyPermission,
+  requireOwnership,
+  requireOwnershipOrRole,
+  requirePermissions,
+  requireRoles,
+  withAuth,
 } from 'hono-crud';
-import {
-  MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryListEndpoint,
-  clearStorage,
-} from '@hono-crud/memory';
 import type { MetaInput, Model } from 'hono-crud';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 /**
  * Creates a Hono app with error handling for ApiException.
@@ -58,10 +58,7 @@ function createTestApp<E extends AuthEnv = AuthEnv>(): Hono<E> {
  * Create a simple JWT for testing.
  * This is a simplified version - production code should use proper JWT libraries.
  */
-async function createTestJWT(
-  payload: JWTClaims,
-  secret: string
-): Promise<string> {
+async function createTestJWT(payload: JWTClaims, secret: string): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' };
 
   const base64UrlEncode = (obj: unknown): string => {
@@ -81,7 +78,7 @@ async function createTestJWT(
     encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign']
+    ['sign'],
   );
 
   const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(signedContent));
@@ -113,7 +110,7 @@ describe('JWT Middleware', () => {
         roles: ['admin'],
         exp: Math.floor(Date.now() / 1000) + 3600,
       },
-      secret
+      secret,
     );
 
     const res = await app.request('/me', {
@@ -152,7 +149,7 @@ describe('JWT Middleware', () => {
         sub: 'user-123',
         exp: Math.floor(Date.now() / 1000) - 3600, // Expired 1 hour ago
       },
-      secret
+      secret,
     );
 
     const res = await app.request('/me', {
@@ -172,7 +169,7 @@ describe('JWT Middleware', () => {
 
     const token = await createTestJWT(
       { sub: 'user-123', exp: Math.floor(Date.now() / 1000) + 3600 },
-      'wrong-secret-key-that-is-also-32-bytes'
+      'wrong-secret-key-that-is-also-32-bytes',
     );
 
     const res = await app.request('/me', {
@@ -193,7 +190,7 @@ describe('JWT Middleware', () => {
     // Token with wrong issuer
     const wrongIssuer = await createTestJWT(
       { sub: 'user-123', iss: 'other-app', exp: Math.floor(Date.now() / 1000) + 3600 },
-      secret
+      secret,
     );
 
     const res1 = await app.request('/me', {
@@ -204,7 +201,7 @@ describe('JWT Middleware', () => {
     // Token with correct issuer
     const correctIssuer = await createTestJWT(
       { sub: 'user-123', iss: 'my-app', exp: Math.floor(Date.now() / 1000) + 3600 },
-      secret
+      secret,
     );
 
     const res2 = await app.request('/me', {
@@ -237,14 +234,14 @@ describe('API Key Middleware', () => {
       '*',
       createAPIKeyMiddleware({
         lookupKey: (hash) => storage.lookup(hash),
-      })
+      }),
     );
     app.get('/data', (c) =>
       c.json({
         userId: c.var.userId,
         roles: c.var.roles,
         authType: c.var.authType,
-      })
+      }),
     );
 
     const res = await app.request('/data', {
@@ -264,7 +261,7 @@ describe('API Key Middleware', () => {
       '*',
       createAPIKeyMiddleware({
         lookupKey: (hash) => storage.lookup(hash),
-      })
+      }),
     );
     app.get('/data', (c) => c.json({ ok: true }));
 
@@ -281,7 +278,7 @@ describe('API Key Middleware', () => {
       '*',
       createAPIKeyMiddleware({
         lookupKey: (hash) => storage.lookup(hash),
-      })
+      }),
     );
     app.get('/data', (c) => c.json({ ok: true }));
 
@@ -305,7 +302,7 @@ describe('API Key Middleware', () => {
       '*',
       createAPIKeyMiddleware({
         lookupKey: (hash) => storage.lookup(hash),
-      })
+      }),
     );
     app.get('/data', (c) => c.json({ ok: true }));
 
@@ -329,7 +326,7 @@ describe('API Key Middleware', () => {
       '*',
       createAPIKeyMiddleware({
         lookupKey: (hash) => storage.lookup(hash),
-      })
+      }),
     );
     app.get('/data', (c) => c.json({ ok: true }));
 
@@ -351,7 +348,7 @@ describe('API Key Middleware', () => {
       createAPIKeyMiddleware({
         headerName: 'X-Custom-Key',
         lookupKey: (hash) => storage.lookup(hash),
-      })
+      }),
     );
     app.get('/data', (c) => c.json({ userId: c.var.userId }));
 
@@ -384,13 +381,13 @@ describe('Combined Auth Middleware', () => {
       createAuthMiddleware({
         jwt: { secret },
         apiKey: { lookupKey: (hash) => storage.lookup(hash) },
-      })
+      }),
     );
     app.get('/me', (c) => c.json({ authType: c.var.authType }));
 
     const token = await createTestJWT(
       { sub: 'user-123', exp: Math.floor(Date.now() / 1000) + 3600 },
-      secret
+      secret,
     );
 
     const res = await app.request('/me', {
@@ -411,7 +408,7 @@ describe('Combined Auth Middleware', () => {
       createAuthMiddleware({
         jwt: { secret },
         apiKey: { lookupKey: (hash) => storage.lookup(hash) },
-      })
+      }),
     );
     app.get('/me', (c) => c.json({ authType: c.var.authType }));
 
@@ -431,7 +428,7 @@ describe('Combined Auth Middleware', () => {
       createAuthMiddleware({
         jwt: { secret },
         skipPaths: ['/health', '/docs/*'],
-      })
+      }),
     );
     app.get('/health', (c) => c.json({ ok: true }));
     app.get('/docs/swagger', (c) => c.json({ ok: true }));
@@ -456,7 +453,7 @@ describe('Combined Auth Middleware', () => {
       c.json({
         authenticated: !!c.var.user,
         userId: c.var.userId,
-      })
+      }),
     );
 
     // Without auth
@@ -468,7 +465,7 @@ describe('Combined Auth Middleware', () => {
     // With auth
     const token = await createTestJWT(
       { sub: 'user-123', exp: Math.floor(Date.now() / 1000) + 3600 },
-      secret
+      secret,
     );
     const res2 = await app.request('/public', {
       headers: { Authorization: `Bearer ${token}` },
@@ -498,7 +495,7 @@ describe('Guards', () => {
         permissions,
         exp: Math.floor(Date.now() / 1000) + 3600,
       },
-      secret
+      secret,
     );
 
     return { app, token };
@@ -603,7 +600,10 @@ describe('Guards', () => {
   describe('requireOwnership', () => {
     it('should allow resource owner', async () => {
       const { app, token } = await createAppWithUser();
-      app.use('/users/:id/*', requireOwnership((c) => c.req.param('id')));
+      app.use(
+        '/users/:id/*',
+        requireOwnership((c) => c.req.param('id')),
+      );
       app.get('/users/:id/profile', (c) => c.json({ ok: true }));
 
       const res = await app.request('/users/user-123/profile', {
@@ -614,7 +614,10 @@ describe('Guards', () => {
 
     it('should deny non-owner', async () => {
       const { app, token } = await createAppWithUser();
-      app.use('/users/:id/*', requireOwnership((c) => c.req.param('id')));
+      app.use(
+        '/users/:id/*',
+        requireOwnership((c) => c.req.param('id')),
+      );
       app.get('/users/:id/profile', (c) => c.json({ ok: true }));
 
       const res = await app.request('/users/other-user/profile', {
@@ -629,7 +632,7 @@ describe('Guards', () => {
       const { app, token } = await createAppWithUser();
       app.use(
         '/posts/:id/*',
-        requireOwnershipOrRole((c) => c.req.param('id'), 'admin')
+        requireOwnershipOrRole((c) => c.req.param('id'), 'admin'),
       );
       app.get('/posts/:id/edit', (c) => c.json({ ok: true }));
 
@@ -643,7 +646,7 @@ describe('Guards', () => {
       const { app, token } = await createAppWithUser(['admin']);
       app.use(
         '/posts/:id/*',
-        requireOwnershipOrRole((c) => c.req.param('id'), 'admin')
+        requireOwnershipOrRole((c) => c.req.param('id'), 'admin'),
       );
       app.get('/posts/:id/edit', (c) => c.json({ ok: true }));
 
@@ -657,7 +660,7 @@ describe('Guards', () => {
       const { app, token } = await createAppWithUser();
       app.use(
         '/posts/:id/*',
-        requireOwnershipOrRole((c) => c.req.param('id'), 'admin')
+        requireOwnershipOrRole((c) => c.req.param('id'), 'admin'),
       );
       app.get('/posts/:id/edit', (c) => c.json({ ok: true }));
 
@@ -671,10 +674,7 @@ describe('Guards', () => {
   describe('Guard Composition', () => {
     it('allOf should require all guards to pass', async () => {
       const { app, token } = await createAppWithUser(['admin'], ['secure:access']);
-      app.use(
-        '/secure/*',
-        allOf(requireRoles('admin'), requirePermissions('secure:access'))
-      );
+      app.use('/secure/*', allOf(requireRoles('admin'), requirePermissions('secure:access')));
       app.get('/secure/data', (c) => c.json({ ok: true }));
 
       const res = await app.request('/secure/data', {
@@ -685,10 +685,7 @@ describe('Guards', () => {
 
     it('allOf should fail if any guard fails', async () => {
       const { app, token } = await createAppWithUser(['admin'], []);
-      app.use(
-        '/secure/*',
-        allOf(requireRoles('admin'), requirePermissions('secure:access'))
-      );
+      app.use('/secure/*', allOf(requireRoles('admin'), requirePermissions('secure:access')));
       app.get('/secure/data', (c) => c.json({ ok: true }));
 
       const res = await app.request('/secure/data', {
@@ -699,10 +696,7 @@ describe('Guards', () => {
 
     it('anyOf should pass if any guard passes', async () => {
       const { app, token } = await createAppWithUser(['admin'], []);
-      app.use(
-        '/shared/*',
-        anyOf(requireRoles('admin'), requirePermissions('shared:access'))
-      );
+      app.use('/shared/*', anyOf(requireRoles('admin'), requirePermissions('shared:access')));
       app.get('/shared/data', (c) => c.json({ ok: true }));
 
       const res = await app.request('/shared/data', {
@@ -713,10 +707,7 @@ describe('Guards', () => {
 
     it('anyOf should fail if all guards fail', async () => {
       const { app, token } = await createAppWithUser(['user'], []);
-      app.use(
-        '/shared/*',
-        anyOf(requireRoles('admin'), requirePermissions('shared:access'))
-      );
+      app.use('/shared/*', anyOf(requireRoles('admin'), requirePermissions('shared:access')));
       app.get('/shared/data', (c) => c.json({ ok: true }));
 
       const res = await app.request('/shared/data', {
@@ -801,7 +792,7 @@ describe('withAuth Mixin', () => {
     // With auth but wrong role
     const userToken = await createTestJWT(
       { sub: 'user-123', roles: ['user'], exp: Math.floor(Date.now() / 1000) + 3600 },
-      secret
+      secret,
     );
     const res2 = await app.request('/items', {
       method: 'POST',
@@ -816,7 +807,7 @@ describe('withAuth Mixin', () => {
     // With auth and correct role
     const adminToken = await createTestJWT(
       { sub: 'admin-123', roles: ['admin'], exp: Math.floor(Date.now() / 1000) + 3600 },
-      secret
+      secret,
     );
     const res3 = await app.request('/items', {
       method: 'POST',

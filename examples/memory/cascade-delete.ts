@@ -9,9 +9,6 @@
  * Run with: npx tsx examples/cascade-delete.ts
  */
 
-import { Hono } from 'hono';
-import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
@@ -19,6 +16,9 @@ import {
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono } from 'hono-crud';
+import { z } from 'zod';
 
 // Clear storage
 clearStorage();
@@ -256,7 +256,7 @@ async function main() {
 
   // Delete author - cascades to books
   const deleteRes = await app.request(`/authors/${author.id}`, { method: 'DELETE' });
-  const deleteResult = await deleteRes.json() as DeleteResponse;
+  const deleteResult = (await deleteRes.json()) as DeleteResponse;
 
   console.log('\n   After deleting author:');
   console.log(`   - Authors: ${authorStore.size}`);
@@ -293,7 +293,7 @@ async function main() {
 
   // Delete book - cascades to reviews
   const bookDeleteRes = await app.request(`/books/${book3.id}`, { method: 'DELETE' });
-  const bookDeleteResult = await bookDeleteRes.json() as DeleteResponse;
+  const bookDeleteResult = (await bookDeleteRes.json()) as DeleteResponse;
 
   console.log('\n   After deleting book:');
   console.log(`   - Books: ${bookStore.size}`);
@@ -333,16 +333,20 @@ async function main() {
   console.log('   Before delete:');
   console.log(`   - Authors: ${authorSetNullStore.size}`);
   console.log(`   - Books: ${bookSetNullStore.size}`);
-  console.log(`   - Book authorIds: ${[...bookSetNullStore.values()].map(b => b.authorId).join(', ')}`);
+  console.log(
+    `   - Book authorIds: ${[...bookSetNullStore.values()].map((b) => b.authorId).join(', ')}`,
+  );
 
   // Delete author - sets authorId to null
   const deleteRes2 = await app.request(`/authors-setnull/${author2.id}`, { method: 'DELETE' });
-  const deleteResult2 = await deleteRes2.json() as DeleteResponse;
+  const deleteResult2 = (await deleteRes2.json()) as DeleteResponse;
 
   console.log('\n   After deleting author:');
   console.log(`   - Authors: ${authorSetNullStore.size}`);
   console.log(`   - Books: ${bookSetNullStore.size} (books preserved!)`);
-  console.log(`   - Book authorIds: ${[...bookSetNullStore.values()].map(b => b.authorId).join(', ')}`);
+  console.log(
+    `   - Book authorIds: ${[...bookSetNullStore.values()].map((b) => b.authorId).join(', ')}`,
+  );
   console.log(`   - Cascade result: ${JSON.stringify(deleteResult2.result.cascade)}`);
   console.log();
 
@@ -374,7 +378,7 @@ async function main() {
 
   // Try to delete author - should fail
   const deleteRes3 = await app.request(`/authors-restrict/${author3.id}`, { method: 'DELETE' });
-  const deleteResult3 = await deleteRes3.json() as ErrorResponse;
+  const deleteResult3 = (await deleteRes3.json()) as ErrorResponse;
 
   console.log('\n   After delete attempt:');
   console.log(`   - Status: ${deleteRes3.status}`);

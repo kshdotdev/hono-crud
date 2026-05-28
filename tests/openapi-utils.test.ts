@@ -1,20 +1,20 @@
-import { describe, it, expect } from 'vitest';
-import { Hono } from 'hono';
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { z } from 'zod';
+import { Hono } from 'hono';
 import {
-  jsonContent,
-  jsonContentRequired,
+  HttpErrorSchema,
+  ZodErrorSchema,
+  ZodIssueSchema,
+  commonResponses,
   createErrorSchema,
   createOneOfErrorSchema,
-  openApiValidationHook,
   createValidationHook,
   httpErrorContent,
-  commonResponses,
-  ZodIssueSchema,
-  ZodErrorSchema,
-  HttpErrorSchema,
+  jsonContent,
+  jsonContentRequired,
+  openApiValidationHook,
 } from 'hono-crud/openapi/utils';
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // ============================================================================
 // jsonContent() Tests
@@ -105,9 +105,7 @@ describe('createErrorSchema', () => {
       success: false,
       error: {
         name: 'ZodError',
-        issues: [
-          { code: 'invalid_type', path: ['id'], message: 'Expected number' },
-        ],
+        issues: [{ code: 'invalid_type', path: ['id'], message: 'Expected number' }],
       },
     };
 
@@ -281,7 +279,7 @@ describe('createValidationHook', () => {
         message: 'Validation failed',
         errors: error.issues.map((i) => i.message),
       }),
-      400
+      400,
     );
 
     const app = new OpenAPIHono({
@@ -399,18 +397,12 @@ describe('commonResponses', () => {
   });
 
   it('should use ZodErrorSchema for validationError', () => {
-    expect(commonResponses.validationError.content['application/json'].schema).toBe(
-      ZodErrorSchema
-    );
+    expect(commonResponses.validationError.content['application/json'].schema).toBe(ZodErrorSchema);
   });
 
   it('should use HttpErrorSchema for other errors', () => {
-    expect(commonResponses.badRequest.content['application/json'].schema).toBe(
-      HttpErrorSchema
-    );
-    expect(commonResponses.notFound.content['application/json'].schema).toBe(
-      HttpErrorSchema
-    );
+    expect(commonResponses.badRequest.content['application/json'].schema).toBe(HttpErrorSchema);
+    expect(commonResponses.notFound.content['application/json'].schema).toBe(HttpErrorSchema);
   });
 });
 

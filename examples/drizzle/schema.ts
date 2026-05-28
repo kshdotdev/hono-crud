@@ -4,7 +4,7 @@
  * These tables map to the shared Zod schemas defined in ../shared/schemas.ts
  */
 
-import { pgTable, text, integer, timestamp, uuid, pgEnum } from 'drizzle-orm/pg-core';
+import { integer, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // ============================================================================
 // Enums

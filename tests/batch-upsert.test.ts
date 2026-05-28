@@ -1,16 +1,16 @@
-/**
- * Tests for Batch Upsert functionality.
- */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Hono } from 'hono';
-import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from 'hono-crud';
 import {
   MemoryBatchUpsertEndpoint,
   MemoryListEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono } from 'hono-crud';
+/**
+ * Tests for Batch Upsert functionality.
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // ============================================================================
 // Schema Definitions
@@ -117,12 +117,20 @@ describe('Batch Upsert', () => {
     });
 
     expect(response.status).toBe(200);
-    const result = await response.json() as { success: boolean; result: { createdCount: number; updatedCount: number; totalCount: number; items: Array<{ created: boolean }> } };
+    const result = (await response.json()) as {
+      success: boolean;
+      result: {
+        createdCount: number;
+        updatedCount: number;
+        totalCount: number;
+        items: Array<{ created: boolean }>;
+      };
+    };
     expect(result.success).toBe(true);
     expect(result.result.createdCount).toBe(3);
     expect(result.result.updatedCount).toBe(0);
     expect(result.result.totalCount).toBe(3);
-    expect(result.result.items.every(i => i.created === true)).toBe(true);
+    expect(result.result.items.every((i) => i.created === true)).toBe(true);
   });
 
   it('should update existing records by upsert key', async () => {
@@ -147,13 +155,15 @@ describe('Batch Upsert', () => {
     });
 
     expect(response.status).toBe(200);
-    const result = await response.json() as { result: { createdCount: number; updatedCount: number; items: Array<{ created: boolean }> } };
+    const result = (await response.json()) as {
+      result: { createdCount: number; updatedCount: number; items: Array<{ created: boolean }> };
+    };
     expect(result.result.createdCount).toBe(0);
     expect(result.result.updatedCount).toBe(2);
-    expect(result.result.items.every(i => i.created === false)).toBe(true);
+    expect(result.result.items.every((i) => i.created === false)).toBe(true);
 
     // Verify data was updated
-    const prod1 = [...productStore.values()].find(p => p.sku === 'PROD-001');
+    const prod1 = [...productStore.values()].find((p) => p.sku === 'PROD-001');
     expect(prod1?.name).toBe('Product 1 Updated');
     expect(prod1?.price).toBe(24.99);
   });
@@ -174,15 +184,17 @@ describe('Batch Upsert', () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify([
-        { sku: 'PROD-001', name: 'Product 1 V3', price: 19.99 },  // Update
-        { sku: 'PROD-004', name: 'Product 4', price: 59.99 },     // Create
-        { sku: 'PROD-002', name: 'Product 2 V3', price: 29.99 },  // Update
-        { sku: 'PROD-005', name: 'Product 5', price: 69.99 },     // Create
+        { sku: 'PROD-001', name: 'Product 1 V3', price: 19.99 }, // Update
+        { sku: 'PROD-004', name: 'Product 4', price: 59.99 }, // Create
+        { sku: 'PROD-002', name: 'Product 2 V3', price: 29.99 }, // Update
+        { sku: 'PROD-005', name: 'Product 5', price: 69.99 }, // Create
       ]),
     });
 
     expect(response.status).toBe(200);
-    const result = await response.json() as { result: { createdCount: number; updatedCount: number; totalCount: number } };
+    const result = (await response.json()) as {
+      result: { createdCount: number; updatedCount: number; totalCount: number };
+    };
     expect(result.result.createdCount).toBe(2);
     expect(result.result.updatedCount).toBe(2);
     expect(result.result.totalCount).toBe(4);
@@ -200,7 +212,7 @@ describe('Batch Upsert', () => {
       ]),
     });
 
-    const createResult = await createRes.json() as { result: { createdCount: number } };
+    const createResult = (await createRes.json()) as { result: { createdCount: number } };
     expect(createResult.result.createdCount).toBe(3);
 
     // Update with composite key
@@ -208,18 +220,20 @@ describe('Batch Upsert', () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify([
-        { userId: 'user-1', key: 'theme', value: 'system' },  // Update existing
-        { userId: 'user-2', key: 'language', value: 'es' },   // Create new
+        { userId: 'user-1', key: 'theme', value: 'system' }, // Update existing
+        { userId: 'user-2', key: 'language', value: 'es' }, // Create new
       ]),
     });
 
-    const updateResult = await updateRes.json() as { result: { createdCount: number; updatedCount: number } };
+    const updateResult = (await updateRes.json()) as {
+      result: { createdCount: number; updatedCount: number };
+    };
     expect(updateResult.result.createdCount).toBe(1);
     expect(updateResult.result.updatedCount).toBe(1);
 
     // Verify composite key matching
     const user1Theme = [...settingsStore.values()].find(
-      s => s.userId === 'user-1' && s.key === 'theme'
+      (s) => s.userId === 'user-1' && s.key === 'theme',
     );
     expect(user1Theme?.value).toBe('system');
   });
@@ -229,21 +243,17 @@ describe('Batch Upsert', () => {
     await app.request('/products/batch', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify([
-        { sku: 'PROD-001', name: 'Product 1', price: 29.99 },
-      ]),
+      body: JSON.stringify([{ sku: 'PROD-001', name: 'Product 1', price: 29.99 }]),
     });
 
     // Update it
     await app.request('/products/batch', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify([
-        { sku: 'PROD-001', name: 'Product 1 Updated', price: 24.99 },
-      ]),
+      body: JSON.stringify([{ sku: 'PROD-001', name: 'Product 1 Updated', price: 24.99 }]),
     });
 
-    const prod = [...productStore.values()].find(p => p.sku === 'PROD-001');
+    const prod = [...productStore.values()].find((p) => p.sku === 'PROD-001');
     expect(prod?.createdAt).toBeDefined();
     expect(prod?.updatedAt).toBeDefined();
   });
@@ -253,9 +263,7 @@ describe('Batch Upsert', () => {
     await app.request('/products/batch', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify([
-        { sku: 'PROD-001', name: 'Product 1', price: 10 },
-      ]),
+      body: JSON.stringify([{ sku: 'PROD-001', name: 'Product 1', price: 10 }]),
     });
 
     // Mixed batch
@@ -263,13 +271,15 @@ describe('Batch Upsert', () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify([
-        { sku: 'PROD-006', name: 'Product 6', price: 10 },    // index 0: create
+        { sku: 'PROD-006', name: 'Product 6', price: 10 }, // index 0: create
         { sku: 'PROD-001', name: 'Product 1 V4', price: 15 }, // index 1: update
-        { sku: 'PROD-007', name: 'Product 7', price: 20 },    // index 2: create
+        { sku: 'PROD-007', name: 'Product 7', price: 20 }, // index 2: create
       ]),
     });
 
-    const result = await response.json() as { result: { items: Array<{ index: number; created: boolean }> } };
+    const result = (await response.json()) as {
+      result: { items: Array<{ index: number; created: boolean }> };
+    };
     expect(result.result.items[0].index).toBe(0);
     expect(result.result.items[1].index).toBe(1);
     expect(result.result.items[2].index).toBe(2);

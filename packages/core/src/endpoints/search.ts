@@ -1,23 +1,32 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
-import type { FilterConfig, MetaInput, OpenAPIRouteSchema, SearchOptions, SearchResult, SearchResultItem, SearchMode, SearchFieldConfig } from '../core/types';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
+import type {
+  FilterConfig,
+  MetaInput,
+  OpenAPIRouteSchema,
+  SearchFieldConfig,
+  SearchMode,
+  SearchOptions,
+  SearchResult,
+  SearchResultItem,
+} from '../core/types';
 import { parseSearchMode } from '../core/types';
-import {
-  parseListFilters,
-  applyFieldSelectionToArray,
-  type ListEndpointConfig,
-  type ListFilters,
-  type ModelObject,
-} from './types';
 import { applyComputedFieldsToArray } from '../core/types';
+import { CrudEndpoint } from './base';
 import {
-  tokenizeQuery,
+  buildSearchConfig,
   calculateScore,
   generateHighlights,
   parseSearchFields,
-  buildSearchConfig,
+  tokenizeQuery,
 } from './search-utils';
+import {
+  type ListEndpointConfig,
+  type ListFilters,
+  type ModelObject,
+  applyFieldSelectionToArray,
+  parseListFilters,
+} from './types';
 
 /**
  * Detect a string schema across Zod 3 and Zod 4.
@@ -31,16 +40,15 @@ import {
  */
 function isZodStringSchema(schema: unknown): boolean {
   if (schema instanceof z.ZodString) return true;
-  const s = schema as {
-    _def?: { type?: string; typeName?: string };
-    def?: { type?: string };
-  } | null | undefined;
+  const s = schema as
+    | {
+        _def?: { type?: string; typeName?: string };
+        def?: { type?: string };
+      }
+    | null
+    | undefined;
   if (!s) return false;
-  return (
-    s._def?.type === 'string' ||
-    s._def?.typeName === 'ZodString' ||
-    s.def?.type === 'string'
-  );
+  return s._def?.type === 'string' || s._def?.typeName === 'ZodString' || s.def?.type === 'string';
 }
 
 /**
@@ -65,7 +73,6 @@ export abstract class SearchEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   // ============================================================================
   // Search Configuration
   // ============================================================================
@@ -102,35 +109,35 @@ export abstract class SearchEndpoint<
   /**
    * Minimum query length required to perform search.
    */
-  protected minQueryLength: number = 2;
+  protected minQueryLength = 2;
 
   /**
    * Maximum query length allowed to prevent CPU exhaustion from long search strings.
    */
-  protected maxQueryLength: number = 500;
+  protected maxQueryLength = 500;
 
   /**
    * HTML tag used to wrap highlighted matches.
    */
-  protected highlightTag: string = 'mark';
+  protected highlightTag = 'mark';
 
   /**
    * Maximum length of highlight snippets in characters.
    */
-  protected snippetLength: number = 150;
+  protected snippetLength = 150;
 
   /**
    * Default minimum score threshold (0-1).
    * Results below this score are excluded.
    */
-  protected defaultMinScore: number = 0;
+  protected defaultMinScore = 0;
 
   /**
    * Query parameter name used to read the search string. Defaults to `'q'`.
    * Override (or configure via `endpoints.search.paramName`) to expose a
    * different name on the wire, e.g. `'query'` for `/search?query=foo`.
    */
-  protected searchParamName: string = 'q';
+  protected searchParamName = 'q';
 
   // ============================================================================
   // Filter Configuration (reused from ListEndpoint)
@@ -153,10 +160,10 @@ export abstract class SearchEndpoint<
   // ============================================================================
 
   /** Default items per page */
-  protected defaultPerPage: number = 20;
+  protected defaultPerPage = 20;
 
   /** Maximum items per page */
-  protected maxPerPage: number = 100;
+  protected maxPerPage = 100;
 
   // ============================================================================
   // Relations Configuration
@@ -170,7 +177,7 @@ export abstract class SearchEndpoint<
   // ============================================================================
 
   /** Enable field selection via ?fields=field1,field2 */
-  protected fieldSelectionEnabled: boolean = false;
+  protected fieldSelectionEnabled = false;
 
   /** Fields that are allowed to be selected */
   protected allowedSelectFields: string[] = [];
@@ -239,19 +246,23 @@ export abstract class SearchEndpoint<
     // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4)
     const shape: Record<string, z.ZodTypeAny> = {
       // Search parameters — key is `searchParamName` (default `'q'`).
-      [queryParam]: z.string().min(this.minQueryLength).max(this.maxQueryLength).describe('Search query'),
-      fields: z.string().optional().describe(
-        `Comma-separated fields to search. Available: ${Object.keys(this.getSearchableFields()).join(', ')}`
-      ),
-      mode: z.enum(['any', 'all', 'phrase']).optional().describe(
-        'Search mode: any (OR), all (AND), phrase (exact)'
-      ),
-      highlight: z.enum(['true', 'false']).optional().describe(
-        'Include highlighted snippets'
-      ),
-      minScore: z.string().optional().describe(
-        'Minimum relevance score threshold (0-1)'
-      ),
+      [queryParam]: z
+        .string()
+        .min(this.minQueryLength)
+        .max(this.maxQueryLength)
+        .describe('Search query'),
+      fields: z
+        .string()
+        .optional()
+        .describe(
+          `Comma-separated fields to search. Available: ${Object.keys(this.getSearchableFields()).join(', ')}`,
+        ),
+      mode: z
+        .enum(['any', 'all', 'phrase'])
+        .optional()
+        .describe('Search mode: any (OR), all (AND), phrase (exact)'),
+      highlight: z.enum(['true', 'false']).optional().describe('Include highlighted snippets'),
+      minScore: z.string().optional().describe('Minimum relevance score threshold (0-1)'),
 
       // Pagination
       page: z.string().optional(),
@@ -260,7 +271,10 @@ export abstract class SearchEndpoint<
 
     // Sorting
     if (this.sortFields.length > 0) {
-      shape.sort = z.enum(this.sortFields as [string, ...string[]]).optional().describe('Field to sort by');
+      shape.sort = z
+        .enum(this.sortFields as [string, ...string[]])
+        .optional()
+        .describe('Field to sort by');
       shape.order = z.enum(['asc', 'desc']).optional().describe('Sort direction (asc or desc)');
     }
 
@@ -288,17 +302,23 @@ export abstract class SearchEndpoint<
 
     // Include parameter for relations
     if (this.allowedIncludes.length > 0) {
-      shape.include = z.string().optional().describe(
-        `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`
-      );
+      shape.include = z
+        .string()
+        .optional()
+        .describe(
+          `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
+        );
     }
 
     // Field selection
     if (this.fieldSelectionEnabled) {
       const availableFields = this.getAvailableSelectFields();
-      shape['fields'] = z.string().optional().describe(
-        `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`
-      );
+      shape['fields'] = z
+        .string()
+        .optional()
+        .describe(
+          `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
+        );
     }
 
     return z.object(shape) as ZodObject<ZodRawShape>;
@@ -400,7 +420,7 @@ export abstract class SearchEndpoint<
     const mode = parseSearchMode(query?.mode as string | undefined);
     const highlight = query?.highlight === 'true';
     const minScore = query?.minScore
-      ? Math.max(0, Math.min(1, parseFloat(query.minScore as string) || 0))
+      ? Math.max(0, Math.min(1, Number.parseFloat(query.minScore as string) || 0))
       : this.defaultMinScore;
 
     const configuredFields = this.getSearchableFields();
@@ -460,7 +480,7 @@ export abstract class SearchEndpoint<
    * Override to transform results before returning.
    */
   async afterSearch(
-    results: SearchResultItem<ModelObject<M['model']>>[]
+    results: SearchResultItem<ModelObject<M['model']>>[],
   ): Promise<SearchResultItem<ModelObject<M['model']>>[]> {
     return results;
   }
@@ -479,7 +499,7 @@ export abstract class SearchEndpoint<
    */
   abstract search(
     options: SearchOptions,
-    filters: ListFilters
+    filters: ListFilters,
   ): Promise<SearchResult<ModelObject<M['model']>>>;
 
   // ============================================================================
@@ -490,7 +510,6 @@ export abstract class SearchEndpoint<
    * Main handler for the search operation.
    */
   async handle(): Promise<Response> {
-
     // Parse search options and filters
     let searchOptions = await this.getSearchOptions();
     const filters = await this.getFilters();
@@ -505,7 +524,7 @@ export abstract class SearchEndpoint<
             message: `Search query must be at least ${this.minQueryLength} characters`,
           },
         },
-        400
+        400,
       );
     }
 
@@ -520,10 +539,10 @@ export abstract class SearchEndpoint<
 
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {
-      const records = items.map(item => item.item);
+      const records = items.map((item) => item.item);
       const computedRecords = await applyComputedFieldsToArray(
         records as Record<string, unknown>[],
-        this._meta.model.computedFields
+        this._meta.model.computedFields,
       );
       items = items.map((item, index) => ({
         ...item,
@@ -542,12 +561,12 @@ export abstract class SearchEndpoint<
     // Apply field selection if enabled
     let result: unknown[] = items;
     if (this.fieldSelectionEnabled && filters.options.fields && filters.options.fields.length > 0) {
-      result = items.map(item => ({
+      result = items.map((item) => ({
         ...item,
-        item: applyFieldSelectionToArray(
-          [item.item as Record<string, unknown>],
-          { fields: filters.options.fields!, isActive: true }
-        )[0],
+        item: applyFieldSelectionToArray([item.item as Record<string, unknown>], {
+          fields: filters.options.fields!,
+          isActive: true,
+        })[0],
       }));
     }
 
@@ -591,7 +610,7 @@ export abstract class SearchEndpoint<
 export function searchInMemory<T extends Record<string, unknown>>(
   records: T[],
   options: SearchOptions,
-  searchableFields: Record<string, SearchFieldConfig>
+  searchableFields: Record<string, SearchFieldConfig>,
 ): SearchResultItem<T>[] {
   const queryTokens = tokenizeQuery(options.query, options.mode);
 
@@ -612,7 +631,7 @@ export function searchInMemory<T extends Record<string, unknown>>(
       record,
       queryTokens,
       fieldsToSearch,
-      options.mode
+      options.mode,
     );
 
     // Skip if below minimum score or no matches
@@ -625,11 +644,7 @@ export function searchInMemory<T extends Record<string, unknown>>(
     if (options.highlight) {
       highlights = {};
       for (const field of matchedFields) {
-        const fieldHighlights = generateHighlights(
-          record[field],
-          queryTokens,
-          options.mode
-        );
+        const fieldHighlights = generateHighlights(record[field], queryTokens, options.mode);
         if (fieldHighlights.length > 0) {
           highlights[field] = fieldHighlights;
         }

@@ -306,7 +306,6 @@ export {
   hasAllPermissions,
 } from './core/context-helpers';
 
-
 // OpenAPI utilities
 export {
   jsonContent,
@@ -560,9 +559,7 @@ export {
 } from './builder/index';
 
 // Config-Based API
-export {
-  defineEndpoints,
-} from './config/index';
+export { defineEndpoints } from './config/index';
 export type {
   CreateEndpointConfig as ConfigCreateEndpoint,
   ListEndpointConfig as ConfigListEndpoint,

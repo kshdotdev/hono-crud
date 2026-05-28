@@ -86,9 +86,10 @@ export interface NormalizedEndpointConfig {
  * becomes concrete here via the spread of `config`. TS doesn't know this so
  * the return type is widened to a non-abstract constructor.
  */
-export function generateEndpointClass<
-  B extends abstract new () => unknown,
->(BaseClass: B, config: NormalizedEndpointConfig): B & (new () => InstanceType<B>) {
+export function generateEndpointClass<B extends abstract new () => unknown>(
+  BaseClass: B,
+  config: NormalizedEndpointConfig,
+): B & (new () => InstanceType<B>) {
   const middlewares = config.middlewares ?? [];
 
   const extras = config.extras;
@@ -102,10 +103,8 @@ export function generateEndpointClass<
   // inherit the resource-level group, which is the whole point of
   // `Model.tag`.
   const baseSchema = (config.schema ?? {}) as OpenAPIRouteSchema;
-  const hasExplicitTags =
-    Array.isArray(baseSchema.tags) && baseSchema.tags.length > 0;
-  const resolvedTag =
-    config.meta.model.tag ?? config.meta.model.tableName;
+  const hasExplicitTags = Array.isArray(baseSchema.tags) && baseSchema.tags.length > 0;
+  const resolvedTag = config.meta.model.tag ?? config.meta.model.tableName;
   const resolvedSchema: OpenAPIRouteSchema = hasExplicitTags
     ? baseSchema
     : { ...baseSchema, tags: [resolvedTag] };

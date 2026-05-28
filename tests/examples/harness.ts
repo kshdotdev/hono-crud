@@ -18,7 +18,7 @@ export type ListResponse<T> = SuccessResponse<T[]> & {
 };
 
 export async function json<T>(response: Response): Promise<T> {
-  return await response.json() as T;
+  return (await response.json()) as T;
 }
 
 export async function expectOk(response: Response): Promise<void> {
@@ -61,7 +61,8 @@ export async function exerciseComprehensiveCrud(app: ExampleApp): Promise<void> 
 
   response = await app.request('/users/a0000000-0000-0000-0000-000000000001?include=posts,profile');
   await expectOk(response);
-  const userWithRelations = await json<SuccessResponse<{ posts?: unknown[]; profile?: unknown }>>(response);
+  const userWithRelations =
+    await json<SuccessResponse<{ posts?: unknown[]; profile?: unknown }>>(response);
   expect(userWithRelations.success).toBe(true);
   expect(Array.isArray(userWithRelations.result.posts)).toBe(true);
   expect(userWithRelations.result.profile).toBeTruthy();
@@ -119,7 +120,9 @@ export async function exerciseComprehensiveCrud(app: ExampleApp): Promise<void> 
   response = await app.request('/users?onlyDeleted=true');
   await expectOk(response);
   const deleted = await json<ListResponse<{ id: string }>>(response);
-  expect(deleted.result.some((user) => user.id === 'a0000000-0000-0000-0000-000000000003')).toBe(true);
+  expect(deleted.result.some((user) => user.id === 'a0000000-0000-0000-0000-000000000003')).toBe(
+    true,
+  );
 
   response = await app.request('/users/a0000000-0000-0000-0000-000000000003/restore', {
     method: 'POST',
@@ -142,7 +145,10 @@ export async function exerciseClone(app: ExampleApp): Promise<void> {
   // Read the source so we can compare against the clone.
   let response = await app.request(`/users/${sourceUserId}`);
   await expectOk(response);
-  const source = await json<SuccessResponse<{ id: string; name: string; email: string; role: string; age?: number }>>(response);
+  const source =
+    await json<
+      SuccessResponse<{ id: string; name: string; email: string; role: string; age?: number }>
+    >(response);
   expect(source.result.email).toBe('alice@example.com');
 
   // 1. Basic clone with body override for the unique email + role passthrough.
@@ -156,7 +162,10 @@ export async function exerciseClone(app: ExampleApp): Promise<void> {
     body: JSON.stringify({ email: newEmail, role: source.result.role, status: 'active' }),
   });
   await expectOk(response);
-  const cloned = await json<SuccessResponse<{ id: string; name: string; email: string; role: string; age?: number }>>(response);
+  const cloned =
+    await json<
+      SuccessResponse<{ id: string; name: string; email: string; role: string; age?: number }>
+    >(response);
   expect(cloned.success).toBe(true);
   expect(cloned.result.id).toBeDefined();
   expect(cloned.result.id).not.toBe(sourceUserId);

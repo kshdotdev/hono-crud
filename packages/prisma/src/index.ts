@@ -9,28 +9,28 @@ export * from './advanced';
 
 import type { AdapterBundle } from 'hono-crud/internal';
 import {
+  PrismaAggregateEndpoint,
+  PrismaCloneEndpoint,
+  PrismaExportEndpoint,
+  PrismaImportEndpoint,
+  PrismaSearchEndpoint,
+  PrismaUpsertEndpoint,
+} from './advanced';
+import {
+  PrismaBatchCreateEndpoint,
+  PrismaBatchDeleteEndpoint,
+  PrismaBatchRestoreEndpoint,
+  PrismaBatchUpdateEndpoint,
+  PrismaBatchUpsertEndpoint,
+  PrismaRestoreEndpoint,
+} from './batch';
+import {
   PrismaCreateEndpoint,
+  PrismaDeleteEndpoint,
   PrismaListEndpoint,
   PrismaReadEndpoint,
   PrismaUpdateEndpoint,
-  PrismaDeleteEndpoint,
 } from './crud';
-import {
-  PrismaRestoreEndpoint,
-  PrismaBatchCreateEndpoint,
-  PrismaBatchUpdateEndpoint,
-  PrismaBatchDeleteEndpoint,
-  PrismaBatchRestoreEndpoint,
-  PrismaBatchUpsertEndpoint,
-} from './batch';
-import {
-  PrismaSearchEndpoint,
-  PrismaAggregateEndpoint,
-  PrismaExportEndpoint,
-  PrismaImportEndpoint,
-  PrismaUpsertEndpoint,
-  PrismaCloneEndpoint,
-} from './advanced';
 
 /**
  * Prisma adapter bundle for use with `defineEndpoints`.

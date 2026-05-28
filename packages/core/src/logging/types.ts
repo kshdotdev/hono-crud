@@ -248,7 +248,7 @@ export interface LoggingConfig<E extends Env = Env> {
     ctx: Context<E>,
     responseTimeMs: number,
     statusCode: number,
-    error?: Error
+    error?: Error,
   ) => LogLevel;
 
   /**

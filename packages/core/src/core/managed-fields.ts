@@ -1,3 +1,4 @@
+import { ConfigurationException, ConflictException } from './exceptions';
 /**
  * Engine-managed write-time fields: primary-key generation strategy
  * (`Model.id`) and auto-managed timestamps (`Model.timestamps`).
@@ -9,7 +10,6 @@
  * `audit`, `versioning` and `multiTenant`.
  */
 import type { IdStrategy, Model } from './types';
-import { ConfigurationException, ConflictException } from './exceptions';
 
 /**
  * Adapter identity used to reject `id:'database'` where there is no
@@ -38,7 +38,7 @@ const DEFAULT_UPDATED_AT = 'updatedAt';
  * - object ⇒ enabled, with either field name optionally overridden
  */
 export function getTimestampsConfig(
-  timestamps: boolean | { createdAt?: string; updatedAt?: string } | undefined
+  timestamps: boolean | { createdAt?: string; updatedAt?: string } | undefined,
 ): NormalizedTimestampsConfig {
   if (!timestamps) {
     return { enabled: false, createdAt: DEFAULT_CREATED_AT, updatedAt: DEFAULT_UPDATED_AT };
@@ -78,7 +78,7 @@ export function getTimestampsConfig(
  */
 export function getManagedInputExclusions(
   model: Pick<Model, 'id' | 'timestamps' | 'primaryKeys'>,
-  options: { includePrimaryKeys?: boolean } = {}
+  options: { includePrimaryKeys?: boolean } = {},
 ): string[] {
   const { includePrimaryKeys = true } = options;
   const exclude = new Set<string>();
@@ -135,7 +135,7 @@ export function applyManagedInsertFields<T extends Record<string, unknown>>(
    * working — a `function` or `'database'` strategy still takes precedence.
    * Omitted ⇒ `crypto.randomUUID()` (the historical default).
    */
-  defaultIdFactory?: () => string | number
+  defaultIdFactory?: () => string | number,
 ): T {
   const out: Record<string, unknown> = { ...record };
   const pk = model.primaryKeys[0];
@@ -147,7 +147,7 @@ export function applyManagedInsertFields<T extends Record<string, unknown>>(
     } else if (strategy === 'database') {
       if (adapter === 'memory') {
         throw new ConfigurationException(
-          "MemoryAdapter does not support id:'database' (no database to generate the key)"
+          "MemoryAdapter does not support id:'database' (no database to generate the key)",
         );
       }
       // Omit the PK entirely: the DB/ORM column default fills it and the
@@ -184,7 +184,7 @@ export function applyManagedInsertFields<T extends Record<string, unknown>>(
  */
 export function applyManagedUpdateFields<T extends Record<string, unknown>>(
   data: T,
-  model: Pick<Model, 'timestamps'>
+  model: Pick<Model, 'timestamps'>,
 ): T {
   const ts = getTimestampsConfig(model.timestamps);
   if (!ts.enabled) {
@@ -199,13 +199,10 @@ export function applyManagedUpdateFields<T extends Record<string, unknown>>(
  * fallback. Currently the only invalid combination is the memory adapter
  * with `id:'database'`.
  */
-export function assertIdStrategySupported(
-  model: Pick<Model, 'id'>,
-  adapter: AdapterKind
-): void {
+export function assertIdStrategySupported(model: Pick<Model, 'id'>, adapter: AdapterKind): void {
   if (adapter === 'memory' && model.id === 'database') {
     throw new ConfigurationException(
-      "MemoryAdapter does not support id:'database' (no database to generate the key)"
+      "MemoryAdapter does not support id:'database' (no database to generate the key)",
     );
   }
 }
@@ -224,7 +221,7 @@ export function assertIdStrategySupported(
  */
 export function stripManagedInsertFields<T extends Record<string, unknown>>(
   record: T,
-  model: Pick<Model, 'id' | 'timestamps' | 'primaryKeys'>
+  model: Pick<Model, 'id' | 'timestamps' | 'primaryKeys'>,
 ): T {
   const out: Record<string, unknown> = { ...record };
   for (const field of getManagedInputExclusions(model)) {
@@ -267,10 +264,7 @@ const UNIQUE_VIOLATION_MESSAGE =
 function isUniqueViolation(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false;
   const { code, message } = e as { code?: unknown; message?: unknown };
-  if (
-    (typeof code === 'string' || typeof code === 'number') &&
-    UNIQUE_VIOLATION_CODES.has(code)
-  ) {
+  if ((typeof code === 'string' || typeof code === 'number') && UNIQUE_VIOLATION_CODES.has(code)) {
     return true;
   }
   return typeof message === 'string' && UNIQUE_VIOLATION_MESSAGE.test(message);

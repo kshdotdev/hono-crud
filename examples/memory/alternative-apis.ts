@@ -12,35 +12,35 @@
  * Run with: npx tsx examples/memory/alternative-apis.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
 import {
-  fromHono,
-  registerCrud,
-  defineModel,
-  defineMeta,
+  MemoryAdapters,
+  MemoryCreateEndpoint,
+  MemoryDeleteEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
+  clearStorage,
+} from '@hono-crud/memory';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import {
   // Function-based API
   createCreate,
+  createDelete,
   createList,
   createRead,
   createUpdate,
-  createDelete,
   // Builder/Fluent API
   crud,
   // Config-based API
   defineEndpoints,
+  defineMeta,
+  defineModel,
+  fromHono,
+  registerCrud,
 } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
-import {
-  MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryUpdateEndpoint,
-  MemoryDeleteEndpoint,
-  MemoryListEndpoint,
-  clearStorage,
-  MemoryAdapters,
-} from '@hono-crud/memory';
+import { z } from 'zod';
 
 // Clear storage on start
 clearStorage();
@@ -121,7 +121,7 @@ const FnUserCreate = createCreate(
     schema: { tags: ['Users (Function-based)'], summary: 'Create user (function)' },
     before: (data) => ({ ...data, createdAt: new Date().toISOString() }) as User,
   },
-  MemoryCreateEndpoint
+  MemoryCreateEndpoint,
 );
 
 const FnUserList = createList(
@@ -133,7 +133,7 @@ const FnUserList = createList(
     orderByFields: ['name', 'createdAt'],
     defaultOrderDirection: 'desc',
   },
-  MemoryListEndpoint
+  MemoryListEndpoint,
 );
 
 const FnUserRead = createRead(
@@ -141,7 +141,7 @@ const FnUserRead = createRead(
     meta: userMeta,
     schema: { tags: ['Users (Function-based)'], summary: 'Get user (function)' },
   },
-  MemoryReadEndpoint
+  MemoryReadEndpoint,
 );
 
 const FnUserUpdate = createUpdate(
@@ -151,7 +151,7 @@ const FnUserUpdate = createUpdate(
     allowedUpdateFields: ['name', 'role', 'status'],
     before: (data) => ({ ...data, updatedAt: new Date().toISOString() }),
   },
-  MemoryUpdateEndpoint
+  MemoryUpdateEndpoint,
 );
 
 const FnUserDelete = createDelete(
@@ -159,7 +159,7 @@ const FnUserDelete = createDelete(
     meta: userMeta,
     schema: { tags: ['Users (Function-based)'], summary: 'Delete user (function)' },
   },
-  MemoryDeleteEndpoint
+  MemoryDeleteEndpoint,
 );
 
 // ============================================================================
@@ -247,7 +247,7 @@ const configEndpoints = defineEndpoints(
       openapi: { tags: ['Users (Config-based)'], summary: 'Delete user (config)' },
     },
   },
-  MemoryAdapters
+  MemoryAdapters,
 );
 
 // ============================================================================
@@ -305,7 +305,7 @@ const MixedList = createList(
     filterFields: ['role'],
     searchFields: ['name'],
   },
-  MemoryListEndpoint
+  MemoryListEndpoint,
 );
 
 class MixedRead extends MemoryReadEndpoint {

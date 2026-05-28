@@ -1,10 +1,10 @@
-import type {
-  RateLimitStorage,
-  FixedWindowEntry,
-  SlidingWindowEntry,
-  RateLimitEntry,
-} from '../types';
 import type { KVNamespace } from 'hono-crud/internal';
+import type {
+  FixedWindowEntry,
+  RateLimitEntry,
+  RateLimitStorage,
+  SlidingWindowEntry,
+} from '../types';
 
 /**
  * Options for Cloudflare KV rate limit storage.
@@ -23,7 +23,7 @@ export interface KVRateLimitStorageOptions {
   /** Called when a KV operation or stored payload fails. */
   onError?: (
     error: Error,
-    context: { operation: 'increment' | 'addTimestamp' | 'get' | 'reset'; key: string }
+    context: { operation: 'increment' | 'addTimestamp' | 'get' | 'reset'; key: string },
   ) => void;
 }
 
@@ -77,14 +77,18 @@ export class KVRateLimitStorage implements RateLimitStorage {
   private reportError(
     operation: 'increment' | 'addTimestamp' | 'get' | 'reset',
     key: string,
-    error: unknown
+    error: unknown,
   ): Error {
     const normalized = error instanceof Error ? error : new Error(String(error));
     this.onError?.(normalized, { operation, key });
     return normalized;
   }
 
-  private parseJson(raw: string, operation: 'increment' | 'addTimestamp' | 'get', key: string): unknown | null {
+  private parseJson(
+    raw: string,
+    operation: 'increment' | 'addTimestamp' | 'get',
+    key: string,
+  ): unknown | null {
     try {
       return JSON.parse(raw) as unknown;
     } catch (err) {
@@ -102,7 +106,10 @@ export class KVRateLimitStorage implements RateLimitStorage {
   private isSlidingWindowEntry(value: unknown): value is SlidingWindowEntry {
     if (value === null || typeof value !== 'object') return false;
     const record = value as Record<string, unknown>;
-    return Array.isArray(record.timestamps) && record.timestamps.every((item) => typeof item === 'number');
+    return (
+      Array.isArray(record.timestamps) &&
+      record.timestamps.every((item) => typeof item === 'number')
+    );
   }
 
   async increment(key: string, windowMs: number): Promise<FixedWindowEntry> {

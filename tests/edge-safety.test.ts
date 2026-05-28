@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const packagesRoot = join(repoRoot, 'packages');
@@ -105,14 +105,30 @@ function stripCommentsAndStrings(source: string): string {
 describe('edge safety static scan', () => {
   it('does not import banned Node.js modules from shipped source', () => {
     const bannedModules = [
-      'fs', 'path', 'os', 'child_process', 'net', 'http', 'https', 'dgram',
-      'cluster', 'worker_threads', 'vm', 'tls', 'dns', 'readline', 'crypto', 'module',
+      'fs',
+      'path',
+      'os',
+      'child_process',
+      'net',
+      'http',
+      'https',
+      'dgram',
+      'cluster',
+      'worker_threads',
+      'vm',
+      'tls',
+      'dns',
+      'readline',
+      'crypto',
+      'module',
     ];
     const importPattern = new RegExp(
-      String.raw`(?:from\s+['"](?:node:)?(?:${bannedModules.join('|')})['"]|import\s*\(\s*['"](?:node:)?(?:${bannedModules.join('|')})['"]\s*\))`
+      String.raw`(?:from\s+['"](?:node:)?(?:${bannedModules.join('|')})['"]|import\s*\(\s*['"](?:node:)?(?:${bannedModules.join('|')})['"]\s*\))`,
     );
 
-    const offenders = listSourceFiles().filter((file) => importPattern.test(readFileSync(file, 'utf8')));
+    const offenders = listSourceFiles().filter((file) =>
+      importPattern.test(readFileSync(file, 'utf8')),
+    );
     expect(offenders).toEqual([]);
   });
 

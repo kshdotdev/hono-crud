@@ -10,24 +10,24 @@
  * Run with: npx tsx examples/batch-operations.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { z } from 'zod';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
-  MemoryCreateEndpoint,
-  MemoryReadEndpoint,
-  MemoryUpdateEndpoint,
-  MemoryDeleteEndpoint,
-  MemoryListEndpoint,
-  MemoryRestoreEndpoint,
   MemoryBatchCreateEndpoint,
-  MemoryBatchUpdateEndpoint,
   MemoryBatchDeleteEndpoint,
   MemoryBatchRestoreEndpoint,
+  MemoryBatchUpdateEndpoint,
+  MemoryCreateEndpoint,
+  MemoryDeleteEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryRestoreEndpoint,
+  MemoryUpdateEndpoint,
   clearStorage,
 } from '@hono-crud/memory';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { z } from 'zod';
 
 // Clear storage on start
 clearStorage();
@@ -127,7 +127,8 @@ class UserBatchUpdate extends MemoryBatchUpdateEndpoint {
   schema = {
     tags: ['Users - Batch'],
     summary: 'Update multiple users',
-    description: 'Updates up to 100 users in a single request. Soft-deleted users cannot be updated.',
+    description:
+      'Updates up to 100 users in a single request. Soft-deleted users cannot be updated.',
   };
 
   maxBatchSize = 100;

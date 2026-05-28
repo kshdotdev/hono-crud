@@ -1,14 +1,18 @@
-import { z, type ZodObject, type ZodRawShape } from 'zod';
 import type { Env } from 'hono';
-import { CrudEndpoint } from './base';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getLogger } from '../core/logger';
-import type {MetaInput, OpenAPIRouteSchema, HookMode, RelationConfig, NestedWriteResult, NestedUpdateInput} from '../core/types';
-import {applyComputedFields, extractNestedData, isDirectNestedData} from '../core/types';
-import { getSchemaFields, type ModelObject } from './types';
-import {
-  getManagedInputExclusions,
-  rethrowAsConstraintError,
-} from '../core/managed-fields';
+import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
+import type {
+  HookMode,
+  MetaInput,
+  NestedUpdateInput,
+  NestedWriteResult,
+  OpenAPIRouteSchema,
+  RelationConfig,
+} from '../core/types';
+import { applyComputedFields, extractNestedData, isDirectNestedData } from '../core/types';
+import { CrudEndpoint } from './base';
+import { type ModelObject, getSchemaFields } from './types';
 
 /**
  * Result of an upsert operation indicating whether it was a create or update.
@@ -53,7 +57,6 @@ export abstract class UpsertEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-
   /**
    * Fields used to find existing record for upsert.
    * If record with these field values exists, it will be updated.
@@ -79,7 +82,7 @@ export abstract class UpsertEndpoint<
    *
    * @default false
    */
-  protected useNativeUpsert: boolean = false;
+  protected useNativeUpsert = false;
 
   /**
    * Fields that can only be set on create, not on update.
@@ -221,22 +224,26 @@ export abstract class UpsertEndpoint<
       const relatedSchema = relationConfig.schema;
 
       // For upsert, allow both direct data and operation objects
-      const nestedSchema = z.union([
-        // Direct data (treated as upsert)
-        relationConfig.type === 'hasMany'
-          ? z.array(relatedSchema.partial())
-          : relatedSchema.partial(),
-        // Operation object
-        z.object({
-          create: z.union([relatedSchema.partial(), z.array(relatedSchema.partial())]).optional(),
-          update: z.array(relatedSchema.partial().extend({ id: z.union([z.string(), z.number()]) })).optional(),
-          upsert: z.union([relatedSchema.partial(), z.array(relatedSchema.partial())]).optional(),
-          delete: z.array(z.union([z.string(), z.number()])).optional(),
-          connect: z.array(z.union([z.string(), z.number()])).optional(),
-          disconnect: z.array(z.union([z.string(), z.number()])).optional(),
-          set: relatedSchema.partial().nullable().optional(),
-        }),
-      ]).optional();
+      const nestedSchema = z
+        .union([
+          // Direct data (treated as upsert)
+          relationConfig.type === 'hasMany'
+            ? z.array(relatedSchema.partial())
+            : relatedSchema.partial(),
+          // Operation object
+          z.object({
+            create: z.union([relatedSchema.partial(), z.array(relatedSchema.partial())]).optional(),
+            update: z
+              .array(relatedSchema.partial().extend({ id: z.union([z.string(), z.number()]) }))
+              .optional(),
+            upsert: z.union([relatedSchema.partial(), z.array(relatedSchema.partial())]).optional(),
+            delete: z.array(z.union([z.string(), z.number()])).optional(),
+            connect: z.array(z.union([z.string(), z.number()])).optional(),
+            disconnect: z.array(z.union([z.string(), z.number()])).optional(),
+            set: relatedSchema.partial().nullable().optional(),
+          }),
+        ])
+        .optional();
 
       shape[relationName] = nestedSchema;
     }
@@ -258,7 +265,14 @@ export abstract class UpsertEndpoint<
     return Object.entries(relations)
       .filter(([_, config]) => {
         const nw = config.nestedWrites;
-        return nw && (nw.allowCreate || nw.allowUpdate || nw.allowDelete || nw.allowConnect || nw.allowDisconnect);
+        return (
+          nw &&
+          (nw.allowCreate ||
+            nw.allowUpdate ||
+            nw.allowDelete ||
+            nw.allowConnect ||
+            nw.allowDisconnect)
+        );
       })
       .map(([name]) => name);
   }
@@ -266,9 +280,7 @@ export abstract class UpsertEndpoint<
   /**
    * Extracts nested relation data from the request body.
    */
-  protected extractNestedData(
-    data: Record<string, unknown>
-  ): {
+  protected extractNestedData(data: Record<string, unknown>): {
     mainData: Record<string, unknown>;
     nestedData: Record<string, unknown>;
   } {
@@ -351,7 +363,7 @@ export abstract class UpsertEndpoint<
   async before(
     data: Partial<ModelObject<M['model']>>,
     _isCreate: boolean,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -361,7 +373,7 @@ export abstract class UpsertEndpoint<
    */
   async beforeCreate(
     data: Partial<ModelObject<M['model']>>,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -372,7 +384,7 @@ export abstract class UpsertEndpoint<
   async beforeUpdate(
     data: Partial<ModelObject<M['model']>>,
     _existing: ModelObject<M['model']>,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<Partial<ModelObject<M['model']>>> {
     return data;
   }
@@ -384,7 +396,7 @@ export abstract class UpsertEndpoint<
   async after(
     data: ModelObject<M['model']>,
     _created: boolean,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<ModelObject<M['model']>> {
     return data;
   }
@@ -396,7 +408,7 @@ export abstract class UpsertEndpoint<
    */
   abstract findExisting(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']> | null>;
 
   /**
@@ -405,7 +417,7 @@ export abstract class UpsertEndpoint<
    */
   abstract create(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']>>;
 
   /**
@@ -415,7 +427,7 @@ export abstract class UpsertEndpoint<
   abstract update(
     existing: ModelObject<M['model']>,
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<ModelObject<M['model']>>;
 
   /**
@@ -430,11 +442,13 @@ export abstract class UpsertEndpoint<
    */
   protected async nativeUpsert(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<UpsertResult<ModelObject<M['model']>>> {
     // Default implementation falls back to non-native upsert
     // ORM adapters should override this method
-    getLogger().warn('Native upsert not implemented for this adapter. Falling back to find-then-insert/update pattern.');
+    getLogger().warn(
+      'Native upsert not implemented for this adapter. Falling back to find-then-insert/update pattern.',
+    );
     return this.performStandardUpsert(data, tx);
   }
 
@@ -444,7 +458,7 @@ export abstract class UpsertEndpoint<
    */
   protected async performStandardUpsert(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<UpsertResult<ModelObject<M['model']>>> {
     const existing = await this.findExisting(data, tx);
 
@@ -481,7 +495,7 @@ export abstract class UpsertEndpoint<
    */
   async upsert(
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown
+    tx?: unknown,
   ): Promise<UpsertResult<ModelObject<M['model']>>> {
     if (this.useNativeUpsert) {
       return this.nativeUpsert(data, tx);
@@ -498,9 +512,11 @@ export abstract class UpsertEndpoint<
     relationName: string,
     _relationConfig: RelationConfig,
     _operations: NestedUpdateInput,
-    _tx?: unknown
+    _tx?: unknown,
   ): Promise<NestedWriteResult> {
-    getLogger().warn(`Nested writes not implemented for ${relationName}. Override processNestedWrites() in your adapter.`);
+    getLogger().warn(
+      `Nested writes not implemented for ${relationName}. Override processNestedWrites() in your adapter.`,
+    );
     return {
       created: [],
       updated: [],
@@ -514,16 +530,13 @@ export abstract class UpsertEndpoint<
    * Main handler for the upsert operation.
    */
   async handle(): Promise<Response> {
-
     // Validate tenant ID if multi-tenancy is enabled
     this.validateTenantId();
 
     const rawData = await this.getObject();
 
     // Extract nested data from request
-    const { mainData, nestedData } = this.extractNestedData(
-      rawData as Record<string, unknown>
-    );
+    const { mainData, nestedData } = this.extractNestedData(rawData as Record<string, unknown>);
 
     // Process main record upsert
     let data = mainData as Partial<ModelObject<M['model']>>;
@@ -573,7 +586,7 @@ export abstract class UpsertEndpoint<
           parentId,
           relationName,
           relationConfig,
-          parsedOps
+          parsedOps,
         );
 
         nestedResults[relationName] = nestedResult;
@@ -608,28 +621,28 @@ export abstract class UpsertEndpoint<
     // Audit logging
     if (this.isAuditEnabled() && parentId !== null) {
       const auditLogger = this.getAuditLogger();
-      this.runAfterResponse(auditLogger.logUpsert(
-        this._meta.model.tableName,
-        parentId,
-        obj as Record<string, unknown>,
-        existing as Record<string, unknown> | undefined,
-        result.created,
-        this.getAuditUserId()
-      ));
+      this.runAfterResponse(
+        auditLogger.logUpsert(
+          this._meta.model.tableName,
+          parentId,
+          obj as Record<string, unknown>,
+          existing as Record<string, unknown> | undefined,
+          result.created,
+          this.getAuditUserId(),
+        ),
+      );
     }
 
     // Apply computed fields if defined
     if (this._meta.model.computedFields) {
-      obj = await applyComputedFields(
+      obj = (await applyComputedFields(
         obj as Record<string, unknown>,
-        this._meta.model.computedFields
-      ) as ModelObject<M['model']>;
+        this._meta.model.computedFields,
+      )) as ModelObject<M['model']>;
     }
 
     // Apply serializer if defined
-    const serialized = this._meta.model.serializer
-      ? this._meta.model.serializer(obj)
-      : obj;
+    const serialized = this._meta.model.serializer ? this._meta.model.serializer(obj) : obj;
 
     // Return with created flag and appropriate status code
     return this.json(
@@ -638,7 +651,7 @@ export abstract class UpsertEndpoint<
         result: serialized,
         created: result.created,
       },
-      result.created ? 201 : 200
+      result.created ? 201 : 200,
     );
   }
 

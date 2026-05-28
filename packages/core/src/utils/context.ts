@@ -13,11 +13,7 @@ export function getContextVar<T>(ctx: unknown, key: string): T | undefined {
   return obj?.var?.[key] as T | undefined;
 }
 
-export function setContextVar<E extends Env>(
-  ctx: Context<E>,
-  key: string,
-  value: unknown
-): void {
+export function setContextVar<E extends Env>(ctx: Context<E>, key: string, value: unknown): void {
   (ctx as unknown as { set: (k: string, v: unknown) => void }).set(key, value);
 }
 
@@ -25,10 +21,7 @@ export function getRequestId<E extends Env>(ctx: Context<E>): string | undefined
   return getContextVar<string>(ctx, 'requestId');
 }
 
-export function getTenantId<E extends Env>(
-  ctx: Context<E>,
-  key = 'tenantId'
-): string | undefined {
+export function getTenantId<E extends Env>(ctx: Context<E>, key = 'tenantId'): string | undefined {
   return getContextVar<string>(ctx, key);
 }
 

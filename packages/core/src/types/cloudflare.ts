@@ -51,9 +51,7 @@ export type WaitUntilFn = (promise: Promise<unknown>) => void;
  * const app = new Hono<Env>();
  * ```
  */
-export type CloudflareEnv<
-  B extends Record<string, unknown> = Record<string, unknown>,
-> = {
+export type CloudflareEnv<B extends Record<string, unknown> = Record<string, unknown>> = {
   Bindings: B;
 };
 

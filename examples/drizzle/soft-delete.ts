@@ -13,22 +13,22 @@
  * 2. npx tsx examples/drizzle/soft-delete.ts
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
 import {
   DrizzleCreateEndpoint,
-  DrizzleReadEndpoint,
-  DrizzleUpdateEndpoint,
+  type DrizzleDatabase,
   DrizzleDeleteEndpoint,
   DrizzleListEndpoint,
+  DrizzleReadEndpoint,
   DrizzleRestoreEndpoint,
-  type DrizzleDatabase,
+  DrizzleUpdateEndpoint,
 } from '@hono-crud/drizzle';
-import { UserSchema, type User } from '../shared/schemas.js';
-import { users } from './schema.js';
+import { setupSwaggerUI } from '@hono-crud/swagger';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { type User, UserSchema } from '../shared/schemas.js';
 import { db, initDb, pool } from './db.js';
+import { users } from './schema.js';
 
 const typedDb = db as unknown as DrizzleDatabase;
 
@@ -161,10 +161,12 @@ app.get('/seed', async (c) => {
   ];
 
   for (const user of seedData) {
-    await pool.query(
-      'INSERT INTO users (email, name, role, status) VALUES ($1, $2, $3, $4)',
-      [user.email, user.name, user.role, user.status]
-    );
+    await pool.query('INSERT INTO users (email, name, role, status) VALUES ($1, $2, $3, $4)', [
+      user.email,
+      user.name,
+      user.role,
+      user.status,
+    ]);
   }
 
   return c.json({ success: true, message: 'Seeded 3 users' });

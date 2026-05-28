@@ -1,16 +1,16 @@
-/**
- * Tests for Cascade Delete functionality.
- */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Hono } from 'hono';
-import { z } from 'zod';
-import { fromHono, defineModel, defineMeta } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono } from 'hono-crud';
+/**
+ * Tests for Cascade Delete functionality.
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // ============================================================================
 // Schema Definitions
@@ -201,11 +201,21 @@ describe('Cascade Delete', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Alice', email: 'alice@example.com' }),
       });
-      const user = (await userRes.json() as { result: User }).result;
+      const user = ((await userRes.json()) as { result: User }).result;
 
       // Create posts for user
-      const post1: Post = { id: crypto.randomUUID(), authorId: user.id, title: 'Post 1', content: 'Content 1' };
-      const post2: Post = { id: crypto.randomUUID(), authorId: user.id, title: 'Post 2', content: 'Content 2' };
+      const post1: Post = {
+        id: crypto.randomUUID(),
+        authorId: user.id,
+        title: 'Post 1',
+        content: 'Content 1',
+      };
+      const post2: Post = {
+        id: crypto.randomUUID(),
+        authorId: user.id,
+        title: 'Post 2',
+        content: 'Content 2',
+      };
       postCascadeStore.set(post1.id, post1);
       postCascadeStore.set(post2.id, post2);
 
@@ -219,7 +229,9 @@ describe('Cascade Delete', () => {
 
       // Delete user - should cascade
       const deleteRes = await app.request(`/users-cascade/${user.id}`, { method: 'DELETE' });
-      const deleteResult = await deleteRes.json() as { result: { cascade?: { deleted?: { posts?: number; profile?: number } } } };
+      const deleteResult = (await deleteRes.json()) as {
+        result: { cascade?: { deleted?: { posts?: number; profile?: number } } };
+      };
 
       expect(deleteRes.status).toBe(200);
       expect(userCascadeStore.size).toBe(0);
@@ -238,24 +250,36 @@ describe('Cascade Delete', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Bob', email: 'bob@example.com' }),
       });
-      const user = (await userRes.json() as { result: User }).result;
+      const user = ((await userRes.json()) as { result: User }).result;
 
       // Create posts for user
-      const post1: Post = { id: crypto.randomUUID(), authorId: user.id, title: 'Post 1', content: 'Content 1' };
-      const post2: Post = { id: crypto.randomUUID(), authorId: user.id, title: 'Post 2', content: 'Content 2' };
+      const post1: Post = {
+        id: crypto.randomUUID(),
+        authorId: user.id,
+        title: 'Post 1',
+        content: 'Content 1',
+      };
+      const post2: Post = {
+        id: crypto.randomUUID(),
+        authorId: user.id,
+        title: 'Post 2',
+        content: 'Content 2',
+      };
       postSetNullStore.set(post1.id, post1);
       postSetNullStore.set(post2.id, post2);
 
-      expect([...postSetNullStore.values()].every(p => p.authorId === user.id)).toBe(true);
+      expect([...postSetNullStore.values()].every((p) => p.authorId === user.id)).toBe(true);
 
       // Delete user - should setNull
       const deleteRes = await app.request(`/users-setnull/${user.id}`, { method: 'DELETE' });
-      const deleteResult = await deleteRes.json() as { result: { cascade?: { nullified?: { posts?: number } } } };
+      const deleteResult = (await deleteRes.json()) as {
+        result: { cascade?: { nullified?: { posts?: number } } };
+      };
 
       expect(deleteRes.status).toBe(200);
       expect(userSetNullStore.size).toBe(0);
       expect(postSetNullStore.size).toBe(2); // Posts still exist
-      expect([...postSetNullStore.values()].every(p => p.authorId === null)).toBe(true);
+      expect([...postSetNullStore.values()].every((p) => p.authorId === null)).toBe(true);
       expect(deleteResult.result.cascade?.nullified?.posts).toBe(2);
     });
   });
@@ -268,15 +292,22 @@ describe('Cascade Delete', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Charlie', email: 'charlie@example.com' }),
       });
-      const user = (await userRes.json() as { result: User }).result;
+      const user = ((await userRes.json()) as { result: User }).result;
 
       // Create post for user
-      const post: Post = { id: crypto.randomUUID(), authorId: user.id, title: 'Post', content: 'Content' };
+      const post: Post = {
+        id: crypto.randomUUID(),
+        authorId: user.id,
+        title: 'Post',
+        content: 'Content',
+      };
       postRestrictStore.set(post.id, post);
 
       // Try to delete user - should fail
       const deleteRes = await app.request(`/users-restrict/${user.id}`, { method: 'DELETE' });
-      const deleteResult = await deleteRes.json() as { error?: { details?: { relation?: string } } };
+      const deleteResult = (await deleteRes.json()) as {
+        error?: { details?: { relation?: string } };
+      };
 
       expect(deleteRes.status).toBe(409);
       expect(userRestrictStore.size).toBe(1); // User NOT deleted
@@ -291,7 +322,7 @@ describe('Cascade Delete', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Charlie', email: 'charlie@example.com' }),
       });
-      const user = (await userRes.json() as { result: User }).result;
+      const user = ((await userRes.json()) as { result: User }).result;
 
       // Delete without any posts
       const deleteRes = await app.request(`/users-restrict/${user.id}`, { method: 'DELETE' });
@@ -304,11 +335,26 @@ describe('Cascade Delete', () => {
   describe('nested cascade', () => {
     it('should cascade delete through multiple levels', async () => {
       // Create a post with comments
-      const post: Post = { id: crypto.randomUUID(), authorId: null, title: 'Post', content: 'Content' };
+      const post: Post = {
+        id: crypto.randomUUID(),
+        authorId: null,
+        title: 'Post',
+        content: 'Content',
+      };
       postCascadeStore.set(post.id, post);
 
-      const comment1: Comment = { id: crypto.randomUUID(), postId: post.id, authorName: 'Commenter 1', content: 'Great post!' };
-      const comment2: Comment = { id: crypto.randomUUID(), postId: post.id, authorName: 'Commenter 2', content: 'Thanks!' };
+      const comment1: Comment = {
+        id: crypto.randomUUID(),
+        postId: post.id,
+        authorName: 'Commenter 1',
+        content: 'Great post!',
+      };
+      const comment2: Comment = {
+        id: crypto.randomUUID(),
+        postId: post.id,
+        authorName: 'Commenter 2',
+        content: 'Thanks!',
+      };
       commentStore.set(comment1.id, comment1);
       commentStore.set(comment2.id, comment2);
 

@@ -1,13 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { pgTable, text, integer, uuid, timestamp, boolean } from 'drizzle-orm/pg-core';
-import { z } from 'zod';
 import {
-  createSelectSchema,
-  createInsertSchema,
-  createUpdateSchema,
   createDrizzleSchemas,
+  createInsertSchema,
+  createSelectSchema,
+  createUpdateSchema,
   isDrizzleZodAvailable,
 } from '@hono-crud/drizzle/schema-utils';
+import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // ============================================================================
 // Test Table Definitions
@@ -394,8 +394,7 @@ describe('Drizzle adapter exports', () => {
 
   it('should export DrizzleSchemas type', async () => {
     // This is a compile-time check
-    const schemaType: import('@hono-crud/drizzle/schema-utils').DrizzleSchemas | null =
-      null;
+    const schemaType: import('@hono-crud/drizzle/schema-utils').DrizzleSchemas | null = null;
     expect(schemaType).toBeNull();
   });
 });

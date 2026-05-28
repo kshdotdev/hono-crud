@@ -54,7 +54,7 @@ export function generateCacheKey(options: CacheKeyOptions): string {
   // Add sorted query parameters (only those in keyFields if specified)
   if (query && Object.keys(query).length > 0) {
     let queryKeys = Object.keys(query).filter(
-      (key) => query[key] !== undefined && query[key] !== null && query[key] !== ''
+      (key) => query[key] !== undefined && query[key] !== null && query[key] !== '',
     );
 
     // Filter to keyFields if specified
@@ -101,7 +101,7 @@ export function generateCacheKey(options: CacheKeyOptions): string {
 export function createInvalidationPattern(
   tableName: string,
   options?: InvalidationPatternOptions,
-  prefix?: string
+  prefix?: string,
 ): string {
   const parts: string[] = [];
 
@@ -150,7 +150,7 @@ export function createInvalidationPattern(
 export function createRelatedPatterns(
   _tableName: string,
   relatedModels: string[],
-  prefix?: string
+  prefix?: string,
 ): string[] {
   return relatedModels.map((model) => createInvalidationPattern(model, undefined, prefix));
 }

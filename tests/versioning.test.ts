@@ -1,28 +1,28 @@
-/**
- * Tests for record versioning functionality.
- */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { z } from 'zod';
-import { Hono } from 'hono';
-import {
-  defineModel,
-  VersionManager,
-  MemoryVersioningStorage,
-  createVersionManager,
-  setVersioningStorage,
-  getVersioningStorage,
-  getVersioningConfig,
-} from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryUpdateEndpoint,
+  MemoryVersionCompareEndpoint,
   MemoryVersionHistoryEndpoint,
   MemoryVersionReadEndpoint,
-  MemoryVersionCompareEndpoint,
   MemoryVersionRollbackEndpoint,
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
+import { Hono } from 'hono';
+import {
+  MemoryVersioningStorage,
+  VersionManager,
+  createVersionManager,
+  defineModel,
+  getVersioningConfig,
+  getVersioningStorage,
+  setVersioningStorage,
+} from 'hono-crud';
+/**
+ * Tests for record versioning functionality.
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // Define test schema with versioning
 const DocumentSchema = z.object({
@@ -98,10 +98,7 @@ describe('Record Versioning', () => {
     });
 
     it('should normalize config with defaults', () => {
-      const config = getVersioningConfig(
-        { enabled: true },
-        'documents'
-      );
+      const config = getVersioningConfig({ enabled: true }, 'documents');
       expect(config.enabled).toBe(true);
       expect(config.field).toBe('version');
       expect(config.historyTable).toBe('documents_history');
@@ -120,7 +117,7 @@ describe('Record Versioning', () => {
           trackChangedBy: true,
           excludeFields: ['password'],
         },
-        'documents'
+        'documents',
       );
       expect(config.field).toBe('rev');
       expect(config.historyTable).toBe('doc_versions');
@@ -143,13 +140,17 @@ describe('Record Versioning', () => {
     });
 
     it('should save version and return new version number', async () => {
-      const manager = createVersionManager(DocumentModel.versioning, 'documents', versioningStorage);
+      const manager = createVersionManager(
+        DocumentModel.versioning,
+        'documents',
+        versioningStorage,
+      );
 
       const newVersion = await manager.saveVersion(
         'doc-123',
         { id: 'doc-123', title: 'Test', content: 'Hello', version: 1 },
         undefined,
-        'user-1'
+        'user-1',
       );
 
       expect(newVersion).toBe(2);
@@ -161,25 +162,35 @@ describe('Record Versioning', () => {
     });
 
     it('should track multiple versions', async () => {
-      const manager = createVersionManager(DocumentModel.versioning, 'documents', versioningStorage);
+      const manager = createVersionManager(
+        DocumentModel.versioning,
+        'documents',
+        versioningStorage,
+      );
 
       // Save version 1
-      await manager.saveVersion(
-        'doc-123',
-        { id: 'doc-123', title: 'Version 1', content: 'First', version: 1 }
-      );
+      await manager.saveVersion('doc-123', {
+        id: 'doc-123',
+        title: 'Version 1',
+        content: 'First',
+        version: 1,
+      });
 
       // Save version 2
-      await manager.saveVersion(
-        'doc-123',
-        { id: 'doc-123', title: 'Version 2', content: 'Second', version: 2 }
-      );
+      await manager.saveVersion('doc-123', {
+        id: 'doc-123',
+        title: 'Version 2',
+        content: 'Second',
+        version: 2,
+      });
 
       // Save version 3
-      await manager.saveVersion(
-        'doc-123',
-        { id: 'doc-123', title: 'Version 3', content: 'Third', version: 3 }
-      );
+      await manager.saveVersion('doc-123', {
+        id: 'doc-123',
+        title: 'Version 3',
+        content: 'Third',
+        version: 3,
+      });
 
       const versions = await manager.getVersions('doc-123');
       expect(versions).toHaveLength(3);
@@ -190,16 +201,24 @@ describe('Record Versioning', () => {
     });
 
     it('should get specific version', async () => {
-      const manager = createVersionManager(DocumentModel.versioning, 'documents', versioningStorage);
+      const manager = createVersionManager(
+        DocumentModel.versioning,
+        'documents',
+        versioningStorage,
+      );
 
-      await manager.saveVersion(
-        'doc-123',
-        { id: 'doc-123', title: 'Version 1', content: 'First', version: 1 }
-      );
-      await manager.saveVersion(
-        'doc-123',
-        { id: 'doc-123', title: 'Version 2', content: 'Second', version: 2 }
-      );
+      await manager.saveVersion('doc-123', {
+        id: 'doc-123',
+        title: 'Version 1',
+        content: 'First',
+        version: 1,
+      });
+      await manager.saveVersion('doc-123', {
+        id: 'doc-123',
+        title: 'Version 2',
+        content: 'Second',
+        version: 2,
+      });
 
       const version1 = await manager.getVersion('doc-123', 1);
       expect(version1).not.toBeNull();
@@ -211,47 +230,67 @@ describe('Record Versioning', () => {
     });
 
     it('should compare versions', async () => {
-      const manager = createVersionManager(DocumentModel.versioning, 'documents', versioningStorage);
+      const manager = createVersionManager(
+        DocumentModel.versioning,
+        'documents',
+        versioningStorage,
+      );
 
-      await manager.saveVersion(
-        'doc-123',
-        { id: 'doc-123', title: 'Original Title', content: 'Original', version: 1 }
-      );
-      await manager.saveVersion(
-        'doc-123',
-        { id: 'doc-123', title: 'Changed Title', content: 'Original', version: 2 }
-      );
+      await manager.saveVersion('doc-123', {
+        id: 'doc-123',
+        title: 'Original Title',
+        content: 'Original',
+        version: 1,
+      });
+      await manager.saveVersion('doc-123', {
+        id: 'doc-123',
+        title: 'Changed Title',
+        content: 'Original',
+        version: 2,
+      });
 
       const changes = await manager.compareVersions('doc-123', 1, 2);
       expect(changes).toHaveLength(2); // title and version changed
-      expect(changes.some(c => c.field === 'title' && c.oldValue === 'Original Title' && c.newValue === 'Changed Title')).toBe(true);
+      expect(
+        changes.some(
+          (c) =>
+            c.field === 'title' &&
+            c.oldValue === 'Original Title' &&
+            c.newValue === 'Changed Title',
+        ),
+      ).toBe(true);
     });
 
     it('should get latest version number', async () => {
-      const manager = createVersionManager(DocumentModel.versioning, 'documents', versioningStorage);
+      const manager = createVersionManager(
+        DocumentModel.versioning,
+        'documents',
+        versioningStorage,
+      );
 
       expect(await manager.getLatestVersion('doc-123')).toBe(0);
 
-      await manager.saveVersion(
-        'doc-123',
-        { id: 'doc-123', title: 'V1', version: 1 }
-      );
+      await manager.saveVersion('doc-123', { id: 'doc-123', title: 'V1', version: 1 });
       expect(await manager.getLatestVersion('doc-123')).toBe(1);
 
-      await manager.saveVersion(
-        'doc-123',
-        { id: 'doc-123', title: 'V2', version: 2 }
-      );
+      await manager.saveVersion('doc-123', { id: 'doc-123', title: 'V2', version: 2 });
       expect(await manager.getLatestVersion('doc-123')).toBe(2);
     });
 
     it('should exclude fields from version history', async () => {
-      const manager = createVersionManager(DocumentModel.versioning, 'documents', versioningStorage);
-
-      await manager.saveVersion(
-        'doc-123',
-        { id: 'doc-123', title: 'Test', content: 'Hello', version: 1, updatedAt: new Date() }
+      const manager = createVersionManager(
+        DocumentModel.versioning,
+        'documents',
+        versioningStorage,
       );
+
+      await manager.saveVersion('doc-123', {
+        id: 'doc-123',
+        title: 'Test',
+        content: 'Hello',
+        version: 1,
+        updatedAt: new Date(),
+      });
 
       const versions = await manager.getVersions('doc-123');
       expect(versions[0].data).not.toHaveProperty('updatedAt');
@@ -293,7 +332,7 @@ describe('Record Versioning', () => {
       const remaining = await versioningStorage.getByRecordId('documents', 'doc-123');
       expect(remaining).toHaveLength(3);
       // Should keep the newest (3, 4, 5)
-      expect(remaining.map(v => v.version).sort()).toEqual([3, 4, 5]);
+      expect(remaining.map((v) => v.version).sort()).toEqual([3, 4, 5]);
     });
 
     it('should delete all versions', async () => {
@@ -325,12 +364,18 @@ describe('Record Versioning', () => {
         });
       }
 
-      const page1 = await versioningStorage.getByRecordId('documents', 'doc-123', { limit: 3, offset: 0 });
+      const page1 = await versioningStorage.getByRecordId('documents', 'doc-123', {
+        limit: 3,
+        offset: 0,
+      });
       expect(page1).toHaveLength(3);
       // Newest first (10, 9, 8)
       expect(page1[0].version).toBe(10);
 
-      const page2 = await versioningStorage.getByRecordId('documents', 'doc-123', { limit: 3, offset: 3 });
+      const page2 = await versioningStorage.getByRecordId('documents', 'doc-123', {
+        limit: 3,
+        offset: 3,
+      });
       expect(page2).toHaveLength(3);
       expect(page2[0].version).toBe(7);
     });
@@ -366,7 +411,7 @@ describe('Record Versioning', () => {
 
       expect(response.status).toBe(200);
 
-      const result = await response.json() as { result: { version: number } };
+      const result = (await response.json()) as { result: { version: number } };
       expect(result.result.version).toBe(2); // Version incremented
 
       // Wait for fire-and-forget version save
@@ -411,10 +456,13 @@ describe('Record Versioning', () => {
       // Error handler to convert exceptions to proper responses
       app.onError((err, c) => {
         if ('status' in err && typeof err.status === 'number') {
-          return c.json({
-            success: false,
-            error: { code: (err as { code?: string }).code || 'ERROR', message: err.message }
-          }, err.status as 400 | 404 | 500);
+          return c.json(
+            {
+              success: false,
+              error: { code: (err as { code?: string }).code || 'ERROR', message: err.message },
+            },
+            err.status as 400 | 404 | 500,
+          );
         }
         return c.json({ success: false, error: { code: 'ERROR', message: err.message } }, 500);
       });
@@ -446,7 +494,9 @@ describe('Record Versioning', () => {
       const response = await app.request(`/documents/${docId}/versions`);
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { versions: unknown[], totalVersions: number } };
+      const result = (await response.json()) as {
+        result: { versions: unknown[]; totalVersions: number };
+      };
       expect(result.result.versions).toHaveLength(3);
       expect(result.result.totalVersions).toBe(3);
     });
@@ -455,7 +505,9 @@ describe('Record Versioning', () => {
       const response = await app.request(`/documents/${docId}/versions/2`);
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { version: number, data: { title: string } } };
+      const result = (await response.json()) as {
+        result: { version: number; data: { title: string } };
+      };
       expect(result.result.version).toBe(2);
       expect(result.result.data.title).toBe('Title v2');
     });
@@ -469,7 +521,9 @@ describe('Record Versioning', () => {
       const response = await app.request(`/documents/${docId}/versions/compare?from=1&to=2`);
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { from: number, to: number, changes: unknown[] } };
+      const result = (await response.json()) as {
+        result: { from: number; to: number; changes: unknown[] };
+      };
       expect(result.result.from).toBe(1);
       expect(result.result.to).toBe(2);
       expect(result.result.changes.length).toBeGreaterThan(0);
@@ -481,7 +535,7 @@ describe('Record Versioning', () => {
       });
 
       expect(response.status).toBe(200);
-      const result = await response.json() as { result: { title: string, version: number } };
+      const result = (await response.json()) as { result: { title: string; version: number } };
       expect(result.result.title).toBe('Title v1');
       expect(result.result.version).toBe(4); // Incremented to 4 after rollback
 
