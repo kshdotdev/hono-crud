@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/memory",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "In-memory CRUD adapter for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
@@ -28,9 +28,18 @@
     "clean": "rm -rf dist .tsup",
     "lint": "biome check src/"
   },
-  "keywords": ["hono", "crud", "in-memory", "adapter"],
+  "keywords": [
+    "hono",
+    "crud",
+    "in-memory",
+    "adapter"
+  ],
   "sideEffects": false,
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20.19.0"
   },
