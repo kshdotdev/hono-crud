@@ -2,6 +2,7 @@ import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
+import { extractNestedData, isDirectNestedData } from '../core/nested-writes';
 import type {
   HookMode,
   MetaInput,
@@ -10,7 +11,6 @@ import type {
   OpenAPIRouteSchema,
   RelationConfig,
 } from '../core/types';
-import { extractNestedData, isDirectNestedData } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';

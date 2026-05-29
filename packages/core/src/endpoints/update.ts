@@ -3,6 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { NotFoundException } from '../core/exceptions';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions } from '../core/managed-fields';
+import { extractNestedData, isDirectNestedData } from '../core/nested-writes';
 import type {
   HookContext,
   HookMode,
@@ -12,7 +13,6 @@ import type {
   OpenAPIRouteSchema,
   RelationConfig,
 } from '../core/types';
-import { extractNestedData, isDirectNestedData } from '../core/types';
 import { generateETag, matchesIfMatch } from '../utils/etag';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema } from './responses';

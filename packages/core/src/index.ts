@@ -70,26 +70,16 @@ export type {
   AdapterKind,
   NormalizedTimestampsConfig,
 } from './core/managed-fields';
-export {
-  defineModel,
-  defineMeta,
-  getSoftDeleteConfig,
-  applyComputedFields,
-  applyComputedFieldsToArray,
-  extractNestedData,
-  isDirectNestedData,
-  getAuditConfig,
-  calculateChanges,
-  getVersioningConfig,
-  parseAggregateField,
-  parseAggregateQuery,
-  parseSearchMode,
-  getMultiTenantConfig,
-  extractTenantId,
-  encodeCursor,
-  decodeCursor,
-  RESPONSE_ENVELOPE_CONTEXT_KEY,
-} from './core/types';
+export { defineModel, defineMeta, RESPONSE_ENVELOPE_CONTEXT_KEY } from './core/types';
+export { encodeCursor, decodeCursor } from './core/cursor';
+export { applyComputedFields, applyComputedFieldsToArray } from './core/computed-fields';
+export { extractNestedData, isDirectNestedData } from './core/nested-writes';
+export { parseAggregateField, parseAggregateQuery } from './core/aggregate';
+export { getSoftDeleteConfig } from './core/soft-delete';
+export { getAuditConfig, calculateChanges } from './audit/config';
+export { getVersioningConfig } from './versioning/config';
+export { getMultiTenantConfig, extractTenantId } from './multi-tenant/config';
+export { parseSearchMode } from './endpoints/search-utils';
 export { multiTenant } from './multi-tenant';
 export type {
   MultiTenantMiddlewareOptions,

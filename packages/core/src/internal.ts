@@ -11,7 +11,7 @@
 export * from './index';
 
 // Cursor codecs and shared meta types not surfaced on the public barrel.
-export { encodeCursor, decodeCursor } from './core/types';
+export { encodeCursor, decodeCursor } from './core/cursor';
 export type { MetaInput } from './core/types';
 
 // The model shape adapters operate on.

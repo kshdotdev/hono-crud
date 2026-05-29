@@ -10,7 +10,6 @@ import type {
   SearchResult,
   SearchResultItem,
 } from '../core/types';
-import { parseSearchMode } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema } from './responses';
 import {
@@ -18,6 +17,7 @@ import {
   calculateScore,
   generateHighlights,
   parseSearchFields,
+  parseSearchMode,
   tokenizeQuery,
 } from './search-utils';
 import {

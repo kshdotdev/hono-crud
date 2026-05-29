@@ -1,5 +1,6 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { parseAggregateQuery } from '../core/aggregate';
 import { InputValidationException } from '../core/exceptions';
 import type {
   AggregateConfig,
@@ -10,7 +11,6 @@ import type {
   MetaInput,
   OpenAPIRouteSchema,
 } from '../core/types';
-import { parseAggregateQuery } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema } from './responses';
 

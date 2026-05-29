@@ -16,8 +16,10 @@ import { HTTPException } from 'hono/http-exception';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 
 import { type AuditLogger, createAuditLogger } from '../audit';
+import { getAuditConfig } from '../audit/config';
 import { POLICIES_CONTEXT_KEY } from '../auth/guards';
 import type { AuthUser } from '../auth/types';
+import { applyComputedFields, applyComputedFieldsToArray } from '../core/computed-fields';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import { ApiException, InputValidationException } from '../core/exceptions';
 import {
@@ -29,6 +31,7 @@ import {
   getTimestampsConfig,
 } from '../core/managed-fields';
 import { OpenAPIRoute } from '../core/route';
+import { getSoftDeleteConfig } from '../core/soft-delete';
 import {
   type FilterCondition,
   type HookContext,
@@ -41,20 +44,15 @@ import {
   type PolicyContext,
   type SchemaResolveContext,
   type ValidatedData,
-  applyComputedFields,
-  applyComputedFieldsToArray,
-  extractTenantId,
-  getAuditConfig,
-  getMultiTenantConfig,
-  getSoftDeleteConfig,
-  getVersioningConfig,
 } from '../core/types';
 import { decryptFields, encryptFields } from '../encryption/crypto';
 import { resolveEventEmitter } from '../events/emitter';
 import type { CrudEventType } from '../events/types';
+import { extractTenantId, getMultiTenantConfig } from '../multi-tenant/config';
 import { applyProfile, applyProfileToArray } from '../serialization/serialize';
 import { getContextVar, setContextVar } from '../utils/context';
 import { type VersionManager, createVersionManager } from '../versioning';
+import { getVersioningConfig } from '../versioning/config';
 import {
   type FieldSelection,
   type ModelObject,

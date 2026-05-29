@@ -419,3 +419,13 @@ export function buildSearchConfig(
 
   return config;
 }
+
+/**
+ * Parse search mode from string. Falls back to `'any'`.
+ */
+export function parseSearchMode(value: string | undefined): SearchMode {
+  if (value === 'all' || value === 'phrase') {
+    return value;
+  }
+  return 'any';
+}

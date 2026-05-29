@@ -1,9 +1,9 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { applyComputedFields } from '../core/computed-fields';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
-import { applyComputedFields } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';

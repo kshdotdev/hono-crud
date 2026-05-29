@@ -1,12 +1,14 @@
 import type { Context, Env } from 'hono';
+import { calculateChanges } from '../audit/config';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import type {
   AuditFieldChange,
   NormalizedVersioningConfig,
   VersionHistoryEntry,
+  VersioningConfig,
 } from '../core/types';
-import { type VersioningConfig, calculateChanges, getVersioningConfig } from '../core/types';
 import { createRegistryWithDefault } from '../storage/registry';
+import { getVersioningConfig } from './config';
 
 /**
  * Interface for version history storage adapters.
