@@ -65,6 +65,14 @@
       "types": "./dist/multi-tenant/index.d.ts",
       "import": "./dist/multi-tenant/index.js"
     },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
+    },
+    "./functional": {
+      "types": "./dist/functional/index.d.ts",
+      "import": "./dist/functional/index.js"
+    },
     "./cloudflare": {
       "types": "./dist/types/cloudflare.d.ts",
       "import": "./dist/types/cloudflare.js"

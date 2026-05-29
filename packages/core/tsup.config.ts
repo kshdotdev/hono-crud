@@ -14,6 +14,8 @@ export default defineConfig({
     'src/audit/index.ts',
     'src/versioning/index.ts',
     'src/multi-tenant/index.ts',
+    'src/config/index.ts',
+    'src/functional/index.ts',
     'src/types/cloudflare.ts',
   ],
   format: ['esm'],

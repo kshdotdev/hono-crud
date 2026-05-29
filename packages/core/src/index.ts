@@ -252,7 +252,7 @@ export type {
 } from './endpoints/types';
 
 // Utility exports
-export { registerCrud, contentJson, successResponse, errorResponse } from './utils';
+export { registerCrud, contentJson, successResponse, errorResponse } from './core/register';
 export type {
   CrudEndpoints,
   EndpointClass,
@@ -260,7 +260,7 @@ export type {
   CrudEndpointName,
   EndpointMiddlewares,
   RegisterCrudOptions,
-} from './utils';
+} from './core/register';
 
 // CSV utility exports
 export {

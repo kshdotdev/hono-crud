@@ -35,6 +35,7 @@
 import type { Env, MiddlewareHandler } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
+import type { EndpointClass } from '../core/register';
 import type { OpenAPIRoute } from '../core/route';
 import type { HookMode, MetaInput } from '../core/types';
 import type { FilterConfig } from '../core/types';
@@ -49,7 +50,6 @@ import type {
   UpsertExtras,
 } from '../endpoints/extras-config';
 import type { ModelObject } from '../endpoints/types';
-import type { EndpointClass } from '../utils';
 
 // ============================================================================
 // Type Definitions
