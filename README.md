@@ -1,10 +1,22 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="logo.svg">
+  <img src="logo-dark.svg" alt="hono-crud" width="124" height="124">
+</picture>
+
 # hono-crud
 
-[![npm version](https://img.shields.io/npm/v/hono-crud.svg)](https://www.npmjs.com/package/hono-crud)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+**Type-safe CRUD generator for [Hono](https://hono.dev) — Zod validation, automatic OpenAPI docs,<br>and an edge-ready feature set, all from a single model definition.**
 
-Type-safe CRUD generator for [Hono](https://hono.dev) with Zod validation and automatic OpenAPI documentation.
+[![npm version](https://img.shields.io/npm/v/hono-crud?color=ff5b11&label=npm)](https://www.npmjs.com/package/hono-crud)
+[![npm downloads](https://img.shields.io/npm/dm/hono-crud?color=ff5b11&label=downloads)](https://www.npmjs.com/package/hono-crud)
+[![tests](https://img.shields.io/github/actions/workflow/status/kshdotdev/hono-crud/ci.yml?branch=main&label=tests)](https://github.com/kshdotdev/hono-crud/actions/workflows/ci.yml)
+[![min+gzip](https://img.shields.io/bundlephobia/minzip/hono-crud?label=min%2Bgzip)](https://bundlephobia.com/package/hono-crud)
+[![types](https://img.shields.io/npm/types/hono-crud)](https://www.typescriptlang.org/)
+[![license](https://img.shields.io/npm/l/hono-crud?color=blue)](https://opensource.org/licenses/MIT)
+
+</div>
 
 ## Features
 
