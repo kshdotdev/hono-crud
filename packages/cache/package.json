@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/cache",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Caching mixins and storage backends for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
