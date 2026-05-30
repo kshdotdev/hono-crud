@@ -16,8 +16,11 @@ import { HTTPException } from 'hono/http-exception';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 
 import { type AuditLogger, createAuditLogger } from '../audit';
+import { getAuditConfig } from '../audit/config';
 import { POLICIES_CONTEXT_KEY } from '../auth/guards';
 import type { AuthUser } from '../auth/types';
+import { applyComputedFields, applyComputedFieldsToArray } from '../core/computed-fields';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import { ApiException, InputValidationException } from '../core/exceptions';
 import {
   type AdapterKind,
@@ -28,6 +31,7 @@ import {
   getTimestampsConfig,
 } from '../core/managed-fields';
 import { OpenAPIRoute } from '../core/route';
+import { getSoftDeleteConfig } from '../core/soft-delete';
 import {
   type FilterCondition,
   type HookContext,
@@ -40,18 +44,21 @@ import {
   type PolicyContext,
   type SchemaResolveContext,
   type ValidatedData,
-  extractTenantId,
-  getAuditConfig,
-  getMultiTenantConfig,
-  getSoftDeleteConfig,
-  getVersioningConfig,
 } from '../core/types';
 import { decryptFields, encryptFields } from '../encryption/crypto';
 import { resolveEventEmitter } from '../events/emitter';
 import type { CrudEventType } from '../events/types';
+import { extractTenantId, getMultiTenantConfig } from '../multi-tenant/config';
 import { applyProfile, applyProfileToArray } from '../serialization/serialize';
 import { getContextVar, setContextVar } from '../utils/context';
 import { type VersionManager, createVersionManager } from '../versioning';
+import { getVersioningConfig } from '../versioning/config';
+import {
+  type FieldSelection,
+  type ModelObject,
+  applyFieldSelection,
+  applyFieldSelectionToArray,
+} from './types';
 
 /**
  * Per-request memoization key for `Model.resolveSchema(ctx)` results.
@@ -136,8 +143,7 @@ export abstract class CrudEndpoint<
     if (config.getUserId && this.context) {
       return config.getUserId(this.context);
     }
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
+    return this.context ? getContextVar<string>(this.context, CONTEXT_KEYS.userId) : undefined;
   }
 
   // ============================================================================
@@ -167,8 +173,7 @@ export abstract class CrudEndpoint<
     if (config.getUserId && this.context) {
       return config.getUserId(this.context);
     }
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    return ctx?.var?.userId as string | undefined;
+    return this.context ? getContextVar<string>(this.context, CONTEXT_KEYS.userId) : undefined;
   }
 
   // ============================================================================
@@ -310,7 +315,7 @@ export abstract class CrudEndpoint<
       userId: this.getAuditUserId(),
       tenantId: this.context ? this.getTenantId() : undefined,
       organizationId: this.context
-        ? getContextVar<string>(this.context, 'organizationId')
+        ? getContextVar<string>(this.context, CONTEXT_KEYS.organizationId)
         : undefined,
       timestamp: new Date().toISOString(),
       metadata: payload.metadata,
@@ -365,6 +370,69 @@ export abstract class CrudEndpoint<
   ): Record<string, unknown>[] {
     const profile = this._meta.model.serializationProfile;
     return profile ? applyProfileToArray(records, profile) : records;
+  }
+
+  // ============================================================================
+  // Read-shaping pipeline
+  // ============================================================================
+
+  /**
+   * Per-record output transform. Default is identity; concrete endpoints (and
+   * the generated config/builder subclasses) override it. Declared here so the
+   * shared `finalizeRecord` / `finalizeArray` tail can call it polymorphically.
+   */
+  protected transform(item: unknown): unknown {
+    return item;
+  }
+
+  /**
+   * Deterministic read-shaping tail shared by every record-returning verb:
+   * `computed fields → serializer → serialization profile → transform →
+   * field selection`. Each step runs only when the model/endpoint configured
+   * it. This is the single source of truth for the chain that was previously
+   * copy-pasted across ~14 endpoints — where omitting `applyProfile` silently
+   * leaked fields the profile was meant to strip.
+   *
+   * `decrypt`, policy reads, and the user `after` hook stay in each verb's
+   * `handle()` — they aren't uniform across verbs and run before this tail.
+   */
+  protected async finalizeRecord(
+    record: ModelObject<M['model']>,
+    fieldSelection?: FieldSelection,
+  ): Promise<unknown> {
+    const model = this._meta.model;
+    let obj: Record<string, unknown> = record as Record<string, unknown>;
+    if (model.computedFields) {
+      obj = await applyComputedFields(obj, model.computedFields);
+    }
+    const serialized = model.serializer ? model.serializer(obj as ModelObject<M['model']>) : obj;
+    const profiled = this.applyProfile(serialized as Record<string, unknown>);
+    const transformed = this.transform(profiled as ModelObject<M['model']>);
+    if (fieldSelection?.isActive && fieldSelection.fields.length > 0) {
+      return applyFieldSelection(transformed as Record<string, unknown>, fieldSelection);
+    }
+    return transformed;
+  }
+
+  /** Array variant of {@link finalizeRecord}. Same ordered chain, per element. */
+  protected async finalizeArray(
+    records: ModelObject<M['model']>[],
+    fieldSelection?: FieldSelection,
+  ): Promise<unknown[]> {
+    const model = this._meta.model;
+    let items: Record<string, unknown>[] = records as Record<string, unknown>[];
+    if (model.computedFields) {
+      items = await applyComputedFieldsToArray(items, model.computedFields);
+    }
+    const serialized = model.serializer
+      ? items.map((i) => model.serializer!(i as ModelObject<M['model']>))
+      : items;
+    const profiled = this.applyProfileToArray(serialized as Record<string, unknown>[]);
+    const transformed = profiled.map((i) => this.transform(i as ModelObject<M['model']>));
+    if (fieldSelection?.isActive && fieldSelection.fields.length > 0) {
+      return applyFieldSelectionToArray(transformed as Record<string, unknown>[], fieldSelection);
+    }
+    return transformed;
   }
 
   // ============================================================================
@@ -423,10 +491,10 @@ export abstract class CrudEndpoint<
   protected buildPolicyContext(): PolicyContext {
     const ctx = this.context;
     return {
-      user: ctx ? getContextVar<AuthUser>(ctx, 'user') : undefined,
-      userId: ctx ? getContextVar<string>(ctx, 'userId') : undefined,
-      tenantId: ctx ? getContextVar<string>(ctx, 'tenantId') : undefined,
-      organizationId: ctx ? getContextVar<string>(ctx, 'organizationId') : undefined,
+      user: ctx ? getContextVar<AuthUser>(ctx, CONTEXT_KEYS.user) : undefined,
+      userId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.userId) : undefined,
+      tenantId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.tenantId) : undefined,
+      organizationId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.organizationId) : undefined,
       request: ctx?.req?.raw ?? new Request('http://localhost/'),
     };
   }
@@ -517,10 +585,10 @@ export abstract class CrudEndpoint<
       db: { tx: this._tx },
       request: ctx?.req?.raw,
       tenantId: ctx ? this.getTenantId() : undefined,
-      organizationId: ctx ? getContextVar<string>(ctx, 'organizationId') : undefined,
-      userId: ctx ? getContextVar<string>(ctx, 'userId') : undefined,
-      agentId: ctx ? getContextVar<string>(ctx, 'agentId') : undefined,
-      agentRunId: ctx ? getContextVar<string>(ctx, 'agentRunId') : undefined,
+      organizationId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.organizationId) : undefined,
+      userId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.userId) : undefined,
+      agentId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.agentId) : undefined,
+      agentRunId: ctx ? getContextVar<string>(ctx, CONTEXT_KEYS.agentRunId) : undefined,
     };
   }
 
@@ -571,8 +639,8 @@ export abstract class CrudEndpoint<
     // be configured — the resolver hook is independent of the per-model
     // tenant-injection feature.
     const resolveCtx: SchemaResolveContext = {
-      tenantId: getContextVar<string>(this.context, 'tenantId'),
-      organizationId: getContextVar<string>(this.context, 'organizationId'),
+      tenantId: getContextVar<string>(this.context, CONTEXT_KEYS.tenantId),
+      organizationId: getContextVar<string>(this.context, CONTEXT_KEYS.organizationId),
       request: this.context.req?.raw,
       env: this.context.env,
     };
@@ -633,52 +701,4 @@ export abstract class CrudEndpoint<
 
     return data;
   }
-}
-
-// ============================================================================
-// Shared error-response Zod schema factory
-// ============================================================================
-
-/**
- * Build a `{ success: false, error: { code, message, details? } }` Zod
- * response schema. Replaces the 14+ inlined copies of this schema across
- * endpoint files.
- */
-export function errorResponseSchema(description?: string) {
-  const schema = z.object({
-    success: z.literal(false),
-    error: z.object({
-      code: z.string(),
-      message: z.string(),
-      details: z.unknown().optional(),
-    }),
-  });
-  return {
-    description: description ?? 'Error',
-    content: {
-      'application/json': { schema },
-    },
-  };
-}
-
-/**
- * Returns just the Zod schema (for callers that want to embed it in a
- * custom response shape).
- */
-export function errorResponseZodSchema(): ZodObject<{
-  success: z.ZodLiteral<false>;
-  error: ZodObject<{
-    code: z.ZodString;
-    message: z.ZodString;
-    details: z.ZodOptional<z.ZodUnknown>;
-  }>;
-}> {
-  return z.object({
-    success: z.literal(false),
-    error: z.object({
-      code: z.string(),
-      message: z.string(),
-      details: z.unknown().optional(),
-    }),
-  });
 }

@@ -1,9 +1,10 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
 import { getContextVar, setContextVar } from '../core/context-helpers';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import { getLogger } from '../core/logger';
 import { resolveLoggingStorage } from '../storage/helpers';
 import { createNullableRegistry } from '../storage/registry';
-import { toError } from '../utils/errors';
+import { toError } from '../utils/error-coerce';
 import type {
   LogEntry,
   LogLevel,
@@ -33,7 +34,9 @@ import {
  * Global logging storage registry.
  * Nullable -- no default storage is created unless explicitly set.
  */
-export const loggingStorageRegistry = createNullableRegistry<LoggingStorage>('loggingStorage');
+export const loggingStorageRegistry = createNullableRegistry<LoggingStorage>(
+  CONTEXT_KEYS.loggingStorage,
+);
 
 /**
  * Set the global logging storage.
@@ -111,7 +114,7 @@ const DEFAULT_EXCLUDE_PATHS: PathPattern[] = [
  * @returns The request ID or undefined
  */
 export function getRequestId<E extends Env>(ctx: Context<E>): string | undefined {
-  return getContextVar<string>(ctx, 'requestId');
+  return getContextVar<string>(ctx, CONTEXT_KEYS.requestId);
 }
 
 /**
@@ -122,7 +125,7 @@ export function getRequestId<E extends Env>(ctx: Context<E>): string | undefined
  * @returns The start time in milliseconds or undefined
  */
 export function getRequestStartTime<E extends Env>(ctx: Context<E>): number | undefined {
-  return getContextVar<number>(ctx, 'requestStartTime');
+  return getContextVar<number>(ctx, CONTEXT_KEYS.requestStartTime);
 }
 
 // ============================================================================
@@ -214,8 +217,8 @@ export function createLoggingMiddleware<E extends Env = Env>(
     const startTime = Date.now();
 
     // Store in context for access by handlers
-    setContextVar(ctx, 'requestId', requestId);
-    setContextVar(ctx, 'requestStartTime', startTime);
+    setContextVar(ctx, CONTEXT_KEYS.requestId, requestId);
+    setContextVar(ctx, CONTEXT_KEYS.requestStartTime, startTime);
 
     // Set X-Request-ID header in response
     ctx.header('X-Request-ID', requestId);

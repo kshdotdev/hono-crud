@@ -3,6 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { ApiException } from '../core/exceptions';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import type { ModelObject } from './types';
 
 /**
@@ -136,20 +137,7 @@ export abstract class BatchRestoreEndpoint<
             },
           },
         },
-        400: {
-          description: 'Soft delete not enabled or validation error',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Soft delete not enabled or validation error'),
       },
     };
   }
@@ -272,10 +260,8 @@ export abstract class BatchRestoreEndpoint<
       }
     }
 
-    // Apply serializer if defined
-    const serialized = this._meta.model.serializer
-      ? results.map((item) => this._meta.model.serializer!(item) as ModelObject<M['model']>)
-      : results;
+    // computed fields → serializer → profile → transform
+    const serialized = await this.finalizeArray(results);
 
     const response = {
       success: true as const,

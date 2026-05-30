@@ -3,6 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { ApiException, NotFoundException } from '../core/exceptions';
 import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import type { ModelObject } from './types';
 
 /**
@@ -108,34 +109,8 @@ export abstract class VersionHistoryEndpoint<
             },
           },
         },
-        400: {
-          description: 'Versioning not enabled',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
-        404: {
-          description: 'Record not found',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Versioning not enabled'),
+        404: errorResponseSchema('Record not found'),
       },
     };
   }
@@ -262,34 +237,8 @@ export abstract class VersionReadEndpoint<
             },
           },
         },
-        400: {
-          description: 'Versioning not enabled',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
-        404: {
-          description: 'Version not found',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Versioning not enabled'),
+        404: errorResponseSchema('Version not found'),
       },
     };
   }
@@ -418,34 +367,8 @@ export abstract class VersionCompareEndpoint<
             },
           },
         },
-        400: {
-          description: 'Versioning not enabled or invalid parameters',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
-        404: {
-          description: 'Version not found',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Versioning not enabled or invalid parameters'),
+        404: errorResponseSchema('Version not found'),
       },
     };
   }
@@ -557,34 +480,8 @@ export abstract class VersionRollbackEndpoint<
             },
           },
         },
-        400: {
-          description: 'Versioning not enabled',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
-        404: {
-          description: 'Version not found',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Versioning not enabled'),
+        404: errorResponseSchema('Version not found'),
       },
     };
   }

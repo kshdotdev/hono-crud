@@ -1,11 +1,11 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
-import { generateETag, matchesIfNoneMatch } from '../core/etag';
 import { NotFoundException } from '../core/exceptions';
 import type { IncludeOptions, MetaInput, OpenAPIRouteSchema } from '../core/types';
-import { applyComputedFields } from '../core/types';
+import { generateETag, matchesIfNoneMatch } from '../utils/etag';
 import { CrudEndpoint } from './base';
-import { type FieldSelection, type ModelObject, applyFieldSelection } from './types';
+import { errorResponseSchema } from './responses';
+import type { FieldSelection, ModelObject } from './types';
 
 /**
  * Base endpoint for reading a single resource.
@@ -173,20 +173,7 @@ export abstract class ReadEndpoint<
             },
           },
         },
-        404: {
-          description: 'Resource not found',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        404: errorResponseSchema('Resource not found'),
       },
     };
   }
@@ -359,28 +346,8 @@ export abstract class ReadEndpoint<
 
     obj = await this.after(obj);
 
-    // Apply computed fields if defined
-    if (this._meta.model.computedFields) {
-      obj = (await applyComputedFields(
-        obj as Record<string, unknown>,
-        this._meta.model.computedFields,
-      )) as ModelObject<M['model']>;
-    }
-
-    // Apply serializer if defined
-    const serialized = this._meta.model.serializer ? this._meta.model.serializer(obj) : obj;
-
-    // Apply default serialization profile (model.serializationProfile)
-    const profiled = this.applyProfile(serialized as Record<string, unknown>);
-
-    // Apply transform
-    const transformed = this.transform(profiled as ModelObject<M['model']>);
-
-    // Apply field selection if enabled and fields were specified
-    const result =
-      fieldSelection.isActive && fieldSelection.fields.length > 0
-        ? applyFieldSelection(transformed as Record<string, unknown>, fieldSelection)
-        : transformed;
+    // computed fields → serializer → profile → transform → field selection
+    const result = await this.finalizeRecord(obj, fieldSelection);
 
     // ETag support
     if (this.etagEnabled) {

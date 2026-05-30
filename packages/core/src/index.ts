@@ -70,26 +70,16 @@ export type {
   AdapterKind,
   NormalizedTimestampsConfig,
 } from './core/managed-fields';
-export {
-  defineModel,
-  defineMeta,
-  getSoftDeleteConfig,
-  applyComputedFields,
-  applyComputedFieldsToArray,
-  extractNestedData,
-  isDirectNestedData,
-  getAuditConfig,
-  calculateChanges,
-  getVersioningConfig,
-  parseAggregateField,
-  parseAggregateQuery,
-  parseSearchMode,
-  getMultiTenantConfig,
-  extractTenantId,
-  encodeCursor,
-  decodeCursor,
-  RESPONSE_ENVELOPE_CONTEXT_KEY,
-} from './core/types';
+export { defineModel, defineMeta, RESPONSE_ENVELOPE_CONTEXT_KEY } from './core/types';
+export { encodeCursor, decodeCursor } from './core/cursor';
+export { applyComputedFields, applyComputedFieldsToArray } from './core/computed-fields';
+export { extractNestedData, isDirectNestedData } from './core/nested-writes';
+export { parseAggregateField, parseAggregateQuery } from './core/aggregate';
+export { getSoftDeleteConfig } from './core/soft-delete';
+export { getAuditConfig, calculateChanges } from './audit/config';
+export { getVersioningConfig } from './versioning/config';
+export { getMultiTenantConfig, extractTenantId } from './multi-tenant/config';
+export { parseSearchMode } from './endpoints/search-utils';
 export { multiTenant } from './multi-tenant';
 export type {
   MultiTenantMiddlewareOptions,
@@ -176,7 +166,7 @@ export { setLogger, getLogger } from './core/logger';
 export type { Logger } from './core/logger';
 
 // ETag exports
-export { generateETag, matchesIfNoneMatch, matchesIfMatch } from './core/etag';
+export { generateETag, matchesIfNoneMatch, matchesIfMatch } from './utils/etag';
 
 // Endpoint exports
 export { CreateEndpoint } from './endpoints/create';
@@ -243,7 +233,7 @@ export {
   applyFieldSelectionToArray,
 } from './endpoints/types';
 export type {
-  ListEndpointConfig,
+  ListFilterParseOptions,
   SingleEndpointConfig,
   UpdateEndpointConfig,
   ModelObject,
@@ -252,7 +242,7 @@ export type {
 } from './endpoints/types';
 
 // Utility exports
-export { registerCrud, contentJson, successResponse, errorResponse } from './utils';
+export { registerCrud, contentJson, successResponse, errorResponse } from './core/register';
 export type {
   CrudEndpoints,
   EndpointClass,
@@ -260,7 +250,7 @@ export type {
   CrudEndpointName,
   EndpointMiddlewares,
   RegisterCrudOptions,
-} from './utils';
+} from './core/register';
 
 // CSV utility exports
 export {
@@ -286,7 +276,7 @@ export {
   toError,
   wrapError,
   getErrorMessage,
-} from './utils/errors';
+} from './utils/error-coerce';
 
 // Context helper exports
 export {

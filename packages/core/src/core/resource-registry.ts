@@ -9,7 +9,7 @@
  */
 
 import type { Env } from 'hono';
-import type { CrudEndpoints } from '../utils';
+import type { CrudEndpoints } from './register';
 
 const REGISTRY_KEY = Symbol.for('hono-crud.resource-registry');
 

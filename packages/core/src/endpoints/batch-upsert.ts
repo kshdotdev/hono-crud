@@ -1,10 +1,11 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { applyComputedFields } from '../core/computed-fields';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
-import { applyComputedFields } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -247,21 +248,7 @@ export abstract class BatchUpsertEndpoint<
             },
           },
         },
-        400: {
-          description: 'Validation error',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                  details: z.unknown().optional(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Validation error'),
       },
     };
   }
@@ -537,13 +524,19 @@ export abstract class BatchUpsertEndpoint<
       }
     }
 
-    // Apply serializer if defined
-    if (this._meta.model.serializer) {
-      result.items = result.items.map((item) => ({
+    // serializer → profile → transform per item (computed already applied above).
+    // Profile + transform were previously skipped here — running them closes the
+    // same serialization-profile leak fixed across the other write endpoints.
+    result.items = result.items.map((item) => {
+      const serialized = this._meta.model.serializer
+        ? this._meta.model.serializer(item.data)
+        : item.data;
+      const profiled = this.applyProfile(serialized as Record<string, unknown>);
+      return {
         ...item,
-        data: this._meta.model.serializer!(item.data) as ModelObject<M['model']>,
-      }));
-    }
+        data: this.transform(profiled as ModelObject<M['model']>) as ModelObject<M['model']>,
+      };
+    });
 
     return this.success(result);
   }

@@ -2,6 +2,7 @@ import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
+import { extractNestedData } from '../core/nested-writes';
 import type {
   HookContext,
   HookMode,
@@ -9,8 +10,8 @@ import type {
   OpenAPIRouteSchema,
   RelationConfig,
 } from '../core/types';
-import { applyComputedFields, extractNestedData } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -210,21 +211,7 @@ export abstract class CreateEndpoint<
             },
           },
         },
-        400: {
-          description: 'Validation error',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                  details: z.unknown().optional(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Validation error'),
       },
     };
   }
@@ -408,22 +395,8 @@ export abstract class CreateEndpoint<
       this.runAfterResponse(this.emitEvent('created', { recordId: parentId, data: obj }));
     }
 
-    // Apply computed fields if defined
-    if (this._meta.model.computedFields) {
-      obj = (await applyComputedFields(
-        obj as Record<string, unknown>,
-        this._meta.model.computedFields,
-      )) as ModelObject<M['model']>;
-    }
-
-    // Apply serializer if defined
-    const serialized = this._meta.model.serializer ? this._meta.model.serializer(obj) : obj;
-
-    // Apply default serialization profile (model.serializationProfile)
-    const profiled = this.applyProfile(serialized as Record<string, unknown>);
-
-    // Apply transform
-    const result = this.transform(profiled as ModelObject<M['model']>);
+    // computed fields → serializer → profile → transform
+    const result = await this.finalizeRecord(obj);
 
     return this.success(result, 201);
   }

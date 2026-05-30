@@ -3,6 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { ApiException, NotFoundException } from '../core/exceptions';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import type { ModelObject } from './types';
 
 /**
@@ -81,34 +82,8 @@ export abstract class RestoreEndpoint<
             },
           },
         },
-        400: {
-          description: 'Soft delete not enabled or record not deleted',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
-        404: {
-          description: 'Resource not found',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Soft delete not enabled or record not deleted'),
+        404: errorResponseSchema('Resource not found'),
       },
     };
   }
@@ -225,10 +200,8 @@ export abstract class RestoreEndpoint<
       this.runAfterResponse(this.emitEvent('restored', { recordId, data: restoredItem }));
     }
 
-    // Apply serializer if defined
-    const result = this._meta.model.serializer
-      ? this._meta.model.serializer(restoredItem)
-      : restoredItem;
+    // computed fields → serializer → profile → transform
+    const result = await this.finalizeRecord(restoredItem);
 
     return this.success(result);
   }

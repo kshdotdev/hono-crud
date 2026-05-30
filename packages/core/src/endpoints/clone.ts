@@ -7,8 +7,8 @@ import {
   stripManagedInsertFields,
 } from '../core/managed-fields';
 import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
-import { applyComputedFields } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -107,34 +107,8 @@ export abstract class CloneEndpoint<
             },
           },
         },
-        404: {
-          description: 'Source resource not found',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
-        409: {
-          description: 'Unique-constraint violation (e.g. natural-key collision)',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        404: errorResponseSchema('Source resource not found'),
+        409: errorResponseSchema('Unique-constraint violation (e.g. natural-key collision)'),
       },
     };
   }
@@ -243,17 +217,9 @@ export abstract class CloneEndpoint<
     // Run after hook
     obj = await this.after(obj);
 
-    // Apply computed fields if defined
-    if (this._meta.model.computedFields) {
-      obj = (await applyComputedFields(
-        obj as Record<string, unknown>,
-        this._meta.model.computedFields,
-      )) as ModelObject<M['model']>;
-    }
+    // computed fields → serializer → profile → transform
+    const result = await this.finalizeRecord(obj);
 
-    // Apply serializer if defined
-    const serialized = this._meta.model.serializer ? this._meta.model.serializer(obj) : obj;
-
-    return this.success(serialized, 201);
+    return this.success(result, 201);
   }
 }

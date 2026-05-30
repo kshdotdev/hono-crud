@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import { z } from 'zod';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import { ForbiddenException, UnauthorizedException } from '../core/exceptions';
 import { getLogger } from '../core/logger';
 import type { ModelPolicies } from '../core/types';
@@ -511,14 +512,14 @@ export function requireApproval<E extends AuthEnv = AuthEnv>(
     }
 
     // -------- Initial path: persist a pending action and return 202 -------
-    const userId = getContextVar<string>(ctx, 'userId');
-    const agentId = getContextVar<string>(ctx, 'agentId');
-    const agentRunId = getContextVar<string>(ctx, 'agentRunId');
-    const onBehalfOfUserId = getContextVar<string>(ctx, 'onBehalfOfUserId');
-    const toolCallId = getContextVar<string>(ctx, 'toolCallId');
-    const tenantId = getContextVar<string>(ctx, 'tenantId');
-    const organizationId = getContextVar<string>(ctx, 'organizationId');
-    const explicitSource = getContextVar<ActionSource>(ctx, 'actionSource');
+    const userId = getContextVar<string>(ctx, CONTEXT_KEYS.userId);
+    const agentId = getContextVar<string>(ctx, CONTEXT_KEYS.agentId);
+    const agentRunId = getContextVar<string>(ctx, CONTEXT_KEYS.agentRunId);
+    const onBehalfOfUserId = getContextVar<string>(ctx, CONTEXT_KEYS.onBehalfOfUserId);
+    const toolCallId = getContextVar<string>(ctx, CONTEXT_KEYS.toolCallId);
+    const tenantId = getContextVar<string>(ctx, CONTEXT_KEYS.tenantId);
+    const organizationId = getContextVar<string>(ctx, CONTEXT_KEYS.organizationId);
+    const explicitSource = getContextVar<ActionSource>(ctx, CONTEXT_KEYS.actionSource);
     const source: ActionSource = explicitSource ?? (agentId ? 'agent-mcp' : 'http');
 
     const now = Date.now();

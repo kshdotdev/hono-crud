@@ -25,7 +25,7 @@
  * ```
  */
 
-import type { KVNamespace } from '../shared/kv-types';
+import type { KVNamespace } from '../shared/cloudflare-kv-types';
 
 // Re-export KVNamespace for convenience
 export type { KVNamespace };

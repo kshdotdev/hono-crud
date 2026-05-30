@@ -1,7 +1,6 @@
 import type { RouteConfig } from '@hono/zod-openapi';
 import type { Context, Env } from 'hono';
 import type { ZodObject, ZodRawShape, ZodType, z } from 'zod';
-import { getContextVar } from '../utils/context';
 
 // ============================================================================
 // Schema Type Utilities
@@ -96,28 +95,7 @@ export interface PaginatedResult<T> {
   };
 }
 
-// ============================================================================
-// Cursor Pagination Utilities
-// ============================================================================
-
-/**
- * Encodes a cursor value to an opaque base64 string.
- */
-export function encodeCursor(value: string | number): string {
-  return btoa(String(value));
-}
-
-/**
- * Decodes an opaque cursor string back to the original value.
- * Returns null if the cursor is invalid.
- */
-export function decodeCursor(cursor: string): string | null {
-  try {
-    return atob(cursor);
-  } catch {
-    return null;
-  }
-}
+// Cursor codecs (encodeCursor / decodeCursor) moved to ./cursor.ts.
 
 // ============================================================================
 // Relation Types
@@ -303,50 +281,8 @@ export interface NestedWriteResult<T = Record<string, unknown>> {
   disconnected: (string | number)[];
 }
 
-/**
- * Extract nested write data from a request body.
- *
- * @param data - The request body data
- * @param relationNames - Names of relations that support nested writes
- * @returns Object with main data and nested data separated
- */
-export function extractNestedData<T extends Record<string, unknown>>(
-  data: T,
-  relationNames: string[],
-): {
-  mainData: Record<string, unknown>;
-  nestedData: Record<string, unknown>;
-} {
-  const mainData: Record<string, unknown> = {};
-  const nestedData: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(data)) {
-    if (relationNames.includes(key) && value !== undefined) {
-      nestedData[key] = value;
-    } else {
-      mainData[key] = value;
-    }
-  }
-
-  return { mainData, nestedData };
-}
-
-/**
- * Check if nested data is a "create" operation (direct data vs operation object).
- * Direct data: { name: "John" } or [{ name: "John" }]
- * Operation object: { create: [...], update: [...] }
- */
-export function isDirectNestedData(data: unknown): boolean {
-  if (Array.isArray(data)) {
-    return true;
-  }
-  if (typeof data === 'object' && data !== null) {
-    const keys = Object.keys(data);
-    const operationKeys = ['create', 'update', 'delete', 'connect', 'disconnect', 'set'];
-    return !keys.some((key) => operationKeys.includes(key));
-  }
-  return false;
-}
+// Nested-write helpers (extractNestedData / isDirectNestedData) moved to
+// ./nested-writes.ts.
 
 // ============================================================================
 // Audit Log Types
@@ -473,71 +409,7 @@ export interface NormalizedAuditConfig {
   getUserId?: (ctx: unknown) => string | undefined;
 }
 
-/**
- * Get normalized audit configuration with defaults.
- */
-export function getAuditConfig(config?: AuditConfig): NormalizedAuditConfig {
-  if (!config || !config.enabled) {
-    return {
-      enabled: false,
-      tableName: 'audit_logs',
-      actions: [],
-      excludeFields: [],
-      storeRecord: true,
-      storePreviousRecord: true,
-      trackChanges: true,
-    };
-  }
-
-  return {
-    enabled: true,
-    tableName: config.tableName || 'audit_logs',
-    actions: config.actions || ['create', 'update', 'delete'],
-    excludeFields: config.excludeFields || [],
-    storeRecord: config.storeRecord ?? true,
-    storePreviousRecord: config.storePreviousRecord ?? true,
-    trackChanges: config.trackChanges ?? true,
-    getUserId: config.getUserId,
-  };
-}
-
-/**
- * Calculate field changes between two records.
- */
-export function calculateChanges(
-  oldRecord: Record<string, unknown> | undefined,
-  newRecord: Record<string, unknown> | undefined,
-  excludeFields: string[] = [],
-): AuditFieldChange[] {
-  const changes: AuditFieldChange[] = [];
-
-  if (!oldRecord && !newRecord) {
-    return changes;
-  }
-
-  const allKeys = new Set([...Object.keys(oldRecord || {}), ...Object.keys(newRecord || {})]);
-
-  for (const key of allKeys) {
-    if (excludeFields.includes(key)) continue;
-
-    const oldValue = oldRecord?.[key];
-    const newValue = newRecord?.[key];
-
-    // Deep comparison for objects
-    const oldStr = JSON.stringify(oldValue);
-    const newStr = JSON.stringify(newValue);
-
-    if (oldStr !== newStr) {
-      changes.push({
-        field: key,
-        oldValue,
-        newValue,
-      });
-    }
-  }
-
-  return changes;
-}
+// Audit helpers (getAuditConfig / calculateChanges) moved to ../audit/config.ts.
 
 // ============================================================================
 // Versioning Types
@@ -598,34 +470,7 @@ export interface NormalizedVersioningConfig {
   getUserId?: (ctx: unknown) => string | undefined;
 }
 
-/**
- * Get normalized versioning configuration with defaults.
- */
-export function getVersioningConfig(
-  config: VersioningConfig | undefined,
-  tableName: string,
-): NormalizedVersioningConfig {
-  if (!config || !config.enabled) {
-    return {
-      enabled: false,
-      field: 'version',
-      historyTable: `${tableName}_history`,
-      maxVersions: null,
-      trackChangedBy: false,
-      excludeFields: [],
-    };
-  }
-
-  return {
-    enabled: true,
-    field: config.field || 'version',
-    historyTable: config.historyTable || `${tableName}_history`,
-    maxVersions: config.maxVersions ?? null,
-    trackChangedBy: config.trackChangedBy ?? false,
-    excludeFields: config.excludeFields || [],
-    getUserId: config.getUserId,
-  };
-}
+// Versioning helper (getVersioningConfig) moved to ../versioning/config.ts.
 
 // ============================================================================
 // Aggregation Types
@@ -707,107 +552,8 @@ export interface AggregateConfig {
   maxLimit?: number;
 }
 
-/**
- * Parse aggregation field from query string.
- * Supports formats like: "count:*", "sum:amount", "avg:price:averagePrice"
- */
-export function parseAggregateField(value: string): AggregateField | null {
-  const parts = value.split(':');
-  if (parts.length < 2) return null;
-
-  const rawOp = parts[0].toLowerCase();
-  const validOps = ['count', 'sum', 'avg', 'min', 'max', 'countdistinct'];
-
-  if (!validOps.includes(rawOp)) {
-    return null;
-  }
-
-  // Normalize countdistinct to countDistinct
-  const operation: AggregateOperation =
-    rawOp === 'countdistinct' ? 'countDistinct' : (rawOp as AggregateOperation);
-
-  return {
-    operation,
-    field: parts[1],
-    alias: parts[2],
-  };
-}
-
-/**
- * Parse aggregations from query parameters.
- */
-export function parseAggregateQuery(query: Record<string, unknown>): AggregateOptions {
-  const aggregations: AggregateField[] = [];
-  const filters: Record<string, unknown> = {};
-
-  // Parse individual aggregation params
-  const aggParams = ['count', 'sum', 'avg', 'min', 'max', 'countDistinct'];
-
-  for (const op of aggParams) {
-    const value = query[op];
-    if (value) {
-      const fields = Array.isArray(value) ? value : [value];
-      for (const field of fields) {
-        if (typeof field === 'string') {
-          aggregations.push({
-            operation: op as AggregateOperation,
-            field: field === 'true' || field === '' ? '*' : field,
-          });
-        }
-      }
-    }
-  }
-
-  // Parse groupBy
-  let groupBy: string[] | undefined;
-  if (query.groupBy) {
-    const groupByValue = query.groupBy;
-    if (typeof groupByValue === 'string') {
-      groupBy = groupByValue.split(',').map((s) => s.trim());
-    } else if (Array.isArray(groupByValue)) {
-      groupBy = groupByValue.filter((s) => typeof s === 'string') as string[];
-    }
-  }
-
-  // Parse having (format: having[alias][op]=value)
-  let having: Record<string, Record<string, unknown>> | undefined;
-  for (const [key, value] of Object.entries(query)) {
-    const havingMatch = key.match(/^having\[(\w+)\]\[(\w+)\]$/);
-    if (havingMatch) {
-      const [, alias, op] = havingMatch;
-      if (!having) having = {};
-      if (!having[alias]) having[alias] = {};
-      having[alias][op] = value;
-    }
-  }
-
-  // Parse orderBy
-  const orderBy = typeof query.orderBy === 'string' ? query.orderBy : undefined;
-  const orderDirection = query.orderDirection === 'desc' ? 'desc' : 'asc';
-
-  // Parse pagination
-  const limit = typeof query.limit === 'string' ? Number.parseInt(query.limit, 10) : undefined;
-  const offset = typeof query.offset === 'string' ? Number.parseInt(query.offset, 10) : undefined;
-
-  // Collect remaining params as filters
-  const reservedParams = [...aggParams, 'groupBy', 'orderBy', 'orderDirection', 'limit', 'offset'];
-  for (const [key, value] of Object.entries(query)) {
-    if (!reservedParams.includes(key) && !key.startsWith('having[')) {
-      filters[key] = value;
-    }
-  }
-
-  return {
-    aggregations,
-    groupBy,
-    filters: Object.keys(filters).length > 0 ? filters : undefined,
-    having,
-    orderBy,
-    orderDirection,
-    limit,
-    offset,
-  };
-}
+// Aggregate parsers (parseAggregateField / parseAggregateQuery) moved to
+// ./aggregate.ts.
 
 // ============================================================================
 // Computed Fields Types
@@ -854,51 +600,8 @@ export type ComputedFieldsConfig<T = Record<string, unknown>> = Record<
   ComputedFieldConfig<T, unknown>
 >;
 
-/**
- * Apply computed fields to a single record.
- * @param record - The record to add computed fields to
- * @param computedFields - The computed fields configuration
- * @returns The record with computed fields added
- */
-export async function applyComputedFields<T extends Record<string, unknown>>(
-  record: T,
-  computedFields?: ComputedFieldsConfig<T>,
-): Promise<Record<string, unknown>> {
-  if (!computedFields || Object.keys(computedFields).length === 0) {
-    return record;
-  }
-
-  const result: Record<string, unknown> = { ...record };
-
-  for (const [fieldName, config] of Object.entries(computedFields)) {
-    try {
-      const value = await config.compute(record);
-      result[fieldName] = value;
-    } catch (error) {
-      // If computation fails, set field to undefined
-      result[fieldName] = undefined;
-    }
-  }
-
-  return result;
-}
-
-/**
- * Apply computed fields to an array of records.
- * @param records - The records to add computed fields to
- * @param computedFields - The computed fields configuration
- * @returns The records with computed fields added
- */
-export async function applyComputedFieldsToArray<T extends Record<string, unknown>>(
-  records: T[],
-  computedFields?: ComputedFieldsConfig<T>,
-): Promise<Array<Record<string, unknown>>> {
-  if (!computedFields || Object.keys(computedFields).length === 0) {
-    return records;
-  }
-
-  return Promise.all(records.map((record) => applyComputedFields(record, computedFields)));
-}
+// Computed-field appliers (applyComputedFields / applyComputedFieldsToArray)
+// moved to ./computed-fields.ts.
 
 // ============================================================================
 // Multi-Tenancy Types
@@ -1433,38 +1136,7 @@ export interface NormalizedSoftDeleteConfig {
   queryParam: string;
 }
 
-/**
- * Get normalized soft delete configuration from a model.
- * Returns a consistent config object with all defaults applied.
- */
-export function getSoftDeleteConfig(
-  softDelete: boolean | SoftDeleteConfig | undefined,
-): NormalizedSoftDeleteConfig {
-  if (!softDelete) {
-    return {
-      enabled: false,
-      field: 'deletedAt',
-      allowQueryDeleted: true,
-      queryParam: 'withDeleted',
-    };
-  }
-
-  if (softDelete === true) {
-    return {
-      enabled: true,
-      field: 'deletedAt',
-      allowQueryDeleted: true,
-      queryParam: 'withDeleted',
-    };
-  }
-
-  return {
-    enabled: true,
-    field: softDelete.field ?? 'deletedAt',
-    allowQueryDeleted: softDelete.allowQueryDeleted ?? true,
-    queryParam: softDelete.queryParam ?? 'withDeleted',
-  };
-}
+// Soft-delete normalizer (getSoftDeleteConfig) moved to ./soft-delete.ts.
 
 // ============================================================================
 // Multi-Tenancy Helpers
@@ -1485,80 +1157,8 @@ export interface NormalizedMultiTenantConfig {
   errorMessage: string;
 }
 
-/**
- * Get normalized multi-tenant configuration from a model.
- * Returns a consistent config object with all defaults applied.
- */
-export function getMultiTenantConfig(
-  multiTenant: boolean | MultiTenantConfig | undefined,
-): NormalizedMultiTenantConfig {
-  const defaults: NormalizedMultiTenantConfig = {
-    enabled: false,
-    field: 'tenantId',
-    source: 'context',
-    headerName: 'X-Tenant-ID',
-    contextKey: 'tenantId',
-    pathParam: 'tenantId',
-    required: true,
-    errorMessage: 'Tenant ID is required',
-  };
-
-  if (!multiTenant) {
-    return defaults;
-  }
-
-  if (multiTenant === true) {
-    return {
-      ...defaults,
-      enabled: true,
-    };
-  }
-
-  return {
-    enabled: true,
-    field: multiTenant.field ?? defaults.field,
-    source: multiTenant.source ?? defaults.source,
-    headerName: multiTenant.headerName ?? defaults.headerName,
-    contextKey: multiTenant.contextKey ?? defaults.contextKey,
-    pathParam: multiTenant.pathParam ?? defaults.pathParam,
-    getTenantId: multiTenant.getTenantId,
-    required: multiTenant.required ?? defaults.required,
-    errorMessage: multiTenant.errorMessage ?? defaults.errorMessage,
-  };
-}
-
-/**
- * Extract tenant ID from context based on configuration.
- * Returns undefined if tenant ID is not found.
- */
-export function extractTenantId(
-  ctx: Context,
-  config: NormalizedMultiTenantConfig,
-): string | undefined {
-  if (!config.enabled) {
-    return undefined;
-  }
-
-  switch (config.source) {
-    case 'header':
-      return ctx.req.header(config.headerName);
-
-    case 'context':
-      return getContextVar<string>(ctx, config.contextKey);
-
-    case 'path':
-      return ctx.req.param(config.pathParam);
-
-    case 'custom':
-      if (config.getTenantId) {
-        return config.getTenantId(ctx);
-      }
-      return undefined;
-
-    default:
-      return undefined;
-  }
-}
+// Multi-tenant helpers (getMultiTenantConfig / extractTenantId) moved to
+// ../multi-tenant/config.ts.
 
 /**
  * Context passed to lifecycle hooks (`before`/`after` on Create/Update/Delete
@@ -1871,15 +1471,7 @@ export interface SearchResult<T> {
   postFilteredCount?: number;
 }
 
-/**
- * Parse search mode from string.
- */
-export function parseSearchMode(value: string | undefined): SearchMode {
-  if (value === 'all' || value === 'phrase') {
-    return value;
-  }
-  return 'any';
-}
+// Search-mode parser (parseSearchMode) moved to ../endpoints/search-utils.ts.
 
 // ============================================================================
 // Type Inference Utilities

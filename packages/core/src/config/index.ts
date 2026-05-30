@@ -35,11 +35,21 @@
 import type { Env, MiddlewareHandler } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
+import type { EndpointClass } from '../core/register';
 import type { OpenAPIRoute } from '../core/route';
 import type { HookMode, MetaInput } from '../core/types';
 import type { FilterConfig } from '../core/types';
+import type {
+  AggregateExtras,
+  BatchExtras,
+  BatchUpsertExtras,
+  CloneExtras,
+  ExportExtras,
+  ImportExtras,
+  SearchExtras,
+  UpsertExtras,
+} from '../endpoints/extras-config';
 import type { ModelObject } from '../endpoints/types';
-import type { EndpointClass } from '../utils';
 
 // ============================================================================
 // Type Definitions
@@ -821,30 +831,30 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
   // Generate Search endpoint
   if (config.search !== undefined && adapters.SearchEndpoint) {
     const cfg = config.search;
+    const extras: SearchExtras = {};
+    if (cfg.fields !== undefined) extras.searchFields = cfg.fields;
+    if (cfg.mode !== undefined) extras.defaultMode = cfg.mode;
+    if (cfg.paramName !== undefined) extras.searchParamName = cfg.paramName;
     result.search = generateEndpointClass(adapters.SearchEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
       middlewares: cfg.middlewares,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      extras: {
-        ...(cfg.fields !== undefined ? { searchFields: cfg.fields } : {}),
-        ...(cfg.mode !== undefined ? { defaultMode: cfg.mode } : {}),
-        ...(cfg.paramName !== undefined ? { searchParamName: cfg.paramName } : {}),
-      },
+      extras,
     });
   }
 
   // Generate Aggregate endpoint
   if (config.aggregate !== undefined && adapters.AggregateEndpoint) {
     const cfg = config.aggregate;
+    const extras: AggregateExtras = {};
+    if (cfg.fields !== undefined) extras.filterFields = cfg.fields;
     result.aggregate = generateEndpointClass(adapters.AggregateEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
       middlewares: cfg.middlewares,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      extras: {
-        ...(cfg.fields !== undefined ? { filterFields: cfg.fields } : {}),
-      },
+      extras,
     });
   }
 
@@ -865,6 +875,8 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
   // Generate BatchCreate endpoint
   if (config.batchCreate !== undefined && adapters.BatchCreateEndpoint) {
     const cfg = config.batchCreate;
+    const extras: BatchExtras = {};
+    if (cfg.maxBatchSize !== undefined) extras.maxBatchSize = cfg.maxBatchSize;
     result.batchCreate = generateEndpointClass(adapters.BatchCreateEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
@@ -874,15 +886,15 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      extras: {
-        ...(cfg.maxBatchSize !== undefined ? { maxBatchSize: cfg.maxBatchSize } : {}),
-      },
+      extras,
     });
   }
 
   // Generate BatchUpdate endpoint
   if (config.batchUpdate !== undefined && adapters.BatchUpdateEndpoint) {
     const cfg = config.batchUpdate;
+    const extras: BatchExtras = {};
+    if (cfg.maxBatchSize !== undefined) extras.maxBatchSize = cfg.maxBatchSize;
     result.batchUpdate = generateEndpointClass(adapters.BatchUpdateEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
@@ -891,15 +903,15 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      extras: {
-        ...(cfg.maxBatchSize !== undefined ? { maxBatchSize: cfg.maxBatchSize } : {}),
-      },
+      extras,
     });
   }
 
   // Generate BatchDelete endpoint
   if (config.batchDelete !== undefined && adapters.BatchDeleteEndpoint) {
     const cfg = config.batchDelete;
+    const extras: BatchExtras = {};
+    if (cfg.maxBatchSize !== undefined) extras.maxBatchSize = cfg.maxBatchSize;
     result.batchDelete = generateEndpointClass(adapters.BatchDeleteEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
@@ -908,15 +920,15 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      extras: {
-        ...(cfg.maxBatchSize !== undefined ? { maxBatchSize: cfg.maxBatchSize } : {}),
-      },
+      extras,
     });
   }
 
   // Generate BatchRestore endpoint
   if (config.batchRestore !== undefined && adapters.BatchRestoreEndpoint) {
     const cfg = config.batchRestore;
+    const extras: BatchExtras = {};
+    if (cfg.maxBatchSize !== undefined) extras.maxBatchSize = cfg.maxBatchSize;
     result.batchRestore = generateEndpointClass(adapters.BatchRestoreEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
@@ -925,9 +937,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      extras: {
-        ...(cfg.maxBatchSize !== undefined ? { maxBatchSize: cfg.maxBatchSize } : {}),
-      },
+      extras,
     });
   }
 
@@ -936,6 +946,9 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     const cfg = config.batchUpsert;
     const upsertKeys =
       typeof cfg.conflictTarget === 'string' ? [cfg.conflictTarget] : cfg.conflictTarget;
+    const extras: BatchUpsertExtras = {};
+    if (cfg.maxBatchSize !== undefined) extras.maxBatchSize = cfg.maxBatchSize;
+    if (upsertKeys !== undefined) extras.upsertKeys = upsertKeys;
     result.batchUpsert = generateEndpointClass(adapters.BatchUpsertEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
@@ -945,41 +958,36 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      extras: {
-        ...(cfg.maxBatchSize !== undefined ? { maxBatchSize: cfg.maxBatchSize } : {}),
-        ...(upsertKeys !== undefined ? { upsertKeys } : {}),
-      },
+      extras,
     });
   }
 
   // Generate Export endpoint
   if (config.export !== undefined && adapters.ExportEndpoint) {
     const cfg = config.export;
+    const extras: ExportExtras = {};
+    if (cfg.maxRows !== undefined) extras.maxExportRecords = cfg.maxRows;
+    if (cfg.formats !== undefined && cfg.formats.length > 0) extras.defaultFormat = cfg.formats[0];
     result.export = generateEndpointClass(adapters.ExportEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
       middlewares: cfg.middlewares,
-      extras: {
-        ...(cfg.maxRows !== undefined ? { maxExportRecords: cfg.maxRows } : {}),
-        ...(cfg.formats !== undefined && cfg.formats.length > 0
-          ? { defaultFormat: cfg.formats[0] }
-          : {}),
-      },
+      extras,
     });
   }
 
   // Generate Import endpoint
   if (config.import !== undefined && adapters.ImportEndpoint) {
     const cfg = config.import;
+    const extras: ImportExtras = {};
+    if (cfg.maxRows !== undefined) extras.maxBatchSize = cfg.maxRows;
     result.import = generateEndpointClass(adapters.ImportEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
       middlewares: cfg.middlewares,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      extras: {
-        ...(cfg.maxRows !== undefined ? { maxBatchSize: cfg.maxRows } : {}),
-      },
+      extras,
     });
   }
 
@@ -988,6 +996,8 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     const cfg = config.upsert;
     const upsertKeys =
       typeof cfg.conflictTarget === 'string' ? [cfg.conflictTarget] : cfg.conflictTarget;
+    const extras: UpsertExtras = {};
+    if (upsertKeys !== undefined) extras.upsertKeys = upsertKeys;
     result.upsert = generateEndpointClass(adapters.UpsertEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
@@ -997,24 +1007,22 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      extras: {
-        ...(upsertKeys !== undefined ? { upsertKeys } : {}),
-      },
+      extras,
     });
   }
 
   // Generate Clone endpoint
   if (config.clone !== undefined && adapters.CloneEndpoint) {
     const cfg = config.clone;
+    const extras: CloneExtras = {};
+    if (cfg.fieldsToReset !== undefined) extras.excludeFromClone = cfg.fieldsToReset;
     result.clone = generateEndpointClass(adapters.CloneEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
       middlewares: cfg.middlewares,
       before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
       after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      extras: {
-        ...(cfg.fieldsToReset !== undefined ? { excludeFromClone: cfg.fieldsToReset } : {}),
-      },
+      extras,
     });
   }
 

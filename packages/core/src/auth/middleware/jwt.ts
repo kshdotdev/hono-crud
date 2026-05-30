@@ -1,6 +1,7 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { decode, verify } from 'hono/jwt';
 import type { JWTPayload } from 'hono/utils/jwt/types';
+import { CONTEXT_KEYS } from '../../core/context-keys';
 import { UnauthorizedException } from '../../core/exceptions';
 import type { AuthEnv, AuthUser, JWTAlgorithm, JWTClaims, JWTConfig } from '../types';
 import { validateJWTClaims } from '../validators/jwt-claims';
@@ -163,11 +164,11 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
     const user = extractUser(claims);
 
     // Set context variables
-    ctx.set('userId', user.id);
-    ctx.set('user', user);
-    ctx.set('roles', user.roles || []);
-    ctx.set('permissions', user.permissions || []);
-    ctx.set('authType', 'jwt');
+    ctx.set(CONTEXT_KEYS.userId, user.id);
+    ctx.set(CONTEXT_KEYS.user, user);
+    ctx.set(CONTEXT_KEYS.roles, user.roles || []);
+    ctx.set(CONTEXT_KEYS.permissions, user.permissions || []);
+    ctx.set(CONTEXT_KEYS.authType, 'jwt');
 
     await next();
   };

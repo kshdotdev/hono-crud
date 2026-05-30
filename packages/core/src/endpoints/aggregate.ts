@@ -1,5 +1,6 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { parseAggregateQuery } from '../core/aggregate';
 import { InputValidationException } from '../core/exceptions';
 import type {
   AggregateConfig,
@@ -10,8 +11,8 @@ import type {
   MetaInput,
   OpenAPIRouteSchema,
 } from '../core/types';
-import { parseAggregateQuery } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 
 /**
  * Default aggregate configuration.
@@ -137,21 +138,7 @@ export abstract class AggregateEndpoint<
             },
           },
         },
-        400: {
-          description: 'Invalid aggregation request',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                  details: z.unknown().optional(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Invalid aggregation request'),
       },
     };
   }

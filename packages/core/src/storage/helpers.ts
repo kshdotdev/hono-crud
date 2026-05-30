@@ -52,19 +52,6 @@ export function getStorage<K extends StorageKey>(
   return ctx.var[key];
 }
 
-/**
- * @deprecated Use `ctx.var[key]` directly for typed access, or `getStorage()` helper.
- * This function is kept for backwards compatibility.
- *
- * Helper to safely access context variables.
- * For new code, prefer using Hono's typed `c.var` pattern with StorageEnv.
- */
-export function getContextVar<T>(ctx: unknown, key: string): T | undefined {
-  // Access via .var property
-  const ctxObj = ctx as { var?: Record<string, unknown> };
-  return ctxObj?.var?.[key] as T | undefined;
-}
-
 // ============================================================================
 // Storage Resolution Functions
 // All delegate to their respective StorageRegistry.resolve() method which

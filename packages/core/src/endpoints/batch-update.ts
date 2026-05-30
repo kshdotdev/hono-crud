@@ -3,6 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getManagedInputExclusions } from '../core/managed-fields';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -164,20 +165,7 @@ export abstract class BatchUpdateEndpoint<
             },
           },
         },
-        400: {
-          description: 'Validation error',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Validation error'),
       },
     };
   }
@@ -325,10 +313,8 @@ export abstract class BatchUpdateEndpoint<
       }
     }
 
-    // Apply serializer if defined
-    const serialized = this._meta.model.serializer
-      ? results.map((item) => this._meta.model.serializer!(item) as ModelObject<M['model']>)
-      : results;
+    // computed fields → serializer → profile → transform
+    const serialized = await this.finalizeArray(results);
 
     const response = {
       success: true as const,

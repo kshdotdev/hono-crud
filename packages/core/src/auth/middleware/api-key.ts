@@ -1,4 +1,5 @@
 import type { Context, MiddlewareHandler } from 'hono';
+import { CONTEXT_KEYS } from '../../core/context-keys';
 import { UnauthorizedException } from '../../core/exceptions';
 import type { APIKeyConfig, APIKeyEntry, AuthEnv, AuthUser } from '../types';
 import { validateAPIKeyEntry } from '../validators/api-key';
@@ -103,11 +104,11 @@ export function createAPIKeyMiddleware<E extends AuthEnv = AuthEnv>(
     const user = extractUser(entry);
 
     // Set context variables
-    ctx.set('userId', user.id);
-    ctx.set('user', user);
-    ctx.set('roles', user.roles || []);
-    ctx.set('permissions', user.permissions || []);
-    ctx.set('authType', 'api-key');
+    ctx.set(CONTEXT_KEYS.userId, user.id);
+    ctx.set(CONTEXT_KEYS.user, user);
+    ctx.set(CONTEXT_KEYS.roles, user.roles || []);
+    ctx.set(CONTEXT_KEYS.permissions, user.permissions || []);
+    ctx.set(CONTEXT_KEYS.authType, 'api-key');
 
     // Fire-and-forget update last used timestamp
     if (config.updateLastUsed) {

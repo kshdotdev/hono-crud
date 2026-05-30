@@ -1,13 +1,11 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import type { FilterConfig, MetaInput, OpenAPIRouteSchema, PaginatedResult } from '../core/types';
-import { applyComputedFieldsToArray } from '../core/types';
 import { CrudEndpoint } from './base';
 import {
-  type ListEndpointConfig,
+  type ListFilterParseOptions,
   type ListFilters,
   type ModelObject,
-  applyFieldSelectionToArray,
   parseListFilters,
 } from './types';
 
@@ -245,7 +243,7 @@ export abstract class ListEndpoint<
     const { query } = await this.getValidatedData();
     const softDeleteConfig = this.getSoftDeleteConfig();
 
-    const config: ListEndpointConfig = {
+    const config: ListFilterParseOptions = {
       filterFields: this.filterFields,
       filterConfig: this.filterConfig,
       searchFields: this.searchFields,
@@ -338,37 +336,14 @@ export abstract class ListEndpoint<
       decrypted as ModelObject<M['model']>[],
     );
 
-    let items = await this.after(policyFiltered);
+    const items = await this.after(policyFiltered);
 
-    // Apply computed fields if defined
-    if (this._meta.model.computedFields) {
-      items = (await applyComputedFieldsToArray(
-        items as Record<string, unknown>[],
-        this._meta.model.computedFields,
-      )) as ModelObject<M['model']>[];
-    }
-
-    // Apply serializer if defined
-    if (this._meta.model.serializer) {
-      items = items.map((item) => this._meta.model.serializer!(item) as ModelObject<M['model']>);
-    }
-
-    // Apply default serialization profile (model.serializationProfile)
-    const profiled = this.applyProfileToArray(items as Record<string, unknown>[]);
-
-    // Apply transform to each item
-    const transformedItems = profiled.map((item) =>
-      this.transform(item as ModelObject<M['model']>),
-    );
-
-    // Apply field selection if enabled and fields were specified
-    const result =
+    // computed fields → serializer → profile → transform → field selection
+    const fieldSelection =
       this.fieldSelectionEnabled && filters.options.fields && filters.options.fields.length > 0
-        ? applyFieldSelectionToArray(transformedItems as Record<string, unknown>[], {
-            fields: filters.options.fields,
-            isActive: true,
-          })
-        : transformedItems;
+        ? { fields: filters.options.fields, isActive: true }
+        : undefined;
+    const result = await this.finalizeArray(items, fieldSelection);
 
     return this.successPaginated(result, paginatedResult.result_info);
   }

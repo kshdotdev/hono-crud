@@ -1,4 +1,5 @@
 import type { Context, MiddlewareHandler } from 'hono';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import { ApiException } from '../core/exceptions';
 import type { ApiVersionConfig, VersioningMiddlewareConfig } from './types';
 
@@ -78,24 +79,13 @@ export function apiVersion(config: VersioningMiddlewareConfig): MiddlewareHandle
   }
 
   return async (ctx, next) => {
-    // Extract version from request
-    let version: string | undefined;
-
-    if (customExtractor) {
-      version = customExtractor(ctx);
-    } else {
-      switch (strategy) {
-        case 'header':
-          version = extractFromHeader(ctx, headerName);
-          break;
-        case 'query':
-          version = extractFromQuery(ctx, queryParam);
-          break;
-        case 'url':
-          version = extractFromUrl(ctx, urlPattern);
-          break;
-      }
-    }
+    // Extract version from request. Strategy → extractor lookup map.
+    const strategyExtractors: Record<typeof strategy, () => string | undefined> = {
+      header: () => extractFromHeader(ctx, headerName),
+      query: () => extractFromQuery(ctx, queryParam),
+      url: () => extractFromUrl(ctx, urlPattern),
+    };
+    let version = customExtractor ? customExtractor(ctx) : strategyExtractors[strategy]();
 
     // Fall back to default
     version = version ?? defaultVersion;
@@ -110,8 +100,8 @@ export function apiVersion(config: VersioningMiddlewareConfig): MiddlewareHandle
     }
 
     // Set version info in context
-    ctx.set('apiVersion', version);
-    ctx.set('apiVersionConfig', versionConfig);
+    ctx.set(CONTEXT_KEYS.apiVersion, version);
+    ctx.set(CONTEXT_KEYS.apiVersionConfig, versionConfig);
 
     // Add response headers
     if (addHeaders) {
@@ -141,14 +131,14 @@ export function apiVersion(config: VersioningMiddlewareConfig): MiddlewareHandle
  * Get the current API version from context.
  */
 export function getApiVersion(ctx: Context): string | undefined {
-  return ctx.get('apiVersion');
+  return ctx.get(CONTEXT_KEYS.apiVersion);
 }
 
 /**
  * Get the full version config from context.
  */
 export function getApiVersionConfig(ctx: Context): ApiVersionConfig | undefined {
-  return ctx.get('apiVersionConfig');
+  return ctx.get(CONTEXT_KEYS.apiVersionConfig);
 }
 
 /**
@@ -166,7 +156,7 @@ export function versionedResponse(): MiddlewareHandler {
   return async (ctx, next) => {
     await next();
 
-    const versionConfig = ctx.get('apiVersionConfig') as ApiVersionConfig | undefined;
+    const versionConfig = ctx.get(CONTEXT_KEYS.apiVersionConfig) as ApiVersionConfig | undefined;
     if (!versionConfig?.responseTransformer) return;
 
     const contentType = ctx.res.headers.get('content-type');

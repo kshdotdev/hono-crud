@@ -3,6 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -121,20 +122,7 @@ export abstract class BatchCreateEndpoint<
             },
           },
         },
-        400: {
-          description: 'Validation error',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        400: errorResponseSchema('Validation error'),
       },
     };
   }
@@ -278,15 +266,8 @@ export abstract class BatchCreateEndpoint<
       }
     }
 
-    // Apply serializer if defined
-    const serializedItems = this._meta.model.serializer
-      ? results.map((item) => this._meta.model.serializer!(item) as ModelObject<M['model']>)
-      : results;
-
-    // Apply transform to each item
-    const transformed = serializedItems.map((item) =>
-      this.transform(item as ModelObject<M['model']>),
-    );
+    // computed fields → serializer → profile → transform
+    const transformed = await this.finalizeArray(results);
 
     const response = {
       success: true as const,

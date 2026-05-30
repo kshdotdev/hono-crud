@@ -1,9 +1,9 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import type { Env, MiddlewareHandler } from 'hono';
-import { recordCrudResource } from './core/resource-registry';
-import type { OpenAPIRoute } from './core/route';
-import { RESPONSE_ENVELOPE_CONTEXT_KEY, type ResponseEnvelope } from './core/types';
-import { setContextVar } from './utils/context';
+import { setContextVar } from '../utils/context';
+import { recordCrudResource } from './resource-registry';
+import type { OpenAPIRoute } from './route';
+import { RESPONSE_ENVELOPE_CONTEXT_KEY, type ResponseEnvelope } from './types';
 
 /**
  * Type for an OpenAPIRoute class constructor.
@@ -36,7 +36,12 @@ export type CrudEndpointName =
   | 'export'
   | 'import'
   | 'upsert'
-  | 'clone';
+  | 'clone'
+  | 'bulkPatch'
+  | 'versionHistory'
+  | 'versionRead'
+  | 'versionCompare'
+  | 'versionRollback';
 
 /**
  * Per-endpoint middleware configuration.
@@ -124,6 +129,16 @@ export interface CrudEndpoints<E extends Env = Env> {
   upsert?: EndpointClass<E>;
   /** Clone endpoint for duplicating a record by id */
   clone?: EndpointClass<E>;
+  /** Bulk-patch endpoint: PATCH a filtered set of records at the collection level */
+  bulkPatch?: EndpointClass<E>;
+  /** Version-history list endpoint: `GET /:id/versions` */
+  versionHistory?: EndpointClass<E>;
+  /** Single-version read endpoint: `GET /:id/versions/:version` */
+  versionRead?: EndpointClass<E>;
+  /** Version-compare endpoint: `GET /:id/versions/compare` */
+  versionCompare?: EndpointClass<E>;
+  /** Version-rollback endpoint: `POST /:id/versions/:version/rollback` */
+  versionRollback?: EndpointClass<E>;
 }
 
 /**
@@ -317,6 +332,12 @@ export function registerCrud<E extends Env = Env>(
     registerRoute('post', `${normalizedPath}/upsert`, 'upsert', endpoints.upsert);
   }
 
+  // Bulk-patch endpoint (collection-level) - must be registered BEFORE :id
+  // routes so `/bulk` is not matched as an id parameter.
+  if (endpoints.bulkPatch) {
+    registerRoute('patch', `${normalizedPath}/bulk`, 'bulkPatch', endpoints.bulkPatch);
+  }
+
   // Item-level routes (with :id parameter) - must be registered AFTER /batch, /search, /export, /import, /upsert routes
   if (endpoints.read) {
     registerRoute('get', `${normalizedPath}/:id`, 'read', endpoints.read);
@@ -336,6 +357,44 @@ export function registerCrud<E extends Env = Env>(
 
   if (endpoints.clone) {
     registerRoute('post', `${normalizedPath}/:id/clone`, 'clone', endpoints.clone);
+  }
+
+  // Version sub-resource routes. `/versions/compare` must be registered
+  // BEFORE `/versions/:version` so "compare" isn't matched as a version id.
+  if (endpoints.versionHistory) {
+    registerRoute(
+      'get',
+      `${normalizedPath}/:id/versions`,
+      'versionHistory',
+      endpoints.versionHistory,
+    );
+  }
+
+  if (endpoints.versionCompare) {
+    registerRoute(
+      'get',
+      `${normalizedPath}/:id/versions/compare`,
+      'versionCompare',
+      endpoints.versionCompare,
+    );
+  }
+
+  if (endpoints.versionRead) {
+    registerRoute(
+      'get',
+      `${normalizedPath}/:id/versions/:version`,
+      'versionRead',
+      endpoints.versionRead,
+    );
+  }
+
+  if (endpoints.versionRollback) {
+    registerRoute(
+      'post',
+      `${normalizedPath}/:id/versions/:version/rollback`,
+      'versionRollback',
+      endpoints.versionRollback,
+    );
   }
 
   // Record this registration on the app so addons (e.g. @hono-crud/mcp) can

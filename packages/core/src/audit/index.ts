@@ -1,7 +1,8 @@
 import type { Context, Env } from 'hono';
-import type { AuditAction, AuditLogEntry, NormalizedAuditConfig } from '../core/types';
-import { type AuditConfig, calculateChanges, getAuditConfig } from '../core/types';
+import { CONTEXT_KEYS } from '../core/context-keys';
+import type { AuditAction, AuditConfig, AuditLogEntry, NormalizedAuditConfig } from '../core/types';
 import { createRegistryWithDefault } from '../storage/registry';
+import { calculateChanges, getAuditConfig } from './config';
 
 /**
  * Interface for audit log storage adapters.
@@ -116,7 +117,7 @@ export class MemoryAuditLogStorage implements AuditLogStorage {
  * global storage.
  */
 export const auditStorageRegistry = createRegistryWithDefault<AuditLogStorage>(
-  'auditStorage',
+  CONTEXT_KEYS.auditStorage,
   () => new MemoryAuditLogStorage(),
 );
 
