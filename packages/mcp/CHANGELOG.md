@@ -1,5 +1,12 @@
 # @hono-crud/mcp
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [245ca0b]
+  - hono-crud@0.13.7
+
 ## 0.1.2
 
 ### Patch Changes
