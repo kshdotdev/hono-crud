@@ -1,6 +1,17 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
 import { createNullableRegistry, getContextVar } from 'hono-crud/internal';
+import type { ErrorResponse } from 'hono-crud/internal';
 import type { IdempotencyConfig, IdempotencyEntry, IdempotencyStorage } from './types';
+
+/**
+ * Build a standard error envelope. Typed as the shared {@link ErrorResponse} so
+ * these bodies stay in lockstep with the framework's canonical error contract
+ * (`{ success: false, error: { code, message } }`) instead of being re-declared
+ * inline at each return site.
+ */
+function idempotencyError(code: string, message: string): ErrorResponse {
+  return { success: false, error: { code, message } };
+}
 
 // ============================================================================
 // Global Storage
@@ -97,13 +108,10 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
     if (!idempotencyKey) {
       if (required) {
         return ctx.json(
-          {
-            success: false,
-            error: {
-              code: 'IDEMPOTENCY_KEY_REQUIRED',
-              message: `${headerName} header is required for ${method} requests`,
-            },
-          },
+          idempotencyError(
+            'IDEMPOTENCY_KEY_REQUIRED',
+            `${headerName} header is required for ${method} requests`,
+          ),
           400,
         );
       }
@@ -140,13 +148,10 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
     const locked = await storage.isLocked(scopedKey);
     if (locked) {
       return ctx.json(
-        {
-          success: false,
-          error: {
-            code: 'IDEMPOTENCY_CONFLICT',
-            message: 'A request with this idempotency key is already being processed',
-          },
-        },
+        idempotencyError(
+          'IDEMPOTENCY_CONFLICT',
+          'A request with this idempotency key is already being processed',
+        ),
         409,
       );
     }
@@ -155,13 +160,10 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
     const acquired = await storage.lock(scopedKey, lockTimeoutMs);
     if (!acquired) {
       return ctx.json(
-        {
-          success: false,
-          error: {
-            code: 'IDEMPOTENCY_CONFLICT',
-            message: 'A request with this idempotency key is already being processed',
-          },
-        },
+        idempotencyError(
+          'IDEMPOTENCY_CONFLICT',
+          'A request with this idempotency key is already being processed',
+        ),
         409,
       );
     }

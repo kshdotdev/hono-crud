@@ -1,6 +1,6 @@
 import type { RouteConfig } from '@hono/zod-openapi';
 import type { Context, Env } from 'hono';
-import type { ZodObject, ZodRawShape, ZodType, z } from 'zod';
+import { type ZodObject, type ZodRawShape, type ZodType, z } from 'zod';
 
 // ============================================================================
 // Schema Type Utilities
@@ -1352,37 +1352,67 @@ export interface SuccessResponse<T> {
   result: T;
 }
 
-export interface ErrorResponse {
-  success: false;
-  error: {
-    code: string;
-    message: string;
-    details?: unknown;
-  };
+/**
+ * Canonical schema for the structured error object passed to
+ * `ResponseEnvelope.error` — the single source of truth for the
+ * `{ code, message, details?, … }` shape produced by `ApiException.toJSON()`,
+ * emitted in OpenAPI 4xx/5xx responses, and reused by middleware that returns
+ * the standard error envelope (e.g. idempotency). `.passthrough()` keeps the
+ * shape open for forward-compatible enrichment.
+ */
+export const structuredErrorSchema = z
+  .object({
+    /** Stable error code (`'NOT_FOUND'`, `'VALIDATION_ERROR'`, …). */
+    code: z.string(),
+    /** Human-readable error message. */
+    message: z.string(),
+    /** Optional structured details (validation issues, conflict info, etc.). */
+    details: z.unknown().optional(),
+    /** Request id, if logging middleware is active and surfacing it. */
+    requestId: z.string().optional(),
+    /** Stack trace, if `includeStackTrace` is enabled (development only!). */
+    stack: z.string().optional(),
+  })
+  .passthrough();
+
+/**
+ * Canonical schema for the standard error response envelope
+ * (`{ success: false, error: <structuredError> }`).
+ */
+export const errorEnvelopeSchema = z.object({
+  success: z.literal(false),
+  error: structuredErrorSchema,
+});
+
+/**
+ * Build the matching success envelope schema (`{ success: true, result }`) for
+ * a given result schema. Pairs with {@link errorEnvelopeSchema} so both halves
+ * of the response contract come from one place.
+ */
+export function successEnvelopeSchema<T extends ZodType>(
+  result: T,
+): ZodObject<{ success: ZodType; result: T }> {
+  return z.object({ success: z.literal(true), result }) as unknown as ZodObject<{
+    success: ZodType;
+    result: T;
+  }>;
 }
 
 /**
  * Standardised structured error object passed to `ResponseEnvelope.error`.
  *
- * This is the output of the error-handler pipeline (`ApiException.toJSON`
- * + any `ErrorMapper`s + optional `requestId` / `stack` enrichment), prior
- * to being wrapped in the response envelope. Custom envelopes can format
- * this shape into RFC 7807, JSON:API, a house standard, etc.
+ * Derived from {@link structuredErrorSchema}; the `[key: string]: unknown`
+ * intersection preserves the open shape (`.passthrough()`) for custom envelopes
+ * that format it into RFC 7807, JSON:API, a house standard, etc.
  */
-export interface StructuredError {
-  /** Stable error code (`'NOT_FOUND'`, `'VALIDATION_ERROR'`, …). */
-  code: string;
-  /** Human-readable error message. */
-  message: string;
-  /** Optional structured details (validation issues, conflict info, etc.). */
-  details?: unknown;
-  /** Request id, if logging middleware is active and surfacing it. */
-  requestId?: string;
-  /** Stack trace, if `includeStackTrace` is enabled (development only!). */
-  stack?: string;
-  /** Open-ended for forward compatibility. */
+export type StructuredError = z.infer<typeof structuredErrorSchema> & {
   [key: string]: unknown;
-}
+};
+
+/**
+ * Standard error response envelope. Derived from {@link errorEnvelopeSchema}.
+ */
+export type ErrorResponse = z.infer<typeof errorEnvelopeSchema>;
 
 /**
  * Pagination metadata shape passed to `ResponseEnvelope.success` for list
