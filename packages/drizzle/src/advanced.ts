@@ -35,6 +35,7 @@ import {
   cast,
   getColumn,
   getTable,
+  readCount,
 } from './helpers';
 
 /**
@@ -477,7 +478,7 @@ export abstract class DrizzleVersionHistoryEndpoint<
       .from(table)
       .where(eq(this.getColumn('id'), lookupValue));
 
-    return Number((result as { count: number }[])[0]?.count) > 0;
+    return readCount(result) > 0;
   }
 }
 
@@ -800,7 +801,7 @@ export abstract class DrizzleSearchEndpoint<
       .from(table)
       .where(whereClause);
 
-    const totalCount = Number((countResult as { count: number }[])[0]?.count) || 0;
+    const totalCount = readCount(countResult);
 
     // Build main query
     let query = cast(this.getDb()).select().from(table).where(whereClause);
@@ -930,7 +931,7 @@ export abstract class DrizzleExportEndpoint<
       .from(table)
       .where(whereClause);
 
-    const totalCount = Number((countResult as { count: number }[])[0]?.count) || 0;
+    const totalCount = readCount(countResult);
 
     // Build main query
     let query = cast(this.getDb()).select().from(table).where(whereClause);

@@ -14,6 +14,7 @@ import type {
   PaginatedResult,
   RelationConfig,
 } from 'hono-crud/internal';
+import { assertNever } from 'hono-crud/internal';
 import { inlineSingular, levenshteinDistance } from './pluralize';
 
 // Type for Prisma model operations
@@ -148,6 +149,11 @@ export function buildPrismaWhere(filters: FilterCondition[]): Record<string, unk
         where[filter.field] = { gte: coerceValue(min), lte: coerceValue(max) };
         break;
       }
+      default:
+        // Exhaustive over FilterOperator: a new operator must be handled here.
+        // Unreachable at runtime — operators are validated upstream
+        // (`parseFilterValue` / allow-listed query parsing) before reaching an adapter.
+        assertNever(filter.operator);
     }
   }
 

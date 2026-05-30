@@ -16,6 +16,7 @@ import type {
   RelationConfig,
 } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
+import { matchesFilter } from './filter';
 import { getStore, loadRelations } from './helpers';
 import { isVisible } from './visibility';
 
@@ -481,39 +482,7 @@ export abstract class MemoryListEndpoint<
     for (const filter of filters.filters) {
       items = items.filter((item) => {
         const value = (item as Record<string, unknown>)[filter.field];
-
-        switch (filter.operator) {
-          case 'eq':
-            return String(value) === String(filter.value);
-          case 'ne':
-            return String(value) !== String(filter.value);
-          case 'gt':
-            return Number(value) > Number(filter.value);
-          case 'gte':
-            return Number(value) >= Number(filter.value);
-          case 'lt':
-            return Number(value) < Number(filter.value);
-          case 'lte':
-            return Number(value) <= Number(filter.value);
-          case 'in':
-            return (filter.value as unknown[]).map(String).includes(String(value));
-          case 'nin':
-            return !(filter.value as unknown[]).map(String).includes(String(value));
-          case 'like':
-            return String(value).includes(String(filter.value).replace(/%/g, ''));
-          case 'ilike':
-            return String(value)
-              .toLowerCase()
-              .includes(String(filter.value).replace(/%/g, '').toLowerCase());
-          case 'null':
-            return filter.value ? value === null : value !== null;
-          case 'between': {
-            const [min, max] = filter.value as [unknown, unknown];
-            return Number(value) >= Number(min) && Number(value) <= Number(max);
-          }
-          default:
-            return true;
-        }
+        return matchesFilter(value, filter);
       });
     }
 

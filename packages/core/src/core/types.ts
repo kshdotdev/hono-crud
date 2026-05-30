@@ -21,21 +21,62 @@ export type SchemaKeys<T extends ZodObject<ZodRawShape>> = keyof z.infer<T>;
 // ============================================================================
 
 // Filter operators for list queries
-export type FilterOperator =
-  | 'eq' // equals
-  | 'ne' // not equals
-  | 'gt' // greater than
-  | 'gte' // greater than or equal
-  | 'lt' // less than
-  | 'lte' // less than or equal
-  | 'in' // in array
-  | 'nin' // not in array
-  | 'like' // SQL LIKE
-  | 'ilike' // case-insensitive LIKE
-  | 'null' // is null
-  | 'between'; // between two values
+/**
+ * Canonical list of supported filter operators.
+ *
+ * Single source of truth: both the {@link FilterOperator} union and the runtime
+ * guard {@link isFilterOperator} are derived from this `as const` array, so the
+ * compile-time type and the runtime membership check can never drift apart.
+ */
+export const FILTER_OPERATORS = [
+  'eq', // equals
+  'ne', // not equals
+  'gt', // greater than
+  'gte', // greater than or equal
+  'lt', // less than
+  'lte', // less than or equal
+  'in', // in array
+  'nin', // not in array
+  'like', // SQL LIKE
+  'ilike', // case-insensitive LIKE
+  'null', // is null
+  'between', // between two values
+] as const;
+
+export type FilterOperator = (typeof FILTER_OPERATORS)[number];
 
 export type FilterOperatorList = readonly FilterOperator[];
+
+/**
+ * Runtime type guard for {@link FilterOperator}.
+ *
+ * Used to validate operators parsed from untrusted query strings
+ * (`field[op]=value`) before they reach an adapter, so an unrecognized operator
+ * cannot silently disable a filter and return every row.
+ */
+export function isFilterOperator(value: string): value is FilterOperator {
+  return (FILTER_OPERATORS as readonly string[]).includes(value);
+}
+
+/**
+ * Compile-time exhaustiveness guard for discriminated unions.
+ *
+ * Call it from the `default` branch of a `switch` over a closed union: the
+ * parameter is typed `never`, so adding a new union member makes every such
+ * call fail to compile until the new case is handled — converting a silent
+ * fall-through into a build error. If somehow reached at runtime (an invariant
+ * was violated), it throws rather than continuing with bad state.
+ *
+ * @example
+ * switch (op) {
+ *   case 'a': return 1;
+ *   case 'b': return 2;
+ *   default: return assertNever(op);
+ * }
+ */
+export function assertNever(value: never): never {
+  throw new Error(`Unhandled discriminated union member: ${String(value)}`);
+}
 
 // Filter configuration per field
 export type FilterConfig = {
@@ -1376,6 +1417,22 @@ export interface ResponseEnvelope {
  * to read the same envelope from custom endpoints.
  */
 export const RESPONSE_ENVELOPE_CONTEXT_KEY = '__honoCrudResponseEnvelope__' as const;
+
+/**
+ * Read the per-request {@link ResponseEnvelope} stashed on the Hono context by
+ * `registerCrud(...)`'s envelope middleware.
+ *
+ * The context `var` bag is untyped at this boundary (it carries arbitrary
+ * per-request values), so the single unavoidable cast is localized here instead
+ * of being repeated — previously as `(ctx as unknown as { var?: … })?.var?.[…]
+ * as ResponseEnvelope` — at every read site (`OpenAPIRoute.getResponseEnvelope`,
+ * the OpenAPI error path, and `resolveErrorEnvelope`). Accepts an `unknown`
+ * context (including `undefined`) and returns `undefined` when no envelope is set.
+ */
+export function readResponseEnvelope(ctx: unknown): ResponseEnvelope | undefined {
+  const vars = (ctx as { var?: Record<string, unknown> } | null | undefined)?.var;
+  return vars?.[RESPONSE_ENVELOPE_CONTEXT_KEY] as ResponseEnvelope | undefined;
+}
 
 // Route handler arguments
 export type HandleArgs<E extends Env = Env> = [Context<E>];

@@ -1,6 +1,7 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import type { Env, MiddlewareHandler } from 'hono';
 import { setContextVar } from '../utils/context';
+import type { HonoOpenAPIApp } from './openapi';
 import { recordCrudResource } from './resource-registry';
 import type { OpenAPIRoute } from './route';
 import { RESPONSE_ENVELOPE_CONTEXT_KEY, type ResponseEnvelope } from './types';
@@ -142,42 +143,19 @@ export interface CrudEndpoints<E extends Env = Env> {
 }
 
 /**
- * Type for the proxied app returned by fromHono.
- * Extends OpenAPIHono to accept both regular handlers and endpoint classes.
+ * Type for the proxied app returned by `fromHono`.
+ *
+ * Re-exported from `./openapi`, which owns the single canonical definition.
+ * That definition is the superset: it covers every HTTP verb
+ * (`get`/`post`/`put`/`patch`/`delete`/`options`/`head`) plus `doc()`.
+ *
+ * This module previously declared a divergent 4-verb subset, so the type
+ * publicly re-exported through `index.ts` disagreed with what `fromHono`
+ * actually returns (a consumer typing the documented `HonoOpenAPIApp` and
+ * calling `.options()`/`.head()`/`.doc()` would hit a phantom type error).
+ * Keeping one source of truth removes that drift.
  */
-export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
-  /**
-   * Register a GET endpoint with an OpenAPIRoute class
-   */
-  get(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
-  get(path: string, ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]): HonoOpenAPIApp<E>;
-  /**
-   * Register a POST endpoint with an OpenAPIRoute class
-   */
-  post(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
-  post(path: string, ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]): HonoOpenAPIApp<E>;
-  /**
-   * Register a PUT endpoint with an OpenAPIRoute class
-   */
-  put(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
-  put(path: string, ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]): HonoOpenAPIApp<E>;
-  /**
-   * Register a PATCH endpoint with an OpenAPIRoute class
-   */
-  patch(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
-  patch(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
-  ): HonoOpenAPIApp<E>;
-  /**
-   * Register a DELETE endpoint with an OpenAPIRoute class
-   */
-  delete(path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
-  delete(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]
-  ): HonoOpenAPIApp<E>;
-};
+export type { HonoOpenAPIApp };
 
 type RouteRegistrar<E extends Env> = {
   (path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
@@ -263,7 +241,12 @@ export function registerCrud<E extends Env = Env>(
     endpoint: EndpointClass<E>,
   ): void => {
     const mw = getMiddleware(name);
-    const register = typedApp[method] as RouteRegistrar<E>;
+    // Re-type Hono's broadly-overloaded handler method down to the narrow
+    // CRUD registrar shape we actually invoke. The `fromHono` Proxy guarantees
+    // the runtime contract; the two overload sets don't structurally overlap
+    // (Hono's `HandlerInterface` also accepts sub-apps/handler chains), so this
+    // crosses through `unknown` deliberately — an internal boundary, not a hole.
+    const register = typedApp[method] as unknown as RouteRegistrar<E>;
     if (mw.length > 0) {
       register(path, ...mw, endpoint);
     } else {
