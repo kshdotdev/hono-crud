@@ -1,7 +1,12 @@
 /**
  * CRUD event types.
+ *
+ * Single source for the {@link CrudEventType} union and any derived shape (e.g.
+ * the webhook event-filter template-literal type), so adding an event type here
+ * propagates everywhere instead of silently leaving a new type unfilterable.
  */
-export type CrudEventType = 'created' | 'updated' | 'deleted' | 'restored';
+export const CRUD_EVENT_TYPES = ['created', 'updated', 'deleted', 'restored'] as const;
+export type CrudEventType = (typeof CRUD_EVENT_TYPES)[number];
 
 /**
  * Payload for a CRUD event.

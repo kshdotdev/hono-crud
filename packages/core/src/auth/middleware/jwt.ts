@@ -4,6 +4,7 @@ import type { JWTPayload } from 'hono/utils/jwt/types';
 import { CONTEXT_KEYS } from '../../core/context-keys';
 import { UnauthorizedException } from '../../core/exceptions';
 import type { AuthEnv, AuthUser, JWTAlgorithm, JWTClaims, JWTConfig } from '../types';
+import { JWT_ALGORITHMS } from '../types';
 import { validateJWTClaims } from '../validators/jwt-claims';
 
 // ============================================================================
@@ -11,39 +12,19 @@ import { validateJWTClaims } from '../validators/jwt-claims';
 // ============================================================================
 
 /**
- * Map custom JWTAlgorithm to Hono's supported algorithm types.
- * Hono's JWT supports: HS256, HS384, HS512, RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512
+ * Validate that the configured algorithm is one this middleware supports.
+ *
+ * `JWTAlgorithm` already enumerates exactly the algorithms Hono's `verify`
+ * accepts, so the previous separate `HonoAlgorithm` type and hand-maintained
+ * `supported` allow-list were redundant copies of the same set (and forced two
+ * casts). The runtime check still guards against an invalid value arriving
+ * through a non-type-checked path (e.g. a config object cast from `unknown`).
  */
-type HonoAlgorithm =
-  | 'HS256'
-  | 'HS384'
-  | 'HS512'
-  | 'RS256'
-  | 'RS384'
-  | 'RS512'
-  | 'ES256'
-  | 'ES384'
-  | 'ES512';
-
-/**
- * Validates that the algorithm is supported by Hono's JWT.
- */
-function validateAlgorithm(algorithm: JWTAlgorithm): HonoAlgorithm {
-  const supported: HonoAlgorithm[] = [
-    'HS256',
-    'HS384',
-    'HS512',
-    'RS256',
-    'RS384',
-    'RS512',
-    'ES256',
-    'ES384',
-    'ES512',
-  ];
-  if (!supported.includes(algorithm as HonoAlgorithm)) {
+function validateAlgorithm(algorithm: JWTAlgorithm): JWTAlgorithm {
+  if (!JWT_ALGORITHMS.includes(algorithm)) {
     throw new Error(`Unsupported algorithm: ${algorithm}`);
   }
-  return algorithm as HonoAlgorithm;
+  return algorithm;
 }
 
 // ============================================================================

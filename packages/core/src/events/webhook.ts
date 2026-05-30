@@ -1,5 +1,5 @@
 import { type CrudEventEmitter, resolveEventEmitter } from './emitter';
-import type { CrudEventListener, CrudEventPayload } from './types';
+import type { CrudEventListener, CrudEventPayload, CrudEventType } from './types';
 
 /**
  * Webhook endpoint configuration.
@@ -10,7 +10,7 @@ export interface WebhookEndpoint {
   /** Optional secret for HMAC signing */
   secret?: string;
   /** Events to subscribe to. If empty, receives all events. */
-  events?: Array<`${string}:${'created' | 'updated' | 'deleted' | 'restored'}` | '*'>;
+  events?: Array<`${string}:${CrudEventType}` | '*'>;
   /** Custom headers to include with each request */
   headers?: Record<string, string>;
   /** Timeout in milliseconds. @default 10000 */

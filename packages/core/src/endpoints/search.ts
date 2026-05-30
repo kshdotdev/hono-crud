@@ -9,7 +9,9 @@ import type {
   SearchOptions,
   SearchResult,
   SearchResultItem,
+  SortSpec,
 } from '../core/types';
+import { SEARCH_MODES, SORT_DIRECTIONS } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema } from './responses';
 import {
@@ -152,7 +154,7 @@ export abstract class SearchEndpoint<
   protected sortFields: string[] = [];
 
   /** Default sort configuration */
-  protected defaultSort?: { field: string; order: 'asc' | 'desc' };
+  protected defaultSort?: SortSpec;
 
   // ============================================================================
   // Pagination Configuration
@@ -257,7 +259,7 @@ export abstract class SearchEndpoint<
           `Comma-separated fields to search. Available: ${Object.keys(this.getSearchableFields()).join(', ')}`,
         ),
       mode: z
-        .enum(['any', 'all', 'phrase'])
+        .enum(SEARCH_MODES)
         .optional()
         .describe('Search mode: any (OR), all (AND), phrase (exact)'),
       highlight: z.enum(['true', 'false']).optional().describe('Include highlighted snippets'),
@@ -274,7 +276,7 @@ export abstract class SearchEndpoint<
         .enum(this.sortFields as [string, ...string[]])
         .optional()
         .describe('Field to sort by');
-      shape.order = z.enum(['asc', 'desc']).optional().describe('Sort direction (asc or desc)');
+      shape.order = z.enum(SORT_DIRECTIONS).optional().describe('Sort direction (asc or desc)');
     }
 
     // Filter fields

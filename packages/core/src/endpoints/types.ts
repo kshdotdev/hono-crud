@@ -11,6 +11,7 @@ import type {
   MetaInput,
   Model,
   SchemaKeys,
+  SortSpec,
   defineMeta,
   defineModel,
 } from '../core/types';
@@ -45,7 +46,7 @@ export interface ListFilterParseOptions {
 
   // Sorting configuration
   sortFields?: string[];
-  defaultSort?: { field: string; order: 'asc' | 'desc' };
+  defaultSort?: SortSpec;
 
   // Pagination configuration
   defaultPerPage?: number;

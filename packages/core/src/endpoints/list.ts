@@ -1,6 +1,13 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
-import type { FilterConfig, MetaInput, OpenAPIRouteSchema, PaginatedResult } from '../core/types';
+import type {
+  FilterConfig,
+  MetaInput,
+  OpenAPIRouteSchema,
+  PaginatedResult,
+  SortSpec,
+} from '../core/types';
+import { SORT_DIRECTIONS } from '../core/types';
 import { CrudEndpoint } from './base';
 import {
   type ListFilterParseOptions,
@@ -35,7 +42,7 @@ export abstract class ListEndpoint<
   /** Fields that can be used for sorting. Use with ?sort=fieldName */
   protected sortFields: string[] = [];
   /** Default sort configuration */
-  protected defaultSort?: { field: string; order: 'asc' | 'desc' };
+  protected defaultSort?: SortSpec;
 
   // Pagination configuration
   protected defaultPerPage = 20;
@@ -114,7 +121,7 @@ export abstract class ListEndpoint<
         .enum(this.sortFields as [string, ...string[]])
         .optional()
         .describe('Field to sort by');
-      shape.order = z.enum(['asc', 'desc']).optional().describe('Sort direction (asc or desc)');
+      shape.order = z.enum(SORT_DIRECTIONS).optional().describe('Sort direction (asc or desc)');
     }
 
     if (this.searchFields.length > 0) {

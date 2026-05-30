@@ -32,6 +32,8 @@ export {
   JWTClaimsSchema,
   parseJWTClaims,
   safeParseJWTClaims,
+  // Supported signing algorithms (single source for the JWTAlgorithm union)
+  JWT_ALGORITHMS,
 } from './types';
 
 // ============================================================================

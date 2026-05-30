@@ -112,7 +112,8 @@ export type DrizzleDB = DrizzleDatabaseConstraint;
  * pre-existing portable behavior). Set explicitly when targeting PostgreSQL
  * or MySQL to enable the appropriate code paths.
  */
-export type DrizzleDialect = 'sqlite' | 'pg' | 'mysql';
+export const DRIZZLE_DIALECTS = ['sqlite', 'pg', 'mysql'] as const;
+export type DrizzleDialect = (typeof DRIZZLE_DIALECTS)[number];
 
 /**
  * Type helper for defining Hono Env with database in Variables.

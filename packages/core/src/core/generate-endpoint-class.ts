@@ -11,7 +11,7 @@
 
 import type { MiddlewareHandler } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
-import type { HookMode, MetaInput, OpenAPIRouteSchema } from './types';
+import type { HookMode, MetaInput, OpenAPIRouteSchema, SortSpec } from './types';
 
 type AnyHook = (...args: unknown[]) => unknown;
 
@@ -57,7 +57,7 @@ export interface NormalizedEndpointConfig {
   searchFields?: string[];
   searchFieldName?: string;
   sortFields?: string[];
-  defaultSort?: { field: string; order: 'asc' | 'desc' };
+  defaultSort?: SortSpec;
   defaultPerPage?: number;
   maxPerPage?: number;
   allowedIncludes?: string[];
