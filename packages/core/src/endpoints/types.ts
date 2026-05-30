@@ -14,6 +14,7 @@ import type {
   defineMeta,
   defineModel,
 } from '../core/types';
+import { isFilterOperator } from '../core/types';
 
 // Re-export core types
 export type {
@@ -99,8 +100,13 @@ function coerceFilterValue(operator: FilterOperator, raw: string): unknown {
 export function parseFilterValue(value: string): { operator: FilterOperator; value: unknown } {
   // Check for operator syntax: field[operator]=value
   const operatorMatch = value.match(/^\[([a-z]+)\](.*)$/);
-  if (operatorMatch) {
-    const operator = operatorMatch[1] as FilterOperator;
+  // Only treat the bracketed token as an operator when it is a real
+  // `FilterOperator`. An unrecognized token (e.g. `[foo]bar`) must NOT be cast
+  // blindly — doing so produced an invalid operator that downstream adapters
+  // silently ignored, disabling the filter and returning every record. Fall
+  // through to literal equality so an unknown operator simply fails to match.
+  if (operatorMatch && isFilterOperator(operatorMatch[1])) {
+    const operator = operatorMatch[1];
     return { operator, value: coerceFilterValue(operator, operatorMatch[2]) };
   }
 

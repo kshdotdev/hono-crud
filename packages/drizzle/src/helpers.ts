@@ -21,6 +21,7 @@ import type {
   MetaInput,
   RelationConfig,
 } from 'hono-crud/internal';
+import { assertNever } from 'hono-crud/internal';
 
 // ============================================================================
 // Drizzle Database Types
@@ -424,6 +425,28 @@ export function buildWhereCondition(table: Table, filter: FilterCondition): SQL 
       return between(column, min, max);
     }
     default:
-      return undefined;
+      // Exhaustive over FilterOperator: a new operator must be handled here.
+      // Unreachable at runtime — operators are validated upstream
+      // (`parseFilterValue` / allow-listed query parsing) before reaching an adapter.
+      return assertNever(filter.operator);
   }
+}
+
+/**
+ * Shape of a `SELECT count(*) AS count` row produced by the Drizzle query
+ * builder. The builder returns rows as `unknown`, so this names the one row
+ * shape the count queries rely on.
+ */
+export interface CountRow {
+  count: number;
+}
+
+/**
+ * Read the scalar total from a `SELECT count(*) AS count` result, coercing the
+ * driver's value to a number and defaulting to `0` when the result is empty.
+ * Centralizes the `as CountRow[]` cast that the count/exists/pagination paths
+ * would otherwise repeat at every call site.
+ */
+export function readCount(result: unknown): number {
+  return Number((result as CountRow[])[0]?.count) || 0;
 }

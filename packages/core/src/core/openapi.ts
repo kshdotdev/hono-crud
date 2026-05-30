@@ -3,11 +3,7 @@ import type { Context, Env, Hono, MiddlewareHandler } from 'hono';
 import { ApiException } from './exceptions';
 import type { OpenAPIRoute } from './route';
 import { isRouteClass, jsonResponse } from './route';
-import {
-  type OpenAPIRouteSchema,
-  RESPONSE_ENVELOPE_CONTEXT_KEY,
-  type ResponseEnvelope,
-} from './types';
+import { type OpenAPIRouteSchema, readResponseEnvelope } from './types';
 
 export interface OpenAPIConfig {
   openapi?: string;
@@ -233,9 +229,7 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
           // override observable even when the endpoint short-circuits
           // before reaching `app.onError`.
           const body = error.toJSON();
-          const envelope = (c as unknown as { var?: Record<string, unknown> })?.var?.[
-            RESPONSE_ENVELOPE_CONTEXT_KEY
-          ] as ResponseEnvelope | undefined;
+          const envelope = readResponseEnvelope(c);
           if (envelope) {
             return jsonResponse(c, envelope.error(body.error), error.status);
           }

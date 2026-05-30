@@ -5,11 +5,7 @@ import { getRequestId } from '../logging/middleware';
 import { ApiException, InputValidationException } from './exceptions';
 import { getLogger } from './logger';
 import { jsonResponse } from './route';
-import {
-  RESPONSE_ENVELOPE_CONTEXT_KEY,
-  type ResponseEnvelope,
-  type StructuredError,
-} from './types';
+import { type ResponseEnvelope, type StructuredError, readResponseEnvelope } from './types';
 
 /**
  * Error mapper: transforms unknown errors to ApiException.
@@ -234,8 +230,5 @@ export function resolveErrorEnvelope<E extends Env = Env>(
   ctx: Context<E>,
   fallback?: ResponseEnvelope,
 ): ResponseEnvelope | undefined {
-  const fromCtx = (ctx as unknown as { var?: Record<string, unknown> })?.var?.[
-    RESPONSE_ENVELOPE_CONTEXT_KEY
-  ] as ResponseEnvelope | undefined;
-  return fromCtx ?? fallback;
+  return readResponseEnvelope(ctx) ?? fallback;
 }

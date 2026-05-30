@@ -4,11 +4,11 @@ import type { ZodObject, ZodRawShape } from 'zod';
 import { getLogger } from './logger';
 import {
   type OpenAPIRouteSchema,
-  RESPONSE_ENVELOPE_CONTEXT_KEY,
   type ResponseEnvelope,
   type ResponseEnvelopeInfo,
   type RouteOptions,
   type ValidatedData,
+  readResponseEnvelope,
 } from './types';
 
 type ValidationTarget = 'json' | 'query' | 'param';
@@ -166,10 +166,7 @@ export abstract class OpenAPIRoute<
    * see `undefined` and fall through to the default shape.
    */
   protected getResponseEnvelope(): ResponseEnvelope | undefined {
-    if (!this.context) return undefined;
-    const ctx = this.context as unknown as { var?: Record<string, unknown> };
-    const envelope = ctx?.var?.[RESPONSE_ENVELOPE_CONTEXT_KEY];
-    return (envelope as ResponseEnvelope | undefined) ?? undefined;
+    return readResponseEnvelope(this.context);
   }
 
   /**

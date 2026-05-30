@@ -70,7 +70,14 @@ export type {
   AdapterKind,
   NormalizedTimestampsConfig,
 } from './core/managed-fields';
-export { defineModel, defineMeta, RESPONSE_ENVELOPE_CONTEXT_KEY } from './core/types';
+export {
+  defineModel,
+  defineMeta,
+  RESPONSE_ENVELOPE_CONTEXT_KEY,
+  FILTER_OPERATORS,
+  isFilterOperator,
+  assertNever,
+} from './core/types';
 export { encodeCursor, decodeCursor } from './core/cursor';
 export { applyComputedFields, applyComputedFieldsToArray } from './core/computed-fields';
 export { extractNestedData, isDirectNestedData } from './core/nested-writes';

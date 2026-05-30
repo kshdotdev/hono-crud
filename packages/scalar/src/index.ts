@@ -1,25 +1,15 @@
 import { apiReference } from '@scalar/hono-api-reference';
 import type { ApiReferenceConfiguration } from '@scalar/hono-api-reference';
-import type { Env, Hono } from 'hono';
+import type { Env, Hono, MiddlewareHandler } from 'hono';
 
 /**
  * Available Scalar themes.
+ *
+ * Derived from the upstream `ApiReferenceConfiguration['theme']` enum so the
+ * set stays in lockstep with `@scalar/hono-api-reference` instead of drifting
+ * from a hand-maintained copy on every Scalar version bump.
  */
-export type ScalarTheme =
-  | 'default'
-  | 'alternate'
-  | 'moon'
-  | 'purple'
-  | 'solarized'
-  | 'bluePlanet'
-  | 'saturn'
-  | 'kepler'
-  | 'mars'
-  | 'deepSpace'
-  | 'laserwave'
-  | 'elysiajs'
-  | 'fastify'
-  | 'none';
+export type ScalarTheme = NonNullable<ApiReferenceConfiguration['theme']>;
 
 /**
  * Configuration options for Scalar API Reference.
@@ -102,7 +92,7 @@ export interface ScalarConfig {
  * }));
  * ```
  */
-export function scalarUI(config: ScalarConfig = {}) {
+export function scalarUI(config: ScalarConfig = {}): MiddlewareHandler {
   const {
     specUrl = '/openapi.json',
     content,
@@ -115,8 +105,19 @@ export function scalarUI(config: ScalarConfig = {}) {
     cdn,
   } = config;
 
-  // Build configuration matching Scalar's expected format
-  const scalarConfig: Partial<ApiReferenceConfiguration> = {
+  // Build configuration matching Scalar's expected format.
+  //
+  // `apiReference()` types its parameter as `Partial<ApiReferenceConfiguration>`,
+  // but Scalar's HTML renderer additionally reads `pageTitle` and `cdn` (declared
+  // on `HtmlRenderingConfiguration`, which `@scalar/hono-api-reference` does not
+  // re-export). Model those two render-only options locally so every assignment
+  // below stays type-checked instead of escaping through `as Record<string, unknown>`.
+  type ScalarRenderConfig = Partial<ApiReferenceConfiguration> & {
+    pageTitle?: string;
+    cdn?: string;
+  };
+
+  const scalarConfig: ScalarRenderConfig = {
     theme,
     showSidebar,
     layout,
@@ -125,23 +126,23 @@ export function scalarUI(config: ScalarConfig = {}) {
 
   // Add URL or content for the spec
   if (content) {
-    (scalarConfig as Record<string, unknown>).content = content;
+    scalarConfig.content = content;
   } else {
-    (scalarConfig as Record<string, unknown>).url = specUrl;
+    scalarConfig.url = specUrl;
   }
 
   // Add optional properties
   if (pageTitle) {
-    (scalarConfig as Record<string, unknown>).pageTitle = pageTitle;
+    scalarConfig.pageTitle = pageTitle;
   }
   if (baseServerURL) {
     scalarConfig.baseServerURL = baseServerURL;
   }
   if (cdn) {
-    (scalarConfig as Record<string, unknown>).cdn = cdn;
+    scalarConfig.cdn = cdn;
   }
 
-  return apiReference(scalarConfig as ApiReferenceConfiguration);
+  return apiReference(scalarConfig);
 }
 
 /**

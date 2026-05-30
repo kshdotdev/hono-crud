@@ -11,6 +11,7 @@ import type {
   MetaInput,
   OpenAPIRouteSchema,
 } from '../core/types';
+import { assertNever } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema } from './responses';
 
@@ -163,8 +164,14 @@ export abstract class AggregateEndpoint<
         continue;
       }
 
-      // Check field restrictions based on operation
+      // Check field restrictions based on operation.
+      // Exhaustive over AggregateOperation so a newly-added operation cannot
+      // silently skip field-restriction validation (a security gap): the
+      // `assertNever` default forces every operation to be handled here.
       switch (agg.operation) {
+        case 'count':
+          // COUNT on a specific field is unrestricted (COUNT(*) handled above).
+          break;
         case 'sum':
           if (config.sumFields.length > 0 && !config.sumFields.includes(agg.field)) {
             throw new Error(`Field '${agg.field}' is not allowed for SUM aggregation`);
@@ -189,6 +196,8 @@ export abstract class AggregateEndpoint<
             throw new Error(`Field '${agg.field}' is not allowed for COUNT DISTINCT aggregation`);
           }
           break;
+        default:
+          assertNever(agg.operation);
       }
     }
 

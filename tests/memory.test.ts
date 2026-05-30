@@ -256,6 +256,19 @@ describe('Memory Adapter', () => {
       expect(data.result.every((item: TestItem) => (item.age || 0) >= 30)).toBe(true);
     });
 
+    it('should filter with the between operator (regression: shared matchesFilter)', async () => {
+      // Guards the de-duplicated in-memory `matchesFilter`: one of the former
+      // copy-pasted filter switches was missing the `between` case and silently
+      // matched every record. ages: Alice 30, Bob 25, Charlie 35, Diana 28.
+      const res = await app.request('/items?age[between]=28,32');
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.result.length).toBe(2);
+      expect(data.result.every((item: TestItem) => (item.age ?? 0) >= 28 && (item.age ?? 0) <= 32)).toBe(
+        true,
+      );
+    });
+
     it('should paginate results', async () => {
       const res = await app.request('/items?page=1&per_page=2');
       expect(res.status).toBe(200);

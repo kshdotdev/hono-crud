@@ -29,6 +29,7 @@ import {
   getColumn,
   getTable,
   loadDrizzleRelations,
+  readCount,
 } from './helpers';
 
 /**
@@ -667,7 +668,7 @@ export abstract class DrizzleDeleteEndpoint<
       .from(relatedTable)
       .where(eq(fkColumn, parentId));
 
-    return Number((result as { count: number }[])[0]?.count) || 0;
+    return readCount(result);
   }
 
   /**
@@ -831,7 +832,7 @@ export abstract class DrizzleListEndpoint<
       .from(table)
       .where(whereClause);
 
-    const totalCount = Number((countResult as { count: number }[])[0]?.count) || 0;
+    const totalCount = readCount(countResult);
 
     // Build main query
     let query = cast(db).select().from(table).where(whereClause);
