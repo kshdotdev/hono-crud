@@ -37,7 +37,7 @@ import type { ZodObject, ZodRawShape } from 'zod';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
 import type { EndpointClass } from '../core/register';
 import type { OpenAPIRoute } from '../core/route';
-import type { HookMode, MetaInput } from '../core/types';
+import type { HookMode, MetaInput, SortDirection } from '../core/types';
 import type { FilterConfig } from '../core/types';
 import type {
   AggregateExtras,
@@ -134,9 +134,9 @@ interface SortingConfig {
   /** Default sort field */
   default?: string;
   /** Default sort direction */
-  defaultOrder?: 'asc' | 'desc';
+  defaultOrder?: SortDirection;
   /** Backward-compatible alias for defaultOrder */
-  defaultDirection?: 'asc' | 'desc';
+  defaultDirection?: SortDirection;
 }
 
 /**

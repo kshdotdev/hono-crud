@@ -77,6 +77,9 @@ export {
   FILTER_OPERATORS,
   isFilterOperator,
   assertNever,
+  SORT_DIRECTIONS,
+  SEARCH_MODES,
+  AGGREGATE_OPERATIONS,
 } from './core/types';
 export { encodeCursor, decodeCursor } from './core/cursor';
 export { applyComputedFields, applyComputedFieldsToArray } from './core/computed-fields';
@@ -96,6 +99,8 @@ export type {
   FilterOperator,
   FilterConfig,
   FilterCondition,
+  SortDirection,
+  SortSpec,
   ListOptions,
   ListFilters,
   PaginatedResult,
@@ -368,6 +373,7 @@ export {
   JWTClaimsSchema,
   parseJWTClaims,
   safeParseJWTClaims,
+  JWT_ALGORITHMS,
 } from './auth/index';
 export type {
   AuthUser,
@@ -470,6 +476,7 @@ export {
   setEventEmitter,
   resolveEventEmitter,
   registerWebhooks,
+  CRUD_EVENT_TYPES,
 } from './events/index';
 export type {
   CrudEventType,
@@ -502,6 +509,7 @@ export {
   encryptFields,
   decryptFields,
   StaticKeyProvider,
+  encryptedValueSchema,
 } from './encryption/index';
 export type {
   EncryptionKeyProvider,

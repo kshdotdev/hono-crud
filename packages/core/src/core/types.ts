@@ -78,6 +78,37 @@ export function assertNever(value: never): never {
   throw new Error(`Unhandled discriminated union member: ${String(value)}`);
 }
 
+/**
+ * Canonical sort directions. Single source for the {@link SortDirection} type
+ * and every `z.enum(SORT_DIRECTIONS)` validator, so the compile-time union and
+ * the runtime schemas cannot drift from one another.
+ */
+export const SORT_DIRECTIONS = ['asc', 'desc'] as const;
+export type SortDirection = (typeof SORT_DIRECTIONS)[number];
+
+/**
+ * A field + direction sort specification. Names the `{ field, order }` shape
+ * that list/search/builder configuration objects share.
+ */
+export interface SortSpec {
+  field: string;
+  order: SortDirection;
+}
+
+/**
+ * Canonical search modes: `any` (OR), `all` (AND), `phrase` (exact). Single
+ * source for the {@link SearchMode} type and the `z.enum(SEARCH_MODES)` query
+ * validator.
+ */
+export const SEARCH_MODES = ['any', 'all', 'phrase'] as const;
+
+/**
+ * Canonical aggregate operations. Single source for the
+ * {@link AggregateOperation} type and the runtime operation lists in
+ * `core/aggregate.ts`.
+ */
+export const AGGREGATE_OPERATIONS = ['count', 'sum', 'avg', 'min', 'max', 'countDistinct'] as const;
+
 // Filter configuration per field
 export type FilterConfig = {
   [field: string]: FilterOperatorList;
@@ -95,7 +126,7 @@ export interface ListOptions {
   page?: number;
   per_page?: number;
   order_by?: string;
-  order_by_direction?: 'asc' | 'desc';
+  order_by_direction?: SortDirection;
   search?: string;
   /** Include soft-deleted records in results */
   withDeleted?: boolean;
@@ -520,7 +551,7 @@ export interface NormalizedVersioningConfig {
 /**
  * Supported aggregation operations.
  */
-export type AggregateOperation = 'count' | 'sum' | 'avg' | 'min' | 'max' | 'countDistinct';
+export type AggregateOperation = (typeof AGGREGATE_OPERATIONS)[number];
 
 /**
  * A single aggregation definition.
@@ -549,7 +580,7 @@ export interface AggregateOptions {
   /** Order by aggregated values */
   orderBy?: string;
   /** Order direction */
-  orderDirection?: 'asc' | 'desc';
+  orderDirection?: SortDirection;
   /** Limit number of groups */
   limit?: number;
   /** Offset for pagination */
@@ -1464,9 +1495,9 @@ export interface SearchConfig {
 }
 
 /**
- * Search mode for query matching.
+ * Search mode for query matching. Derived from {@link SEARCH_MODES}.
  */
-export type SearchMode = 'any' | 'all' | 'phrase';
+export type SearchMode = (typeof SEARCH_MODES)[number];
 
 /**
  * A single search result item with scoring and highlighting.

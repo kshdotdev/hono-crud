@@ -2,7 +2,12 @@
  * Parse aggregation query parameters into structured `AggregateOptions`.
  */
 
-import type { AggregateField, AggregateOperation, AggregateOptions } from './types';
+import {
+  AGGREGATE_OPERATIONS,
+  type AggregateField,
+  type AggregateOperation,
+  type AggregateOptions,
+} from './types';
 
 /**
  * Parse aggregation field from query string.
@@ -13,7 +18,9 @@ export function parseAggregateField(value: string): AggregateField | null {
   if (parts.length < 2) return null;
 
   const rawOp = parts[0].toLowerCase();
-  const validOps = ['count', 'sum', 'avg', 'min', 'max', 'countdistinct'];
+  // Case-insensitive match against the canonical operations (derived, so a new
+  // operation added to AGGREGATE_OPERATIONS is recognized here automatically).
+  const validOps: readonly string[] = AGGREGATE_OPERATIONS.map((op) => op.toLowerCase());
 
   if (!validOps.includes(rawOp)) {
     return null;
@@ -38,16 +45,14 @@ export function parseAggregateQuery(query: Record<string, unknown>): AggregateOp
   const filters: Record<string, unknown> = {};
 
   // Parse individual aggregation params
-  const aggParams = ['count', 'sum', 'avg', 'min', 'max', 'countDistinct'];
-
-  for (const op of aggParams) {
+  for (const op of AGGREGATE_OPERATIONS) {
     const value = query[op];
     if (value) {
       const fields = Array.isArray(value) ? value : [value];
       for (const field of fields) {
         if (typeof field === 'string') {
           aggregations.push({
-            operation: op as AggregateOperation,
+            operation: op,
             field: field === 'true' || field === '' ? '*' : field,
           });
         }
@@ -87,7 +92,14 @@ export function parseAggregateQuery(query: Record<string, unknown>): AggregateOp
   const offset = typeof query.offset === 'string' ? Number.parseInt(query.offset, 10) : undefined;
 
   // Collect remaining params as filters
-  const reservedParams = [...aggParams, 'groupBy', 'orderBy', 'orderDirection', 'limit', 'offset'];
+  const reservedParams = [
+    ...AGGREGATE_OPERATIONS,
+    'groupBy',
+    'orderBy',
+    'orderDirection',
+    'limit',
+    'offset',
+  ];
   for (const [key, value] of Object.entries(query)) {
     if (!reservedParams.includes(key) && !key.startsWith('having[')) {
       filters[key] = value;

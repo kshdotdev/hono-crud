@@ -31,7 +31,7 @@
 
 import type { Env, MiddlewareHandler } from 'hono';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
-import type { FilterConfig, HookMode, MetaInput } from '../core/types';
+import type { FilterConfig, HookMode, MetaInput, SortDirection, SortSpec } from '../core/types';
 import type { ModelObject } from '../endpoints/types';
 
 type GeneratedClass<B extends abstract new () => unknown> = B & (new () => InstanceType<B>);
@@ -158,7 +158,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
   private _searchFields: string[] = [];
   private _searchFieldName = 'search';
   private _sortFields: string[] = [];
-  private _defaultSort?: { field: string; order: 'asc' | 'desc' };
+  private _defaultSort?: SortSpec;
   private _defaultPerPage = 20;
   private _maxPerPage = 100;
   private _allowedIncludes: string[] = [];
@@ -235,13 +235,13 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set default sort */
-  defaultSort(field: string, order: 'asc' | 'desc' = 'asc'): this {
+  defaultSort(field: string, order: SortDirection = 'asc'): this {
     this._defaultSort = { field, order };
     return this;
   }
 
   /** Backward-compatible alias for default sort. */
-  defaultOrder(field: string, order: 'asc' | 'desc' = 'asc'): this {
+  defaultOrder(field: string, order: SortDirection = 'asc'): this {
     return this.defaultSort(field, order);
   }
 

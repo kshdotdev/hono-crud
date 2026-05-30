@@ -11,7 +11,7 @@ import type {
   MetaInput,
   OpenAPIRouteSchema,
 } from '../core/types';
-import { assertNever } from '../core/types';
+import { SORT_DIRECTIONS, assertNever } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema } from './responses';
 
@@ -99,7 +99,7 @@ export abstract class AggregateEndpoint<
         groupBy: z.string().optional(),
         // Ordering
         orderBy: z.string().optional(),
-        orderDirection: z.enum(['asc', 'desc']).optional(),
+        orderDirection: z.enum(SORT_DIRECTIONS).optional(),
         // Pagination
         limit: z.coerce.number().optional(),
         offset: z.coerce.number().optional(),

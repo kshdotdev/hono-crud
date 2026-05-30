@@ -6,6 +6,8 @@ export {
   type DrizzleDB,
   type DrizzleDialect,
   type DrizzleEnv,
+  type CountRow,
+  DRIZZLE_DIALECTS,
   cast,
   getTable,
   getColumn,
@@ -13,6 +15,7 @@ export {
   loadDrizzleRelations,
   batchLoadDrizzleRelations,
   buildWhereCondition,
+  readCount,
 } from './helpers';
 export * from './crud';
 export * from './batch';

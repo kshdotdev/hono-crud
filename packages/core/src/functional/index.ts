@@ -24,7 +24,14 @@
 
 import type { Env, MiddlewareHandler } from 'hono';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
-import type { FilterConfig, HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import type {
+  FilterConfig,
+  HookMode,
+  MetaInput,
+  OpenAPIRouteSchema,
+  SortDirection,
+  SortSpec,
+} from '../core/types';
 import type { ModelObject } from '../endpoints/types';
 
 // ============================================================================
@@ -65,9 +72,9 @@ export interface ListConfig<M extends MetaInput, E extends Env = Env> {
   searchFieldName?: string;
   sortFields?: string[];
   orderByFields?: string[];
-  defaultSort?: { field: string; order: 'asc' | 'desc' };
+  defaultSort?: SortSpec;
   defaultOrderBy?: string;
-  defaultOrderDirection?: 'asc' | 'desc';
+  defaultOrderDirection?: SortDirection;
   defaultPerPage?: number;
   maxPerPage?: number;
   allowedIncludes?: string[];

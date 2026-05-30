@@ -1,4 +1,5 @@
 import type { EncryptedValue, EncryptionKeyProvider } from './types';
+import { encryptedValueSchema } from './types';
 
 /**
  * Convert ArrayBuffer to base64 string.
@@ -96,9 +97,7 @@ export async function decryptValue(
  * Check if a value looks like an encrypted value object.
  */
 export function isEncryptedValue(value: unknown): value is EncryptedValue {
-  if (typeof value !== 'object' || value === null) return false;
-  const obj = value as Record<string, unknown>;
-  return typeof obj.ct === 'string' && typeof obj.iv === 'string' && obj.v === 1;
+  return encryptedValueSchema.safeParse(value).success;
 }
 
 /**
