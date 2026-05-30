@@ -29,6 +29,7 @@
 - **Authentication** - JWT, API Key middleware with role/permission guards
 - **Caching** - Response caching with automatic invalidation
 - **Rate Limiting** - Fixed/sliding window with tier-based limits
+- **MCP for AI Agents** - Expose your CRUD resources as Model Context Protocol tools, callable by Claude, Cursor, and any MCP client
 - **Advanced Features** - Soft delete, relations, batch operations, search, versioning, audit logging, and more
 
 ## Installation
@@ -57,6 +58,7 @@ Peer dependencies: `hono >= 4.0.0` and `zod >= 4.0.0` are required.
 | `@hono-crud/rate-limit` | Rate limiting middleware and storage backends |
 | `@hono-crud/idempotency` | Idempotency middleware and storage backends |
 | `@hono-crud/health` | Health check endpoints |
+| `@hono-crud/mcp` | Expose your CRUD resources as Model Context Protocol (MCP) tools for AI agents |
 
 ## Quick Start
 
@@ -328,6 +330,20 @@ app.use('*', createLoggingMiddleware({
 ```
 
 See [docs/logging.md](./docs/logging.md).
+
+### MCP (AI agents)
+
+Expose the CRUD resources you already register as [Model Context Protocol](https://modelcontextprotocol.io) tools (`npm install @hono-crud/mcp @modelcontextprotocol/sdk`). Tool calls are re-dispatched through the same Hono app, so they run the identical pipeline — auth, validation, hooks, serialization — as your REST API.
+
+```typescript
+import { createCrudMcp } from '@hono-crud/mcp';
+
+const mcp = createCrudMcp(app, { name: 'my-api', version: '1.0.0' });
+mcp.resource('/users', userEndpoints); // or: createCrudMcp(app, { ..., auto: true })
+app.all('/mcp', mcp.handler());
+```
+
+This generates `users_list`, `users_read`, `users_create`, `users_update`, and `users_delete` tools, each with an input schema derived from the endpoint's Zod schema. See [docs/mcp.md](./docs/mcp.md).
 
 ## Response shape
 
