@@ -12,7 +12,6 @@
 [![npm version](https://img.shields.io/npm/v/hono-crud?color=ff5b11&label=npm)](https://www.npmjs.com/package/hono-crud)
 [![npm downloads](https://img.shields.io/npm/dm/hono-crud?color=ff5b11&label=downloads)](https://www.npmjs.com/package/hono-crud)
 [![tests](https://img.shields.io/github/actions/workflow/status/kshdotdev/hono-crud/ci.yml?branch=main&label=tests)](https://github.com/kshdotdev/hono-crud/actions/workflows/ci.yml)
-[![min+gzip](https://img.shields.io/bundlephobia/minzip/hono-crud?label=min%2Bgzip)](https://bundlephobia.com/package/hono-crud)
 [![license](https://img.shields.io/npm/l/hono-crud?color=blue)](https://opensource.org/licenses/MIT)
 
 </div>
