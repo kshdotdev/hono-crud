@@ -1,5 +1,12 @@
 # @hono-crud/idempotency
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [3278d26]
+  - hono-crud@0.13.6
+
 ## 0.1.2
 
 ### Patch Changes
