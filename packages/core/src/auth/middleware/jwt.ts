@@ -4,7 +4,7 @@ import type { JWTPayload } from 'hono/utils/jwt/types';
 import { CONTEXT_KEYS } from '../../core/context-keys';
 import { UnauthorizedException } from '../../core/exceptions';
 import type { AuthEnv, AuthUser, JWTAlgorithm, JWTClaims, JWTConfig } from '../types';
-import { JWT_ALGORITHMS } from '../types';
+import { JWT_ALGORITHMS, safeParseJWTClaims } from '../types';
 import { validateJWTClaims } from '../validators/jwt-claims';
 
 // ============================================================================
@@ -53,13 +53,22 @@ export function defaultExtractToken(ctx: Context): string | null {
 /**
  * Default function to extract user info from JWT claims.
  */
+/** Normalize a `string | string[]` claim to a string array (or undefined). */
+function normalizeStringList(value: string | string[] | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  return Array.isArray(value) ? value : [value];
+}
+
 function defaultExtractUser(claims: JWTClaims): AuthUser {
   return {
     id: String(claims.sub || claims.id || ''),
-    email: claims.email as string | undefined,
-    roles: (claims.roles || claims.role) as string[] | undefined,
-    permissions: claims.permissions as string[] | undefined,
-    metadata: claims.metadata as Record<string, unknown> | undefined,
+    email: claims.email,
+    // `roles` (array or single) falls back to the singular `role` claim; both
+    // are normalized to a string[] so a single-role token no longer yields a
+    // bare string mistyped as string[].
+    roles: normalizeStringList(claims.roles ?? claims.role),
+    permissions: normalizeStringList(claims.permissions),
+    metadata: claims.metadata,
   };
 }
 
@@ -113,7 +122,7 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
     // Verify signature using Hono's verify function
     let payload: JWTPayload;
     try {
-      payload = await verify(token, config.secret as string, algorithm);
+      payload = await verify(token, config.secret, algorithm);
     } catch (error) {
       // Handle specific JWT errors
       if (error instanceof Error) {
@@ -130,8 +139,15 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
       throw new UnauthorizedException('Invalid token');
     }
 
-    // Convert payload to JWTClaims
-    const claims: JWTClaims = payload as unknown as JWTClaims;
+    // Validate the verified payload against the claims schema. Hono's `verify`
+    // checks the signature and exp/nbf timing, but not the *shape* of the
+    // claims — so a structurally malformed payload would otherwise be trusted
+    // via a blind cast. Reject it instead.
+    const parsed = safeParseJWTClaims(payload);
+    if (!parsed.success) {
+      throw new UnauthorizedException('Invalid token claims');
+    }
+    const claims = parsed.data;
 
     // Validate additional claims (issuer, audience) using shared validator
     // Note: Hono's verify already validates exp, nbf, iat

@@ -1,6 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { ZodError } from 'zod';
+import type { ErrorResponse, StructuredError } from './types';
 
 /**
  * Valid HTTP status codes for API exceptions.
@@ -38,23 +39,8 @@ export class ApiException extends HTTPException {
    * Converts the exception to a JSON response object.
    * Maintains backwards compatibility with existing error handling.
    */
-  toJSON(): {
-    success: false;
-    error: {
-      code: string;
-      message: string;
-      details?: unknown;
-      requestId?: string;
-      stack?: string;
-    };
-  } {
-    const errorObj: {
-      code: string;
-      message: string;
-      details?: unknown;
-      requestId?: string;
-      stack?: string;
-    } = {
+  toJSON(): ErrorResponse {
+    const errorObj: StructuredError = {
       code: this.code,
       message: this.message,
     };

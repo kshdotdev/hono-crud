@@ -80,30 +80,15 @@ export const JWT_ALGORITHMS = [
 export type JWTAlgorithm = (typeof JWT_ALGORITHMS)[number];
 
 /**
- * Standard JWT claims.
- */
-export interface JWTClaims {
-  /** Subject (typically user ID) */
-  sub?: string;
-  /** Issuer */
-  iss?: string;
-  /** Audience */
-  aud?: string | string[];
-  /** Expiration time (Unix timestamp) */
-  exp?: number;
-  /** Not before time (Unix timestamp) */
-  nbf?: number;
-  /** Issued at time (Unix timestamp) */
-  iat?: number;
-  /** JWT ID */
-  jti?: string;
-  /** Custom claims */
-  [key: string]: unknown;
-}
-
-/**
- * Zod schema for validating JWT claims at runtime.
- * Uses passthrough() to allow custom claims while validating standard ones.
+ * Zod schema for validating JWT claims at runtime — the single source of truth
+ * for {@link JWTClaims} / {@link ValidatedJWTClaims}.
+ *
+ * Standard registered claims are validated against their RFC 7519 types. The
+ * common identity claims read by the default user extractor (`email`, `role`,
+ * `roles`, `permissions`, `metadata`) are typed but lenient — `roles` /
+ * `permissions` accept either a single string or an array so real-world tokens
+ * that use either shape are not rejected. `.passthrough()` keeps any additional
+ * custom claims, accessible via the `JWTClaims` index signature.
  *
  * @example
  * ```ts
@@ -133,14 +118,32 @@ export const JWTClaimsSchema = z
     iat: z.number().int().optional(),
     /** JWT ID */
     jti: z.string().optional(),
+    /** Email claim (read by the default user extractor) */
+    email: z.string().optional(),
+    /** Single-role claim */
+    role: z.string().optional(),
+    /** Multi-role claim — a single string or an array of strings */
+    roles: z.union([z.array(z.string()), z.string()]).optional(),
+    /** Permission claim — a single string or an array of strings */
+    permissions: z.union([z.array(z.string()), z.string()]).optional(),
+    /** Arbitrary user metadata claim */
+    metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough();
 
 /**
- * Type inferred from JWTClaimsSchema.
- * Equivalent to JWTClaims but derived from Zod schema.
+ * JWT claims validated against {@link JWTClaimsSchema}.
  */
 export type ValidatedJWTClaims = z.infer<typeof JWTClaimsSchema>;
+
+/**
+ * Standard + common JWT claims.
+ *
+ * Derived from {@link JWTClaimsSchema} (so the type and the runtime validator
+ * cannot drift), intersected with an index signature that preserves access to
+ * arbitrary custom claims kept by the schema's `.passthrough()`.
+ */
+export type JWTClaims = ValidatedJWTClaims & { [key: string]: unknown };
 
 /**
  * Validates JWT claims using the Zod schema.

@@ -80,6 +80,9 @@ export {
   SORT_DIRECTIONS,
   SEARCH_MODES,
   AGGREGATE_OPERATIONS,
+  structuredErrorSchema,
+  errorEnvelopeSchema,
+  successEnvelopeSchema,
 } from './core/types';
 export { encodeCursor, decodeCursor } from './core/cursor';
 export { applyComputedFields, applyComputedFieldsToArray } from './core/computed-fields';

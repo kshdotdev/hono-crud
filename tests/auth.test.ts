@@ -124,6 +124,42 @@ describe('JWT Middleware', () => {
     expect(data.user.roles).toEqual(['admin']);
   });
 
+  it('normalizes a singular `role` claim to a roles array', async () => {
+    const app = createTestApp<AuthEnv>();
+    app.use('*', createJWTMiddleware({ secret }));
+    app.get('/me', (c) => c.json({ roles: c.var.roles, user: c.var.user }));
+
+    const token = await createTestJWT(
+      { sub: 'user-1', role: 'admin', exp: Math.floor(Date.now() / 1000) + 3600 },
+      secret,
+    );
+    const res = await app.request('/me', { headers: { Authorization: `Bearer ${token}` } });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    // Previously a single `role` string was assigned straight to AuthUser.roles,
+    // producing a value mistyped as string[]. It is now normalized to ['admin'].
+    expect(data.user.roles).toEqual(['admin']);
+    expect(data.roles).toEqual(['admin']);
+  });
+
+  it('normalizes a single-string `roles` claim to an array', async () => {
+    const app = createTestApp<AuthEnv>();
+    app.use('*', createJWTMiddleware({ secret }));
+    app.get('/me', (c) => c.json({ user: c.var.user }));
+
+    const token = await createTestJWT(
+      // roles provided as a bare string rather than an array
+      { sub: 'user-2', roles: 'editor', exp: Math.floor(Date.now() / 1000) + 3600 } as never,
+      secret,
+    );
+    const res = await app.request('/me', { headers: { Authorization: `Bearer ${token}` } });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.user.roles).toEqual(['editor']);
+  });
+
   it('should reject missing token', async () => {
     const app = createTestApp<AuthEnv>();
 
