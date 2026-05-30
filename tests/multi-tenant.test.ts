@@ -290,3 +290,22 @@ describe('Multi-Tenancy', () => {
     });
   });
 });
+
+describe('multiTenant config validation', () => {
+  it("throws a clear setup error when source is 'custom' without an extractor", () => {
+    // Previously this mis-configuration silently extracted `undefined` and
+    // surfaced as a misleading "Tenant ID is required" 400 on every request.
+    expect(() => multiTenant({ source: 'custom' })).toThrow(/requires an `extractor`/);
+  });
+
+  it("accepts source 'custom' when an extractor is provided", () => {
+    expect(() => multiTenant({ source: 'custom', extractor: () => 'tenant-a' })).not.toThrow();
+  });
+
+  it('accepts the built-in sources without extra configuration', () => {
+    expect(() => multiTenant({ source: 'header' })).not.toThrow();
+    expect(() => multiTenant({ source: 'path' })).not.toThrow();
+    expect(() => multiTenant({ source: 'query' })).not.toThrow();
+    expect(() => multiTenant({ source: 'jwt' })).not.toThrow();
+  });
+});
