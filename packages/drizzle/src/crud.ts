@@ -1,5 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import type { Column, SQL, Table } from 'drizzle-orm';
+import { asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { Env } from 'hono';
 import { getLogger } from 'hono-crud/internal';
 import { CreateEndpoint } from 'hono-crud/internal';
@@ -21,14 +20,19 @@ import type { ModelObject } from 'hono-crud/internal';
 import { substringMatch } from './advanced';
 import { getDrizzleDb } from './connection';
 import {
-  type DrizzleDatabase,
+  type DrizzleColumn,
+  type DrizzleDatabaseConstraint,
   type DrizzleDialect,
+  type DrizzleSql,
+  type DrizzleTable,
+  and,
   batchLoadDrizzleRelations,
   buildWhereCondition,
   cast,
   getColumn,
   getTable,
   loadDrizzleRelations,
+  or,
   readCount,
 } from './helpers';
 
@@ -65,12 +69,13 @@ import {
 export abstract class DrizzleCreateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends CreateEndpoint<E, M> {
   /**
    * Drizzle database instance.
    * Can be undefined if using context-based injection via middleware.
    */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /**
    * Whether to wrap create and nested operations in a transaction.
@@ -80,7 +85,7 @@ export abstract class DrizzleCreateEndpoint<
   protected useTransaction = false;
 
   /** Current transaction context (set during transaction execution) */
-  protected declare _tx?: DrizzleDatabase;
+  protected declare _tx?: DrizzleDatabaseConstraint;
 
   /**
    * Gets the database instance to use. Checks in order:
@@ -88,34 +93,34 @@ export abstract class DrizzleCreateEndpoint<
    * 2. Direct property
    * 3. Context variables (if middleware injected)
    */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
   /**
    * Gets a related table from the relation config.
    */
-  protected getRelatedTable(relationConfig: RelationConfig): Table | undefined {
-    return (relationConfig as RelationConfig<Table>).table;
+  protected getRelatedTable(relationConfig: RelationConfig): DrizzleTable | undefined {
+    return (relationConfig as RelationConfig<DrizzleTable>).table;
   }
 
   override async create(
     data: ModelObject<M['model']>,
     tx?: unknown,
   ): Promise<ModelObject<M['model']>> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const table = this.getTable();
 
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'drizzle');
 
-    const result = await cast(db).insert(table).values(record).returning();
+    const result = await cast<ModelObject<M['model']>>(db).insert(table).values(record).returning();
 
-    return result[0] as ModelObject<M['model']>;
+    return result[0];
   }
 
   /**
@@ -128,7 +133,7 @@ export abstract class DrizzleCreateEndpoint<
     data: unknown,
     tx?: unknown,
   ): Promise<unknown[]> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) {
       getLogger().warn(
@@ -194,20 +199,21 @@ export abstract class DrizzleCreateEndpoint<
 export abstract class DrizzleReadEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends ReadEndpoint<E, M> {
   /** Drizzle database instance */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /** Gets the database instance from property or context */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -220,7 +226,7 @@ export abstract class DrizzleReadEndpoint<
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
 
-    const conditions: SQL[] = [eq(lookupColumn, lookupValue)];
+    const conditions: DrizzleSql[] = [eq(lookupColumn, lookupValue)];
 
     // Add additional filters
     if (additionalFilters) {
@@ -234,7 +240,7 @@ export abstract class DrizzleReadEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .select()
       .from(table)
       .where(and(...conditions))
@@ -247,12 +253,12 @@ export abstract class DrizzleReadEndpoint<
     // Load relations if requested
     const itemWithRelations = await loadDrizzleRelations(
       this.getDb(),
-      result[0] as Record<string, unknown>,
+      result[0],
       this._meta,
       includeOptions,
     );
 
-    return itemWithRelations as ModelObject<M['model']>;
+    return itemWithRelations;
   }
 }
 
@@ -266,9 +272,10 @@ export abstract class DrizzleReadEndpoint<
 export abstract class DrizzleUpdateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends UpdateEndpoint<E, M> {
   /** Drizzle database instance */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /**
    * Whether to wrap update and nested operations in a transaction.
@@ -278,26 +285,26 @@ export abstract class DrizzleUpdateEndpoint<
   protected useTransaction = false;
 
   /** Current transaction context (set during transaction execution) */
-  protected declare _tx?: DrizzleDatabase;
+  protected declare _tx?: DrizzleDatabaseConstraint;
 
   /** Gets the database instance from property, transaction, or context */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
   /**
    * Gets a related table from the relation config.
    */
-  protected getRelatedTable(relationConfig: RelationConfig): Table | undefined {
-    return (relationConfig as RelationConfig<Table>).table;
+  protected getRelatedTable(relationConfig: RelationConfig): DrizzleTable | undefined {
+    return (relationConfig as RelationConfig<DrizzleTable>).table;
   }
 
   /**
@@ -308,12 +315,12 @@ export abstract class DrizzleUpdateEndpoint<
     additionalFilters?: Record<string, string>,
     tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
 
-    const conditions: SQL[] = [eq(lookupColumn, lookupValue)];
+    const conditions: DrizzleSql[] = [eq(lookupColumn, lookupValue)];
 
     // Add additional filters
     if (additionalFilters) {
@@ -327,13 +334,13 @@ export abstract class DrizzleUpdateEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await cast(db)
+    const result = await cast<ModelObject<M['model']>>(db)
       .select()
       .from(table)
       .where(and(...conditions))
       .limit(1);
 
-    return (result[0] as ModelObject<M['model']>) || null;
+    return result[0] || null;
   }
 
   override async update(
@@ -342,12 +349,12 @@ export abstract class DrizzleUpdateEndpoint<
     additionalFilters?: Record<string, string>,
     tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
 
-    const conditions: SQL[] = [eq(lookupColumn, lookupValue)];
+    const conditions: DrizzleSql[] = [eq(lookupColumn, lookupValue)];
 
     // Add additional filters
     if (additionalFilters) {
@@ -361,13 +368,13 @@ export abstract class DrizzleUpdateEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await cast(db)
+    const result = await cast<ModelObject<M['model']>>(db)
       .update(table)
       .set(this.applyManagedUpdateFields(data as Record<string, unknown>))
       .where(and(...conditions))
       .returning();
 
-    return (result[0] as ModelObject<M['model']>) || null;
+    return result[0] || null;
   }
 
   /**
@@ -380,7 +387,7 @@ export abstract class DrizzleUpdateEndpoint<
     operations: NestedUpdateInput,
     tx?: unknown,
   ): Promise<NestedWriteResult> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) {
       getLogger().warn(
@@ -534,9 +541,10 @@ export abstract class DrizzleUpdateEndpoint<
 export abstract class DrizzleDeleteEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends DeleteEndpoint<E, M> {
   /** Drizzle database instance */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /**
    * Whether to wrap delete and cascade operations in a transaction.
@@ -546,26 +554,26 @@ export abstract class DrizzleDeleteEndpoint<
   protected useTransaction = false;
 
   /** Current transaction context (set during transaction execution) */
-  protected declare _tx?: DrizzleDatabase;
+  protected declare _tx?: DrizzleDatabaseConstraint;
 
   /** Gets the database instance from property, transaction, or context */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
   /**
    * Gets a related table from the relation config.
    */
-  protected getRelatedTable(relationConfig: RelationConfig): Table | undefined {
-    return (relationConfig as RelationConfig<Table>).table;
+  protected getRelatedTable(relationConfig: RelationConfig): DrizzleTable | undefined {
+    return (relationConfig as RelationConfig<DrizzleTable>).table;
   }
 
   /**
@@ -576,12 +584,12 @@ export abstract class DrizzleDeleteEndpoint<
     additionalFilters?: Record<string, string>,
     tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
 
-    const conditions: SQL[] = [eq(lookupColumn, lookupValue)];
+    const conditions: DrizzleSql[] = [eq(lookupColumn, lookupValue)];
 
     // Add additional filters
     if (additionalFilters) {
@@ -595,13 +603,13 @@ export abstract class DrizzleDeleteEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await cast(db)
+    const result = await cast<ModelObject<M['model']>>(db)
       .select()
       .from(table)
       .where(and(...conditions))
       .limit(1);
 
-    return (result[0] as ModelObject<M['model']>) || null;
+    return result[0] || null;
   }
 
   override async delete(
@@ -609,12 +617,12 @@ export abstract class DrizzleDeleteEndpoint<
     additionalFilters?: Record<string, string>,
     tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
 
-    const conditions: SQL[] = [eq(lookupColumn, lookupValue)];
+    const conditions: DrizzleSql[] = [eq(lookupColumn, lookupValue)];
 
     // Add additional filters
     if (additionalFilters) {
@@ -630,21 +638,21 @@ export abstract class DrizzleDeleteEndpoint<
 
     if (softDeleteConfig.enabled) {
       // Soft delete: set the deletion timestamp
-      const result = await cast(db)
+      const result = await cast<ModelObject<M['model']>>(db)
         .update(table)
         .set({ [softDeleteConfig.field]: new Date() } as Record<string, unknown>)
         .where(and(...conditions))
         .returning();
 
-      return (result[0] as ModelObject<M['model']>) || null;
+      return result[0] || null;
     } else {
       // Hard delete: actually remove the record
-      const result = await cast(db)
+      const result = await cast<ModelObject<M['model']>>(db)
         .delete(table)
         .where(and(...conditions))
         .returning();
 
-      return (result[0] as ModelObject<M['model']>) || null;
+      return result[0] || null;
     }
   }
 
@@ -657,7 +665,7 @@ export abstract class DrizzleDeleteEndpoint<
     relationConfig: RelationConfig,
     tx?: unknown,
   ): Promise<number> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) return 0;
 
@@ -680,7 +688,7 @@ export abstract class DrizzleDeleteEndpoint<
     relationConfig: RelationConfig,
     tx?: unknown,
   ): Promise<number> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) return 0;
 
@@ -700,7 +708,7 @@ export abstract class DrizzleDeleteEndpoint<
     relationConfig: RelationConfig,
     tx?: unknown,
   ): Promise<number> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const relatedTable = this.getRelatedTable(relationConfig);
     if (!relatedTable) return 0;
 
@@ -747,9 +755,10 @@ export abstract class DrizzleDeleteEndpoint<
 export abstract class DrizzleListEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends ListEndpoint<E, M> {
   /** Drizzle database instance */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /**
    * SQL dialect of the underlying Drizzle database.
@@ -767,21 +776,21 @@ export abstract class DrizzleListEndpoint<
   protected dialect: DrizzleDialect = 'sqlite';
 
   /** Gets the database instance from property or context */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
     const table = this.getTable();
-    const conditions: SQL[] = [];
+    const conditions: DrizzleSql[] = [];
     const softDeleteConfig = this.getSoftDeleteConfig();
 
     // Apply soft delete filter
@@ -835,7 +844,7 @@ export abstract class DrizzleListEndpoint<
     const totalCount = readCount(countResult);
 
     // Build main query
-    let query = cast(db).select().from(table).where(whereClause);
+    let query = cast<ModelObject<M['model']>>(db).select().from(table).where(whereClause);
 
     // Apply sorting
     if (filters.options.order_by) {
@@ -855,7 +864,7 @@ export abstract class DrizzleListEndpoint<
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const itemsWithRelations = await batchLoadDrizzleRelations(
       this.getDb(),
-      result as Record<string, unknown>[],
+      result,
       this._meta,
       includeOptions,
     );
@@ -863,7 +872,7 @@ export abstract class DrizzleListEndpoint<
     const totalPages = Math.ceil(totalCount / perPage);
 
     return {
-      result: itemsWithRelations as ModelObject<M['model']>[],
+      result: itemsWithRelations,
       result_info: {
         page,
         per_page: perPage,
@@ -886,9 +895,10 @@ export abstract class DrizzleListEndpoint<
 export abstract class DrizzleRestoreEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends RestoreEndpoint<E, M> {
   /** Drizzle database instance */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /**
    * Whether to wrap restore operation in a transaction.
@@ -898,18 +908,18 @@ export abstract class DrizzleRestoreEndpoint<
   protected useTransaction = false;
 
   /** Current transaction context (set during transaction execution) */
-  protected declare _tx?: DrizzleDatabase;
+  protected declare _tx?: DrizzleDatabaseConstraint;
 
   /** Gets the database instance from property, transaction, or context */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -918,12 +928,12 @@ export abstract class DrizzleRestoreEndpoint<
     additionalFilters?: Record<string, string>,
     tx?: unknown,
   ): Promise<ModelObject<M['model']> | null> {
-    const db = (tx as DrizzleDatabase) ?? this.getDb();
+    const db = tx ?? this.getDb();
     const table = this.getTable();
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
 
-    const conditions: SQL[] = [eq(lookupColumn, lookupValue)];
+    const conditions: DrizzleSql[] = [eq(lookupColumn, lookupValue)];
 
     // Add additional filters
     if (additionalFilters) {
@@ -936,13 +946,13 @@ export abstract class DrizzleRestoreEndpoint<
     conditions.push(isNotNull(this.getColumn(softDeleteConfig.field)));
 
     // Set deletedAt to null to restore the record
-    const result = await cast(db)
+    const result = await cast<ModelObject<M['model']>>(db)
       .update(table)
       .set({ [softDeleteConfig.field]: null } as Record<string, unknown>)
       .where(and(...conditions))
       .returning();
 
-    return (result[0] as ModelObject<M['model']>) || null;
+    return result[0] || null;
   }
 
   /**

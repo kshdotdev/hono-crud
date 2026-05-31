@@ -24,12 +24,7 @@
  */
 
 import { z } from 'zod';
-
-/**
- * Duck-typed interface for Drizzle tables.
- * This allows compatibility across different drizzle-orm versions and package installations.
- */
-type DrizzleTable = { _: { name: string; columns: Record<string, unknown> } };
+import type { DrizzleTable } from './helpers';
 
 // Type definitions for drizzle-zod functions
 // These allow the module to compile even without drizzle-zod installed

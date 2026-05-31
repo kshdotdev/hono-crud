@@ -1,5 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
-import type { Column, SQL, Table } from 'drizzle-orm';
+import { asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { Env } from 'hono';
 import { UpsertEndpoint } from 'hono-crud/internal';
 import { BatchUpsertEndpoint } from 'hono-crud/internal';
@@ -28,13 +27,18 @@ import type {
 import type { ModelObject } from 'hono-crud/internal';
 import { getDrizzleDb } from './connection';
 import {
-  type DrizzleDatabase,
+  type DrizzleColumn,
+  type DrizzleDatabaseConstraint,
   type DrizzleDialect,
+  type DrizzleSql,
+  type DrizzleTable,
+  and,
   batchLoadDrizzleRelations,
   buildWhereCondition,
   cast,
   getColumn,
   getTable,
+  or,
   readCount,
 } from './helpers';
 
@@ -57,7 +61,11 @@ import {
  * `> 0` is the dialect-agnostic predicate that means "needle is a
  * substring of col".
  */
-export function substringMatch(col: Column | SQL, needle: string, dialect: DrizzleDialect): SQL {
+export function substringMatch(
+  col: DrizzleColumn | DrizzleSql,
+  needle: string,
+  dialect: DrizzleDialect,
+): DrizzleSql {
   switch (dialect) {
     case 'pg':
       return sql`POSITION(LOWER(${needle}) IN LOWER(${col})) > 0`;
@@ -90,9 +98,10 @@ function tokenizeForSearch(query: string): string[] {
 export abstract class DrizzleUpsertEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends UpsertEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /**
    * SQL dialect of the underlying Drizzle database.
@@ -106,15 +115,15 @@ export abstract class DrizzleUpsertEndpoint<
   protected dialect: DrizzleDialect = 'sqlite';
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -124,7 +133,7 @@ export abstract class DrizzleUpsertEndpoint<
     const table = this.getTable();
     const upsertKeys = this.getUpsertKeys();
     const softDeleteConfig = this.getSoftDeleteConfig();
-    const conditions: SQL[] = [];
+    const conditions: DrizzleSql[] = [];
 
     // Build conditions from upsert keys
     for (const key of upsertKeys) {
@@ -143,13 +152,13 @@ export abstract class DrizzleUpsertEndpoint<
       return null;
     }
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .select()
       .from(table)
       .where(and(...conditions))
       .limit(1);
 
-    return (result[0] as ModelObject<M['model']>) || null;
+    return result[0] || null;
   }
 
   override async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
@@ -158,12 +167,12 @@ export abstract class DrizzleUpsertEndpoint<
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'drizzle');
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .insert(table)
-      .values(record as Record<string, unknown>)
+      .values(record)
       .returning();
 
-    return result[0] as ModelObject<M['model']>;
+    return result[0];
   }
 
   override async update(
@@ -174,13 +183,13 @@ export abstract class DrizzleUpsertEndpoint<
     const pk = this._meta.model.primaryKeys[0];
     const pkValue = (existing as Record<string, unknown>)[pk];
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .update(table)
       .set(this.applyManagedUpdateFields(data as Record<string, unknown>))
       .where(eq(this.getColumn(pk), pkValue))
       .returning();
 
-    return result[0] as ModelObject<M['model']>;
+    return result[0];
   }
 
   /**
@@ -225,7 +234,7 @@ export abstract class DrizzleUpsertEndpoint<
     const targetColumns = upsertKeys.map((key) => this.getColumn(key));
 
     // Build condition for soft delete - only update non-deleted records
-    let whereCondition: SQL | undefined;
+    let whereCondition: DrizzleSql | undefined;
     if (softDeleteConfig.enabled) {
       whereCondition = isNull(this.getColumn(softDeleteConfig.field));
     }
@@ -235,9 +244,7 @@ export abstract class DrizzleUpsertEndpoint<
         ? updateSet
         : { [primaryKey]: sql`${this.getColumn(primaryKey)}` };
 
-    const insertQuery = cast(this.getDb())
-      .insert(table)
-      .values(record as Record<string, unknown>);
+    const insertQuery = cast<ModelObject<M['model']>>(this.getDb()).insert(table).values(record);
 
     // Dialect-driven upsert: MySQL uses `ON DUPLICATE KEY UPDATE`, every
     // other supported dialect (sqlite, pg) uses `ON CONFLICT DO UPDATE`.
@@ -246,7 +253,7 @@ export abstract class DrizzleUpsertEndpoint<
       const result = await insertQuery.onDuplicateKeyUpdate({ set: setClause }).returning();
 
       return {
-        data: result[0] as ModelObject<M['model']>,
+        data: result[0],
         created: false, // Cannot accurately determine with native upsert
       };
     }
@@ -260,7 +267,7 @@ export abstract class DrizzleUpsertEndpoint<
       .returning();
 
     return {
-      data: result[0] as ModelObject<M['model']>,
+      data: result[0],
       created: false, // Cannot accurately determine with native upsert
     };
   }
@@ -272,9 +279,10 @@ export abstract class DrizzleUpsertEndpoint<
 export abstract class DrizzleBatchUpsertEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends BatchUpsertEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /**
    * SQL dialect of the underlying Drizzle database. See
@@ -283,15 +291,15 @@ export abstract class DrizzleBatchUpsertEndpoint<
   protected dialect: DrizzleDialect = 'sqlite';
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -300,7 +308,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
   ): Promise<ModelObject<M['model']> | null> {
     const table = this.getTable();
     const upsertKeys = this.getUpsertKeys();
-    const conditions: SQL[] = [];
+    const conditions: DrizzleSql[] = [];
 
     for (const key of upsertKeys) {
       const value = (data as Record<string, unknown>)[key];
@@ -313,13 +321,13 @@ export abstract class DrizzleBatchUpsertEndpoint<
       return null;
     }
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .select()
       .from(table)
       .where(and(...conditions))
       .limit(1);
 
-    return (result[0] as ModelObject<M['model']>) || null;
+    return result[0] || null;
   }
 
   override async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
@@ -328,12 +336,12 @@ export abstract class DrizzleBatchUpsertEndpoint<
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'drizzle');
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .insert(table)
-      .values(record as Record<string, unknown>)
+      .values(record)
       .returning();
 
-    return result[0] as ModelObject<M['model']>;
+    return result[0];
   }
 
   override async update(
@@ -344,13 +352,13 @@ export abstract class DrizzleBatchUpsertEndpoint<
     const pk = this._meta.model.primaryKeys[0];
     const pkValue = (existing as Record<string, unknown>)[pk];
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .update(table)
       .set(this.applyManagedUpdateFields(data as Record<string, unknown>))
       .where(eq(this.getColumn(pk), pkValue))
       .returning();
 
-    return result[0] as ModelObject<M['model']>;
+    return result[0];
   }
 
   /**
@@ -418,9 +426,7 @@ export abstract class DrizzleBatchUpsertEndpoint<
         ? updateSet
         : { [primaryKey]: sql`${this.getColumn(primaryKey)}` };
 
-    const insertQuery = cast(this.getDb())
-      .insert(table)
-      .values(records as Record<string, unknown>[]);
+    const insertQuery = cast<ModelObject<M['model']>>(this.getDb()).insert(table).values(records);
 
     // Dialect-driven upsert: MySQL uses `ON DUPLICATE KEY UPDATE`, every
     // other supported dialect (sqlite, pg) uses `ON CONFLICT DO UPDATE`.
@@ -434,8 +440,8 @@ export abstract class DrizzleBatchUpsertEndpoint<
     ).returning();
 
     return {
-      items: result.map((data: unknown, index: number) => ({
-        data: data as ModelObject<M['model']>,
+      items: result.map((data, index) => ({
+        data,
         created: false, // Cannot determine with native upsert
         index,
       })),
@@ -453,27 +459,28 @@ export abstract class DrizzleBatchUpsertEndpoint<
 export abstract class DrizzleVersionHistoryEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends VersionHistoryEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
   protected override async recordExists(lookupValue: string): Promise<boolean> {
     const table = this.getTable();
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .select({ count: sql<number>`count(*)` })
       .from(table)
       .where(eq(this.getColumn('id'), lookupValue));
@@ -507,20 +514,21 @@ export abstract class DrizzleVersionCompareEndpoint<
 export abstract class DrizzleVersionRollbackEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends VersionRollbackEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -532,7 +540,7 @@ export abstract class DrizzleVersionRollbackEndpoint<
     const table = this.getTable();
     const versionField = this.getVersioningConfig().field;
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .update(table)
       .set({
         ...versionData,
@@ -541,7 +549,7 @@ export abstract class DrizzleVersionRollbackEndpoint<
       .where(eq(this.getColumn('id'), lookupValue))
       .returning();
 
-    return result[0] as ModelObject<M['model']>;
+    return result[0];
   }
 }
 
@@ -552,26 +560,27 @@ export abstract class DrizzleVersionRollbackEndpoint<
 export abstract class DrizzleAggregateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends AggregateEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
   override async aggregate(options: AggregateOptions): Promise<AggregateResult> {
     const table = this.getTable();
-    const conditions: SQL[] = [];
+    const conditions: DrizzleSql[] = [];
 
     // Apply soft delete filter
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -611,9 +620,12 @@ export abstract class DrizzleAggregateEndpoint<
     // For complex aggregations with GROUP BY, HAVING, etc., we fetch records
     // and use the in-memory computeAggregations helper.
     // This ensures consistent behavior across all databases.
-    const records = await cast(this.getDb()).select().from(table).where(whereClause);
+    const records = await cast<ModelObject<M['model']>>(this.getDb())
+      .select()
+      .from(table)
+      .where(whereClause);
 
-    return computeAggregations(records as Record<string, unknown>[], options);
+    return computeAggregations(records, options);
   }
 }
 
@@ -649,9 +661,10 @@ export abstract class DrizzleAggregateEndpoint<
 export abstract class DrizzleSearchEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends SearchEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /**
    * SQL dialect of the underlying Drizzle database.
@@ -667,8 +680,8 @@ export abstract class DrizzleSearchEndpoint<
   protected dialect: DrizzleDialect = 'sqlite';
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
   /**
@@ -689,11 +702,11 @@ export abstract class DrizzleSearchEndpoint<
    */
   protected vectorConfig = 'english';
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -705,7 +718,7 @@ export abstract class DrizzleSearchEndpoint<
     filters: ListFilters,
   ): Promise<SearchResult<ModelObject<M['model']>>> {
     const table = this.getTable();
-    const conditions: SQL[] = [];
+    const conditions: DrizzleSql[] = [];
 
     // Apply soft delete filter
     const softDeleteConfig = this.getSoftDeleteConfig();
@@ -754,7 +767,7 @@ export abstract class DrizzleSearchEndpoint<
       // present in at least ONE configured field. The prior implementation
       // required EVERY field to contain the WHOLE phrase, which made
       // mode='all' effectively unusable for multi-term queries.
-      const buildFieldMatch = (field: string, needle: string): SQL | undefined => {
+      const buildFieldMatch = (field: string, needle: string): DrizzleSql | undefined => {
         try {
           const column = this.getColumn(field);
           return substringMatch(sql`CAST(${column} AS TEXT)`, needle, this.dialect);
@@ -768,11 +781,11 @@ export abstract class DrizzleSearchEndpoint<
         // match (OR within token); ALL tokens must match (AND across tokens).
         const tokens = tokenizeForSearch(options.query);
         if (tokens.length > 0) {
-          const tokenClauses: SQL[] = [];
+          const tokenClauses: DrizzleSql[] = [];
           for (const token of tokens) {
             const perFieldOr = fieldsToSearch
               .map((field) => buildFieldMatch(field, token))
-              .filter((c): c is SQL => c !== undefined);
+              .filter((c): c is DrizzleSql => c !== undefined);
             if (perFieldOr.length > 0) {
               tokenClauses.push(or(...perFieldOr)!);
             }
@@ -785,7 +798,7 @@ export abstract class DrizzleSearchEndpoint<
         // 'any' or 'phrase': phrase OR'd across fields (unchanged semantics).
         const searchConditions = fieldsToSearch
           .map((field) => buildFieldMatch(field, options.query))
-          .filter((c): c is SQL => c !== undefined);
+          .filter((c): c is DrizzleSql => c !== undefined);
 
         if (searchConditions.length > 0) {
           conditions.push(or(...searchConditions)!);
@@ -796,7 +809,7 @@ export abstract class DrizzleSearchEndpoint<
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total count
-    const countResult = await cast(this.getDb())
+    const countResult = await cast<ModelObject<M['model']>>(this.getDb())
       .select({ count: sql<number>`count(*)` })
       .from(table)
       .where(whereClause);
@@ -804,7 +817,7 @@ export abstract class DrizzleSearchEndpoint<
     const totalCount = readCount(countResult);
 
     // Build main query
-    let query = cast(this.getDb()).select().from(table).where(whereClause);
+    let query = cast<ModelObject<M['model']>>(this.getDb()).select().from(table).where(whereClause);
 
     // Apply sorting
     if (filters.options.order_by) {
@@ -827,17 +840,13 @@ export abstract class DrizzleSearchEndpoint<
     // per-field "all tokens in same field" gate dropping correctly-matched
     // rows. The score is used for ranking only — matching was decided in SQL.
     const scoringOptions = options.mode === 'all' ? { ...options, mode: 'any' as const } : options;
-    const searchResults = searchInMemory(
-      records as ModelObject<M['model']>[],
-      scoringOptions,
-      searchableFields,
-    );
+    const searchResults = searchInMemory(records, scoringOptions, searchableFields);
 
     // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
 
     // Extract items for batch relation loading
-    const items = searchResults.map((r) => r.item as Record<string, unknown>);
+    const items = searchResults.map((r) => r.item);
     const itemsWithRelations = await batchLoadDrizzleRelations(
       this.getDb(),
       items,
@@ -848,7 +857,7 @@ export abstract class DrizzleSearchEndpoint<
     // Map back the relations to the search results
     const resultsWithRelations = searchResults.map((result, index) => ({
       ...result,
-      item: itemsWithRelations[index] as ModelObject<M['model']>,
+      item: itemsWithRelations[index],
     }));
 
     return {
@@ -865,9 +874,10 @@ export abstract class DrizzleSearchEndpoint<
 export abstract class DrizzleExportEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends ExportEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /**
    * SQL dialect of the underlying Drizzle database. Drives the
@@ -877,21 +887,21 @@ export abstract class DrizzleExportEndpoint<
   protected dialect: DrizzleDialect = 'sqlite';
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
     const table = this.getTable();
-    const conditions: SQL[] = [];
+    const conditions: DrizzleSql[] = [];
     const softDeleteConfig = this.getSoftDeleteConfig();
 
     // Apply soft delete filter
@@ -926,7 +936,7 @@ export abstract class DrizzleExportEndpoint<
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total count
-    const countResult = await cast(this.getDb())
+    const countResult = await cast<ModelObject<M['model']>>(this.getDb())
       .select({ count: sql<number>`count(*)` })
       .from(table)
       .where(whereClause);
@@ -934,7 +944,7 @@ export abstract class DrizzleExportEndpoint<
     const totalCount = readCount(countResult);
 
     // Build main query
-    let query = cast(this.getDb()).select().from(table).where(whereClause);
+    let query = cast<ModelObject<M['model']>>(this.getDb()).select().from(table).where(whereClause);
 
     // Apply sorting
     if (filters.options.order_by) {
@@ -954,7 +964,7 @@ export abstract class DrizzleExportEndpoint<
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const itemsWithRelations = await batchLoadDrizzleRelations(
       this.getDb(),
-      result as Record<string, unknown>[],
+      result,
       this._meta,
       includeOptions,
     );
@@ -962,7 +972,7 @@ export abstract class DrizzleExportEndpoint<
     const totalPages = Math.ceil(totalCount / perPage);
 
     return {
-      result: itemsWithRelations as ModelObject<M['model']>[],
+      result: itemsWithRelations,
       result_info: {
         page,
         per_page: perPage,
@@ -982,20 +992,21 @@ export abstract class DrizzleExportEndpoint<
 export abstract class DrizzleImportEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends ImportEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -1008,7 +1019,7 @@ export abstract class DrizzleImportEndpoint<
     const table = this.getTable();
     const upsertKeys = this.getUpsertKeys();
     const softDeleteConfig = this.getSoftDeleteConfig();
-    const conditions: SQL[] = [];
+    const conditions: DrizzleSql[] = [];
 
     // Build conditions from upsert keys
     for (const key of upsertKeys) {
@@ -1027,13 +1038,13 @@ export abstract class DrizzleImportEndpoint<
       return null;
     }
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .select()
       .from(table)
       .where(and(...conditions))
       .limit(1);
 
-    return (result[0] as ModelObject<M['model']>) || null;
+    return result[0] || null;
   }
 
   /**
@@ -1045,12 +1056,12 @@ export abstract class DrizzleImportEndpoint<
     // Resolve managed write-time fields (Model.id strategy + timestamps).
     const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'drizzle');
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .insert(table)
-      .values(record as Record<string, unknown>)
+      .values(record)
       .returning();
 
-    return result[0] as ModelObject<M['model']>;
+    return result[0];
   }
 
   /**
@@ -1064,13 +1075,13 @@ export abstract class DrizzleImportEndpoint<
     const pk = this._meta.model.primaryKeys[0];
     const pkValue = (existing as Record<string, unknown>)[pk];
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .update(table)
       .set(this.applyManagedUpdateFields(data as Record<string, unknown>))
       .where(eq(this.getColumn(pk), pkValue))
       .returning();
 
-    return result[0] as ModelObject<M['model']>;
+    return result[0];
   }
 }
 
@@ -1095,20 +1106,21 @@ export abstract class DrizzleImportEndpoint<
 export abstract class DrizzleCloneEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends CloneEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -1125,7 +1137,7 @@ export abstract class DrizzleCloneEndpoint<
     const lookupColumn = this.getColumn(this.lookupField);
     const softDeleteConfig = this.getSoftDeleteConfig();
 
-    const conditions: SQL[] = [eq(lookupColumn, lookupValue)];
+    const conditions: DrizzleSql[] = [eq(lookupColumn, lookupValue)];
 
     if (additionalFilters) {
       for (const [field, value] of Object.entries(additionalFilters)) {
@@ -1137,7 +1149,7 @@ export abstract class DrizzleCloneEndpoint<
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .select()
       .from(table)
       .where(and(...conditions))
@@ -1145,7 +1157,7 @@ export abstract class DrizzleCloneEndpoint<
 
     if (!result[0]) return null;
 
-    return result[0] as ModelObject<M['model']>;
+    return result[0];
   }
 
   override async createClone(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
@@ -1159,11 +1171,11 @@ export abstract class DrizzleCloneEndpoint<
       this.generateId(),
     );
 
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .insert(table)
-      .values(record as Record<string, unknown>)
+      .values(record)
       .returning();
 
-    return result[0] as ModelObject<M['model']>;
+    return result[0];
   }
 }
