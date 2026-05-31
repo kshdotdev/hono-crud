@@ -142,6 +142,16 @@ export function multiTenant<E extends Env = Env>(
     invalidMessage = 'Invalid tenant ID',
   } = options;
 
+  // Fail fast on an inconsistent configuration at setup time. `source: 'custom'`
+  // without an `extractor` would otherwise extract `undefined` on every request
+  // and surface as a misleading "Tenant ID is required" 400 — a misconfiguration
+  // masquerading as a client error. Surface it as a clear setup error instead.
+  if (source === 'custom' && !extractor) {
+    throw new Error(
+      "multiTenant: source 'custom' requires an `extractor` function. Provide `extractor`, or choose a different `source`.",
+    );
+  }
+
   /**
    * Tenant ID extraction functions by source type.
    * O(1) lookup instead of switch statement.
