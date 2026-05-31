@@ -100,9 +100,9 @@ export abstract class ReadEndpoint<
       shape.include = z
         .string()
         .optional()
-        .describe(
-          `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
-        );
+        .meta({
+          description: `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
+        });
     }
 
     // Add fields parameter for field selection
@@ -111,9 +111,9 @@ export abstract class ReadEndpoint<
       shape.fields = z
         .string()
         .optional()
-        .describe(
-          `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
-        );
+        .meta({
+          description: `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
+        });
     }
 
     if (Object.keys(shape).length === 0) {

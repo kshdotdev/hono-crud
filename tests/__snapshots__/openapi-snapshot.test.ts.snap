@@ -627,6 +627,476 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
       ],
     },
   },
+  "/export": {
+    "get": {
+      "parameters": [
+        {
+          "in": "query",
+          "name": "page",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "per_page",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "description": "Export format",
+          "in": "query",
+          "name": "format",
+          "required": false,
+          "schema": {
+            "description": "Export format",
+            "enum": [
+              "json",
+              "csv",
+            ],
+            "type": "string",
+          },
+        },
+        {
+          "description": "Enable streaming for large exports",
+          "in": "query",
+          "name": "stream",
+          "required": false,
+          "schema": {
+            "description": "Enable streaming for large exports",
+            "enum": [
+              "true",
+              "false",
+            ],
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "count": {
+                        "type": "number",
+                      },
+                      "data": {
+                        "items": {
+                          "properties": {
+                            "authorEmail": {
+                              "description": "Author contact email",
+                              "format": "email",
+                              "type": "string",
+                            },
+                            "body": {
+                              "description": "Article body in Markdown",
+                              "type": "string",
+                            },
+                            "id": {
+                              "description": "Unique article identifier",
+                              "format": "uuid",
+                              "type": "string",
+                            },
+                            "published": {
+                              "default": false,
+                              "description": "Whether the article is live",
+                              "type": "boolean",
+                            },
+                            "slug": {
+                              "description": "URL-friendly identifier",
+                              "type": "string",
+                            },
+                            "status": {
+                              "description": "Publication status",
+                              "enum": [
+                                "draft",
+                                "published",
+                                "archived",
+                              ],
+                              "type": "string",
+                            },
+                            "title": {
+                              "description": "Article title",
+                              "maxLength": 200,
+                              "minLength": 1,
+                              "type": "string",
+                            },
+                            "views": {
+                              "default": 0,
+                              "description": "View counter",
+                              "minimum": 0,
+                              "type": "integer",
+                            },
+                          },
+                          "required": [
+                            "id",
+                            "title",
+                            "slug",
+                            "status",
+                            "authorEmail",
+                          ],
+                          "type": "object",
+                        },
+                        "type": "array",
+                      },
+                      "exportedAt": {
+                        "type": "string",
+                      },
+                      "format": {
+                        "enum": [
+                          "json",
+                          "csv",
+                        ],
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "data",
+                      "count",
+                      "format",
+                      "exportedAt",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                ],
+                "type": "object",
+              },
+            },
+            "text/csv": {
+              "schema": {
+                "type": "string",
+              },
+            },
+          },
+          "description": "Export successful",
+        },
+      },
+      "tags": [
+        "articles",
+      ],
+    },
+  },
+  "/import": {
+    "post": {
+      "parameters": [
+        {
+          "description": "Import mode",
+          "in": "query",
+          "name": "mode",
+          "required": false,
+          "schema": {
+            "description": "Import mode",
+            "enum": [
+              "create",
+              "upsert",
+            ],
+            "type": "string",
+          },
+        },
+        {
+          "description": "Skip invalid rows",
+          "in": "query",
+          "name": "skipInvalid",
+          "required": false,
+          "schema": {
+            "description": "Skip invalid rows",
+            "enum": [
+              "true",
+              "false",
+            ],
+            "type": "string",
+          },
+        },
+        {
+          "description": "Stop on first error",
+          "in": "query",
+          "name": "stopOnError",
+          "required": false,
+          "schema": {
+            "description": "Stop on first error",
+            "enum": [
+              "true",
+              "false",
+            ],
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "results": {
+                        "items": {
+                          "properties": {
+                            "code": {
+                              "type": "string",
+                            },
+                            "data": {},
+                            "error": {
+                              "type": "string",
+                            },
+                            "rowNumber": {
+                              "type": "number",
+                            },
+                            "status": {
+                              "enum": [
+                                "created",
+                                "updated",
+                                "skipped",
+                                "failed",
+                              ],
+                              "type": "string",
+                            },
+                            "validationErrors": {
+                              "items": {
+                                "properties": {
+                                  "message": {
+                                    "type": "string",
+                                  },
+                                  "path": {
+                                    "type": "string",
+                                  },
+                                },
+                                "required": [
+                                  "path",
+                                  "message",
+                                ],
+                                "type": "object",
+                              },
+                              "type": "array",
+                            },
+                          },
+                          "required": [
+                            "rowNumber",
+                            "status",
+                          ],
+                          "type": "object",
+                        },
+                        "type": "array",
+                      },
+                      "summary": {
+                        "properties": {
+                          "created": {
+                            "type": "number",
+                          },
+                          "failed": {
+                            "type": "number",
+                          },
+                          "skipped": {
+                            "type": "number",
+                          },
+                          "total": {
+                            "type": "number",
+                          },
+                          "updated": {
+                            "type": "number",
+                          },
+                        },
+                        "required": [
+                          "total",
+                          "created",
+                          "updated",
+                          "skipped",
+                          "failed",
+                        ],
+                        "type": "object",
+                      },
+                    },
+                    "required": [
+                      "summary",
+                      "results",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Import completed successfully",
+        },
+        "207": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "results": {
+                        "items": {
+                          "properties": {
+                            "code": {
+                              "type": "string",
+                            },
+                            "data": {},
+                            "error": {
+                              "type": "string",
+                            },
+                            "rowNumber": {
+                              "type": "number",
+                            },
+                            "status": {
+                              "enum": [
+                                "created",
+                                "updated",
+                                "skipped",
+                                "failed",
+                              ],
+                              "type": "string",
+                            },
+                            "validationErrors": {
+                              "items": {
+                                "properties": {
+                                  "message": {
+                                    "type": "string",
+                                  },
+                                  "path": {
+                                    "type": "string",
+                                  },
+                                },
+                                "required": [
+                                  "path",
+                                  "message",
+                                ],
+                                "type": "object",
+                              },
+                              "type": "array",
+                            },
+                          },
+                          "required": [
+                            "rowNumber",
+                            "status",
+                          ],
+                          "type": "object",
+                        },
+                        "type": "array",
+                      },
+                      "summary": {
+                        "properties": {
+                          "created": {
+                            "type": "number",
+                          },
+                          "failed": {
+                            "type": "number",
+                          },
+                          "skipped": {
+                            "type": "number",
+                          },
+                          "total": {
+                            "type": "number",
+                          },
+                          "updated": {
+                            "type": "number",
+                          },
+                        },
+                        "required": [
+                          "total",
+                          "created",
+                          "updated",
+                          "skipped",
+                          "failed",
+                        ],
+                        "type": "object",
+                      },
+                    },
+                    "required": [
+                      "summary",
+                      "results",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Import completed with partial failures",
+        },
+        "400": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Validation error",
+        },
+      },
+      "tags": [
+        "articles",
+      ],
+    },
+  },
   "/search": {
     "get": {
       "parameters": [

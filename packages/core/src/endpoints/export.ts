@@ -96,8 +96,10 @@ export abstract class ExportEndpoint<
   protected getExportQuerySchema() {
     const baseSchema = this.getQuerySchema();
     return baseSchema.extend({
-      format: z.enum(['json', 'csv']).optional().describe('Export format'),
-      stream: z.enum(['true', 'false']).optional().describe('Enable streaming for large exports'),
+      format: z.enum(['json', 'csv']).optional().meta({ description: 'Export format' }),
+      stream: z.enum(['true', 'false']).optional().meta({
+        description: 'Enable streaming for large exports',
+      }),
     });
   }
 
