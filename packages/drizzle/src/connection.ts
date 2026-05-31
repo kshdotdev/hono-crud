@@ -10,11 +10,11 @@
  * implementation and stay in sync.
  */
 
-import type { DrizzleDatabase } from './helpers';
+import type { DrizzleDatabaseConstraint } from './helpers';
 
 interface DrizzleEndpointShape {
-  _tx?: DrizzleDatabase;
-  db?: DrizzleDatabase;
+  _tx?: DrizzleDatabaseConstraint;
+  db?: DrizzleDatabaseConstraint;
   context?: { get?: (key: never) => unknown };
 }
 
@@ -24,12 +24,12 @@ interface DrizzleEndpointShape {
  * `context` on the endpoint base class is `protected`, which is incompatible
  * with public structural-type checking; we duck-type internally instead.
  */
-export function getDrizzleDb(self: unknown): DrizzleDatabase {
+export function getDrizzleDb(self: unknown): DrizzleDatabaseConstraint {
   const s = self as DrizzleEndpointShape;
   if (s._tx) return s._tx;
   if (s.db) return s.db;
   const contextDb = s.context?.get?.('db' as never);
-  if (contextDb) return contextDb as DrizzleDatabase;
+  if (contextDb) return contextDb as DrizzleDatabaseConstraint;
   throw new Error(
     'Database not configured. Either:\n' +
       '1. Set db property: db = myDb;\n' +

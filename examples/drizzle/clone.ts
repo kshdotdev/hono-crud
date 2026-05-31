@@ -23,7 +23,7 @@
 import {
   DrizzleCloneEndpoint,
   DrizzleCreateEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleListEndpoint,
   DrizzleReadEndpoint,
 } from '@hono-crud/drizzle';
@@ -70,7 +70,7 @@ const articleMeta = defineMeta({ model: ArticleModel });
 
 const client = createClient({ url: ':memory:' });
 const db = drizzle(client);
-const typedDb = db as unknown as DrizzleDatabase;
+const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 // -----------------------------------------------------------------------------
 // Endpoint classes

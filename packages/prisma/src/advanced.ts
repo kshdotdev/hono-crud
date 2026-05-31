@@ -30,9 +30,7 @@ import {
   buildPaginatedResult,
   buildPrismaWhere,
   executePrismaQuery,
-  getModelName,
   getPrismaModel,
-  getPrismaModelByName,
 } from './helpers';
 
 /**
@@ -45,8 +43,8 @@ export abstract class PrismaSearchEndpoint<
 > extends SearchEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   /**
@@ -153,15 +151,11 @@ export abstract class PrismaSearchEndpoint<
     // correctly-matched rows. The score is used for ranking only — matching
     // was decided in the database query.
     const scoringOptions = options.mode === 'all' ? { ...options, mode: 'any' as const } : options;
-    const searchResults = searchInMemory(
-      records as ModelObject<M['model']>[],
-      scoringOptions,
-      this.getSearchableFields(),
-    );
+    const searchResults = searchInMemory(records, scoringOptions, this.getSearchableFields());
 
     // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
-    const items = searchResults.map((r) => r.item as Record<string, unknown>);
+    const items = searchResults.map((r) => r.item);
     const itemsWithRelations = await batchLoadPrismaRelations(
       this.prisma,
       items,
@@ -172,7 +166,7 @@ export abstract class PrismaSearchEndpoint<
     // Map relations back to search results
     const resultsWithRelations = searchResults.map((result, index) => ({
       ...result,
-      item: itemsWithRelations[index] as ModelObject<M['model']>,
+      item: itemsWithRelations[index],
     }));
 
     return {
@@ -192,8 +186,8 @@ export abstract class PrismaExportEndpoint<
 > extends ExportEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
@@ -210,12 +204,12 @@ export abstract class PrismaExportEndpoint<
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const itemsWithRelations = await batchLoadPrismaRelations(
       this.prisma,
-      queryResult.records as Record<string, unknown>[],
+      queryResult.records,
       this._meta,
       includeOptions,
     );
 
-    return buildPaginatedResult(itemsWithRelations as ModelObject<M['model']>[], queryResult);
+    return buildPaginatedResult(itemsWithRelations, queryResult);
   }
 }
 
@@ -229,8 +223,8 @@ export abstract class PrismaImportEndpoint<
 > extends ImportEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   /**
@@ -256,7 +250,7 @@ export abstract class PrismaImportEndpoint<
     }
 
     const result = await model.findFirst({ where });
-    return (result as ModelObject<M['model']>) || null;
+    return result || null;
   }
 
   /**
@@ -269,7 +263,7 @@ export abstract class PrismaImportEndpoint<
     const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'prisma');
 
     const result = await model.create({ data: record });
-    return result as ModelObject<M['model']>;
+    return result;
   }
 
   /**
@@ -287,7 +281,7 @@ export abstract class PrismaImportEndpoint<
       data: this.applyManagedUpdateFields(data as Record<string, unknown>),
     });
 
-    return result as ModelObject<M['model']>;
+    return result;
   }
 }
 
@@ -304,8 +298,8 @@ export abstract class PrismaUpsertEndpoint<
   abstract prisma: PrismaClient;
   protected useTransaction = false;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   /**
@@ -331,7 +325,7 @@ export abstract class PrismaUpsertEndpoint<
     }
 
     const result = await model.findFirst({ where });
-    return (result as ModelObject<M['model']>) || null;
+    return result || null;
   }
 
   /**
@@ -344,7 +338,7 @@ export abstract class PrismaUpsertEndpoint<
     const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'prisma');
 
     const result = await model.create({ data: record });
-    return result as ModelObject<M['model']>;
+    return result;
   }
 
   /**
@@ -362,7 +356,7 @@ export abstract class PrismaUpsertEndpoint<
       data: this.applyManagedUpdateFields(data as Record<string, unknown>),
     });
 
-    return result as ModelObject<M['model']>;
+    return result;
   }
 
   /**
@@ -412,7 +406,7 @@ export abstract class PrismaUpsertEndpoint<
     });
 
     return {
-      data: result as ModelObject<M['model']>,
+      data: result,
       created: false, // Cannot determine with native upsert
     };
   }
@@ -428,8 +422,8 @@ export abstract class PrismaVersionHistoryEndpoint<
 > extends VersionHistoryEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   protected override async recordExists(lookupValue: string): Promise<boolean> {
@@ -471,8 +465,8 @@ export abstract class PrismaVersionRollbackEndpoint<
 > extends VersionRollbackEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   override async rollback(
@@ -502,7 +496,7 @@ export abstract class PrismaVersionRollbackEndpoint<
       },
     });
 
-    return result as ModelObject<M['model']>;
+    return result;
   }
 }
 
@@ -523,8 +517,8 @@ export abstract class PrismaAggregateEndpoint<
    */
   protected useNativeAggregation = true;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   /**
@@ -599,7 +593,7 @@ export abstract class PrismaAggregateEndpoint<
     // or if there are HAVING clauses (not supported by Prisma aggregate)
     if (!this.useNativeAggregation || options.having) {
       const records = await model.findMany({ where });
-      return computeAggregations(records as Record<string, unknown>[], options);
+      return computeAggregations(records, options);
     }
 
     // For groupBy queries, use Prisma's groupBy
@@ -661,7 +655,7 @@ export abstract class PrismaAggregateEndpoint<
    * Performs aggregation without groupBy using native Prisma aggregate.
    */
   protected async aggregateSimple(
-    model: PrismaModelOperations,
+    model: PrismaModelOperations<ModelObject<M['model']>>,
     where: Record<string, unknown>,
     options: AggregateOptions,
   ): Promise<AggregateResult> {
@@ -703,19 +697,10 @@ export abstract class PrismaAggregateEndpoint<
       }
     }
 
-    // Execute native aggregation
-    const modelName = await getModelName(this._meta.model.tableName);
-    const prismaModel = getPrismaModelByName(this.prisma, modelName) as unknown as
-      | {
-          aggregate: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
-        }
-      | undefined;
-    if (!prismaModel) {
-      throw new Error(`Model '${modelName}' not found in Prisma client`);
-    }
-
+    // Execute native aggregation. `aggregate` is part of PrismaModelOperations,
+    // so the resolved model exposes it directly — no delegate re-resolution.
     try {
-      const result = await prismaModel.aggregate(aggregateArgs);
+      const result = await model.aggregate(aggregateArgs);
 
       // Map results to our format
       if (result._count !== undefined) {
@@ -763,7 +748,7 @@ export abstract class PrismaAggregateEndpoint<
     } catch (error) {
       // Fall back to in-memory computation if native aggregation fails
       const records = await model.findMany({ where });
-      return computeAggregations(records as Record<string, unknown>[], options);
+      return computeAggregations(records, options);
     }
   }
 
@@ -771,7 +756,7 @@ export abstract class PrismaAggregateEndpoint<
    * Performs aggregation with groupBy using native Prisma groupBy.
    */
   protected async aggregateWithGroupBy(
-    model: PrismaModelOperations,
+    model: PrismaModelOperations<ModelObject<M['model']>>,
     where: Record<string, unknown>,
     options: AggregateOptions,
   ): Promise<AggregateResult> {
@@ -814,19 +799,10 @@ export abstract class PrismaAggregateEndpoint<
       }
     }
 
-    // Execute native groupBy
-    const modelName = await getModelName(this._meta.model.tableName);
-    const prismaModel = getPrismaModelByName(this.prisma, modelName) as unknown as
-      | {
-          groupBy: (args: Record<string, unknown>) => Promise<Record<string, unknown>[]>;
-        }
-      | undefined;
-    if (!prismaModel) {
-      throw new Error(`Model '${modelName}' not found in Prisma client`);
-    }
-
+    // Execute native groupBy. `groupBy` is part of PrismaModelOperations, so the
+    // resolved model exposes it directly — no delegate re-resolution.
     try {
-      const results = await prismaModel.groupBy(groupByArgs);
+      const results = await model.groupBy(groupByArgs);
 
       // Map results to our format
       const groups: Array<{ key: Record<string, unknown>; values: Record<string, number | null> }> =
@@ -892,7 +868,7 @@ export abstract class PrismaAggregateEndpoint<
     } catch (error) {
       // Fall back to in-memory computation if native groupBy fails
       const records = await model.findMany({ where });
-      return computeAggregations(records as Record<string, unknown>[], options);
+      return computeAggregations(records, options);
     }
   }
 }
@@ -920,8 +896,8 @@ export abstract class PrismaCloneEndpoint<
 > extends CloneEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   /** Generates the primary-key value for the cloned row. Defaults to UUIDv4. */
@@ -948,7 +924,7 @@ export abstract class PrismaCloneEndpoint<
     const result = await model.findFirst({ where });
     if (!result) return null;
 
-    return result as ModelObject<M['model']>;
+    return result;
   }
 
   override async createClone(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
@@ -962,6 +938,6 @@ export abstract class PrismaCloneEndpoint<
     );
 
     const result = await model.create({ data: record });
-    return result as ModelObject<M['model']>;
+    return result;
   }
 }

@@ -1,4 +1,6 @@
 import {
+  and as _and,
+  or as _or,
   between,
   eq,
   getTableColumns,
@@ -14,7 +16,6 @@ import {
   ne,
   notInArray,
 } from 'drizzle-orm';
-import type { Column, SQL, Table } from 'drizzle-orm';
 import type {
   FilterCondition,
   IncludeOptions,
@@ -24,48 +25,111 @@ import type {
 import { assertNever } from 'hono-crud/internal';
 
 // ============================================================================
+// Local stand-ins for drizzle-orm builder types
+// ============================================================================
+//
+// The adapter's public surface must never name a versioned `drizzle-orm` type
+// (Table/Column/SQL), so the API stays decoupled from the ORM version. These
+// local structural types model just enough shape to flow through the adapter;
+// the real drizzle values satisfy them at runtime, and the few internal call
+// sites that hand them back to drizzle's value-imported operators launder
+// through `unknown` in their bodies (never in an exported signature).
+
+/**
+ * Local stand-in for a drizzle-orm `Table`. Real drizzle tables (and any
+ * duck-typed table carrying `_.name`/`_.columns`) satisfy this shape. Shared
+ * with `schema-utils.ts`.
+ */
+export interface DrizzleTable {
+  _: { name: string; columns: Record<string, unknown> };
+}
+
+/**
+ * Local stand-in for a drizzle-orm `Column`.
+ *
+ * Declares `getSQL()` so a column value is structurally a drizzle `SQLWrapper`,
+ * which every operator (`eq`, `isNull`, `inArray`, `asc`, ...) accepts — so
+ * columns pass straight into operators with no cast at the call site. The
+ * `never` return keeps it opaque.
+ */
+export interface DrizzleColumn {
+  getSQL(): never;
+}
+
+/**
+ * Local stand-in for a drizzle-orm `SQL` expression. A supertype of the real
+ * `SQL`, so operator results widen into it for free; the {@link and}/{@link or}
+ * helpers below let condition arrays round-trip without naming a drizzle type.
+ */
+export interface DrizzleSql {
+  getSQL(): unknown;
+}
+
+// ============================================================================
 // Drizzle Database Types
 // ============================================================================
 
 /**
- * Internal query builder interface used for type-safe method calls.
- * All Drizzle query builders satisfy this interface at runtime.
+ * Internal query builder interface used for type-safe method calls, generic
+ * over the resolved row type `Row`. All Drizzle query builders satisfy this
+ * interface at runtime; awaiting one resolves to `Row[]`.
  */
-export interface QueryBuilder extends PromiseLike<unknown[]> {
-  where(condition: unknown): QueryBuilder;
-  limit(n: number): QueryBuilder;
-  offset(n: number): QueryBuilder;
-  orderBy(...columns: unknown[]): QueryBuilder;
-  set(data: Record<string, unknown>): QueryBuilder;
-  values(data: Record<string, unknown> | Record<string, unknown>[]): QueryBuilder;
-  returning(): QueryBuilder;
+export interface QueryBuilder<Row = unknown> extends PromiseLike<Row[]> {
+  where(condition: unknown): QueryBuilder<Row>;
+  limit(n: number): QueryBuilder<Row>;
+  offset(n: number): QueryBuilder<Row>;
+  orderBy(...columns: unknown[]): QueryBuilder<Row>;
+  set(data: Record<string, unknown>): QueryBuilder<Row>;
+  values(data: Record<string, unknown> | Record<string, unknown>[]): QueryBuilder<Row>;
+  returning(): QueryBuilder<Row>;
   onConflictDoUpdate(config: {
     target: unknown[];
     set: Record<string, unknown>;
     where?: unknown;
-  }): QueryBuilder;
-  onConflictDoNothing(config?: { target?: unknown[] }): QueryBuilder;
-  onDuplicateKeyUpdate(config: { set: Record<string, unknown> }): QueryBuilder;
+  }): QueryBuilder<Row>;
+  onConflictDoNothing(config?: { target?: unknown[] }): QueryBuilder<Row>;
+  onDuplicateKeyUpdate(config: { set: Record<string, unknown> }): QueryBuilder<Row>;
 }
 
 /**
- * Internal database interface used for type-safe method calls.
- * All Drizzle databases (PostgreSQL, MySQL, SQLite) satisfy this interface at runtime.
+ * Internal database interface used for type-safe method calls, generic over the
+ * resolved row type `Row`. All Drizzle databases (PostgreSQL, MySQL, SQLite)
+ * satisfy this interface at runtime.
  */
-export interface Database {
-  select(fields?: Record<string, unknown>): { from(table: Table): QueryBuilder };
-  insert(table: Table): QueryBuilder;
-  update(table: Table): QueryBuilder;
-  delete(table: Table): QueryBuilder;
-  transaction<T>(fn: (tx: Database) => Promise<T>): Promise<T>;
+export interface Database<Row = unknown> {
+  select(fields?: Record<string, unknown>): { from(table: DrizzleTable): QueryBuilder<Row> };
+  insert(table: DrizzleTable): QueryBuilder<Row>;
+  update(table: DrizzleTable): QueryBuilder<Row>;
+  delete(table: DrizzleTable): QueryBuilder<Row>;
+  transaction<T>(fn: (tx: Database<Row>) => Promise<T>): Promise<T>;
 }
 
 /**
- * Casts a database to the internal Database interface for method calls.
- * This is safe because all Drizzle databases have these methods at runtime.
+ * Casts a database handle to the internal {@link Database} interface for method
+ * calls, parametrized over the row type `Row` that queries resolve to. This is
+ * the single sanctioned boundary `as`: all Drizzle databases expose these
+ * methods at runtime, and the row type derives from the consumer's Zod schema
+ * (`ModelObject<M['model']>`), never from a drizzle-orm type.
  */
-export function cast<T>(instance: T): Database {
-  return instance as unknown as Database;
+export function cast<Row = unknown>(instance: unknown): Database<Row> {
+  return instance as Database<Row>;
+}
+
+/**
+ * Combine conditions with SQL `AND`. Thin wrapper over drizzle's `and` that
+ * speaks the adapter's local {@link DrizzleSql} type so callers never name a
+ * drizzle-orm type. `undefined` entries are ignored (drizzle's behavior); the
+ * result is `undefined` when no conditions are supplied.
+ */
+export function and(...conditions: (DrizzleSql | undefined)[]): DrizzleSql | undefined {
+  return _and(...(conditions as unknown as Parameters<typeof _and>));
+}
+
+/**
+ * Combine conditions with SQL `OR`. See {@link and}.
+ */
+export function or(...conditions: (DrizzleSql | undefined)[]): DrizzleSql | undefined {
+  return _or(...(conditions as unknown as Parameters<typeof _or>));
 }
 
 /**
@@ -92,16 +156,6 @@ export interface DrizzleDatabaseConstraint {
   delete: unknown;
   transaction: unknown;
 }
-
-/**
- * @deprecated Pass your database type as a generic parameter instead
- */
-export type DrizzleDatabase = DrizzleDatabaseConstraint;
-
-/**
- * @deprecated Pass your database type as a generic parameter instead
- */
-export type DrizzleDB = DrizzleDatabaseConstraint;
 
 /**
  * Drizzle SQL dialect identifier used to branch dialect-specific behavior
@@ -148,11 +202,11 @@ export type DrizzleEnv<DB = DrizzleDatabaseConstraint> = {
 /**
  * Gets the Drizzle table from the model.
  */
-export function getTable<M extends MetaInput>(meta: M): Table {
+export function getTable<M extends MetaInput>(meta: M): DrizzleTable {
   if (!meta.model.table) {
     throw new Error(`Model ${meta.model.tableName} does not have a table reference`);
   }
-  return meta.model.table as Table;
+  return meta.model.table as DrizzleTable;
 }
 
 /**
@@ -164,8 +218,8 @@ export function getTable<M extends MetaInput>(meta: M): Table {
  * @returns The column
  * @throws Error if the column is not found in the table
  */
-export function getColumn(table: Table, field: string): Column {
-  const columns = getTableColumns(table);
+export function getColumn(table: DrizzleTable, field: string): DrizzleColumn {
+  const columns = getTableColumns(table as unknown as Parameters<typeof getTableColumns>[0]);
   const column = columns[field];
   if (!column) {
     throw new Error(
@@ -173,17 +227,17 @@ export function getColumn(table: Table, field: string): Column {
         `Available columns: ${Object.keys(columns).join(', ')}`,
     );
   }
-  return column as Column;
+  return column as unknown as DrizzleColumn;
 }
 
 /**
  * Loads related records for a given item using Drizzle queries.
  */
 export async function loadDrizzleRelation<T extends Record<string, unknown>>(
-  db: DrizzleDatabase,
+  db: DrizzleDatabaseConstraint,
   item: T,
   relationName: string,
-  relationConfig: RelationConfig<Table>,
+  relationConfig: RelationConfig<DrizzleTable>,
 ): Promise<T> {
   if (!relationConfig.table) {
     // Can't load relation without table reference
@@ -244,7 +298,7 @@ export async function loadDrizzleRelation<T extends Record<string, unknown>>(
  * Note: For multiple items, use `batchLoadDrizzleRelations` to avoid N+1 queries.
  */
 export async function loadDrizzleRelations<T extends Record<string, unknown>, M extends MetaInput>(
-  db: DrizzleDatabase,
+  db: DrizzleDatabaseConstraint,
   item: T,
   meta: M,
   includeOptions?: IncludeOptions,
@@ -256,7 +310,9 @@ export async function loadDrizzleRelations<T extends Record<string, unknown>, M 
   let result = { ...item } as T;
 
   for (const relationName of includeOptions.relations) {
-    const relationConfig = meta.model.relations[relationName] as RelationConfig<Table> | undefined;
+    const relationConfig = meta.model.relations[relationName] as
+      | RelationConfig<DrizzleTable>
+      | undefined;
     if (relationConfig) {
       result = await loadDrizzleRelation(db, result, relationName, relationConfig);
     }
@@ -272,7 +328,12 @@ export async function loadDrizzleRelations<T extends Record<string, unknown>, M 
 export async function batchLoadDrizzleRelations<
   T extends Record<string, unknown>,
   M extends MetaInput,
->(db: DrizzleDatabase, items: T[], meta: M, includeOptions?: IncludeOptions): Promise<T[]> {
+>(
+  db: DrizzleDatabaseConstraint,
+  items: T[],
+  meta: M,
+  includeOptions?: IncludeOptions,
+): Promise<T[]> {
   if (!items.length || !includeOptions?.relations?.length || !meta.model.relations) {
     return items;
   }
@@ -281,7 +342,9 @@ export async function batchLoadDrizzleRelations<
   let results = items.map((item) => ({ ...item })) as T[];
 
   for (const relationName of includeOptions.relations) {
-    const relationConfig = meta.model.relations[relationName] as RelationConfig<Table> | undefined;
+    const relationConfig = meta.model.relations[relationName] as
+      | RelationConfig<DrizzleTable>
+      | undefined;
     if (!relationConfig || !relationConfig.table) {
       continue;
     }
@@ -393,10 +456,22 @@ export async function batchLoadDrizzleRelations<
 }
 
 /**
+ * drizzle-orm's `Column` type, derived from the value-imported
+ * `getTableColumns` so the public surface needs no `import type` from
+ * drizzle-orm. Used only inside {@link buildWhereCondition} to launder the
+ * local {@link DrizzleColumn} back to the operand type drizzle's comparison
+ * operators (including `like`/`ilike`, which take `Column | SQL`) expect.
+ */
+type RealColumn = ReturnType<typeof getTableColumns>[string];
+
+/**
  * Builds a where condition from filter conditions.
  */
-export function buildWhereCondition(table: Table, filter: FilterCondition): SQL | undefined {
-  const column = getColumn(table, filter.field);
+export function buildWhereCondition(
+  table: DrizzleTable,
+  filter: FilterCondition,
+): DrizzleSql | undefined {
+  const column = getColumn(table, filter.field) as unknown as RealColumn;
 
   switch (filter.operator) {
     case 'eq':

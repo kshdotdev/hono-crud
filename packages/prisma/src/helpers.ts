@@ -17,24 +17,39 @@ import type {
 import { assertNever } from 'hono-crud/internal';
 import { inlineSingular, levenshteinDistance } from './pluralize';
 
-// Type for Prisma model operations
-export interface PrismaModelOperations {
-  create: (args: { data: unknown }) => Promise<unknown>;
-  findUnique: (args: { where: unknown }) => Promise<unknown>;
-  findFirst: (args: { where: unknown }) => Promise<unknown>;
+/**
+ * Structural shape of a Prisma model delegate, generic over the row type `Row`
+ * a query resolves to (derived from the consumer's Zod schema as
+ * `ModelObject<M['model']>`). Read/write operations return `Row`, so endpoint
+ * results come back typed without per-call `as ModelObject` casts. Defaults to
+ * `Record<string, unknown>` for dynamic/relation access where the row type is
+ * not statically known.
+ */
+export interface PrismaModelOperations<Row = Record<string, unknown>> {
+  create: (args: { data: unknown }) => Promise<Row>;
+  findUnique: (args: { where: unknown }) => Promise<Row | null>;
+  findFirst: (args: { where: unknown }) => Promise<Row | null>;
   findMany: (args: {
     where?: unknown;
     orderBy?: unknown;
     skip?: number;
     take?: number;
-  }) => Promise<unknown[]>;
-  update: (args: { where: unknown; data: unknown }) => Promise<unknown>;
+  }) => Promise<Row[]>;
+  update: (args: { where: unknown; data: unknown }) => Promise<Row>;
   updateMany: (args: { where: unknown; data: unknown }) => Promise<{ count: number }>;
-  delete: (args: { where: unknown }) => Promise<unknown>;
+  delete: (args: { where: unknown }) => Promise<Row>;
   deleteMany: (args: { where: unknown }) => Promise<{ count: number }>;
   count: (args?: { where?: unknown }) => Promise<number>;
-  upsert: (args: { where: unknown; create: unknown; update: unknown }) => Promise<unknown>;
+  upsert: (args: { where: unknown; create: unknown; update: unknown }) => Promise<Row>;
   createMany: (args: { data: unknown[]; skipDuplicates?: boolean }) => Promise<{ count: number }>;
+  /**
+   * Native Prisma aggregate. The result shape (`_count`/`_sum`/`_avg`/...) is
+   * delegate- and args-specific, so it is typed as a generic record the caller
+   * narrows.
+   */
+  aggregate: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  /** Native Prisma groupBy. Returns one record per group (caller narrows). */
+  groupBy: (args: Record<string, unknown>) => Promise<Record<string, unknown>[]>;
 }
 
 // Public Prisma clients do not expose a string index signature, even though
@@ -48,7 +63,9 @@ function getClientProperty(prisma: PrismaClient, key: string): unknown {
   return (prisma as unknown as Record<string, unknown>)[key];
 }
 
-function isPrismaModelOperations(value: unknown): value is PrismaModelOperations {
+function isPrismaModelOperations<Row = Record<string, unknown>>(
+  value: unknown,
+): value is PrismaModelOperations<Row> {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -57,12 +74,12 @@ function isPrismaModelOperations(value: unknown): value is PrismaModelOperations
   );
 }
 
-export function getPrismaModelByName(
+export function getPrismaModelByName<Row = Record<string, unknown>>(
   prisma: PrismaClient,
   modelName: string,
-): PrismaModelOperations | undefined {
+): PrismaModelOperations<Row> | undefined {
   const model = getClientProperty(prisma, modelName);
-  return isPrismaModelOperations(model) ? model : undefined;
+  return isPrismaModelOperations<Row>(model) ? model : undefined;
 }
 
 export function getPrismaTransaction(
@@ -319,12 +336,12 @@ async function findSimilarModelNames(
  * @returns The Prisma model operations
  * @throws Error if the model is not found in the Prisma client
  */
-export async function getPrismaModel(
+export async function getPrismaModel<Row = Record<string, unknown>>(
   prisma: PrismaClient,
   tableName: string,
-): Promise<PrismaModelOperations> {
+): Promise<PrismaModelOperations<Row>> {
   const modelName = await getModelName(tableName);
-  const model = getPrismaModelByName(prisma, modelName);
+  const model = getPrismaModelByName<Row>(prisma, modelName);
 
   if (!model) {
     const availableModels = getAvailablePrismaModels(prisma);
@@ -490,7 +507,7 @@ export async function batchLoadPrismaRelations<
 
         // Group related records by foreign key
         const recordsByForeignKey = new Map<unknown, Record<string, unknown>[]>();
-        for (const record of relatedRecords as Record<string, unknown>[]) {
+        for (const record of relatedRecords) {
           const foreignVal = record[relationConfig.foreignKey];
           if (!recordsByForeignKey.has(foreignVal)) {
             recordsByForeignKey.set(foreignVal, []);
@@ -539,7 +556,7 @@ export async function batchLoadPrismaRelations<
 
         // Create a map for quick lookup
         const recordsByLocalKey = new Map<unknown, Record<string, unknown>>();
-        for (const record of relatedRecords as Record<string, unknown>[]) {
+        for (const record of relatedRecords) {
           const localVal = record[refLocalKey];
           recordsByLocalKey.set(localVal, record);
         }
@@ -563,9 +580,9 @@ export async function batchLoadPrismaRelations<
 /**
  * Options for executing a Prisma list query.
  */
-export interface PrismaQueryOptions {
+export interface PrismaQueryOptions<Row = Record<string, unknown>> {
   /** The Prisma model operations */
-  model: PrismaModelOperations;
+  model: PrismaModelOperations<Row>;
   /** List filters from the request */
   filters: ListFilters;
   /** Search fields for text search (optional) */
@@ -581,9 +598,9 @@ export interface PrismaQueryOptions {
 /**
  * Result of a Prisma list query.
  */
-export interface PrismaQueryResult {
+export interface PrismaQueryResult<Row = Record<string, unknown>> {
   /** The fetched records */
-  records: unknown[];
+  records: Row[];
   /** The WHERE clause used */
   where: Record<string, unknown>;
   /** Total count of matching records */
@@ -603,7 +620,9 @@ export interface PrismaQueryResult {
  * @param options - Query configuration options
  * @returns Query result with records and pagination info
  */
-export async function executePrismaQuery(options: PrismaQueryOptions): Promise<PrismaQueryResult> {
+export async function executePrismaQuery<Row = Record<string, unknown>>(
+  options: PrismaQueryOptions<Row>,
+): Promise<PrismaQueryResult<Row>> {
   const {
     model,
     filters,
@@ -683,7 +702,7 @@ export async function executePrismaQuery(options: PrismaQueryOptions): Promise<P
  */
 export function buildPaginatedResult<T>(
   items: T[],
-  queryResult: PrismaQueryResult,
+  queryResult: PrismaQueryResult<unknown>,
 ): PaginatedResult<T> {
   return {
     result: items,

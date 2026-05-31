@@ -30,7 +30,7 @@
  */
 
 import { KVCacheStorage } from '@hono-crud/cache';
-import { type DrizzleDatabase, createDrizzleCrud } from '@hono-crud/drizzle';
+import { type DrizzleDatabaseConstraint, createDrizzleCrud } from '@hono-crud/drizzle';
 import { setupSwaggerUI } from '@hono-crud/swagger';
 import { drizzle } from 'drizzle-orm/d1';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
@@ -113,7 +113,7 @@ type Env = { Bindings: Bindings };
  */
 
 const TaskCrud = createDrizzleCrud<typeof taskMeta, Env>(
-  undefined as unknown as DrizzleDatabase,
+  undefined as unknown as DrizzleDatabaseConstraint,
   taskMeta,
 );
 
@@ -123,8 +123,8 @@ class TaskCreate extends TaskCrud.Create {
     summary: 'Create a task',
   };
 
-  protected override getDb(): DrizzleDatabase {
-    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabase;
+  protected override getDb(): DrizzleDatabaseConstraint {
+    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabaseConstraint;
   }
 
   /**
@@ -161,8 +161,8 @@ class TaskList extends TaskCrud.List {
   defaultPerPage = 20;
   maxPerPage = 100;
 
-  protected override getDb(): DrizzleDatabase {
-    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabase;
+  protected override getDb(): DrizzleDatabaseConstraint {
+    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabaseConstraint;
   }
 }
 
@@ -172,8 +172,8 @@ class TaskRead extends TaskCrud.Read {
     summary: 'Get a task by ID',
   };
 
-  protected override getDb(): DrizzleDatabase {
-    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabase;
+  protected override getDb(): DrizzleDatabaseConstraint {
+    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabaseConstraint;
   }
 }
 
@@ -185,8 +185,8 @@ class TaskUpdate extends TaskCrud.Update {
 
   allowedUpdateFields = ['title', 'description', 'status', 'priority'];
 
-  protected override getDb(): DrizzleDatabase {
-    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabase;
+  protected override getDb(): DrizzleDatabaseConstraint {
+    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabaseConstraint;
   }
 
   async before(data: Partial<Task>): Promise<Partial<Task>> {
@@ -203,8 +203,8 @@ class TaskDelete extends TaskCrud.Delete {
     summary: 'Delete a task',
   };
 
-  protected override getDb(): DrizzleDatabase {
-    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabase;
+  protected override getDb(): DrizzleDatabaseConstraint {
+    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabaseConstraint;
   }
 }
 

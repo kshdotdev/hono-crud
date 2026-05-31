@@ -26,8 +26,8 @@ export abstract class PrismaCreateEndpoint<
   abstract prisma: PrismaClient;
   protected useTransaction = false;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   override async create(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
@@ -37,7 +37,7 @@ export abstract class PrismaCreateEndpoint<
     const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'prisma');
 
     const result = await model.create({ data: record });
-    return result as ModelObject<M['model']>;
+    return result;
   }
 }
 
@@ -50,8 +50,8 @@ export abstract class PrismaReadEndpoint<
 > extends ReadEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   override async read(
@@ -75,12 +75,12 @@ export abstract class PrismaReadEndpoint<
     // Load relations if requested
     const itemWithRelations = await loadPrismaRelations(
       this.prisma,
-      result as Record<string, unknown>,
+      result,
       this._meta,
       includeOptions,
     );
 
-    return itemWithRelations as ModelObject<M['model']>;
+    return itemWithRelations;
   }
 }
 
@@ -94,8 +94,8 @@ export abstract class PrismaUpdateEndpoint<
   abstract prisma: PrismaClient;
   protected useTransaction = false;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   override async update(
@@ -123,7 +123,7 @@ export abstract class PrismaUpdateEndpoint<
       data: this.applyManagedUpdateFields(data as Record<string, unknown>),
     });
 
-    return result as ModelObject<M['model']>;
+    return result;
   }
 }
 
@@ -137,8 +137,8 @@ export abstract class PrismaDeleteEndpoint<
   abstract prisma: PrismaClient;
   protected useTransaction = false;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   /**
@@ -162,7 +162,7 @@ export abstract class PrismaDeleteEndpoint<
     }
 
     const result = await model.findFirst({ where });
-    return result as ModelObject<M['model']> | null;
+    return result;
   }
 
   override async delete(
@@ -197,13 +197,13 @@ export abstract class PrismaDeleteEndpoint<
         where: { [primaryKey]: primaryKeyValue },
         data: { [softDeleteConfig.field]: new Date() },
       });
-      return result as ModelObject<M['model']>;
+      return result;
     } else {
       // Hard delete: actually remove the record
       const result = await model.delete({
         where: { [primaryKey]: primaryKeyValue },
       });
-      return result as ModelObject<M['model']>;
+      return result;
     }
   }
 }
@@ -217,8 +217,8 @@ export abstract class PrismaListEndpoint<
 > extends ListEndpoint<E, M> {
   abstract prisma: PrismaClient;
 
-  protected async getModel(): Promise<PrismaModelOperations> {
-    return getPrismaModel(this.prisma, this._meta.model.tableName);
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
@@ -235,11 +235,11 @@ export abstract class PrismaListEndpoint<
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const itemsWithRelations = await batchLoadPrismaRelations(
       this.prisma,
-      queryResult.records as Record<string, unknown>[],
+      queryResult.records,
       this._meta,
       includeOptions,
     );
 
-    return buildPaginatedResult(itemsWithRelations as ModelObject<M['model']>[], queryResult);
+    return buildPaginatedResult(itemsWithRelations, queryResult);
   }
 }

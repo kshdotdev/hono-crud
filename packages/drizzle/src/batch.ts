@@ -1,5 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
-import type { Column, SQL, Table } from 'drizzle-orm';
+import { eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import type { Env } from 'hono';
 import { BatchCreateEndpoint } from 'hono-crud/internal';
 import { BatchUpdateEndpoint, type BatchUpdateItem } from 'hono-crud/internal';
@@ -8,7 +7,16 @@ import { BatchRestoreEndpoint } from 'hono-crud/internal';
 import type { MetaInput } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
 import { getDrizzleDb } from './connection';
-import { type DrizzleDatabase, cast, getColumn, getTable } from './helpers';
+import {
+  type DrizzleColumn,
+  type DrizzleDatabaseConstraint,
+  type DrizzleSql,
+  type DrizzleTable,
+  and,
+  cast,
+  getColumn,
+  getTable,
+} from './helpers';
 
 /**
  * Drizzle Batch Create endpoint.
@@ -17,16 +25,17 @@ import { type DrizzleDatabase, cast, getColumn, getTable } from './helpers';
 export abstract class DrizzleBatchCreateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends BatchCreateEndpoint<E, M> {
   /** Drizzle database instance */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /** Gets the database instance from property or context */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
@@ -40,9 +49,12 @@ export abstract class DrizzleBatchCreateEndpoint<
       this.applyManagedInsertFields(item as Record<string, unknown>, 'drizzle'),
     );
 
-    const result = await cast(this.getDb()).insert(table).values(records).returning();
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
+      .insert(table)
+      .values(records)
+      .returning();
 
-    return result as ModelObject<M['model']>[];
+    return result;
   }
 }
 
@@ -55,20 +67,21 @@ export abstract class DrizzleBatchCreateEndpoint<
 export abstract class DrizzleBatchUpdateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends BatchUpdateEndpoint<E, M> {
   /** Drizzle database instance */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /** Gets the database instance from property or context */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -83,21 +96,21 @@ export abstract class DrizzleBatchUpdateEndpoint<
 
     // Process each update individually (Drizzle doesn't have bulk update with different values)
     for (const item of items) {
-      const conditions: SQL[] = [eq(lookupColumn, item.id)];
+      const conditions: DrizzleSql[] = [eq(lookupColumn, item.id)];
 
       // Filter out soft-deleted records
       if (softDeleteConfig.enabled) {
         conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
       }
 
-      const result = await cast(this.getDb())
+      const result = await cast<ModelObject<M['model']>>(this.getDb())
         .update(table)
         .set(this.applyManagedUpdateFields(item.data as Record<string, unknown>))
         .where(and(...conditions))
         .returning();
 
       if (result[0]) {
-        updated.push(result[0] as ModelObject<M['model']>);
+        updated.push(result[0]);
       } else {
         notFound.push(item.id);
       }
@@ -116,20 +129,21 @@ export abstract class DrizzleBatchUpdateEndpoint<
 export abstract class DrizzleBatchDeleteEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends BatchDeleteEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -141,31 +155,31 @@ export abstract class DrizzleBatchDeleteEndpoint<
     const softDeleteConfig = this.getSoftDeleteConfig();
 
     // Build condition for all IDs
-    const conditions: SQL[] = [inArray(lookupColumn, ids)];
+    const conditions: DrizzleSql[] = [inArray(lookupColumn, ids)];
 
     // For soft delete, exclude already-deleted records
     if (softDeleteConfig.enabled) {
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
     }
 
-    let result: unknown[];
+    let result: ModelObject<M['model']>[];
 
     if (softDeleteConfig.enabled) {
       // Soft delete: set the deletion timestamp
-      result = await cast(this.getDb())
+      result = await cast<ModelObject<M['model']>>(this.getDb())
         .update(table)
         .set({ [softDeleteConfig.field]: new Date() } as Record<string, unknown>)
         .where(and(...conditions))
         .returning();
     } else {
       // Hard delete: actually remove the records
-      result = await cast(this.getDb())
+      result = await cast<ModelObject<M['model']>>(this.getDb())
         .delete(table)
         .where(and(...conditions))
         .returning();
     }
 
-    const deleted = result as ModelObject<M['model']>[];
+    const deleted = result;
     const deletedIds = new Set(
       deleted.map((item) => String((item as Record<string, unknown>)[this.lookupField])),
     );
@@ -184,20 +198,21 @@ export abstract class DrizzleBatchDeleteEndpoint<
 export abstract class DrizzleBatchRestoreEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
 > extends BatchRestoreEndpoint<E, M> {
   /** Drizzle database instance. Can be undefined if using context injection. */
-  db?: DrizzleDatabase;
+  db?: DB;
 
   /** Gets the database instance from property or context. */
-  protected getDb(): DrizzleDatabase {
-    return getDrizzleDb(this);
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
   }
 
-  protected getTable(): Table {
+  protected getTable(): DrizzleTable {
     return getTable(this._meta);
   }
 
-  protected getColumn(field: string): Column {
+  protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
 
@@ -209,19 +224,19 @@ export abstract class DrizzleBatchRestoreEndpoint<
     const softDeleteConfig = this.getSoftDeleteConfig();
 
     // Build condition: IDs that are actually deleted
-    const conditions: SQL[] = [
+    const conditions: DrizzleSql[] = [
       inArray(lookupColumn, ids),
       isNotNull(this.getColumn(softDeleteConfig.field)),
     ];
 
     // Set deletedAt to null to restore the records
-    const result = await cast(this.getDb())
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
       .update(table)
       .set({ [softDeleteConfig.field]: null } as Record<string, unknown>)
       .where(and(...conditions))
       .returning();
 
-    const restored = result as ModelObject<M['model']>[];
+    const restored = result;
     const restoredIds = new Set(
       restored.map((item) => String((item as Record<string, unknown>)[this.lookupField])),
     );

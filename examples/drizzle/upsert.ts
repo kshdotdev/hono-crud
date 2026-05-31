@@ -17,7 +17,7 @@
 
 import {
   DrizzleBatchUpsertEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleListEndpoint,
   DrizzleUpsertEndpoint,
 } from '@hono-crud/drizzle';
@@ -29,7 +29,7 @@ import { defineMeta, defineModel, fromHono } from 'hono-crud';
 import { z } from 'zod';
 import { db, initDb, pool } from './db.js';
 
-const typedDb = db as unknown as DrizzleDatabase;
+const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 // ============================================================================
 // Product Schema & Table (Single Upsert Example)

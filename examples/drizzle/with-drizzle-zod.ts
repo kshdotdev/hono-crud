@@ -18,7 +18,7 @@
 
 import {
   DrizzleCreateEndpoint,
-  DrizzleDatabase,
+  DrizzleDatabaseConstraint,
   DrizzleDeleteEndpoint,
   DrizzleListEndpoint,
   DrizzleReadEndpoint,
@@ -145,7 +145,7 @@ export async function createApp() {
 
   class ProductCreate extends DrizzleCreateEndpoint<Env, typeof productMeta> {
     _meta = productMeta;
-    db: DrizzleDatabase = db as unknown as DrizzleDatabase;
+    db: DrizzleDatabaseConstraint = db as unknown as DrizzleDatabaseConstraint;
 
     schema = {
       tags: ['Products'],
@@ -163,7 +163,7 @@ export async function createApp() {
 
   class ProductList extends DrizzleListEndpoint<Env, typeof productMeta> {
     _meta = productMeta;
-    db: DrizzleDatabase = db as unknown as DrizzleDatabase;
+    db: DrizzleDatabaseConstraint = db as unknown as DrizzleDatabaseConstraint;
 
     schema = {
       tags: ['Products'],
@@ -179,7 +179,7 @@ export async function createApp() {
 
   class ProductRead extends DrizzleReadEndpoint<Env, typeof productMeta> {
     _meta = productMeta;
-    db: DrizzleDatabase = db as unknown as DrizzleDatabase;
+    db: DrizzleDatabaseConstraint = db as unknown as DrizzleDatabaseConstraint;
 
     schema = {
       tags: ['Products'],
@@ -189,7 +189,7 @@ export async function createApp() {
 
   class ProductUpdate extends DrizzleUpdateEndpoint<Env, typeof productMeta> {
     _meta = productMeta;
-    db: DrizzleDatabase = db as unknown as DrizzleDatabase;
+    db: DrizzleDatabaseConstraint = db as unknown as DrizzleDatabaseConstraint;
 
     schema = {
       tags: ['Products'],
@@ -208,7 +208,7 @@ export async function createApp() {
 
   class ProductDelete extends DrizzleDeleteEndpoint<Env, typeof productMeta> {
     _meta = productMeta;
-    db: DrizzleDatabase = db as unknown as DrizzleDatabase;
+    db: DrizzleDatabaseConstraint = db as unknown as DrizzleDatabaseConstraint;
 
     schema = {
       tags: ['Products'],

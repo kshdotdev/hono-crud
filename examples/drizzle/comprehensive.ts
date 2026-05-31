@@ -23,7 +23,7 @@ import {
   DrizzleBatchUpdateEndpoint,
   DrizzleCloneEndpoint,
   DrizzleCreateEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleDeleteEndpoint,
   DrizzleListEndpoint,
   DrizzleReadEndpoint,
@@ -48,7 +48,7 @@ import {
 import { db, initDb, pool } from './db.js';
 import { categories, comments, posts, profiles, users } from './schema.js';
 
-const typedDb = db as unknown as DrizzleDatabase;
+const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 // ============================================================================
 // Models with Full Configuration
