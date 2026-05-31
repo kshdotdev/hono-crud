@@ -13,7 +13,7 @@
 
 import {
   DrizzleCreateEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleListEndpoint,
   DrizzleReadEndpoint,
 } from '@hono-crud/drizzle';
@@ -25,7 +25,7 @@ import { CommentSchema, PostSchema, ProfileSchema, UserSchema } from '../shared/
 import { db, initDb, pool } from './db.js';
 import { comments, posts, profiles, users } from './schema.js';
 
-const typedDb = db as unknown as DrizzleDatabase;
+const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 // ============================================================================
 // Models with Relations

@@ -18,7 +18,7 @@ import {
   DrizzleBatchRestoreEndpoint,
   DrizzleBatchUpdateEndpoint,
   DrizzleCreateEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleDeleteEndpoint,
   DrizzleListEndpoint,
   DrizzleReadEndpoint,
@@ -33,7 +33,7 @@ import { type User, UserSchema } from '../shared/schemas.js';
 import { db, initDb, pool } from './db.js';
 import { users } from './schema.js';
 
-const typedDb = db as unknown as DrizzleDatabase;
+const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 // ============================================================================
 // User Model with Soft Delete for Batch Restore

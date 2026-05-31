@@ -15,7 +15,7 @@
 
 import {
   DrizzleCreateEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleDeleteEndpoint,
   DrizzleListEndpoint,
   DrizzleReadEndpoint,
@@ -29,8 +29,8 @@ import { type User, UserSchema } from '../shared/schemas.js';
 import { db, initDb } from './db.js';
 import { users } from './schema.js';
 
-// Cast db to DrizzleDatabase for type safety
-const typedDb = db as unknown as DrizzleDatabase;
+// Cast db to DrizzleDatabaseConstraint for type safety
+const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 // Define the User model
 const UserModel = defineModel({

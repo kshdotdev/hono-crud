@@ -22,7 +22,7 @@
 
 import {
   DrizzleCreateEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleListEndpoint,
 } from '@hono-crud/drizzle';
 import { setupSwaggerUI } from '@hono-crud/swagger';
@@ -33,7 +33,7 @@ import { type Category, CategorySchema, type User, UserSchema } from '../shared/
 import { db, initDb, pool } from './db.js';
 import { categories, users } from './schema.js';
 
-const typedDb = db as unknown as DrizzleDatabase;
+const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 // ============================================================================
 // User Model with Advanced Filtering
