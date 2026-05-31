@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/scalar",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scalar API reference documentation endpoint for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
@@ -28,9 +28,19 @@
     "clean": "rm -rf dist .tsup",
     "lint": "biome check src/"
   },
-  "keywords": ["hono", "crud", "scalar", "openapi", "docs"],
+  "keywords": [
+    "hono",
+    "crud",
+    "scalar",
+    "openapi",
+    "docs"
+  ],
   "sideEffects": false,
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20.19.0"
   },
