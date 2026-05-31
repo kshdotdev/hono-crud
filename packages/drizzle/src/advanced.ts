@@ -492,6 +492,10 @@ export abstract class DrizzleVersionHistoryEndpoint<
 /**
  * Drizzle Version Read endpoint.
  * Gets a specific version of a record.
+ *
+ * Unlike the db-touching endpoints, this is a pure pass-through to the core
+ * base class and performs no Drizzle queries, so it intentionally takes only
+ * `<E, M>` — there is no third `DB` generic to parametrize.
  */
 export abstract class DrizzleVersionReadEndpoint<
   E extends Env = Env,
@@ -501,6 +505,9 @@ export abstract class DrizzleVersionReadEndpoint<
 /**
  * Drizzle Version Compare endpoint.
  * Compares two versions of a record.
+ *
+ * Like {@link DrizzleVersionReadEndpoint}, this is a pure pass-through with no
+ * Drizzle queries, so it intentionally takes only `<E, M>` (no `DB` generic).
  */
 export abstract class DrizzleVersionCompareEndpoint<
   E extends Env = Env,
