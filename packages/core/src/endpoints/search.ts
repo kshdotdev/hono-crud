@@ -251,19 +251,23 @@ export abstract class SearchEndpoint<
         .string()
         .min(this.minQueryLength)
         .max(this.maxQueryLength)
-        .describe('Search query'),
+        .meta({ description: 'Search query' }),
       fields: z
         .string()
         .optional()
-        .describe(
-          `Comma-separated fields to search. Available: ${Object.keys(this.getSearchableFields()).join(', ')}`,
-        ),
+        .meta({
+          description: `Comma-separated fields to search. Available: ${Object.keys(this.getSearchableFields()).join(', ')}`,
+        }),
       mode: z
         .enum(SEARCH_MODES)
         .optional()
-        .describe('Search mode: any (OR), all (AND), phrase (exact)'),
-      highlight: z.enum(['true', 'false']).optional().describe('Include highlighted snippets'),
-      minScore: z.string().optional().describe('Minimum relevance score threshold (0-1)'),
+        .meta({ description: 'Search mode: any (OR), all (AND), phrase (exact)' }),
+      highlight: z.enum(['true', 'false']).optional().meta({
+        description: 'Include highlighted snippets',
+      }),
+      minScore: z.string().optional().meta({
+        description: 'Minimum relevance score threshold (0-1)',
+      }),
 
       // Pagination
       page: z.string().optional(),
@@ -275,8 +279,10 @@ export abstract class SearchEndpoint<
       shape.sort = z
         .enum(this.sortFields as [string, ...string[]])
         .optional()
-        .describe('Field to sort by');
-      shape.order = z.enum(SORT_DIRECTIONS).optional().describe('Sort direction (asc or desc)');
+        .meta({ description: 'Field to sort by' });
+      shape.order = z.enum(SORT_DIRECTIONS).optional().meta({
+        description: 'Sort direction (asc or desc)',
+      });
     }
 
     // Filter fields
@@ -306,9 +312,9 @@ export abstract class SearchEndpoint<
       shape.include = z
         .string()
         .optional()
-        .describe(
-          `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
-        );
+        .meta({
+          description: `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
+        });
     }
 
     // Field selection
@@ -317,9 +323,9 @@ export abstract class SearchEndpoint<
       shape['fields'] = z
         .string()
         .optional()
-        .describe(
-          `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
-        );
+        .meta({
+          description: `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
+        });
     }
 
     return z.object(shape) as ZodObject<ZodRawShape>;
