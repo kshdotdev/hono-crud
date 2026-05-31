@@ -120,8 +120,10 @@ export abstract class ListEndpoint<
       shape.sort = z
         .enum(this.sortFields as [string, ...string[]])
         .optional()
-        .describe('Field to sort by');
-      shape.order = z.enum(SORT_DIRECTIONS).optional().describe('Sort direction (asc or desc)');
+        .meta({ description: 'Field to sort by' });
+      shape.order = z.enum(SORT_DIRECTIONS).optional().meta({
+        description: 'Sort direction (asc or desc)',
+      });
     }
 
     if (this.searchFields.length > 0) {
@@ -156,9 +158,9 @@ export abstract class ListEndpoint<
       shape.include = z
         .string()
         .optional()
-        .describe(
-          `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
-        );
+        .meta({
+          description: `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
+        });
     }
 
     // Add fields parameter for field selection
@@ -167,15 +169,19 @@ export abstract class ListEndpoint<
       shape.fields = z
         .string()
         .optional()
-        .describe(
-          `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
-        );
+        .meta({
+          description: `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
+        });
     }
 
     // Add cursor-based pagination parameters
     if (this.cursorPaginationEnabled) {
-      shape.cursor = z.string().optional().describe('Opaque cursor for fetching the next page');
-      shape.limit = z.string().optional().describe('Number of items to return (cursor pagination)');
+      shape.cursor = z.string().optional().meta({
+        description: 'Opaque cursor for fetching the next page',
+      });
+      shape.limit = z.string().optional().meta({
+        description: 'Number of items to return (cursor pagination)',
+      });
     }
 
     return z.object(shape) as ZodObject<ZodRawShape>;

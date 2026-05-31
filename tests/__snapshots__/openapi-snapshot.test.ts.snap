@@ -1,0 +1,1675 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byte regression guard) 1`] = `
+{
+  "/": {
+    "get": {
+      "description": "Paginated list of articles",
+      "parameters": [
+        {
+          "in": "query",
+          "name": "page",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "per_page",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "status",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "slug",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "result": {
+                    "items": {
+                      "properties": {
+                        "authorEmail": {
+                          "description": "Author contact email",
+                          "format": "email",
+                          "type": "string",
+                        },
+                        "body": {
+                          "description": "Article body in Markdown",
+                          "type": "string",
+                        },
+                        "id": {
+                          "description": "Unique article identifier",
+                          "format": "uuid",
+                          "type": "string",
+                        },
+                        "published": {
+                          "default": false,
+                          "description": "Whether the article is live",
+                          "type": "boolean",
+                        },
+                        "slug": {
+                          "description": "URL-friendly identifier",
+                          "type": "string",
+                        },
+                        "status": {
+                          "description": "Publication status",
+                          "enum": [
+                            "draft",
+                            "published",
+                            "archived",
+                          ],
+                          "type": "string",
+                        },
+                        "title": {
+                          "description": "Article title",
+                          "maxLength": 200,
+                          "minLength": 1,
+                          "type": "string",
+                        },
+                        "views": {
+                          "default": 0,
+                          "description": "View counter",
+                          "minimum": 0,
+                          "type": "integer",
+                        },
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "slug",
+                        "status",
+                        "authorEmail",
+                      ],
+                      "type": "object",
+                    },
+                    "type": "array",
+                  },
+                  "result_info": {
+                    "properties": {
+                      "has_next_page": {
+                        "type": "boolean",
+                      },
+                      "has_prev_page": {
+                        "type": "boolean",
+                      },
+                      "next_cursor": {
+                        "type": "string",
+                      },
+                      "page": {
+                        "type": "number",
+                      },
+                      "per_page": {
+                        "type": "number",
+                      },
+                      "prev_cursor": {
+                        "type": "string",
+                      },
+                      "total_count": {
+                        "type": "number",
+                      },
+                      "total_pages": {
+                        "type": "number",
+                      },
+                    },
+                    "required": [
+                      "page",
+                      "per_page",
+                      "has_next_page",
+                      "has_prev_page",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                  "result_info",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "List of resources",
+        },
+      },
+      "summary": "List articles",
+      "tags": [
+        "Articles",
+      ],
+    },
+    "post": {
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "properties": {
+                "authorEmail": {
+                  "description": "Author contact email",
+                  "format": "email",
+                  "type": "string",
+                },
+                "body": {
+                  "description": "Article body in Markdown",
+                  "type": "string",
+                },
+                "published": {
+                  "default": false,
+                  "description": "Whether the article is live",
+                  "type": "boolean",
+                },
+                "slug": {
+                  "description": "URL-friendly identifier",
+                  "type": "string",
+                },
+                "status": {
+                  "description": "Publication status",
+                  "enum": [
+                    "draft",
+                    "published",
+                    "archived",
+                  ],
+                  "type": "string",
+                },
+                "title": {
+                  "description": "Article title",
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "views": {
+                  "default": 0,
+                  "description": "View counter",
+                  "minimum": 0,
+                  "type": "integer",
+                },
+              },
+              "required": [
+                "title",
+                "slug",
+                "status",
+                "authorEmail",
+              ],
+              "type": "object",
+            },
+          },
+        },
+        "required": true,
+      },
+      "responses": {
+        "201": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "authorEmail": {
+                        "description": "Author contact email",
+                        "format": "email",
+                        "type": "string",
+                      },
+                      "body": {
+                        "description": "Article body in Markdown",
+                        "type": "string",
+                      },
+                      "id": {
+                        "description": "Unique article identifier",
+                        "format": "uuid",
+                        "type": "string",
+                      },
+                      "published": {
+                        "default": false,
+                        "description": "Whether the article is live",
+                        "type": "boolean",
+                      },
+                      "slug": {
+                        "description": "URL-friendly identifier",
+                        "type": "string",
+                      },
+                      "status": {
+                        "description": "Publication status",
+                        "enum": [
+                          "draft",
+                          "published",
+                          "archived",
+                        ],
+                        "type": "string",
+                      },
+                      "title": {
+                        "description": "Article title",
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "views": {
+                        "default": 0,
+                        "description": "View counter",
+                        "minimum": 0,
+                        "type": "integer",
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "slug",
+                      "status",
+                      "authorEmail",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Resource created successfully",
+        },
+        "400": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Validation error",
+        },
+      },
+      "summary": "Create an article",
+      "tags": [
+        "Articles",
+      ],
+    },
+  },
+  "/aggregate": {
+    "get": {
+      "parameters": [
+        {
+          "in": "query",
+          "name": "count",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+            ],
+          },
+        },
+        {
+          "in": "query",
+          "name": "sum",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+            ],
+          },
+        },
+        {
+          "in": "query",
+          "name": "avg",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+            ],
+          },
+        },
+        {
+          "in": "query",
+          "name": "min",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+            ],
+          },
+        },
+        {
+          "in": "query",
+          "name": "max",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+            ],
+          },
+        },
+        {
+          "in": "query",
+          "name": "countDistinct",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+            ],
+          },
+        },
+        {
+          "in": "query",
+          "name": "groupBy",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "orderBy",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "orderDirection",
+          "required": false,
+          "schema": {
+            "enum": [
+              "asc",
+              "desc",
+            ],
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "required": false,
+          "schema": {
+            "type": [
+              "number",
+              "null",
+            ],
+          },
+        },
+        {
+          "in": "query",
+          "name": "offset",
+          "required": false,
+          "schema": {
+            "type": [
+              "number",
+              "null",
+            ],
+          },
+        },
+        {
+          "in": "query",
+          "name": "withDeleted",
+          "required": false,
+          "schema": {
+            "type": [
+              "boolean",
+              "null",
+            ],
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "groups": {
+                        "items": {
+                          "properties": {
+                            "key": {
+                              "additionalProperties": {},
+                              "type": "object",
+                            },
+                            "values": {
+                              "additionalProperties": {
+                                "type": [
+                                  "number",
+                                  "null",
+                                ],
+                              },
+                              "type": "object",
+                            },
+                          },
+                          "required": [
+                            "key",
+                            "values",
+                          ],
+                          "type": "object",
+                        },
+                        "type": "array",
+                      },
+                      "totalGroups": {
+                        "type": "number",
+                      },
+                      "values": {
+                        "additionalProperties": {
+                          "type": [
+                            "number",
+                            "null",
+                          ],
+                        },
+                        "type": "object",
+                      },
+                    },
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Aggregation result",
+        },
+        "400": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Invalid aggregation request",
+        },
+      },
+      "tags": [
+        "articles",
+      ],
+    },
+  },
+  "/search": {
+    "get": {
+      "parameters": [
+        {
+          "description": "Search query",
+          "in": "query",
+          "name": "q",
+          "required": true,
+          "schema": {
+            "description": "Search query",
+            "maxLength": 500,
+            "minLength": 2,
+            "type": "string",
+          },
+        },
+        {
+          "description": "Comma-separated fields to search. Available: title, body",
+          "in": "query",
+          "name": "fields",
+          "required": false,
+          "schema": {
+            "description": "Comma-separated fields to search. Available: title, body",
+            "type": "string",
+          },
+        },
+        {
+          "description": "Search mode: any (OR), all (AND), phrase (exact)",
+          "in": "query",
+          "name": "mode",
+          "required": false,
+          "schema": {
+            "description": "Search mode: any (OR), all (AND), phrase (exact)",
+            "enum": [
+              "any",
+              "all",
+              "phrase",
+            ],
+            "type": "string",
+          },
+        },
+        {
+          "description": "Include highlighted snippets",
+          "in": "query",
+          "name": "highlight",
+          "required": false,
+          "schema": {
+            "description": "Include highlighted snippets",
+            "enum": [
+              "true",
+              "false",
+            ],
+            "type": "string",
+          },
+        },
+        {
+          "description": "Minimum relevance score threshold (0-1)",
+          "in": "query",
+          "name": "minScore",
+          "required": false,
+          "schema": {
+            "description": "Minimum relevance score threshold (0-1)",
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "page",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "per_page",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "result": {
+                    "items": {
+                      "properties": {
+                        "highlights": {
+                          "additionalProperties": {
+                            "items": {
+                              "type": "string",
+                            },
+                            "type": "array",
+                          },
+                          "type": "object",
+                        },
+                        "item": {
+                          "properties": {
+                            "authorEmail": {
+                              "description": "Author contact email",
+                              "format": "email",
+                              "type": "string",
+                            },
+                            "body": {
+                              "description": "Article body in Markdown",
+                              "type": "string",
+                            },
+                            "id": {
+                              "description": "Unique article identifier",
+                              "format": "uuid",
+                              "type": "string",
+                            },
+                            "published": {
+                              "default": false,
+                              "description": "Whether the article is live",
+                              "type": "boolean",
+                            },
+                            "slug": {
+                              "description": "URL-friendly identifier",
+                              "type": "string",
+                            },
+                            "status": {
+                              "description": "Publication status",
+                              "enum": [
+                                "draft",
+                                "published",
+                                "archived",
+                              ],
+                              "type": "string",
+                            },
+                            "title": {
+                              "description": "Article title",
+                              "maxLength": 200,
+                              "minLength": 1,
+                              "type": "string",
+                            },
+                            "views": {
+                              "default": 0,
+                              "description": "View counter",
+                              "minimum": 0,
+                              "type": "integer",
+                            },
+                          },
+                          "required": [
+                            "id",
+                            "title",
+                            "slug",
+                            "status",
+                            "authorEmail",
+                          ],
+                          "type": "object",
+                        },
+                        "matchedFields": {
+                          "items": {
+                            "type": "string",
+                          },
+                          "type": "array",
+                        },
+                        "score": {
+                          "maximum": 1,
+                          "minimum": 0,
+                          "type": "number",
+                        },
+                      },
+                      "required": [
+                        "item",
+                        "score",
+                        "matchedFields",
+                      ],
+                      "type": "object",
+                    },
+                    "type": "array",
+                  },
+                  "result_info": {
+                    "properties": {
+                      "page": {
+                        "type": "number",
+                      },
+                      "per_page": {
+                        "type": "number",
+                      },
+                      "query": {
+                        "type": "string",
+                      },
+                      "searchedFields": {
+                        "items": {
+                          "type": "string",
+                        },
+                        "type": "array",
+                      },
+                      "total_count": {
+                        "type": "number",
+                      },
+                      "total_pages": {
+                        "type": "number",
+                      },
+                    },
+                    "required": [
+                      "page",
+                      "per_page",
+                      "query",
+                      "searchedFields",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                  "result_info",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Search results",
+        },
+        "400": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Invalid search request",
+        },
+      },
+      "tags": [
+        "articles",
+      ],
+    },
+  },
+  "/upsert": {
+    "post": {
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "properties": {
+                "authorEmail": {
+                  "description": "Author contact email",
+                  "format": "email",
+                  "type": "string",
+                },
+                "body": {
+                  "description": "Article body in Markdown",
+                  "type": "string",
+                },
+                "published": {
+                  "default": false,
+                  "description": "Whether the article is live",
+                  "type": "boolean",
+                },
+                "slug": {
+                  "description": "URL-friendly identifier",
+                  "type": "string",
+                },
+                "status": {
+                  "description": "Publication status",
+                  "enum": [
+                    "draft",
+                    "published",
+                    "archived",
+                  ],
+                  "type": "string",
+                },
+                "title": {
+                  "description": "Article title",
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "views": {
+                  "default": 0,
+                  "description": "View counter",
+                  "minimum": 0,
+                  "type": "integer",
+                },
+              },
+              "required": [
+                "slug",
+              ],
+              "type": "object",
+            },
+          },
+        },
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "created": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                  "result": {
+                    "properties": {
+                      "authorEmail": {
+                        "description": "Author contact email",
+                        "format": "email",
+                        "type": "string",
+                      },
+                      "body": {
+                        "description": "Article body in Markdown",
+                        "type": "string",
+                      },
+                      "id": {
+                        "description": "Unique article identifier",
+                        "format": "uuid",
+                        "type": "string",
+                      },
+                      "published": {
+                        "default": false,
+                        "description": "Whether the article is live",
+                        "type": "boolean",
+                      },
+                      "slug": {
+                        "description": "URL-friendly identifier",
+                        "type": "string",
+                      },
+                      "status": {
+                        "description": "Publication status",
+                        "enum": [
+                          "draft",
+                          "published",
+                          "archived",
+                        ],
+                        "type": "string",
+                      },
+                      "title": {
+                        "description": "Article title",
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "views": {
+                        "default": 0,
+                        "description": "View counter",
+                        "minimum": 0,
+                        "type": "integer",
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "slug",
+                      "status",
+                      "authorEmail",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                  "created",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Resource updated (upsert)",
+        },
+        "201": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "created": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                  "result": {
+                    "properties": {
+                      "authorEmail": {
+                        "description": "Author contact email",
+                        "format": "email",
+                        "type": "string",
+                      },
+                      "body": {
+                        "description": "Article body in Markdown",
+                        "type": "string",
+                      },
+                      "id": {
+                        "description": "Unique article identifier",
+                        "format": "uuid",
+                        "type": "string",
+                      },
+                      "published": {
+                        "default": false,
+                        "description": "Whether the article is live",
+                        "type": "boolean",
+                      },
+                      "slug": {
+                        "description": "URL-friendly identifier",
+                        "type": "string",
+                      },
+                      "status": {
+                        "description": "Publication status",
+                        "enum": [
+                          "draft",
+                          "published",
+                          "archived",
+                        ],
+                        "type": "string",
+                      },
+                      "title": {
+                        "description": "Article title",
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "views": {
+                        "default": 0,
+                        "description": "View counter",
+                        "minimum": 0,
+                        "type": "integer",
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "slug",
+                      "status",
+                      "authorEmail",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                  "created",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Resource created (upsert)",
+        },
+        "400": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Validation error",
+        },
+      },
+      "tags": [
+        "articles",
+      ],
+    },
+  },
+  "/{id}": {
+    "delete": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "deleted": {
+                        "enum": [
+                          true,
+                        ],
+                        "type": "boolean",
+                      },
+                    },
+                    "required": [
+                      "deleted",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Resource deleted successfully",
+        },
+        "404": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Resource not found",
+        },
+        "409": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {
+                        "properties": {
+                          "count": {
+                            "type": "number",
+                          },
+                          "relation": {
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "relation",
+                          "count",
+                        ],
+                        "type": "object",
+                      },
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Cannot delete - related records exist (restrict)",
+        },
+      },
+      "summary": "Delete an article",
+      "tags": [
+        "Articles",
+      ],
+    },
+    "get": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "authorEmail": {
+                        "description": "Author contact email",
+                        "format": "email",
+                        "type": "string",
+                      },
+                      "body": {
+                        "description": "Article body in Markdown",
+                        "type": "string",
+                      },
+                      "id": {
+                        "description": "Unique article identifier",
+                        "format": "uuid",
+                        "type": "string",
+                      },
+                      "published": {
+                        "default": false,
+                        "description": "Whether the article is live",
+                        "type": "boolean",
+                      },
+                      "slug": {
+                        "description": "URL-friendly identifier",
+                        "type": "string",
+                      },
+                      "status": {
+                        "description": "Publication status",
+                        "enum": [
+                          "draft",
+                          "published",
+                          "archived",
+                        ],
+                        "type": "string",
+                      },
+                      "title": {
+                        "description": "Article title",
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "views": {
+                        "default": 0,
+                        "description": "View counter",
+                        "minimum": 0,
+                        "type": "integer",
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "slug",
+                      "status",
+                      "authorEmail",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Resource retrieved successfully",
+        },
+        "404": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Resource not found",
+        },
+      },
+      "summary": "Get an article by id",
+      "tags": [
+        "Articles",
+      ],
+    },
+    "patch": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+          },
+        },
+      ],
+      "requestBody": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "properties": {
+                "authorEmail": {
+                  "description": "Author contact email",
+                  "format": "email",
+                  "type": "string",
+                },
+                "body": {
+                  "description": "Article body in Markdown",
+                  "type": "string",
+                },
+                "published": {
+                  "default": false,
+                  "description": "Whether the article is live",
+                  "type": "boolean",
+                },
+                "slug": {
+                  "description": "URL-friendly identifier",
+                  "type": "string",
+                },
+                "status": {
+                  "description": "Publication status",
+                  "enum": [
+                    "draft",
+                    "published",
+                    "archived",
+                  ],
+                  "type": "string",
+                },
+                "title": {
+                  "description": "Article title",
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "views": {
+                  "default": 0,
+                  "description": "View counter",
+                  "minimum": 0,
+                  "type": "integer",
+                },
+              },
+              "type": "object",
+            },
+          },
+        },
+        "required": true,
+      },
+      "responses": {
+        "200": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "result": {
+                    "properties": {
+                      "authorEmail": {
+                        "description": "Author contact email",
+                        "format": "email",
+                        "type": "string",
+                      },
+                      "body": {
+                        "description": "Article body in Markdown",
+                        "type": "string",
+                      },
+                      "id": {
+                        "description": "Unique article identifier",
+                        "format": "uuid",
+                        "type": "string",
+                      },
+                      "published": {
+                        "default": false,
+                        "description": "Whether the article is live",
+                        "type": "boolean",
+                      },
+                      "slug": {
+                        "description": "URL-friendly identifier",
+                        "type": "string",
+                      },
+                      "status": {
+                        "description": "Publication status",
+                        "enum": [
+                          "draft",
+                          "published",
+                          "archived",
+                        ],
+                        "type": "string",
+                      },
+                      "title": {
+                        "description": "Article title",
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string",
+                      },
+                      "views": {
+                        "default": 0,
+                        "description": "View counter",
+                        "minimum": 0,
+                        "type": "integer",
+                      },
+                    },
+                    "required": [
+                      "id",
+                      "title",
+                      "slug",
+                      "status",
+                      "authorEmail",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      true,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "result",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Resource updated successfully",
+        },
+        "400": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Validation error",
+        },
+        "404": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Resource not found",
+        },
+      },
+      "summary": "Update an article",
+      "tags": [
+        "Articles",
+      ],
+    },
+  },
+}
+`;
