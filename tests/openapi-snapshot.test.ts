@@ -54,6 +54,8 @@ function articleEndpoints() {
       search: { fields: ['title', 'body'] },
       aggregate: {},
       upsert: { conflictTarget: 'slug' },
+      export: {},
+      import: {},
     },
     MemoryAdapters,
   );

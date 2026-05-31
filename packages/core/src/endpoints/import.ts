@@ -222,9 +222,14 @@ export abstract class ImportEndpoint<
       ...this.schema,
       request: {
         query: z.object({
-          mode: z.enum(['create', 'upsert']).optional().describe('Import mode'),
-          skipInvalid: z.enum(['true', 'false']).optional().describe('Skip invalid rows'),
-          stopOnError: z.enum(['true', 'false']).optional().describe('Stop on first error'),
+          mode: z.enum(['create', 'upsert']).optional().meta({ description: 'Import mode' }),
+          skipInvalid: z
+            .enum(['true', 'false'])
+            .optional()
+            .meta({ description: 'Skip invalid rows' }),
+          stopOnError: z.enum(['true', 'false']).optional().meta({
+            description: 'Stop on first error',
+          }),
         }),
         // Body validation is done manually to support multiple content types
       },
