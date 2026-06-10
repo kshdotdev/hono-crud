@@ -1,5 +1,12 @@
 # @hono-crud/prisma
 
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies [8244828]
+  - hono-crud@0.13.10
+
 ## 0.1.7
 
 ### Patch Changes
