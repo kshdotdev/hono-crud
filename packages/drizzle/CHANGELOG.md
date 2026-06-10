@@ -1,5 +1,12 @@
 # @hono-crud/drizzle
 
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies [1b4c5dd]
+  - hono-crud@0.13.12
+
 ## 0.1.9
 
 ### Patch Changes
