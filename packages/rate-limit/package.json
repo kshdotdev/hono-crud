@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/rate-limit",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Rate limiting middleware and storage backends for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
@@ -28,9 +28,22 @@
     "clean": "rm -rf dist .tsup",
     "lint": "biome check src/"
   },
-  "keywords": ["hono", "crud", "rate-limit", "ratelimit", "throttle", "redis", "kv"],
+  "keywords": [
+    "hono",
+    "crud",
+    "rate-limit",
+    "ratelimit",
+    "throttle",
+    "redis",
+    "kv"
+  ],
   "sideEffects": false,
-  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "engines": {
     "node": ">=20.19.0"
   },

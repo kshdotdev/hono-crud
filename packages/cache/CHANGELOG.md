@@ -1,5 +1,14 @@
 # @hono-crud/cache
 
+## 0.1.6
+
+### Patch Changes
+
+- dd62008: Cache HITs now honor the configured `ResponseEnvelope`. The cache mixin previously hardcoded the default `{success, result}` envelope when serving from cache, so endpoints with a custom envelope returned different body shapes on HIT vs MISS. Raw result data is now cached and the envelope is applied at response time through the same path as uncached responses; `X-Cache` headers are unchanged.
+- dd62008: Publishing metadata fixes: `CHANGELOG.md` is now included in the published npm artifact (it was missing from the `files` allowlist everywhere except core), and the lazily-loaded libraries `drizzle-zod` (drizzle), `pluralize` and `fastest-levenshtein` (prisma) are now optional peer dependencies — they are dynamically imported with graceful fallbacks, so consumers who don't use those features no longer have to install them.
+- Updated dependencies [dd62008]
+  - hono-crud@0.13.9
+
 ## 0.1.5
 
 ### Patch Changes
