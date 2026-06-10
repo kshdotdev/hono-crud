@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/mcp",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Auto-generate Model Context Protocol (MCP) tools from hono-crud resources",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
