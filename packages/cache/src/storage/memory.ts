@@ -37,14 +37,14 @@ export class MemoryCacheStorage implements CacheStorage {
     size: 0,
   };
 
-  /** Default TTL in seconds */
-  private defaultTtl: number;
+  /** Default TTL in milliseconds */
+  private defaultTtlMs: number;
 
   /** Maximum entries (0 = unlimited) */
   private maxEntries: number;
 
-  constructor(options?: { defaultTtl?: number; maxEntries?: number }) {
-    this.defaultTtl = options?.defaultTtl ?? 300; // 5 minutes
+  constructor(options?: { defaultTtlMs?: number; maxEntries?: number }) {
+    this.defaultTtlMs = options?.defaultTtlMs ?? 300_000; // 5 minutes
     this.maxEntries = options?.maxEntries ?? 10_000;
   }
 
@@ -76,7 +76,7 @@ export class MemoryCacheStorage implements CacheStorage {
    * Set a cache entry.
    */
   async set<T>(key: string, data: T, options?: CacheSetOptions): Promise<void> {
-    const ttl = options?.ttl ?? this.defaultTtl;
+    const ttlMs = options?.ttlMs ?? this.defaultTtlMs;
     const tags = options?.tags;
 
     // Evict if at capacity
@@ -88,7 +88,7 @@ export class MemoryCacheStorage implements CacheStorage {
     const entry: CacheEntry<T> = {
       data,
       createdAt: now,
-      expiresAt: ttl > 0 ? now + ttl * 1000 : null,
+      expiresAt: ttlMs > 0 ? now + ttlMs : null,
       tags,
     };
 

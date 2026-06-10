@@ -1,59 +1,12 @@
-/**
- * Stored idempotency response entry.
- */
-export interface IdempotencyEntry {
-  /** The idempotency key */
-  key: string;
-  /** HTTP status code of the cached response */
-  statusCode: number;
-  /** Serialized response body */
-  body: string;
-  /** Response headers to replay */
-  headers: Record<string, string>;
-  /** Timestamp when the entry was created */
-  createdAt: number;
-}
+import type { IdempotencyStorage } from 'hono-crud/internal';
 
 /**
- * Storage interface for idempotency keys.
+ * The cross-package idempotency storage contract is owned by core
+ * (`storage/contracts.ts`) and re-exported here so plugin consumers keep
+ * importing `IdempotencyStorage` / `IdempotencyEntry` from this package.
+ * `destroy?()` and `cleanup?()` are part of that shared optional contract.
  */
-export interface IdempotencyStorage {
-  /**
-   * Get a stored idempotency entry.
-   * Returns null if the key doesn't exist or has expired.
-   */
-  get(key: string): Promise<IdempotencyEntry | null>;
-
-  /**
-   * Store an idempotency entry with a TTL.
-   * @param key - The idempotency key
-   * @param entry - The response entry to store
-   * @param ttlMs - Time-to-live in milliseconds
-   */
-  set(key: string, entry: IdempotencyEntry, ttlMs: number): Promise<void>;
-
-  /**
-   * Check if a key is currently being processed (in-flight lock).
-   * Used to prevent concurrent requests with the same key.
-   */
-  isLocked(key: string): Promise<boolean>;
-
-  /**
-   * Acquire a lock for a key being processed.
-   * Returns true if the lock was acquired, false if already locked.
-   */
-  lock(key: string, ttlMs: number): Promise<boolean>;
-
-  /**
-   * Release a lock for a key.
-   */
-  unlock(key: string): Promise<void>;
-
-  /**
-   * Destroy the storage and clear all data.
-   */
-  destroy(): void;
-}
+export type { IdempotencyStorage, IdempotencyEntry } from 'hono-crud/internal';
 
 /**
  * Configuration for idempotency middleware.

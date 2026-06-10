@@ -75,7 +75,7 @@ describe('Edge Runtime Compatibility (Workers)', () => {
       // Dynamic import to prove it loads in Workers
       const { MemoryCacheStorage } = await import('@hono-crud/cache/storage/memory');
 
-      const cache = new MemoryCacheStorage({ maxSize: 100, defaultTtl: 60 });
+      const cache = new MemoryCacheStorage({ maxEntries: 100, defaultTtlMs: 60_000 });
       await cache.set('k', { value: 42 });
 
       const entry = await cache.get<{ value: number }>('k');
@@ -95,7 +95,7 @@ describe('Edge Runtime Compatibility (Workers)', () => {
   describe('Hono app in Workers', () => {
     it('should import the root package entry in a Workers isolate', async () => {
       const mod = await import('hono-crud');
-      expect(mod.createCrudMiddleware).toBeTypeOf('function');
+      expect(mod.createStorageMiddleware).toBeTypeOf('function');
       const { KVCacheStorage } = await import('@hono-crud/cache');
       const { KVRateLimitStorage } = await import('@hono-crud/rate-limit');
       expect(KVCacheStorage).toBeTypeOf('function');
@@ -128,17 +128,17 @@ describe('Edge Runtime Compatibility (Workers)', () => {
     });
   });
 
-  describe('createCrudMiddleware in Workers', () => {
+  describe('createStorageMiddleware in Workers', () => {
     it('should inject storage into Hono context', async () => {
-      // createCrudMiddleware injects the core-owned storages (audit/versioning/
-      // logging/events). Cache/rate-limit/idempotency moved to their own
-      // packages and compose their own middleware.
-      const { createCrudMiddleware, MemoryAuditLogStorage } = await import('hono-crud');
+      // createStorageMiddleware injects every first-class storage slot
+      // (audit/versioning/logging/events plus cache/rate-limit/idempotency)
+      // via the CONTEXT_KEYS lookup map.
+      const { createStorageMiddleware, MemoryAuditLogStorage } = await import('hono-crud');
 
       const audit = new MemoryAuditLogStorage();
       const app = new Hono<StorageEnv>();
 
-      app.use('*', createCrudMiddleware({ audit }));
+      app.use('*', createStorageMiddleware({ auditStorage: audit }));
       app.get('/test', (c) => {
         return c.json({ hasAudit: c.var.auditStorage === audit });
       });

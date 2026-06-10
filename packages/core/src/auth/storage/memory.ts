@@ -1,5 +1,5 @@
 import { CONTEXT_KEYS } from '../../core/context-keys';
-import { createNullableRegistry } from '../../storage/registry';
+import { createStorageFeature } from '../../storage/feature';
 import type { APIKeyEntry, APIKeyLookupResult, APIKeyStorage } from '../types';
 
 // ============================================================================
@@ -253,34 +253,33 @@ export function isValidAPIKeyFormat(key: string, prefix?: string): boolean {
 // ============================================================================
 
 /**
- * Global API key storage registry.
+ * Global API key storage feature.
  *
  * Returns null if not configured (no hidden in-memory default — that
  * silently masked production misconfiguration where forgotten registration
  * meant every API key would miss against an empty store). To opt into the
  * old behaviour, instantiate `MemoryAPIKeyStorage` and call `setAPIKeyStorage()`.
  */
-export const apiKeyStorageRegistry = createNullableRegistry<APIKeyStorage>(
-  CONTEXT_KEYS.apiKeyStorage,
-);
+const apiKeyStorageFeature = createStorageFeature<APIKeyStorage>({
+  contextKey: CONTEXT_KEYS.apiKeyStorage,
+});
+
+/**
+ * Global API key storage registry (exported for helpers/tests).
+ */
+export const apiKeyStorageRegistry = apiKeyStorageFeature.registry;
 
 /**
  * Gets the global API key storage. Returns null if not configured.
  */
-export function getAPIKeyStorage(): APIKeyStorage | null {
-  return apiKeyStorageRegistry.get();
-}
+export const getAPIKeyStorage = apiKeyStorageFeature.get;
 
 /**
  * Gets the global API key storage. Throws if not configured.
  */
-export function getAPIKeyStorageRequired(): APIKeyStorage {
-  return apiKeyStorageRegistry.getRequired();
-}
+export const getAPIKeyStorageRequired = apiKeyStorageFeature.getRequired;
 
 /**
  * Sets the global API key storage.
  */
-export function setAPIKeyStorage(storage: APIKeyStorage): void {
-  apiKeyStorageRegistry.set(storage);
-}
+export const setAPIKeyStorage = apiKeyStorageFeature.set;

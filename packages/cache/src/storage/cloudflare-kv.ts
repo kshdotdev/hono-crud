@@ -17,15 +17,15 @@ export interface KVCacheStorageOptions {
   kv: KVNamespace;
   /** Key prefix for all cache entries. @default 'cache:' */
   prefix?: string;
-  /** Default TTL in seconds. @default 300 */
-  defaultTtl?: number;
+  /** Default TTL in milliseconds. @default 300_000 */
+  defaultTtlMs?: number;
 }
 
 /**
  * Cloudflare KV cache storage implementation.
  *
  * Uses KV's native TTL for expiration and stores tag indices as JSON arrays.
- * Best used with the `createCrudMiddleware` since KV bindings are only
+ * Best used with `createStorageMiddleware` since KV bindings are only
  * available inside request handlers.
  *
  * **Caveats:**
@@ -33,28 +33,31 @@ export interface KVCacheStorageOptions {
  *   the same tag may lose entries. Acceptable for cache invalidation.
  * - KV is eventually consistent (~60s stale reads possible).
  * - `deletePattern()` uses KV `list()` which may be slow for large keyspaces.
+ * - Cloudflare KV requires `expirationTtl >= 60s`; TTLs below that floor are
+ *   silently raised to 60 seconds (a platform constraint, not configurable).
  *
  * @example
  * ```ts
- * import { KVCacheStorage, createCrudMiddleware } from 'hono-crud';
+ * import { KVCacheStorage } from 'hono-crud/cache';
+ * import { createStorageMiddleware } from 'hono-crud';
  *
  * app.use('*', async (c, next) => {
- *   const cache = new KVCacheStorage({ kv: c.env.CACHE_KV });
- *   return createCrudMiddleware({ cache })(c, next);
+ *   const cacheStorage = new KVCacheStorage({ kv: c.env.CACHE_KV });
+ *   return createStorageMiddleware({ cacheStorage })(c, next);
  * });
  * ```
  */
 export class KVCacheStorage implements CacheStorage {
   private kv: KVNamespace;
   private prefix: string;
-  private defaultTtl: number;
+  private defaultTtlMs: number;
 
   private stats: CacheStats = { hits: 0, misses: 0, size: 0 };
 
   constructor(options: KVCacheStorageOptions) {
     this.kv = options.kv;
     this.prefix = options.prefix ?? 'cache:';
-    this.defaultTtl = options.defaultTtl ?? 300;
+    this.defaultTtlMs = options.defaultTtlMs ?? 300_000;
   }
 
   private getKey(key: string): string {
@@ -65,8 +68,12 @@ export class KVCacheStorage implements CacheStorage {
     return `${this.prefix}_tag:${tag}`;
   }
 
-  private getExpirationTtl(ttl: number): number {
-    return Math.max(60, ttl);
+  /**
+   * Convert a millisecond TTL to KV's whole-second `expirationTtl`. Cloudflare
+   * KV enforces a 60-second minimum, so sub-60s TTLs are silently floored.
+   */
+  private getExpirationTtl(ttlMs: number): number {
+    return Math.max(60, Math.ceil(ttlMs / 1000));
   }
 
   async get<T>(key: string): Promise<CacheEntry<T> | null> {
@@ -106,18 +113,18 @@ export class KVCacheStorage implements CacheStorage {
   }
 
   async set<T>(key: string, data: T, options?: CacheSetOptions): Promise<void> {
-    const ttl = options?.ttl ?? this.defaultTtl;
+    const ttlMs = options?.ttlMs ?? this.defaultTtlMs;
     const tags = options?.tags;
     const now = Date.now();
 
     const entry: CacheEntry<T> = {
       data,
       createdAt: now,
-      expiresAt: ttl > 0 ? now + ttl * 1000 : null,
+      expiresAt: ttlMs > 0 ? now + ttlMs : null,
       tags,
     };
 
-    const kvOptions = ttl > 0 ? { expirationTtl: this.getExpirationTtl(ttl) } : undefined;
+    const kvOptions = ttlMs > 0 ? { expirationTtl: this.getExpirationTtl(ttlMs) } : undefined;
     await this.kv.put(this.getKey(key), JSON.stringify(entry), kvOptions);
 
     // Update tag indices

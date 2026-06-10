@@ -9,10 +9,13 @@ import type { VersioningStorage } from '../versioning';
 import { versioningStorageRegistry } from '../versioning';
 import type { StorageEnv } from './types';
 
-// Re-export getters for backward compatibility (used by other modules)
-export { getLoggingStorage } from '../logging/middleware';
-export { getAuditStorage } from '../audit';
-export { getVersioningStorage } from '../versioning';
+// Re-export getters for backward compatibility (used by other modules).
+// The `*Required` variants are created by the audit/versioning/logging/auth
+// migrations (a later work package); the re-export lines are wired here ahead
+// of those implementations.
+export { getLoggingStorage, getLoggingStorageRequired } from '../logging/middleware';
+export { getAuditStorage, getAuditStorageRequired } from '../audit';
+export { getVersioningStorage, getVersioningStorageRequired } from '../versioning';
 export { getAPIKeyStorage } from '../auth/storage/memory';
 
 // ============================================================================

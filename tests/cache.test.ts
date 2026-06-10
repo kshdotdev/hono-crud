@@ -106,7 +106,7 @@ describe('MemoryCacheStorage', () => {
     it('should expire entries after TTL', async () => {
       vi.useFakeTimers();
 
-      await cache.set('key1', 'value', { ttl: 60 }); // 60 seconds
+      await cache.set('key1', 'value', { ttlMs: 60_000 }); // 60 seconds
 
       // Before expiration
       expect(await cache.get('key1')).not.toBeNull();
@@ -123,7 +123,7 @@ describe('MemoryCacheStorage', () => {
     it('should not expire entries with no TTL', async () => {
       vi.useFakeTimers();
 
-      await cache.set('key1', 'value', { ttl: 0 }); // No TTL
+      await cache.set('key1', 'value', { ttlMs: 0 }); // No TTL
 
       vi.advanceTimersByTime(86400 * 1000); // 1 day
 
@@ -135,7 +135,7 @@ describe('MemoryCacheStorage', () => {
     it('should update stats on expired get', async () => {
       vi.useFakeTimers();
 
-      await cache.set('key1', 'value', { ttl: 60 });
+      await cache.set('key1', 'value', { ttlMs: 60_000 });
 
       // Get before expiration - should be a hit
       await cache.get('key1');
@@ -257,9 +257,9 @@ describe('MemoryCacheStorage', () => {
     it('should remove expired entries', async () => {
       vi.useFakeTimers();
 
-      await cache.set('key1', 'value1', { ttl: 60 });
-      await cache.set('key2', 'value2', { ttl: 120 });
-      await cache.set('key3', 'value3', { ttl: 0 }); // No expiration
+      await cache.set('key1', 'value1', { ttlMs: 60_000 });
+      await cache.set('key2', 'value2', { ttlMs: 120_000 });
+      await cache.set('key3', 'value3', { ttlMs: 0 }); // No expiration
 
       vi.advanceTimersByTime(90 * 1000);
 
@@ -922,7 +922,7 @@ describe('Global Cache Storage', () => {
   });
 
   it('should allow setting custom storage', () => {
-    const customStorage = new MemoryCacheStorage({ defaultTtl: 600 });
+    const customStorage = new MemoryCacheStorage({ defaultTtlMs: 600_000 });
     setCacheStorage(customStorage);
 
     expect(getCacheStorage()).toBe(customStorage);

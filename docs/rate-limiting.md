@@ -32,15 +32,18 @@ setRateLimitStorage(new RedisRateLimitStorage({
 
 ### Context-scoped Storage
 
-For multi-tenant or per-request storage, set the storage inside a middleware:
+For multi-tenant or per-request storage, inject the storage through
+`createStorageMiddleware`. It writes the `rateLimitStorage` context var that the
+rate-limit middleware resolves from (context storage takes priority over the
+global one):
 
 ```typescript
-import { setRateLimitStorage, MemoryRateLimitStorage } from '@hono-crud/rate-limit';
+import { createStorageMiddleware } from 'hono-crud';
+import { MemoryRateLimitStorage } from '@hono-crud/rate-limit';
 
-app.use('*', async (c, next) => {
-  setRateLimitStorage(new MemoryRateLimitStorage());
-  await next();
-});
+app.use('*', createStorageMiddleware({
+  rateLimitStorage: new MemoryRateLimitStorage(),
+}));
 ```
 
 ---

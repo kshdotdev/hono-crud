@@ -22,7 +22,7 @@ setRateLimitStorage(new MemoryRateLimitStorage());
 
 app.use('/api/*', createRateLimitMiddleware<RateLimitEnv>({
   limit: 100,
-  windowMs: 60_000,
+  windowSeconds: 60,
 }));
 ```
 

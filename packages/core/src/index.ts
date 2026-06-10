@@ -445,10 +445,6 @@ export type {
   MemoryLoggingStorageOptions,
 } from './logging/index';
 
-// Unified middleware
-export { createCrudMiddleware } from './middleware';
-export type { CrudMiddlewareConfig } from './middleware';
-
 // Storage exports (context-based storage management)
 export {
   // Middleware
@@ -457,11 +453,20 @@ export {
   createAuditStorageMiddleware,
   createVersioningStorageMiddleware,
   createAPIKeyStorageMiddleware,
+  createCacheStorageMiddleware,
+  createRateLimitStorageMiddleware,
+  createIdempotencyStorageMiddleware,
   // Helpers
+  getStorage,
   resolveLoggingStorage,
   resolveAuditStorage,
   resolveVersioningStorage,
   resolveAPIKeyStorage,
+  getLoggingStorageRequired,
+  getAuditStorageRequired,
+  getVersioningStorageRequired,
+  // Shared storage-feature helper
+  createStorageFeature,
   // Registry
   StorageRegistry,
   createNullableRegistry,
@@ -470,7 +475,23 @@ export {
 export type {
   StorageEnv,
   StorageMiddlewareConfig,
+  StorageFeature,
+  StorageFeatureOptions,
+  CacheStorage,
+  CacheEntry,
+  CacheSetOptions,
+  CacheStats,
+  RateLimitStorage,
+  FixedWindowEntry,
+  SlidingWindowEntry,
+  RateLimitEntry,
+  IdempotencyStorage,
+  IdempotencyEntry,
 } from './storage/index';
+
+// Context-var key registry (single source of truth for context-var keys)
+export { CONTEXT_KEYS } from './core/context-keys';
+export type { ContextKey } from './core/context-keys';
 
 // Event system exports
 export {

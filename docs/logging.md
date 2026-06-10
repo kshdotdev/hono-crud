@@ -19,12 +19,23 @@ setLoggingStorage(new MemoryLoggingStorage({ maxEntries: 10000 }));
 
 ### Context-scoped Storage
 
+Inject the storage through `createStorageMiddleware` (or the single-storage
+`createLoggingStorageMiddleware` helper). Both write the `loggingStorage`
+context var that the logging middleware resolves from (context storage takes
+priority over the global one):
+
 ```typescript
+import { createStorageMiddleware } from 'hono-crud';
+import { MemoryLoggingStorage } from 'hono-crud';
+
+app.use('*', createStorageMiddleware({
+  loggingStorage: new MemoryLoggingStorage(),
+}));
+
+// Single-storage helper (takes a storage instance):
 import { createLoggingStorageMiddleware } from 'hono-crud/storage';
 
-app.use('*', createLoggingStorageMiddleware(() => {
-  return new MemoryLoggingStorage();
-}));
+app.use('*', createLoggingStorageMiddleware(new MemoryLoggingStorage()));
 ```
 
 ---

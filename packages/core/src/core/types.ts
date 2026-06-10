@@ -1,6 +1,7 @@
 import type { RouteConfig } from '@hono/zod-openapi';
 import type { Context, Env } from 'hono';
 import { type ZodObject, type ZodRawShape, type ZodType, z } from 'zod';
+import { CONTEXT_KEYS } from './context-keys';
 
 // ============================================================================
 // Schema Type Utilities
@@ -1477,7 +1478,7 @@ export interface ResponseEnvelope {
  * `createErrorHandler`. Internal — exported for adapter authors who need
  * to read the same envelope from custom endpoints.
  */
-export const RESPONSE_ENVELOPE_CONTEXT_KEY = '__honoCrudResponseEnvelope__' as const;
+export const RESPONSE_ENVELOPE_CONTEXT_KEY = CONTEXT_KEYS.responseEnvelope;
 
 /**
  * Read the per-request {@link ResponseEnvelope} stashed on the Hono context by

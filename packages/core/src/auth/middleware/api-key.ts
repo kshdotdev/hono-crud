@@ -1,7 +1,8 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { CONTEXT_KEYS } from '../../core/context-keys';
-import { UnauthorizedException } from '../../core/exceptions';
-import type { APIKeyConfig, APIKeyEntry, AuthEnv, AuthUser } from '../types';
+import { ConfigurationException, UnauthorizedException } from '../../core/exceptions';
+import { resolveAPIKeyStorage } from '../../storage/helpers';
+import type { APIKeyConfig, APIKeyEntry, APIKeyLookupResult, AuthEnv, AuthUser } from '../types';
 import { validateAPIKeyEntry } from '../validators/api-key';
 
 // ============================================================================
@@ -96,8 +97,18 @@ export function createAPIKeyMiddleware<E extends AuthEnv = AuthEnv>(
     // Hash the API key
     const keyHash = await hashKey(apiKey);
 
-    // Look up and validate the API key
-    const lookupResult = await config.lookupKey(keyHash);
+    // Resolve the lookup source (priority: lookupKey > resolved storage).
+    let lookupResult: APIKeyLookupResult;
+    const storage = config.lookupKey ? null : resolveAPIKeyStorage(ctx, config.storage);
+    if (config.lookupKey) {
+      lookupResult = await config.lookupKey(keyHash);
+    } else if (storage) {
+      lookupResult = await storage.lookup(keyHash);
+    } else {
+      throw new ConfigurationException(
+        'API key auth requires lookupKey, storage, or a configured apiKeyStorage',
+      );
+    }
     const entry = validateAPIKeyEntry(lookupResult);
 
     // Extract user info
@@ -113,6 +124,10 @@ export function createAPIKeyMiddleware<E extends AuthEnv = AuthEnv>(
     // Fire-and-forget update last used timestamp
     if (config.updateLastUsed) {
       Promise.resolve(config.updateLastUsed(entry.id)).catch(() => {
+        // Silently ignore errors updating last used
+      });
+    } else if (storage) {
+      Promise.resolve(storage.updateLastUsed(entry.id)).catch(() => {
         // Silently ignore errors updating last used
       });
     }
@@ -136,7 +151,20 @@ export async function validateAPIKey(apiKey: string, config: APIKeyConfig): Prom
   // Hash the API key
   const keyHash = await hashKey(apiKey);
 
-  // Look up and validate the API key
-  const lookupResult = await config.lookupKey(keyHash);
+  // Resolve the lookup source (priority: lookupKey > resolved storage). No ctx
+  // here, so storage resolution uses explicit > global only.
+  let lookupResult: APIKeyLookupResult;
+  if (config.lookupKey) {
+    lookupResult = await config.lookupKey(keyHash);
+  } else {
+    const storage = resolveAPIKeyStorage(undefined, config.storage);
+    if (storage) {
+      lookupResult = await storage.lookup(keyHash);
+    } else {
+      throw new ConfigurationException(
+        'API key auth requires lookupKey, storage, or a configured apiKeyStorage',
+      );
+    }
+  }
   return validateAPIKeyEntry(lookupResult);
 }

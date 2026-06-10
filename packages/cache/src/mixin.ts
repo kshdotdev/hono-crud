@@ -5,7 +5,12 @@ import type {
   OpenAPIRoute,
   ResponseEnvelopeInfo,
 } from 'hono-crud/internal';
-import { ConfigurationException, createRegistryWithDefault, getLogger } from 'hono-crud/internal';
+import {
+  CONTEXT_KEYS,
+  ConfigurationException,
+  createStorageFeature,
+  getLogger,
+} from 'hono-crud/internal';
 import {
   createInvalidationPattern,
   createRelatedPatterns,
@@ -40,14 +45,24 @@ function getTableName(self: unknown): string {
 // ============================================================================
 
 /**
- * Global cache storage registry.
- * Compatibility registry. Request-time cache helpers use explicit/context
- * storage and do not create this default automatically.
+ * Cache storage feature.
+ *
+ * `lazyDefaultOnGet: true` preserves the legacy never-null runtime behavior of
+ * `getCacheStorage()` (it lazy-creates a `MemoryCacheStorage` default) while the
+ * declared return type is honest `CacheStorage | null`. The request path uses
+ * `resolveCacheStorage`, which never materializes a default (edge-safe no-op
+ * when no storage is configured).
  */
-export const cacheStorageRegistry = createRegistryWithDefault<CacheStorage>(
-  'cacheStorage',
-  () => new MemoryCacheStorage(),
-);
+const cacheStorageFeature = createStorageFeature<CacheStorage>({
+  contextKey: CONTEXT_KEYS.cacheStorage,
+  defaultFactory: () => new MemoryCacheStorage(),
+  lazyDefaultOnGet: true,
+});
+
+/**
+ * Backing registry (exported for advanced use / tests).
+ */
+export const cacheStorageRegistry = cacheStorageFeature.registry;
 
 /**
  * Set the global cache storage instance.
@@ -62,16 +77,22 @@ export const cacheStorageRegistry = createRegistryWithDefault<CacheStorage>(
  * }));
  * ```
  */
-export function setCacheStorage(storage: CacheStorage): void {
-  cacheStorageRegistry.set(storage);
-}
+export const setCacheStorage = cacheStorageFeature.set;
 
 /**
- * Get the global cache storage instance.
+ * Get the global cache storage instance, or `null` when none is configured.
+ *
+ * The declared type is honest-nullable, but at runtime this never returns null:
+ * the feature lazy-creates a `MemoryCacheStorage` default on first access. Use
+ * {@link getCacheStorageRequired} when a non-null type is needed.
  */
-export function getCacheStorage(): CacheStorage {
-  return cacheStorageRegistry.getRequired();
-}
+export const getCacheStorage = cacheStorageFeature.get;
+
+/**
+ * Get the global cache storage instance, throwing if unset (or lazy-creating
+ * the configured `MemoryCacheStorage` default).
+ */
+export const getCacheStorageRequired = cacheStorageFeature.getRequired;
 
 /**
  * Resolves cache storage with priority: explicit param > context > global.
@@ -80,12 +101,7 @@ export function getCacheStorage(): CacheStorage {
  * @param explicitStorage - Optional explicit storage instance
  * @returns The resolved storage, or null when no storage was configured
  */
-export function resolveCacheStorage<E extends Env>(
-  ctx?: Context<E>,
-  explicitStorage?: CacheStorage,
-): CacheStorage | null {
-  return cacheStorageRegistry.resolve(ctx, explicitStorage);
-}
+export const resolveCacheStorage = cacheStorageFeature.resolve;
 
 // ============================================================================
 // Type Helpers
@@ -323,7 +339,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
       }
 
       await storage.set(key, data, {
-        ttl: config.ttl,
+        ttlMs: config.ttl != null ? config.ttl * 1000 : undefined,
         tags: tags.length > 0 ? tags : undefined,
       });
     }

@@ -173,6 +173,9 @@ export type DrizzleDialect = (typeof DRIZZLE_DIALECTS)[number];
  * Type helper for defining Hono Env with database in Variables.
  * Use this when injecting the database via middleware.
  *
+ * The `db` Variables key matches `CONTEXT_KEYS.db` (string value `'db'`), the
+ * canonical context slot `getDrizzleDb` reads.
+ *
  * @example
  * ```ts
  * import { DrizzleEnv } from 'hono-crud/adapters/drizzle';
@@ -182,7 +185,7 @@ export type DrizzleDialect = (typeof DRIZZLE_DIALECTS)[number];
  * const app = new Hono<AppEnv>();
  *
  * app.use('*', async (c, next) => {
- *   c.set('db', db);
+ *   c.set('db', db); // 'db' is CONTEXT_KEYS.db
  *   await next();
  * });
  *

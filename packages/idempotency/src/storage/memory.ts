@@ -38,18 +38,30 @@ export class MemoryIdempotencyStorage implements IdempotencyStorage {
     }
   }
 
-  private cleanupExpired(): void {
+  private cleanupExpired(): number {
     const now = Date.now();
+    let removed = 0;
     for (const [key, value] of this.entries.entries()) {
       if (now > value.expiresAt) {
         this.entries.delete(key);
+        removed++;
       }
     }
     for (const [key, expiresAt] of this.locks.entries()) {
       if (now > expiresAt) {
         this.locks.delete(key);
+        removed++;
       }
     }
+    return removed;
+  }
+
+  /**
+   * Remove expired entries and locks.
+   * @returns Number of expired entries and locks removed.
+   */
+  async cleanup(): Promise<number> {
+    return this.cleanupExpired();
   }
 
   async get(key: string): Promise<IdempotencyEntry | null> {

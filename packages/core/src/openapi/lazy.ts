@@ -218,7 +218,7 @@ function makeSyntheticContext(ctx: SchemaResolveContext): {
  */
 export function wrapCacheStorageForOpenApi(storage: {
   get<T>(key: string): Promise<{ data: T } | null>;
-  set<T>(key: string, data: T, options?: { ttl?: number }): Promise<void>;
+  set<T>(key: string, data: T, options?: { ttlMs?: number }): Promise<void>;
 }): PerTenantOpenApiCache {
   return {
     async get(key) {
@@ -226,8 +226,7 @@ export function wrapCacheStorageForOpenApi(storage: {
       return entry ? entry.data : undefined;
     },
     async set(key, value, ttlMs) {
-      const ttlSeconds = ttlMs ? Math.ceil(ttlMs / 1000) : undefined;
-      await storage.set(key, value, ttlSeconds ? { ttl: ttlSeconds } : undefined);
+      await storage.set(key, value, ttlMs != null ? { ttlMs } : undefined);
     },
   };
 }

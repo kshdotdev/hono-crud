@@ -291,6 +291,8 @@ export interface APIKeyStorage {
   delete(id: string): Promise<boolean>;
   /** Update the lastUsedAt timestamp for an entry. */
   updateLastUsed(id: string): Promise<void>;
+  /** Release resources (timers, connections). Optional, edge-safe. */
+  destroy?(): void;
 }
 
 /**
@@ -311,10 +313,20 @@ export interface APIKeyConfig {
   queryParam?: string | null;
 
   /**
+   * API key storage backend. When provided, the middleware calls
+   * `storage.lookup()` / `storage.updateLastUsed()`. Resolved through the
+   * global registry (explicit > context apiKeyStorage > global) when omitted.
+   */
+  storage?: APIKeyStorage;
+
+  /**
    * Function to look up an API key by its hash.
    * Return null if the key is not found.
+   *
+   * Convenience overload: takes priority over `storage`. One of `lookupKey` /
+   * `storage` (or a configured global apiKeyStorage) must resolve.
    */
-  lookupKey: (keyHash: string) => Promise<APIKeyLookupResult> | APIKeyLookupResult;
+  lookupKey?: (keyHash: string) => Promise<APIKeyLookupResult> | APIKeyLookupResult;
 
   /**
    * Function to hash an API key.

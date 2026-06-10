@@ -11,16 +11,19 @@ import { getContextVar } from '../core/context-helpers';
  *    only for legacy global getter APIs. Request-time resolve() never creates
  *    hidden mutable state.
  *
+ * Context keys come from `CONTEXT_KEYS` (the single source of truth for
+ * context-var key strings), not hand-written literals.
+ *
  * @example
  * ```ts
  * // Nullable storage (no default)
- * const rateLimitRegistry = new StorageRegistry<RateLimitStorage>('rateLimitStorage');
+ * const rateLimitRegistry = new StorageRegistry<RateLimitStorage>(CONTEXT_KEYS.rateLimitStorage);
  * rateLimitRegistry.set(new MemoryRateLimitStorage());
  * const storage = rateLimitRegistry.get(); // RateLimitStorage | null
  *
  * // Storage with default
  * const cacheRegistry = new StorageRegistry<CacheStorage>(
- *   'cacheStorage',
+ *   CONTEXT_KEYS.cacheStorage,
  *   () => new MemoryCacheStorage()
  * );
  * const storage = cacheRegistry.get(); // Always returns CacheStorage
@@ -187,7 +190,7 @@ export class StorageRegistry<T> {
  *
  * @example
  * ```ts
- * const rateLimitRegistry = createNullableRegistry<RateLimitStorage>('rateLimitStorage');
+ * const rateLimitRegistry = createNullableRegistry<RateLimitStorage>(CONTEXT_KEYS.rateLimitStorage);
  * ```
  */
 export function createNullableRegistry<T>(contextKey: string): StorageRegistry<T> {
@@ -205,7 +208,7 @@ export function createNullableRegistry<T>(contextKey: string): StorageRegistry<T
  * @example
  * ```ts
  * const cacheRegistry = createRegistryWithDefault<CacheStorage>(
- *   'cacheStorage',
+ *   CONTEXT_KEYS.cacheStorage,
  *   () => new MemoryCacheStorage()
  * );
  * ```

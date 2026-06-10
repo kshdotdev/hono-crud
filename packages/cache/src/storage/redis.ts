@@ -37,8 +37,8 @@ export interface RedisCacheStorageOptions {
   client: RedisClient;
   /** Key prefix for all cache entries. @default 'cache:' */
   prefix?: string;
-  /** Default TTL in seconds. @default 300 */
-  defaultTtl?: number;
+  /** Default TTL in milliseconds. @default 300_000 */
+  defaultTtlMs?: number;
   /** Use SCAN instead of KEYS for pattern deletion (recommended for production). @default true */
   useScan?: boolean;
   /** SCAN count per iteration. @default 100 */
@@ -83,7 +83,7 @@ export interface RedisCacheStorageOptions {
 export class RedisCacheStorage implements CacheStorage {
   private client: RedisClient;
   private prefix: string;
-  private defaultTtl: number;
+  private defaultTtlMs: number;
   private useScan: boolean;
   private scanCount: number;
 
@@ -97,7 +97,7 @@ export class RedisCacheStorage implements CacheStorage {
   constructor(options: RedisCacheStorageOptions) {
     this.client = options.client;
     this.prefix = options.prefix ?? 'cache:';
-    this.defaultTtl = options.defaultTtl ?? 300;
+    this.defaultTtlMs = options.defaultTtlMs ?? 300_000;
     this.useScan = options.useScan ?? true;
     this.scanCount = options.scanCount ?? 100;
   }
@@ -162,31 +162,34 @@ export class RedisCacheStorage implements CacheStorage {
    */
   async set<T>(key: string, data: T, options?: CacheSetOptions): Promise<void> {
     const fullKey = this.getKey(key);
-    const ttl = options?.ttl ?? this.defaultTtl;
+    const ttlMs = options?.ttlMs ?? this.defaultTtlMs;
     const tags = options?.tags;
 
     const now = Date.now();
     const entry: CacheEntry<T> = {
       data,
       createdAt: now,
-      expiresAt: ttl > 0 ? now + ttl * 1000 : null,
+      expiresAt: ttlMs > 0 ? now + ttlMs : null,
       tags,
     };
 
     const value = JSON.stringify(entry);
+    // Redis expirations are in whole seconds; round up so a sub-second TTL
+    // still expires after at least one second rather than immediately.
+    const expirySeconds = Math.ceil(ttlMs / 1000);
 
     // Use pipeline when tags exist and pipeline is available (single round-trip)
     if (tags && tags.length > 0 && this.client.pipeline) {
       const pipe = this.client.pipeline();
-      ttl > 0 ? pipe.set(fullKey, value, { ex: ttl }) : pipe.set(fullKey, value);
+      ttlMs > 0 ? pipe.set(fullKey, value, { ex: expirySeconds }) : pipe.set(fullKey, value);
       for (const tag of tags) {
         pipe.sadd(this.getTagKey(tag), key);
       }
       await pipe.exec();
     } else {
       // Sequential fallback
-      if (ttl > 0) {
-        await this.client.set(fullKey, value, { ex: ttl });
+      if (ttlMs > 0) {
+        await this.client.set(fullKey, value, { ex: expirySeconds });
       } else {
         await this.client.set(fullKey, value);
       }

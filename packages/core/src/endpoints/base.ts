@@ -121,7 +121,11 @@ export abstract class CrudEndpoint<
 
   protected getAuditLogger(): AuditLogger {
     if (!this._auditLogger) {
-      this._auditLogger = createAuditLogger(this._meta.model.audit);
+      this._auditLogger = createAuditLogger(
+        this._meta.model.audit,
+        undefined,
+        this.context ?? undefined,
+      );
     }
     return this._auditLogger;
   }
@@ -155,6 +159,8 @@ export abstract class CrudEndpoint<
       this._versionManager = createVersionManager(
         this._meta.model.versioning,
         this._meta.model.tableName,
+        undefined,
+        this.context ?? undefined,
       );
     }
     return this._versionManager;
