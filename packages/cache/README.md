@@ -11,10 +11,15 @@ npm install @hono-crud/cache hono-crud hono
 ## Usage
 
 ```ts
+import { createStorageMiddleware } from 'hono-crud';
 import { MemoryCacheStorage } from '@hono-crud/cache';
 
-const cacheStorage = new MemoryCacheStorage();
-// Wire the storage into cache-enabled endpoints / mixins.
+// Inject the storage into context so cache-enabled endpoints / mixins resolve it.
+app.use('*', createStorageMiddleware({
+  cacheStorage: new MemoryCacheStorage(),
+}));
 ```
 
 Exports cache storage backends (e.g. `MemoryCacheStorage`) and the caching mixins used by hono-crud endpoints.
+
+`cacheConfig.ttl` is in **seconds**; the `CacheStorage.set` boundary works in **milliseconds** (`ttlMs`). On Cloudflare KV, `expirationTtl` is floored to 60s.

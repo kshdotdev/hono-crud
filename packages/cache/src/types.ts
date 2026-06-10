@@ -1,14 +1,10 @@
 /**
- * Cache entry stored in the cache storage.
+ * Cache storage contracts are owned by core (`storage/contracts.ts`) and
+ * re-exported here so consumers can keep importing them from the cache plugin.
+ * `CacheSetOptions.ttl` is now `ttlMs` (milliseconds) at the storage boundary;
+ * the user-facing `CacheConfig.ttl` below stays in seconds for ergonomics.
  */
-export interface CacheEntry<T = unknown> {
-  data: T;
-  /** Epoch milliseconds when the entry was created. */
-  createdAt: number;
-  /** Epoch milliseconds when the entry expires, or null for no expiration. */
-  expiresAt: number | null;
-  tags?: string[];
-}
+export type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from 'hono-crud/internal';
 
 /**
  * Cache configuration for endpoints.
@@ -26,80 +22,6 @@ export interface CacheConfig {
   perUser?: boolean;
   /** Tags for group invalidation. */
   tags?: string[];
-}
-
-/**
- * Options for setting cache entries.
- */
-export interface CacheSetOptions {
-  /** Time-to-live in seconds. */
-  ttl?: number;
-  /** Tags for group invalidation. */
-  tags?: string[];
-}
-
-/**
- * Cache storage interface.
- * Implement this interface for custom storage backends.
- */
-export interface CacheStorage {
-  /**
-   * Get a cached entry by key.
-   * @returns The cached entry or null if not found/expired.
-   */
-  get<T>(key: string): Promise<CacheEntry<T> | null>;
-
-  /**
-   * Set a cache entry.
-   * @param key - The cache key.
-   * @param data - The data to cache.
-   * @param options - Cache options (ttl, tags).
-   */
-  set<T>(key: string, data: T, options?: CacheSetOptions): Promise<void>;
-
-  /**
-   * Delete a cache entry by key.
-   * @returns True if the entry was deleted.
-   */
-  delete(key: string): Promise<boolean>;
-
-  /**
-   * Delete entries matching a glob-style pattern.
-   * @param pattern - Glob pattern (e.g., "users:*").
-   * @returns Number of deleted entries.
-   */
-  deletePattern(pattern: string): Promise<number>;
-
-  /**
-   * Delete all entries with a specific tag.
-   * @param tag - The tag to match.
-   * @returns Number of deleted entries.
-   */
-  deleteByTag?(tag: string): Promise<number>;
-
-  /**
-   * Check if a key exists in the cache.
-   */
-  has(key: string): Promise<boolean>;
-
-  /**
-   * Clear all cache entries.
-   */
-  clear(): Promise<void>;
-
-  /**
-   * Get cache statistics (optional).
-   */
-  getStats?(): CacheStats;
-}
-
-/**
- * Cache statistics.
- */
-export interface CacheStats {
-  hits: number;
-  misses: number;
-  size: number;
 }
 
 /**

@@ -1,5 +1,5 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
-import { createNullableRegistry, getLogger, setContextVar } from 'hono-crud/internal';
+import { CONTEXT_KEYS, createStorageFeature, getLogger, setContextVar } from 'hono-crud/internal';
 import { RateLimitExceededException } from './exceptions';
 import type {
   KeyExtractor,
@@ -15,11 +15,18 @@ import { extractAPIKey, extractIP, extractUserId, generateKey, shouldSkipPath } 
 // ============================================================================
 
 /**
- * Global rate limit storage registry.
+ * Global rate limit storage feature.
  * Nullable -- no default storage is created unless explicitly set.
  */
-export const rateLimitStorageRegistry =
-  createNullableRegistry<RateLimitStorage>('rateLimitStorage');
+const rateLimitStorageFeature = createStorageFeature<RateLimitStorage>({
+  contextKey: CONTEXT_KEYS.rateLimitStorage,
+});
+
+/**
+ * Backing registry for the rate limit storage feature.
+ * Exported for advanced use / tests.
+ */
+export const rateLimitStorageRegistry = rateLimitStorageFeature.registry;
 
 /**
  * Set the global rate limit storage.
@@ -33,7 +40,7 @@ export const rateLimitStorageRegistry =
  * ```
  */
 export function setRateLimitStorage(storage: RateLimitStorage): void {
-  rateLimitStorageRegistry.set(storage);
+  rateLimitStorageFeature.set(storage);
 }
 
 /**
@@ -41,7 +48,16 @@ export function setRateLimitStorage(storage: RateLimitStorage): void {
  * @returns The global storage or null if not set
  */
 export function getRateLimitStorage(): RateLimitStorage | null {
-  return rateLimitStorageRegistry.get();
+  return rateLimitStorageFeature.get();
+}
+
+/**
+ * Get the global rate limit storage, throwing if not configured.
+ * @returns The global storage
+ * @throws When no rate limit storage has been configured
+ */
+export function getRateLimitStorageRequired(): RateLimitStorage {
+  return rateLimitStorageFeature.getRequired();
 }
 
 /**
@@ -55,7 +71,7 @@ export function resolveRateLimitStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: RateLimitStorage,
 ): RateLimitStorage | null {
-  return rateLimitStorageRegistry.resolve(ctx, explicitStorage);
+  return rateLimitStorageFeature.resolve(ctx, explicitStorage);
 }
 
 // ============================================================================
@@ -311,8 +327,8 @@ export function createRateLimitMiddleware<E extends Env = Env>(
     }
 
     // Store result in context for access by handlers
-    setContextVar(ctx, 'rateLimit', result);
-    setContextVar(ctx, 'rateLimitKey', fullKey);
+    setContextVar(ctx, CONTEXT_KEYS.rateLimit, result);
+    setContextVar(ctx, CONTEXT_KEYS.rateLimitKey, fullKey);
 
     // Add headers if enabled
     if (includeHeaders) {
@@ -349,7 +365,7 @@ export function createRateLimitMiddleware<E extends Env = Env>(
  * @param storage - Optional storage instance (uses global if not provided)
  */
 export async function resetRateLimit(key: string, storage?: RateLimitStorage): Promise<void> {
-  const effectiveStorage = storage ?? rateLimitStorageRegistry.get();
+  const effectiveStorage = storage ?? rateLimitStorageFeature.get();
   if (!effectiveStorage) {
     throw new Error('Rate limit storage not configured');
   }

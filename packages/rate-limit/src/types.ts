@@ -1,89 +1,21 @@
 import type { Context, Env } from 'hono';
+import type { RateLimitStorage } from 'hono-crud/internal';
 
 // ============================================================================
-// Storage Entry Types
-// ============================================================================
-
-/**
- * Entry for fixed window rate limiting.
- * Stores the count and window start time.
- */
-export interface FixedWindowEntry {
-  /** Number of requests in current window */
-  count: number;
-  /** Unix timestamp when the window started (ms) */
-  windowStart: number;
-}
-
-/**
- * Entry for sliding window rate limiting.
- * Stores timestamps of requests within the window.
- */
-export interface SlidingWindowEntry {
-  /** Timestamps of requests within the window (ms) */
-  timestamps: number[];
-}
-
-/**
- * Combined entry type for storage.
- */
-export type RateLimitEntry = FixedWindowEntry | SlidingWindowEntry;
-
-// ============================================================================
-// Storage Interface
+// Storage Entry Types + Interface
 // ============================================================================
 
 /**
- * Storage interface for rate limiting.
- * Separate from CacheStorage due to different requirements:
- * - Needs atomic increment operations
- * - No need for tags or complex queries
- * - Different data structure (counts/timestamps vs cached data)
+ * Rate-limit storage contracts are owned by core (`storage/contracts.ts`) so
+ * `createStorageMiddleware` and the registries can resolve them. They are
+ * re-exported here for ergonomic plugin-local imports. `windowMs` is unchanged.
  */
-export interface RateLimitStorage {
-  /**
-   * Increment the request count for a key (fixed window).
-   * Creates the entry if it doesn't exist.
-   * @param key - The rate limit key
-   * @param windowMs - Window duration in milliseconds
-   * @returns The updated entry with count and window start
-   */
-  increment(key: string, windowMs: number): Promise<FixedWindowEntry>;
-
-  /**
-   * Add a timestamp to the sliding window for a key.
-   * Removes timestamps outside the window.
-   * @param key - The rate limit key
-   * @param windowMs - Window duration in milliseconds
-   * @param now - Current timestamp (optional, defaults to Date.now())
-   * @returns The updated entry with all timestamps in window
-   */
-  addTimestamp(key: string, windowMs: number, now?: number): Promise<SlidingWindowEntry>;
-
-  /**
-   * Get the current entry for a key.
-   * @param key - The rate limit key
-   * @returns The entry or null if not found
-   */
-  get(key: string): Promise<RateLimitEntry | null>;
-
-  /**
-   * Reset the rate limit for a key.
-   * @param key - The rate limit key
-   */
-  reset(key: string): Promise<void>;
-
-  /**
-   * Clean up expired entries.
-   * @returns Number of entries removed
-   */
-  cleanup(): Promise<number>;
-
-  /**
-   * Destroy the storage (cleanup intervals, connections, etc.).
-   */
-  destroy?(): void;
-}
+export type {
+  FixedWindowEntry,
+  SlidingWindowEntry,
+  RateLimitEntry,
+  RateLimitStorage,
+} from 'hono-crud/internal';
 
 // ============================================================================
 // Rate Limit Result

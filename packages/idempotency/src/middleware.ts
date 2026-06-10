@@ -1,5 +1,5 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
-import { createNullableRegistry, getContextVar } from 'hono-crud/internal';
+import { CONTEXT_KEYS, createStorageFeature, getContextVar } from 'hono-crud/internal';
 import type { ErrorResponse } from 'hono-crud/internal';
 import type { IdempotencyConfig, IdempotencyEntry, IdempotencyStorage } from './types';
 
@@ -18,12 +18,16 @@ function idempotencyError(code: string, message: string): ErrorResponse {
 // ============================================================================
 
 /**
- * Global idempotency storage registry.
- * Compatibility global registry. Prefer passing storage explicitly or injecting
- * it with createCrudMiddleware() in edge runtimes.
+ * Idempotency storage feature.
+ * Shared registry + getter/resolver quartet. Prefer passing storage explicitly
+ * or injecting it with createStorageMiddleware() in edge runtimes.
  */
-export const idempotencyStorageRegistry =
-  createNullableRegistry<IdempotencyStorage>('idempotencyStorage');
+const idempotencyStorageFeature = createStorageFeature<IdempotencyStorage>({
+  contextKey: CONTEXT_KEYS.idempotencyStorage,
+});
+
+/** The backing registry (exported for advanced use / tests). */
+export const idempotencyStorageRegistry = idempotencyStorageFeature.registry;
 
 /**
  * Set the global idempotency storage.
@@ -35,16 +39,19 @@ export const idempotencyStorageRegistry =
  * setIdempotencyStorage(new MemoryIdempotencyStorage());
  * ```
  */
-export function setIdempotencyStorage(storage: IdempotencyStorage): void {
-  idempotencyStorageRegistry.set(storage);
-}
+export const setIdempotencyStorage = idempotencyStorageFeature.set;
 
 /**
- * Get the global idempotency storage.
+ * Get the explicitly-configured global idempotency storage, or null.
+ * Never throws. Use {@link getIdempotencyStorageRequired} when a non-null
+ * storage is required.
  */
-export function getIdempotencyStorage(): IdempotencyStorage {
-  return idempotencyStorageRegistry.getRequired();
-}
+export const getIdempotencyStorage = idempotencyStorageFeature.get;
+
+/**
+ * Get the global idempotency storage, throwing if none was configured.
+ */
+export const getIdempotencyStorageRequired = idempotencyStorageFeature.getRequired;
 
 /**
  * Resolves idempotency storage with priority: explicit param > context > global.
@@ -57,7 +64,7 @@ export function resolveIdempotencyStorage<E extends Env>(
   ctx?: Context<E>,
   explicitStorage?: IdempotencyStorage,
 ): IdempotencyStorage | null {
-  return idempotencyStorageRegistry.resolve(ctx, explicitStorage);
+  return idempotencyStorageFeature.resolve(ctx, explicitStorage);
 }
 
 // ============================================================================
@@ -118,8 +125,8 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
       return next();
     }
 
-    // Resolve storage
-    const storage = config?.storage ?? idempotencyStorageRegistry.resolve(ctx);
+    // Resolve storage (explicit config.storage > context > global, single tier)
+    const storage = resolveIdempotencyStorage(ctx, config?.storage);
     if (!storage) {
       // No storage configured, pass through
       return next();

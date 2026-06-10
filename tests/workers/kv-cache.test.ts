@@ -56,7 +56,7 @@ describe('KVCacheStorage (Workers)', () => {
 
   describe('TTL', () => {
     it('should support TTL values below the KV expirationTtl minimum with app-level expiry', async () => {
-      await cache.set('short-ttl', 'value', { ttl: 1 });
+      await cache.set('short-ttl', 'value', { ttlMs: 1000 });
       const entry = await cache.get('short-ttl');
 
       expect(entry).not.toBeNull();
@@ -64,7 +64,7 @@ describe('KVCacheStorage (Workers)', () => {
     });
 
     it('should store entries with TTL', async () => {
-      await cache.set('ttl-key', 'value', { ttl: 60 });
+      await cache.set('ttl-key', 'value', { ttlMs: 60_000 });
       const entry = await cache.get('ttl-key');
 
       expect(entry).not.toBeNull();
@@ -76,7 +76,7 @@ describe('KVCacheStorage (Workers)', () => {
       const cache300 = new KVCacheStorage({
         kv: env.CACHE_KV,
         prefix: 'ttl-test:',
-        defaultTtl: 300,
+        defaultTtlMs: 300_000,
       });
 
       await cache300.set('key1', 'value');

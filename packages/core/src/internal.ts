@@ -35,6 +35,22 @@ export {
 // Primitives for first-party middleware packages (cache, rate-limit, …).
 export { ApiException, ConfigurationException } from './core/exceptions';
 export { getContextVar, setContextVar } from './core/context-helpers';
+export { CONTEXT_KEYS } from './core/context-keys';
+export type { ContextKey } from './core/context-keys';
+export { createStorageFeature } from './storage/feature';
+export type { StorageFeature, StorageFeatureOptions } from './storage/feature';
+export type {
+  CacheStorage,
+  CacheEntry,
+  CacheSetOptions,
+  CacheStats,
+  RateLimitStorage,
+  FixedWindowEntry,
+  SlidingWindowEntry,
+  RateLimitEntry,
+  IdempotencyStorage,
+  IdempotencyEntry,
+} from './storage/contracts';
 export type { Constructor } from './core/types';
 export type { KVNamespace } from './shared/cloudflare-kv-types';
 export { matchPath, matchAny, isPathIncluded } from './utils/path-match';

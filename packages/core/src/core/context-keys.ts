@@ -3,23 +3,26 @@
  *
  * Single source of truth for the magic strings used to stash and read
  * per-request data on the Hono context. Writer middleware and the context
- * accessors all reference these constants, so renaming a key happens in one
- * place instead of being hand-edited across every middleware that writes it.
+ * accessors all reference these constants.
  *
- * The `*Env['Variables']` interfaces (e.g. `AuthEnv`, `ApiVersionEnv`) remain
- * the *type* contract for each key; `CONTEXT_KEYS` is the *value* contract. Because each
- * value is a string literal (via `as const`), `ctx.set(CONTEXT_KEYS.userId, …)` against
- * a typed env is still checked by Hono — you get both type safety and a single
- * source for the key string.
+ * The `*Env['Variables']` interfaces remain the *type* contract for each key;
+ * `CONTEXT_KEYS` is the *value* contract. Because each value is a string literal
+ * (via `as const`), `ctx.set(CONTEXT_KEYS.userId, …)` against a typed env is
+ * still checked by Hono.
+ *
+ * `responseEnvelope` / `policies` are registered here even though their string
+ * values are not equal to their keys (they preserve the existing
+ * `'__honoCrudResponseEnvelope__'` / `'__honoCrudPolicies'` literals so
+ * already-written context data keeps reading). They are exported plain string
+ * consts (NOT Symbols); `RESPONSE_ENVELOPE_CONTEXT_KEY` / `POLICIES_CONTEXT_KEY`
+ * now alias these entries.
  *
  * Intentionally NOT included:
- * - `RESPONSE_ENVELOPE_CONTEXT_KEY` / `POLICIES_CONTEXT_KEY` — module-private
- *   `Symbol`s, not string keys.
  * - The multi-tenant `config.contextKey` — supplied by the consumer at runtime,
  *   so it is not a fixed key.
  */
 export const CONTEXT_KEYS = {
-  // --- Auth (written by auth middleware, typed via AuthEnv) ---
+  // --- Auth ---
   userId: 'userId',
   user: 'user',
   roles: 'roles',
@@ -46,12 +49,26 @@ export const CONTEXT_KEYS = {
   apiVersion: 'apiVersion',
   apiVersionConfig: 'apiVersionConfig',
 
-  // --- Storage registries (written by storage middleware) ---
+  // --- Database (read by drizzle getDrizzleDb) ---
+  db: 'db',
+
+  // --- Storage registries (written by createStorageMiddleware) ---
+  loggingStorage: 'loggingStorage',
   auditStorage: 'auditStorage',
   versioningStorage: 'versioningStorage',
-  loggingStorage: 'loggingStorage',
   apiKeyStorage: 'apiKeyStorage',
+  cacheStorage: 'cacheStorage',
+  rateLimitStorage: 'rateLimitStorage',
+  idempotencyStorage: 'idempotencyStorage',
   eventEmitter: 'eventEmitter',
+
+  // --- Rate-limit output (written by rate-limit middleware) ---
+  rateLimit: 'rateLimit',
+  rateLimitKey: 'rateLimitKey',
+
+  // --- Response envelope / policies (plain string consts; value ≠ key) ---
+  responseEnvelope: '__honoCrudResponseEnvelope__',
+  policies: '__honoCrudPolicies',
 } as const;
 
 /** Union of all known context-variable key strings. */

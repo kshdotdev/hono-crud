@@ -1,6 +1,21 @@
 import type { Env, MiddlewareHandler } from 'hono';
-import { CONTEXT_KEYS } from '../core/context-keys';
+import { CONTEXT_KEYS, type ContextKey } from '../core/context-keys';
 import type { StorageEnv, StorageMiddlewareConfig } from './types';
+
+/**
+ * Maps each StorageMiddlewareConfig field to the CONTEXT_KEYS slot it writes.
+ * One entry per first-class storage; iteration replaces the per-field if-ladder.
+ */
+const STORAGE_SLOTS: Record<keyof StorageMiddlewareConfig, ContextKey> = {
+  loggingStorage: CONTEXT_KEYS.loggingStorage,
+  auditStorage: CONTEXT_KEYS.auditStorage,
+  versioningStorage: CONTEXT_KEYS.versioningStorage,
+  apiKeyStorage: CONTEXT_KEYS.apiKeyStorage,
+  cacheStorage: CONTEXT_KEYS.cacheStorage,
+  rateLimitStorage: CONTEXT_KEYS.rateLimitStorage,
+  idempotencyStorage: CONTEXT_KEYS.idempotencyStorage,
+  eventEmitter: CONTEXT_KEYS.eventEmitter,
+};
 
 /**
  * Creates middleware that injects storage instances into Hono context.
@@ -13,11 +28,8 @@ import type { StorageEnv, StorageMiddlewareConfig } from './types';
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import {
- *   createStorageMiddleware,
- *   MemoryRateLimitStorage,
- *   MemoryCacheStorage,
- * } from 'hono-crud';
+ * import { createStorageMiddleware, MemoryCacheStorage } from 'hono-crud';
+ * import { MemoryRateLimitStorage } from '@hono-crud/rate-limit';
  *
  * const app = new Hono();
  *
@@ -25,7 +37,6 @@ import type { StorageEnv, StorageMiddlewareConfig } from './types';
  * app.use('/*', createStorageMiddleware({
  *   rateLimitStorage: new MemoryRateLimitStorage(),
  *   cacheStorage: new MemoryCacheStorage(),
- *   loggingStorage: new MemoryLoggingStorage(),
  * }));
  *
  * // Storage is now available to all downstream middleware and routes
@@ -54,27 +65,17 @@ export function createStorageMiddleware<E extends Env = Env>(
   config: StorageMiddlewareConfig,
 ): MiddlewareHandler<E & StorageEnv> {
   return async (ctx, next) => {
-    // Inject each configured storage into context
-    if (config.loggingStorage) {
-      ctx.set(CONTEXT_KEYS.loggingStorage, config.loggingStorage);
+    for (const [field, key] of Object.entries(STORAGE_SLOTS) as [
+      keyof StorageMiddlewareConfig,
+      ContextKey,
+    ][]) {
+      const value = config[field];
+      if (value) {
+        // ctx.set is typed against StorageEnv['Variables']; key strings align 1:1
+        // with the CONTEXT_KEYS slots, so the boundary cast is sound.
+        ctx.set(key as never, value as never);
+      }
     }
-
-    if (config.auditStorage) {
-      ctx.set(CONTEXT_KEYS.auditStorage, config.auditStorage);
-    }
-
-    if (config.versioningStorage) {
-      ctx.set(CONTEXT_KEYS.versioningStorage, config.versioningStorage);
-    }
-
-    if (config.apiKeyStorage) {
-      ctx.set(CONTEXT_KEYS.apiKeyStorage, config.apiKeyStorage);
-    }
-
-    if (config.eventEmitter) {
-      ctx.set(CONTEXT_KEYS.eventEmitter, config.eventEmitter);
-    }
-
     await next();
   };
 }
@@ -125,4 +126,40 @@ export function createAPIKeyStorageMiddleware<E extends Env = Env>(
   storage: NonNullable<StorageMiddlewareConfig['apiKeyStorage']>,
 ): MiddlewareHandler<E & StorageEnv> {
   return createStorageMiddleware({ apiKeyStorage: storage });
+}
+
+/**
+ * Creates middleware that injects only cache storage.
+ *
+ * @param storage - Cache storage instance
+ * @returns Middleware handler
+ */
+export function createCacheStorageMiddleware<E extends Env = Env>(
+  storage: NonNullable<StorageMiddlewareConfig['cacheStorage']>,
+): MiddlewareHandler<E & StorageEnv> {
+  return createStorageMiddleware({ cacheStorage: storage });
+}
+
+/**
+ * Creates middleware that injects only rate limit storage.
+ *
+ * @param storage - Rate limit storage instance
+ * @returns Middleware handler
+ */
+export function createRateLimitStorageMiddleware<E extends Env = Env>(
+  storage: NonNullable<StorageMiddlewareConfig['rateLimitStorage']>,
+): MiddlewareHandler<E & StorageEnv> {
+  return createStorageMiddleware({ rateLimitStorage: storage });
+}
+
+/**
+ * Creates middleware that injects only idempotency storage.
+ *
+ * @param storage - Idempotency storage instance
+ * @returns Middleware handler
+ */
+export function createIdempotencyStorageMiddleware<E extends Env = Env>(
+  storage: NonNullable<StorageMiddlewareConfig['idempotencyStorage']>,
+): MiddlewareHandler<E & StorageEnv> {
+  return createStorageMiddleware({ idempotencyStorage: storage });
 }

@@ -35,7 +35,14 @@ import { setupSwaggerUI } from '@hono-crud/swagger';
 import { drizzle } from 'drizzle-orm/d1';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { Hono } from 'hono';
-import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import {
+  type StorageEnv,
+  createStorageMiddleware,
+  defineMeta,
+  defineModel,
+  fromHono,
+  registerCrud,
+} from 'hono-crud';
 import { z } from 'zod';
 
 // ============================================================================
@@ -100,7 +107,7 @@ type Bindings = {
   CACHE_KV?: KVNamespace;
 };
 
-type Env = { Bindings: Bindings };
+type Env = StorageEnv & { Bindings: Bindings };
 
 // ============================================================================
 // Endpoint Definitions
@@ -222,13 +229,13 @@ app.use('*', async (c, next) => {
   const db = drizzle(c.env.DB);
 
   // Store db in context so endpoints can access it
-  c.set('db' as never, db);
+  c.set('db' as never, db as never);
 
-  // Optional: inject KV-backed cache if binding exists
+  // Optional: inject KV-backed cache if binding exists. createStorageMiddleware
+  // writes the `cacheStorage` context var that the cache mixin resolves from.
   if (c.env.CACHE_KV) {
     const cache = new KVCacheStorage({ kv: c.env.CACHE_KV });
-    // The cache mixin resolves storage from the 'cacheStorage' context var.
-    c.set('cacheStorage' as never, cache as never);
+    return createStorageMiddleware<Env>({ cacheStorage: cache })(c, next);
   }
 
   await next();

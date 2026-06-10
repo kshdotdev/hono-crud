@@ -96,6 +96,36 @@ app.use('/api/*', createAPIKeyMiddleware({
 }));
 ```
 
+### Resolving the key store
+
+`createAPIKeyMiddleware` resolves which backend to look keys up against in this
+order:
+
+1. **`lookupKey`** — a convenience function `(keyHash) => APIKeyLookupResult`.
+   It is optional and takes priority when provided. Use it when you only need a
+   bare lookup without a full storage backend.
+2. **`storage`** — an `APIKeyStorage` instance passed directly on the config.
+   The middleware calls `storage.lookup()` and fires `storage.updateLastUsed()`.
+3. **Configured global / context `apiKeyStorage`** — set via
+   `setAPIKeyStorage()` (as above) or injected with
+   `createStorageMiddleware({ apiKeyStorage })`. `setAPIKeyStorage` is now wired
+   into the middleware path (it used to be ignored there).
+
+If none of these resolve, the middleware throws a `ConfigurationException`.
+
+```typescript
+// Pass storage explicitly on the config instead of relying on a global
+app.use('/api/*', createAPIKeyMiddleware({
+  headerName: 'X-API-Key',
+  storage: apiKeyStorage,
+}));
+
+// Or the lightweight lookupKey overload (no full storage backend)
+app.use('/api/*', createAPIKeyMiddleware({
+  lookupKey: async (keyHash) => myKeyTable.find(keyHash),
+}));
+```
+
 ---
 
 ## Combined Auth

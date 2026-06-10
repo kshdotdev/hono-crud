@@ -1,4 +1,4 @@
-import type { Context, Env } from 'hono';
+import type { Context } from 'hono';
 import { calculateChanges } from '../audit/config';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import type {
@@ -7,7 +7,7 @@ import type {
   VersionHistoryEntry,
   VersioningConfig,
 } from '../core/types';
-import { createRegistryWithDefault } from '../storage/registry';
+import { createStorageFeature } from '../storage/feature';
 import { getVersioningConfig } from './config';
 
 /**
@@ -16,9 +16,9 @@ import { getVersioningConfig } from './config';
  */
 export interface VersioningStorage {
   /**
-   * Save a version history entry.
+   * Persist a version history entry under the given table.
    */
-  save(entry: VersionHistoryEntry): Promise<void>;
+  store(tableName: string, entry: VersionHistoryEntry): Promise<void>;
 
   /**
    * Get all versions for a specific record.
@@ -52,6 +52,9 @@ export interface VersioningStorage {
    * Delete all versions for a record (for hard delete).
    */
   deleteAllVersions?(tableName: string, recordId: string | number): Promise<number>;
+
+  /** Release resources (timers, connections). Optional, edge-safe. */
+  destroy?(): void;
 }
 
 /**
@@ -65,25 +68,6 @@ export class MemoryVersioningStorage implements VersioningStorage {
    */
   private getKey(tableName: string, recordId: string | number): string {
     return `${tableName}:${recordId}`;
-  }
-
-  async save(entry: VersionHistoryEntry): Promise<void> {
-    const key = this.getKey(
-      (entry as VersionHistoryEntry & { tableName: string }).tableName ||
-        entry.id.split(':')[0] ||
-        'unknown',
-      entry.recordId,
-    );
-
-    // Store tableName in the entry for retrieval
-    const entryWithTable = {
-      ...entry,
-      tableName: key.split(':')[0],
-    };
-
-    const existing = this.versions.get(key) || [];
-    existing.push(entryWithTable as VersionHistoryEntry);
-    this.versions.set(key, existing);
   }
 
   /**
@@ -184,29 +168,36 @@ export class MemoryVersioningStorage implements VersioningStorage {
 }
 
 /**
- * Global versioning storage registry.
- * Compatibility getters can still create a MemoryVersioningStorage lazily, but
- * request-time versioning resolution requires explicit, context, or configured
- * global storage.
+ * Global versioning storage feature.
+ * `getVersioningStorageRequired()` can still create a MemoryVersioningStorage
+ * lazily, but `getVersioningStorage()` and request-time resolution only return
+ * explicit, context, or configured global storage (no hidden default).
  */
-export const versioningStorageRegistry = createRegistryWithDefault<VersioningStorage>(
-  CONTEXT_KEYS.versioningStorage,
-  () => new MemoryVersioningStorage(),
-);
+const versioningStorageFeature = createStorageFeature<VersioningStorage>({
+  contextKey: CONTEXT_KEYS.versioningStorage,
+  defaultFactory: () => new MemoryVersioningStorage(),
+});
+
+/**
+ * Global versioning storage registry (exported for helpers/tests).
+ */
+export const versioningStorageRegistry = versioningStorageFeature.registry;
 
 /**
  * Set the global versioning storage.
  */
-export function setVersioningStorage(storage: VersioningStorage): void {
-  versioningStorageRegistry.set(storage);
-}
+export const setVersioningStorage = versioningStorageFeature.set;
 
 /**
- * Get the global versioning storage.
+ * Get the global versioning storage, or null when none was configured.
  */
-export function getVersioningStorage(): VersioningStorage {
-  return versioningStorageRegistry.getRequired();
-}
+export const getVersioningStorage = versioningStorageFeature.get;
+
+/**
+ * Get the global versioning storage, lazily creating a MemoryVersioningStorage
+ * default when none was configured.
+ */
+export const getVersioningStorageRequired = versioningStorageFeature.getRequired;
 
 /**
  * Version manager class for handling versioning operations.
@@ -220,17 +211,17 @@ export class VersionManager {
     config: VersioningConfig | undefined,
     tableName: string,
     storage?: VersioningStorage,
-    ctx?: Context<Env>,
+    ctx?: Context,
   ) {
     this.config = getVersioningConfig(config, tableName);
     this.tableName = tableName;
-    this.storage = versioningStorageRegistry.resolve(ctx, storage);
+    this.storage = versioningStorageFeature.resolve(ctx, storage);
   }
 
   private getStorage(): VersioningStorage {
     if (!this.storage) {
       throw new Error(
-        'Versioning storage not configured. Pass storage explicitly or inject versioningStorage with createCrudMiddleware().',
+        'Versioning storage not configured. Pass storage explicitly or inject versioningStorage with createStorageMiddleware().',
       );
     }
     return this.storage;
@@ -305,11 +296,7 @@ export class VersionManager {
 
     // Save to storage
     const storage = this.getStorage();
-    if ('store' in storage && typeof storage.store === 'function') {
-      await (storage as MemoryVersioningStorage).store(this.tableName, entry);
-    } else {
-      await storage.save(entry);
-    }
+    await storage.store(this.tableName, entry);
 
     // Prune old versions if maxVersions is set
     if (this.config.maxVersions && storage.pruneVersions) {
@@ -431,7 +418,7 @@ export function createVersionManager(
   config: VersioningConfig | undefined,
   tableName: string,
   storage?: VersioningStorage,
-  ctx?: Context<Env>,
+  ctx?: Context,
 ): VersionManager {
   return new VersionManager(config, tableName, storage, ctx);
 }

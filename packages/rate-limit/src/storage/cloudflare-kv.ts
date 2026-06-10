@@ -40,16 +40,16 @@ export interface KVRateLimitStorageOptions {
  * - Fixed window algorithm is recommended over sliding window for KV.
  * - For strict rate limiting, use Durable Objects or Upstash Redis instead.
  *
- * Best used with `createCrudMiddleware` since KV bindings are only
+ * Best used with `createStorageMiddleware` since KV bindings are only
  * available inside request handlers.
  *
  * @example
  * ```ts
- * import { KVRateLimitStorage, createCrudMiddleware } from 'hono-crud';
+ * import { KVRateLimitStorage, createStorageMiddleware } from 'hono-crud';
  *
  * app.use('*', async (c, next) => {
- *   const rateLimit = new KVRateLimitStorage({ kv: c.env.RATE_LIMIT_KV });
- *   return createCrudMiddleware({ rateLimit })(c, next);
+ *   const rateLimitStorage = new KVRateLimitStorage({ kv: c.env.RATE_LIMIT_KV });
+ *   return createStorageMiddleware({ rateLimitStorage })(c, next);
  * });
  * ```
  */

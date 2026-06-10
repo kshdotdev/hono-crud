@@ -2,8 +2,8 @@ import type { Context, Env, MiddlewareHandler } from 'hono';
 import { getContextVar, setContextVar } from '../core/context-helpers';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import { getLogger } from '../core/logger';
+import { createStorageFeature } from '../storage/feature';
 import { resolveLoggingStorage } from '../storage/helpers';
-import { createNullableRegistry } from '../storage/registry';
 import { toError } from '../utils/error-coerce';
 import type {
   LogEntry,
@@ -31,12 +31,17 @@ import {
 // ============================================================================
 
 /**
- * Global logging storage registry.
+ * Global logging storage feature.
  * Nullable -- no default storage is created unless explicitly set.
  */
-export const loggingStorageRegistry = createNullableRegistry<LoggingStorage>(
-  CONTEXT_KEYS.loggingStorage,
-);
+const loggingStorageFeature = createStorageFeature<LoggingStorage>({
+  contextKey: CONTEXT_KEYS.loggingStorage,
+});
+
+/**
+ * Global logging storage registry (exported for helpers/tests).
+ */
+export const loggingStorageRegistry = loggingStorageFeature.registry;
 
 /**
  * Set the global logging storage.
@@ -49,17 +54,18 @@ export const loggingStorageRegistry = createNullableRegistry<LoggingStorage>(
  * setLoggingStorage(new MemoryLoggingStorage());
  * ```
  */
-export function setLoggingStorage(storage: LoggingStorage): void {
-  loggingStorageRegistry.set(storage);
-}
+export const setLoggingStorage = loggingStorageFeature.set;
 
 /**
  * Get the global logging storage.
  * @returns The global storage or null if not set
  */
-export function getLoggingStorage(): LoggingStorage | null {
-  return loggingStorageRegistry.get();
-}
+export const getLoggingStorage = loggingStorageFeature.get;
+
+/**
+ * Get the global logging storage, throwing if not configured.
+ */
+export const getLoggingStorageRequired = loggingStorageFeature.getRequired;
 
 // ============================================================================
 // Default Configuration

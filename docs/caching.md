@@ -28,15 +28,17 @@ setCacheStorage(new RedisCacheStorage({
 
 ### Context-scoped Storage
 
-For multi-tenant or per-request storage, set the storage inside a middleware:
+For multi-tenant or per-request storage, inject the storage through
+`createStorageMiddleware`. It writes the `cacheStorage` context var that the
+cache mixin resolves from (context storage takes priority over the global one):
 
 ```typescript
-import { setCacheStorage, MemoryCacheStorage } from '@hono-crud/cache';
+import { createStorageMiddleware } from 'hono-crud';
+import { MemoryCacheStorage } from '@hono-crud/cache';
 
-app.use('*', async (c, next) => {
-  setCacheStorage(new MemoryCacheStorage());
-  await next();
-});
+app.use('*', createStorageMiddleware({
+  cacheStorage: new MemoryCacheStorage(),
+}));
 ```
 
 ---
@@ -92,6 +94,17 @@ class UserRead extends withCache(MemoryReadEndpoint) {
 | `tags` | `string[]` | `[]` | Cache tags for targeted invalidation |
 | `keyFields` | `string[]` | - | Additional fields in cache key |
 | `prefix` | `string` | - | Custom key prefix |
+
+> **TTL units.** `cacheConfig.ttl` is **seconds** — the ergonomic, user-facing
+> unit. The underlying storage contract works in **milliseconds**: the mixin
+> converts once (`ttl * 1000`) before calling `CacheStorage.set(key, data, { ttlMs })`.
+> If you implement a custom `CacheStorage`, its `set` receives `ttlMs`
+> (milliseconds), not seconds.
+>
+> **Cloudflare KV floor.** KV's `expirationTtl` has a 60-second minimum, so
+> `KVCacheStorage` silently floors short TTLs:
+> `expirationTtl = Math.max(60, Math.ceil(ttlMs / 1000))`. A sub-minute `ttl`
+> therefore behaves as 60s on KV. This is a documented KV-platform constraint.
 
 ### Cache Methods
 

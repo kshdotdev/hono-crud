@@ -1,10 +1,6 @@
 import { MemoryCacheStorage } from '@hono-crud/cache';
 import { createHealthEndpoints } from '@hono-crud/health';
-import {
-  MemoryIdempotencyStorage,
-  idempotency,
-  setIdempotencyStorage,
-} from '@hono-crud/idempotency';
+import { MemoryIdempotencyStorage, idempotency } from '@hono-crud/idempotency';
 import {
   MemoryAggregateEndpoint,
   MemoryBatchCreateEndpoint,
@@ -31,11 +27,7 @@ import {
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
-import {
-  MemoryRateLimitStorage,
-  createRateLimitMiddleware,
-  setRateLimitStorage,
-} from '@hono-crud/rate-limit';
+import { MemoryRateLimitStorage, createRateLimitMiddleware } from '@hono-crud/rate-limit';
 import { setupSwaggerUI } from '@hono-crud/swagger';
 import { type Context, Hono, type MiddlewareHandler } from 'hono';
 import {
@@ -51,6 +43,7 @@ import {
   apiVersion,
   applyProfile,
   createErrorHandler,
+  createStorageMiddleware,
   decryptValue,
   defineMeta,
   defineModel,
@@ -60,9 +53,6 @@ import {
   multiTenant,
   registerCrud,
   requireRoles,
-  setAuditStorage,
-  setEventEmitter,
-  setVersioningStorage,
 } from 'hono-crud';
 import { z } from 'zod';
 
@@ -499,17 +489,27 @@ export function createApp() {
   const eventEmitter = new CrudEventEmitter();
   const observedEvents: CrudEventPayload[] = [];
 
-  setAuditStorage(auditStorage);
-  setEventEmitter(eventEmitter);
-  setIdempotencyStorage(idempotencyStorage);
-  setRateLimitStorage(rateLimitStorage);
-  setVersioningStorage(versioningStorage);
   eventEmitter.onAny((event) => {
     observedEvents.push(event);
   });
 
   const hono = new Hono<AppEnv>();
   const app = fromHono(hono);
+
+  // Inject every storage backend through the unified storage middleware.
+  // Each slot lands on the matching `ctx.var` key, so endpoints resolve their
+  // per-request storage from context instead of a process-global default.
+  app.use(
+    '*',
+    createStorageMiddleware<AppEnv>({
+      auditStorage,
+      cacheStorage,
+      idempotencyStorage,
+      rateLimitStorage,
+      versioningStorage,
+      eventEmitter,
+    }),
+  );
 
   app.use('/admin/*', authFromHeaders(), requireRoles<AppEnv>('admin'));
   app.use(

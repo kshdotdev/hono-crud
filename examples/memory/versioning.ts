@@ -97,8 +97,14 @@ class ConsoleVersioningStorage implements VersioningStorage {
     return `${tableName}:${recordId}`;
   }
 
-  async save(entry: VersionHistoryEntry): Promise<void> {
+  async store(tableName: string, entry: VersionHistoryEntry): Promise<void> {
+    const key = this.getKey(tableName, entry.recordId);
+    const versions = this.storage.get(key) || [];
+    versions.push(entry);
+    this.storage.set(key, versions);
+
     console.log('\n=== VERSION SAVED ===');
+    console.log(`Table: ${tableName}`);
     console.log(`Record ID: ${entry.recordId}`);
     console.log(`Version: ${entry.version}`);
     console.log(`Changed by: ${entry.changedBy || 'anonymous'}`);

@@ -1,7 +1,7 @@
-import type { Context, Env } from 'hono';
+import type { Context } from 'hono';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import type { AuditAction, AuditConfig, AuditLogEntry, NormalizedAuditConfig } from '../core/types';
-import { createRegistryWithDefault } from '../storage/registry';
+import { createStorageFeature } from '../storage/feature';
 import { calculateChanges, getAuditConfig } from './config';
 
 /**
@@ -35,6 +35,9 @@ export interface AuditLogStorage {
     limit?: number;
     offset?: number;
   }): Promise<AuditLogEntry[]>;
+
+  /** Release resources (timers, connections). Optional, edge-safe. */
+  destroy?(): void;
 }
 
 /**
@@ -111,29 +114,36 @@ export class MemoryAuditLogStorage implements AuditLogStorage {
 }
 
 /**
- * Global audit log storage registry.
- * Compatibility getters can still create a MemoryAuditLogStorage lazily, but
- * request-time audit resolution requires explicit, context, or configured
- * global storage.
+ * Global audit log storage feature.
+ * `getAuditStorageRequired()` can still create a MemoryAuditLogStorage lazily,
+ * but `getAuditStorage()` and request-time resolution only return explicit,
+ * context, or configured global storage (no hidden default).
  */
-export const auditStorageRegistry = createRegistryWithDefault<AuditLogStorage>(
-  CONTEXT_KEYS.auditStorage,
-  () => new MemoryAuditLogStorage(),
-);
+const auditStorageFeature = createStorageFeature<AuditLogStorage>({
+  contextKey: CONTEXT_KEYS.auditStorage,
+  defaultFactory: () => new MemoryAuditLogStorage(),
+});
+
+/**
+ * Global audit log storage registry (exported for helpers/tests).
+ */
+export const auditStorageRegistry = auditStorageFeature.registry;
 
 /**
  * Set the global audit log storage.
  */
-export function setAuditStorage(storage: AuditLogStorage): void {
-  auditStorageRegistry.set(storage);
-}
+export const setAuditStorage = auditStorageFeature.set;
 
 /**
- * Get the global audit log storage.
+ * Get the global audit log storage, or null when none was configured.
  */
-export function getAuditStorage(): AuditLogStorage {
-  return auditStorageRegistry.getRequired();
-}
+export const getAuditStorage = auditStorageFeature.get;
+
+/**
+ * Get the global audit log storage, lazily creating a MemoryAuditLogStorage
+ * default when none was configured.
+ */
+export const getAuditStorageRequired = auditStorageFeature.getRequired;
 
 /**
  * Audit logger class for creating audit log entries.
@@ -142,15 +152,15 @@ export class AuditLogger {
   private config: NormalizedAuditConfig;
   private storage: AuditLogStorage | null;
 
-  constructor(config: AuditConfig | undefined, storage?: AuditLogStorage, ctx?: Context<Env>) {
+  constructor(config: AuditConfig | undefined, storage?: AuditLogStorage, ctx?: Context) {
     this.config = getAuditConfig(config);
-    this.storage = auditStorageRegistry.resolve(ctx, storage);
+    this.storage = auditStorageFeature.resolve(ctx, storage);
   }
 
   private getStorage(): AuditLogStorage {
     if (!this.storage) {
       throw new Error(
-        'Audit storage not configured. Pass storage explicitly or inject auditStorage with createCrudMiddleware().',
+        'Audit storage not configured. Pass storage explicitly or inject auditStorage with createStorageMiddleware().',
       );
     }
     return this.storage;
@@ -388,7 +398,7 @@ export class AuditLogger {
 export function createAuditLogger(
   config: AuditConfig | undefined,
   storage?: AuditLogStorage,
-  ctx?: Context<Env>,
+  ctx?: Context,
 ): AuditLogger {
   // Defer storage resolution to enable context-based lookup
   // The AuditLogger constructor will use resolveAuditStorage internally

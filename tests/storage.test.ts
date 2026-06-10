@@ -8,7 +8,6 @@ import {
 } from '@hono-crud/rate-limit/middleware';
 import { MemoryRateLimitStorage } from '@hono-crud/rate-limit/storage/memory';
 import { Hono } from 'hono';
-import type { MiddlewareHandler } from 'hono';
 import { MemoryAuditLogStorage, setAuditStorage } from 'hono-crud/audit';
 import { MemoryAPIKeyStorage } from 'hono-crud/auth/storage/memory';
 import { setAPIKeyStorage } from 'hono-crud/auth/storage/memory';
@@ -16,6 +15,8 @@ import { CrudEventEmitter } from 'hono-crud/events/emitter';
 import { getLoggingStorage, setLoggingStorage } from 'hono-crud/logging/middleware';
 import { MemoryLoggingStorage } from 'hono-crud/logging/storage/memory';
 import {
+  createCacheStorageMiddleware,
+  createRateLimitStorageMiddleware,
   createStorageMiddleware,
   resolveAPIKeyStorage,
   resolveAuditStorage,
@@ -25,34 +26,6 @@ import {
 import type { StorageEnv } from 'hono-crud/storage/types';
 import { MemoryVersioningStorage, setVersioningStorage } from 'hono-crud/versioning';
 import { beforeEach, describe, expect, it } from 'vitest';
-
-// After the package split, rate-limit / cache / idempotency storage live in
-// their own packages and are no longer part of core's createStorageMiddleware
-// or StorageEnv. These tiny helpers reproduce the context-injection behaviour
-// the removed createRateLimitStorageMiddleware / createCacheStorageMiddleware
-// factories provided: they set the same context vars that each package's
-// resolve helper reads.
-type TestStorageEnv = StorageEnv & {
-  Variables: StorageEnv['Variables'] & {
-    rateLimitStorage?: MemoryRateLimitStorage;
-    cacheStorage?: MemoryCacheStorage;
-    idempotencyStorage?: MemoryIdempotencyStorage;
-  };
-};
-
-const createRateLimitStorageMiddleware =
-  (storage: MemoryRateLimitStorage): MiddlewareHandler =>
-  async (ctx, next) => {
-    ctx.set('rateLimitStorage', storage);
-    await next();
-  };
-
-const createCacheStorageMiddleware =
-  (storage: MemoryCacheStorage): MiddlewareHandler =>
-  async (ctx, next) => {
-    ctx.set('cacheStorage', storage);
-    await next();
-  };
 
 describe('Storage Module', () => {
   describe('createStorageMiddleware', () => {
@@ -66,7 +39,7 @@ describe('Storage Module', () => {
       const idempotencyStorage = new MemoryIdempotencyStorage();
       const eventEmitter = new CrudEventEmitter();
 
-      const app = new Hono<TestStorageEnv>();
+      const app = new Hono<StorageEnv>();
 
       app.use(
         '/*',
@@ -75,17 +48,12 @@ describe('Storage Module', () => {
           auditStorage,
           versioningStorage,
           apiKeyStorage,
+          cacheStorage,
+          rateLimitStorage,
+          idempotencyStorage,
           eventEmitter,
         }),
       );
-      // rate-limit / cache / idempotency storage are injected by their own
-      // package helpers after the split.
-      app.use('/*', async (ctx, next) => {
-        ctx.set('rateLimitStorage', rateLimitStorage);
-        ctx.set('cacheStorage', cacheStorage);
-        ctx.set('idempotencyStorage', idempotencyStorage);
-        await next();
-      });
 
       app.get('/test', (ctx) => {
         // Verify all storage instances are available in context
@@ -107,7 +75,7 @@ describe('Storage Module', () => {
     it('should only inject specified storage instances', async () => {
       const rateLimitStorage = new MemoryRateLimitStorage();
 
-      const app = new Hono<TestStorageEnv>();
+      const app = new Hono<StorageEnv>();
 
       app.use('/*', createRateLimitStorageMiddleware(rateLimitStorage));
 
@@ -126,7 +94,7 @@ describe('Storage Module', () => {
   describe('Individual storage middleware', () => {
     it('createRateLimitStorageMiddleware should inject rate limit storage', async () => {
       const storage = new MemoryRateLimitStorage();
-      const app = new Hono<TestStorageEnv>();
+      const app = new Hono<StorageEnv>();
 
       app.use('/*', createRateLimitStorageMiddleware(storage));
 
@@ -141,7 +109,7 @@ describe('Storage Module', () => {
 
     it('createCacheStorageMiddleware should inject cache storage', async () => {
       const storage = new MemoryCacheStorage();
-      const app = new Hono<TestStorageEnv>();
+      const app = new Hono<StorageEnv>();
 
       app.use('/*', createCacheStorageMiddleware(storage));
 
@@ -191,7 +159,7 @@ describe('Storage Module', () => {
         const globalStorage = new MemoryRateLimitStorage();
         setRateLimitStorage(globalStorage);
 
-        const app = new Hono<TestStorageEnv>();
+        const app = new Hono<StorageEnv>();
         app.use('/*', createRateLimitStorageMiddleware(contextStorage));
 
         app.get('/test', (ctx) => {
@@ -285,7 +253,7 @@ describe('Storage Module', () => {
 
       const contextStorage = new MemoryRateLimitStorage();
 
-      const app = new Hono<TestStorageEnv>();
+      const app = new Hono<StorageEnv>();
 
       // First inject storage into context
       app.use('/*', createRateLimitStorageMiddleware(contextStorage));

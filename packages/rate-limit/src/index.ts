@@ -34,6 +34,7 @@ export {
   createRateLimitMiddleware,
   setRateLimitStorage,
   getRateLimitStorage,
+  getRateLimitStorageRequired,
   resetRateLimit,
 } from './middleware';
 

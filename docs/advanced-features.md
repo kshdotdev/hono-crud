@@ -586,6 +586,32 @@ app.use('/api/*', idempotency({
 
 Clients include `Idempotency-Key: <unique-key>` in the request header. If the same key is seen again within the TTL, the cached response is returned.
 
+### Context-scoped Storage
+
+For multi-tenant or per-request storage, inject the storage through
+`createStorageMiddleware`. It writes the `idempotencyStorage` context var that
+the idempotency middleware resolves from (context storage takes priority over
+the global one):
+
+```typescript
+import { createStorageMiddleware } from 'hono-crud';
+import { MemoryIdempotencyStorage } from '@hono-crud/idempotency';
+
+app.use('*', createStorageMiddleware({
+  idempotencyStorage: new MemoryIdempotencyStorage(),
+}));
+```
+
+### Accessors
+
+- `getIdempotencyStorage()` returns the explicitly-configured storage or
+  `null` (it no longer throws). Use it when an unconfigured store is an
+  acceptable, handled case.
+- `getIdempotencyStorageRequired()` throws when no storage is configured — this
+  is the old throwing behavior of `getIdempotencyStorage()`.
+- `resolveIdempotencyStorage(ctx, explicit?)` applies the
+  explicit &gt; context &gt; global priority chain and never creates a default.
+
 ---
 
 ## Multi-Tenancy

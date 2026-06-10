@@ -33,5 +33,6 @@ export {
   withCacheInvalidation,
   setCacheStorage,
   getCacheStorage,
+  getCacheStorageRequired,
 } from './mixin';
 export type { CacheEndpointMethods, CacheInvalidationMethods } from './mixin';

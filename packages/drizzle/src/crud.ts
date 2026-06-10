@@ -42,7 +42,8 @@ import {
  *
  * The database can be provided in three ways:
  * 1. Direct property: `db = myDb;`
- * 2. Context injection via middleware: `c.set('db', myDb)`
+ * 2. Context injection via middleware: `c.set('db', myDb)` (the `'db'` slot is
+ *    canonically `CONTEXT_KEYS.db`)
  * 3. Factory function: `createDrizzleCrud(db, meta)`
  *
  * @example
@@ -56,7 +57,7 @@ import {
  * // Pattern 2: Context injection (cleanest - no db property needed)
  * class UserCreate extends DrizzleCreateEndpoint<AppEnv, typeof userMeta> {
  *   _meta = userMeta;
- *   // db comes from c.set('db', myDb) in middleware
+ *   // db comes from c.set('db', myDb) (CONTEXT_KEYS.db) in middleware
  * }
  *
  * // Pattern 3: Factory function (no _meta or db needed)

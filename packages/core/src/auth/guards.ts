@@ -55,7 +55,7 @@ function getDefaultApprovalStorage(): MemoryApprovalStorage {
  * Endpoints prefer this over `Model.policies` when present so route-scoped
  * policies override the model-level defaults.
  */
-export const POLICIES_CONTEXT_KEY = '__honoCrudPolicies';
+export const POLICIES_CONTEXT_KEY = CONTEXT_KEYS.policies;
 
 // ============================================================================
 // Role Guards

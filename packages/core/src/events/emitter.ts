@@ -1,7 +1,6 @@
-import type { Context, Env } from 'hono';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import { getLogger } from '../core/logger';
-import { createRegistryWithDefault } from '../storage/registry';
+import { createStorageFeature } from '../storage/feature';
 import type {
   CrudEventListener,
   CrudEventPayload,
@@ -211,41 +210,47 @@ export class CrudEventEmitter {
 // ============================================================================
 
 /**
- * Global event-emitter registry. Uses the shared `StorageRegistry` so the
+ * Global event-emitter feature. Uses the shared `createStorageFeature` so the
  * resolve precedence (explicit > context > global) matches audit / versioning
- * / logging / api-key instead of being hand-rolled here.
+ * / logging / api-key instead of being hand-rolled here. The emitter is the one
+ * non-storage member of the storage-feature family; it is injected and resolved
+ * for parity (see `createStorageMiddleware`).
  *
  * Compatibility API only. In edge runtimes (Cloudflare Workers, Deno, Bun)
  * the global emitter is per-isolate state — listeners are not shared across
  * isolates and may surprise multi-tenant code. Prefer passing an emitter
- * explicitly or injecting one via `createCrudMiddleware`.
+ * explicitly or injecting one via `createStorageMiddleware`.
  */
-export const eventEmitterRegistry = createRegistryWithDefault<CrudEventEmitter>(
-  CONTEXT_KEYS.eventEmitter,
-  () => new CrudEventEmitter(),
-);
+const eventEmitterFeature = createStorageFeature<CrudEventEmitter>({
+  contextKey: CONTEXT_KEYS.eventEmitter,
+  defaultFactory: () => new CrudEventEmitter(),
+  // The emitter's whole purpose is to always return a usable bus, so its
+  // `getEventEmitter()` getter stays never-null (lazy default on get). This is
+  // an intentional, documented exception to the nullable-`getX` convention.
+  lazyDefaultOnGet: true,
+});
+
+/**
+ * Global event-emitter registry (exported for advanced use / tests).
+ */
+export const eventEmitterRegistry = eventEmitterFeature.registry;
 
 /**
  * Get or create the global event emitter (compatibility API).
+ *
+ * Intentionally never-null: backed by `getRequired()` with a lazy default. This
+ * is the documented exception to the "getX is nullable" rule because the bus
+ * must always be usable.
  */
-export function getEventEmitter(): CrudEventEmitter {
-  return eventEmitterRegistry.getRequired();
-}
+export const getEventEmitter = eventEmitterFeature.getRequired;
 
 /**
  * Set a custom global event emitter.
  */
-export function setEventEmitter(emitter: CrudEventEmitter): void {
-  eventEmitterRegistry.set(emitter);
-}
+export const setEventEmitter = eventEmitterFeature.set;
 
 /**
  * Resolve an event emitter without creating a global instance.
  * Priority: explicit > context > explicitly-configured global.
  */
-export function resolveEventEmitter<E extends Env>(
-  ctx?: Context<E>,
-  explicit?: CrudEventEmitter,
-): CrudEventEmitter | null {
-  return eventEmitterRegistry.resolve(ctx, explicit);
-}
+export const resolveEventEmitter = eventEmitterFeature.resolve;
