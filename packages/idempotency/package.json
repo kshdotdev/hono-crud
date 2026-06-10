@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/idempotency",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Idempotency middleware and storage backends for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
