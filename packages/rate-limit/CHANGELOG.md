@@ -1,5 +1,13 @@
 # @hono-crud/rate-limit
 
+## 0.1.6
+
+### Patch Changes
+
+- dd62008: Publishing metadata fixes: `CHANGELOG.md` is now included in the published npm artifact (it was missing from the `files` allowlist everywhere except core), and the lazily-loaded libraries `drizzle-zod` (drizzle), `pluralize` and `fastest-levenshtein` (prisma) are now optional peer dependencies — they are dynamically imported with graceful fallbacks, so consumers who don't use those features no longer have to install them.
+- Updated dependencies [dd62008]
+  - hono-crud@0.13.9
+
 ## 0.1.5
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/mcp",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Auto-generate Model Context Protocol (MCP) tools from hono-crud resources",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
@@ -28,9 +28,22 @@
     "clean": "rm -rf dist .tsup",
     "lint": "biome check src/"
   },
-  "keywords": ["hono", "crud", "mcp", "model-context-protocol", "ai", "llm", "tools"],
+  "keywords": [
+    "hono",
+    "crud",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "llm",
+    "tools"
+  ],
   "sideEffects": false,
-  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "engines": {
     "node": ">=20.19.0"
   },
