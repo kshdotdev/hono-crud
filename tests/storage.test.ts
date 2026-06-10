@@ -25,7 +25,7 @@ import {
 } from 'hono-crud/storage';
 import type { StorageEnv } from 'hono-crud/storage/types';
 import { MemoryVersioningStorage, setVersioningStorage } from 'hono-crud/versioning';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Storage Module', () => {
   describe('createStorageMiddleware', () => {
@@ -361,5 +361,62 @@ describe('Storage Module', () => {
       const logs = await globalStorage.query({});
       expect(logs.length).toBeGreaterThan(0);
     });
+  });
+});
+
+describe('MemoryRateLimitStorage fixed window', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('does not slide the fixed-window expiry when incrementing within the window', async () => {
+    // Direct guard for the §B.10 MUST-FIX: within-window increments mutate the
+    // live entry's count in place and must NOT re-set expiry. The entry must
+    // expire at `windowStart + windowMs`, never at `lastIncrement + windowMs`.
+    const storage = new MemoryRateLimitStorage({ cleanupInterval: 0 });
+    const windowMs = 60_000;
+
+    // Open the window at t=0 (windowStart=0, expiresAt=60_000).
+    const first = await storage.increment('user:fixed', windowMs);
+    expect(first.count).toBe(1);
+    expect(first.windowStart).toBe(0);
+
+    // Increment again at t=30_000 (still within the window). If the buggy
+    // sliding behavior were re-introduced, this would push expiry to 90_000.
+    vi.setSystemTime(30_000);
+    const second = await storage.increment('user:fixed', windowMs);
+    expect(second.count).toBe(2);
+    expect(second.windowStart).toBe(0); // window did NOT restart
+
+    // At t=61_000 the entry is past windowStart+windowMs (60_000) and must be
+    // gone — proving expiry stayed anchored to windowStart, not lastIncrement.
+    vi.setSystemTime(61_000);
+    expect(await storage.get('user:fixed')).toBeNull();
+  });
+
+  it('expires the fixed window via cleanup() at windowStart + windowMs', async () => {
+    // Companion guard using cleanup() rather than get(): the swept count proves
+    // the within-window increments did not extend the expiry past 60_000.
+    const storage = new MemoryRateLimitStorage({ cleanupInterval: 0 });
+    const windowMs = 60_000;
+
+    await storage.increment('user:fixed', windowMs); // windowStart=0
+    vi.setSystemTime(30_000);
+    await storage.increment('user:fixed', windowMs); // within window, no slide
+
+    // Just before windowStart+windowMs: still alive.
+    vi.setSystemTime(59_999);
+    expect(await storage.cleanup()).toBe(0);
+    expect(await storage.get('user:fixed')).not.toBeNull();
+
+    // Past windowStart+windowMs: swept.
+    vi.setSystemTime(60_001);
+    expect(await storage.cleanup()).toBe(1);
+    expect(storage.getSize()).toBe(0);
   });
 });

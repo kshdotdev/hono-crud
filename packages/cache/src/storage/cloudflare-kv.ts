@@ -1,4 +1,5 @@
 import type { KVNamespace } from 'hono-crud/internal';
+import { buildCacheEntry, isCacheEntryExpired, normalizeStoredEntry } from '../entry';
 import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 
 const KV_BATCH_CONCURRENCY = 50;
@@ -84,22 +85,10 @@ export class KVCacheStorage implements CacheStorage {
     }
 
     try {
-      const entry = JSON.parse(raw) as CacheEntry<T>;
-
-      // Migration guard: convert legacy Date strings to epoch ms
-      const legacyCreatedAt = entry.createdAt as unknown;
-      if (typeof legacyCreatedAt === 'string') {
-        const parsed = Date.parse(legacyCreatedAt);
-        entry.createdAt = Number.isNaN(parsed) ? Date.now() : parsed;
-      }
-      const legacyExpiresAt = entry.expiresAt as unknown;
-      if (typeof legacyExpiresAt === 'string') {
-        const parsed = Date.parse(legacyExpiresAt);
-        entry.expiresAt = Number.isNaN(parsed) ? null : parsed;
-      }
+      const entry = normalizeStoredEntry(JSON.parse(raw) as CacheEntry<T>);
 
       // Check expiration (KV TTL handles this, but guard against clock skew)
-      if (entry.expiresAt && entry.expiresAt < Date.now()) {
+      if (isCacheEntryExpired(entry)) {
         this.stats.misses++;
         return null;
       }
@@ -117,12 +106,7 @@ export class KVCacheStorage implements CacheStorage {
     const tags = options?.tags;
     const now = Date.now();
 
-    const entry: CacheEntry<T> = {
-      data,
-      createdAt: now,
-      expiresAt: ttlMs > 0 ? now + ttlMs : null,
-      tags,
-    };
+    const entry = buildCacheEntry(data, ttlMs, tags, now);
 
     const kvOptions = ttlMs > 0 ? { expirationTtl: this.getExpirationTtl(ttlMs) } : undefined;
     await this.kv.put(this.getKey(key), JSON.stringify(entry), kvOptions);

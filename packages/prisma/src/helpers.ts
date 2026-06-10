@@ -12,9 +12,9 @@ import type {
   ListFilters,
   MetaInput,
   PaginatedResult,
-  RelationConfig,
+  RelationLoaderAdapter,
 } from 'hono-crud/internal';
-import { assertNever } from 'hono-crud/internal';
+import { assertNever, batchLoadRelations, loadRelationsForItem } from 'hono-crud/internal';
 import { inlineSingular, levenshteinDistance } from './pluralize';
 
 /**
@@ -388,60 +388,21 @@ export async function getPrismaModel<Row = Record<string, unknown>>(
 }
 
 /**
- * Loads a single relation for an item.
+ * Builds the Prisma relation-loader adapter for the core orchestrator.
+ *
+ * - `resolveRelation` resolves the related model delegate by name (async because
+ *   `getModelName` is async), returning `null` to skip when the model is not
+ *   found in the client.
+ * - `fetchRelated` issues the one-line `findMany({ where: { [keyField]: { in } } })`
+ *   query the batch + single-item loaders share.
  */
-export async function loadPrismaRelation<T extends Record<string, unknown>>(
-  prisma: PrismaClient,
-  item: T,
-  relationName: string,
-  relationConfig: RelationConfig,
-): Promise<T> {
-  const relatedModelName = await getModelName(relationConfig.model);
-  const relatedModel = getPrismaModelByName(prisma, relatedModelName);
-
-  if (!relatedModel) {
-    // Can't load relation without the related model
-    return item;
-  }
-
-  switch (relationConfig.type) {
-    case 'hasOne': {
-      const localKey = relationConfig.localKey || 'id';
-      const localValue = item[localKey];
-      if (localValue === undefined || localValue === null) {
-        return { ...item, [relationName]: null };
-      }
-      const result = await relatedModel.findFirst({
-        where: { [relationConfig.foreignKey]: localValue },
-      });
-      return { ...item, [relationName]: result || null };
-    }
-    case 'hasMany': {
-      const localKey = relationConfig.localKey || 'id';
-      const localValue = item[localKey];
-      if (localValue === undefined || localValue === null) {
-        return { ...item, [relationName]: [] };
-      }
-      const results = await relatedModel.findMany({
-        where: { [relationConfig.foreignKey]: localValue },
-      });
-      return { ...item, [relationName]: results };
-    }
-    case 'belongsTo': {
-      // For belongsTo, the foreign key is on the current item
-      const foreignValue = item[relationConfig.foreignKey];
-      if (foreignValue === undefined || foreignValue === null) {
-        return { ...item, [relationName]: null };
-      }
-      const localKey = relationConfig.localKey || 'id';
-      const result = await relatedModel.findFirst({
-        where: { [localKey]: foreignValue },
-      });
-      return { ...item, [relationName]: result || null };
-    }
-    default:
-      return item;
-  }
+function prismaRelationAdapter(prisma: PrismaClient): RelationLoaderAdapter<PrismaModelOperations> {
+  return {
+    resolveRelation: async (config) =>
+      getPrismaModelByName(prisma, await getModelName(config.model)) ?? null,
+    fetchRelated: (model, keyField, values) =>
+      model.findMany({ where: { [keyField]: { in: values } } }),
+  };
 }
 
 /**
@@ -454,20 +415,7 @@ export async function loadPrismaRelations<T extends Record<string, unknown>, M e
   meta: M,
   includeOptions?: IncludeOptions,
 ): Promise<T> {
-  if (!includeOptions?.relations?.length || !meta.model.relations) {
-    return item;
-  }
-
-  let result = { ...item } as T;
-
-  for (const relationName of includeOptions.relations) {
-    const relationConfig = meta.model.relations[relationName];
-    if (relationConfig) {
-      result = await loadPrismaRelation(prisma, result, relationName, relationConfig);
-    }
-  }
-
-  return result;
+  return loadRelationsForItem(item, meta, prismaRelationAdapter(prisma), includeOptions);
 }
 
 /**
@@ -478,124 +426,7 @@ export async function batchLoadPrismaRelations<
   T extends Record<string, unknown>,
   M extends MetaInput,
 >(prisma: PrismaClient, items: T[], meta: M, includeOptions?: IncludeOptions): Promise<T[]> {
-  if (!items.length || !includeOptions?.relations?.length || !meta.model.relations) {
-    return items;
-  }
-
-  // Clone all items to avoid mutation
-  let results = items.map((item) => ({ ...item })) as T[];
-
-  for (const relationName of includeOptions.relations) {
-    const relationConfig = meta.model.relations[relationName];
-    if (!relationConfig) {
-      continue;
-    }
-
-    const relatedModelName = await getModelName(relationConfig.model);
-    const relatedModel = getPrismaModelByName(prisma, relatedModelName);
-
-    if (!relatedModel) {
-      continue;
-    }
-
-    switch (relationConfig.type) {
-      case 'hasOne':
-      case 'hasMany': {
-        const localKey = relationConfig.localKey || 'id';
-
-        // Collect all unique local values
-        const localValues = [
-          ...new Set(
-            results
-              .map((item) => item[localKey])
-              .filter((val) => val !== undefined && val !== null),
-          ),
-        ];
-
-        if (localValues.length === 0) {
-          // Set empty results for all items
-          results = results.map((item) => ({
-            ...item,
-            [relationName]: relationConfig.type === 'hasMany' ? [] : null,
-          }));
-          continue;
-        }
-
-        // Batch query: Load all related records in a single query
-        const relatedRecords = await relatedModel.findMany({
-          where: { [relationConfig.foreignKey]: { in: localValues } },
-        });
-
-        // Group related records by foreign key
-        const recordsByForeignKey = new Map<unknown, Record<string, unknown>[]>();
-        for (const record of relatedRecords) {
-          const foreignVal = record[relationConfig.foreignKey];
-          if (!recordsByForeignKey.has(foreignVal)) {
-            recordsByForeignKey.set(foreignVal, []);
-          }
-          recordsByForeignKey.get(foreignVal)!.push(record);
-        }
-
-        // Map results back to items
-        results = results.map((item) => {
-          const localValue = item[localKey];
-          const related = recordsByForeignKey.get(localValue) || [];
-          return {
-            ...item,
-            [relationName]: relationConfig.type === 'hasMany' ? related : related[0] || null,
-          };
-        });
-        break;
-      }
-
-      case 'belongsTo': {
-        // For belongsTo, the foreign key is on the current item
-        const refLocalKey = relationConfig.localKey || 'id';
-
-        // Collect all unique foreign key values
-        const foreignValues = [
-          ...new Set(
-            results
-              .map((item) => item[relationConfig.foreignKey])
-              .filter((val) => val !== undefined && val !== null),
-          ),
-        ];
-
-        if (foreignValues.length === 0) {
-          // Set null for all items
-          results = results.map((item) => ({
-            ...item,
-            [relationName]: null,
-          }));
-          continue;
-        }
-
-        // Batch query: Load all parent records in a single query
-        const relatedRecords = await relatedModel.findMany({
-          where: { [refLocalKey]: { in: foreignValues } },
-        });
-
-        // Create a map for quick lookup
-        const recordsByLocalKey = new Map<unknown, Record<string, unknown>>();
-        for (const record of relatedRecords) {
-          const localVal = record[refLocalKey];
-          recordsByLocalKey.set(localVal, record);
-        }
-
-        // Map results back to items
-        results = results.map((item) => {
-          const foreignValue = item[relationConfig.foreignKey];
-          return {
-            ...item,
-            [relationName]: recordsByLocalKey.get(foreignValue) || null,
-          };
-        });
-        break;
-      }
-    }
-  }
-
-  return results;
+  return batchLoadRelations(items, meta, prismaRelationAdapter(prisma), includeOptions);
 }
 
 /**

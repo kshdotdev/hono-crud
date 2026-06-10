@@ -20,9 +20,16 @@ import type {
   FilterCondition,
   IncludeOptions,
   MetaInput,
+  RelatedRecord,
   RelationConfig,
+  RelationLoaderAdapter,
 } from 'hono-crud/internal';
-import { assertNever } from 'hono-crud/internal';
+import {
+  assertNever,
+  batchLoadRelations,
+  loadRelationsForItem,
+  resolveRelationValueAsync,
+} from 'hono-crud/internal';
 
 // ============================================================================
 // Local stand-ins for drizzle-orm builder types
@@ -234,7 +241,28 @@ export function getColumn(table: DrizzleTable, field: string): DrizzleColumn {
 }
 
 /**
- * Loads related records for a given item using Drizzle queries.
+ * Builds the relation-loader adapter for Drizzle: resolves a relation's
+ * {@link DrizzleTable} handle and issues the single `inArray` fetch the core
+ * orchestrator drives. Drizzle's query builder satisfies the orchestrator's
+ * `PromiseLike<RelatedRecord[]>` `fetchRelated` return.
+ */
+function drizzleRelationAdapter(
+  db: DrizzleDatabaseConstraint,
+): RelationLoaderAdapter<DrizzleTable> {
+  return {
+    resolveRelation: (config) => (config as RelationConfig<DrizzleTable>).table ?? null,
+    fetchRelated: (table, keyField, values) =>
+      cast<RelatedRecord>(db)
+        .select()
+        .from(table)
+        .where(inArray(getColumn(table, keyField), values)),
+  };
+}
+
+/**
+ * Loads a single related record/collection for a given item using Drizzle
+ * queries. Always sets the relation key: hasOne/belongsTo → record-or-null,
+ * hasMany → array (including when the gate value is null).
  */
 export async function loadDrizzleRelation<T extends Record<string, unknown>>(
   db: DrizzleDatabaseConstraint,
@@ -242,58 +270,14 @@ export async function loadDrizzleRelation<T extends Record<string, unknown>>(
   relationName: string,
   relationConfig: RelationConfig<DrizzleTable>,
 ): Promise<T> {
-  if (!relationConfig.table) {
+  const table = relationConfig.table;
+  if (!table) {
     // Can't load relation without table reference
     return item;
   }
-
-  const relatedTable = relationConfig.table;
-
-  switch (relationConfig.type) {
-    case 'hasOne': {
-      const localKey = relationConfig.localKey || 'id';
-      const localValue = item[localKey];
-      if (localValue === undefined || localValue === null) {
-        return item;
-      }
-      const foreignKeyColumn = getColumn(relatedTable, relationConfig.foreignKey);
-      const results = await cast(db)
-        .select()
-        .from(relatedTable)
-        .where(eq(foreignKeyColumn, localValue))
-        .limit(1);
-      return { ...item, [relationName]: results[0] || null };
-    }
-    case 'hasMany': {
-      const localKey = relationConfig.localKey || 'id';
-      const localValue = item[localKey];
-      if (localValue === undefined || localValue === null) {
-        return { ...item, [relationName]: [] };
-      }
-      const foreignKeyColumn = getColumn(relatedTable, relationConfig.foreignKey);
-      const results = await cast(db)
-        .select()
-        .from(relatedTable)
-        .where(eq(foreignKeyColumn, localValue));
-      return { ...item, [relationName]: results };
-    }
-    case 'belongsTo': {
-      // For belongsTo, the foreign key is on the current item
-      const foreignValue = item[relationConfig.foreignKey];
-      if (foreignValue === undefined || foreignValue === null) {
-        return { ...item, [relationName]: null };
-      }
-      const localKeyColumn = getColumn(relatedTable, relationConfig.localKey || 'id');
-      const results = await cast(db)
-        .select()
-        .from(relatedTable)
-        .where(eq(localKeyColumn, foreignValue))
-        .limit(1);
-      return { ...item, [relationName]: results[0] || null };
-    }
-    default:
-      return item;
-  }
+  const adapter = drizzleRelationAdapter(db);
+  const value = await resolveRelationValueAsync(item, relationConfig, table, adapter.fetchRelated);
+  return { ...item, [relationName]: value } as T;
 }
 
 /**
@@ -306,22 +290,7 @@ export async function loadDrizzleRelations<T extends Record<string, unknown>, M 
   meta: M,
   includeOptions?: IncludeOptions,
 ): Promise<T> {
-  if (!includeOptions?.relations?.length || !meta.model.relations) {
-    return item;
-  }
-
-  let result = { ...item } as T;
-
-  for (const relationName of includeOptions.relations) {
-    const relationConfig = meta.model.relations[relationName] as
-      | RelationConfig<DrizzleTable>
-      | undefined;
-    if (relationConfig) {
-      result = await loadDrizzleRelation(db, result, relationName, relationConfig);
-    }
-  }
-
-  return result;
+  return loadRelationsForItem(item, meta, drizzleRelationAdapter(db), includeOptions);
 }
 
 /**
@@ -337,125 +306,7 @@ export async function batchLoadDrizzleRelations<
   meta: M,
   includeOptions?: IncludeOptions,
 ): Promise<T[]> {
-  if (!items.length || !includeOptions?.relations?.length || !meta.model.relations) {
-    return items;
-  }
-
-  // Clone all items to avoid mutation
-  let results = items.map((item) => ({ ...item })) as T[];
-
-  for (const relationName of includeOptions.relations) {
-    const relationConfig = meta.model.relations[relationName] as
-      | RelationConfig<DrizzleTable>
-      | undefined;
-    if (!relationConfig || !relationConfig.table) {
-      continue;
-    }
-
-    const relatedTable = relationConfig.table;
-
-    switch (relationConfig.type) {
-      case 'hasOne':
-      case 'hasMany': {
-        const localKey = relationConfig.localKey || 'id';
-
-        // Collect all unique local values
-        const localValues = [
-          ...new Set(
-            results
-              .map((item) => item[localKey])
-              .filter((val) => val !== undefined && val !== null),
-          ),
-        ];
-
-        if (localValues.length === 0) {
-          // Set empty results for all items
-          results = results.map((item) => ({
-            ...item,
-            [relationName]: relationConfig.type === 'hasMany' ? [] : null,
-          }));
-          continue;
-        }
-
-        // Batch query: Load all related records in a single query
-        const foreignKeyColumn = getColumn(relatedTable, relationConfig.foreignKey);
-        const relatedRecords = await cast(db)
-          .select()
-          .from(relatedTable)
-          .where(inArray(foreignKeyColumn, localValues));
-
-        // Group related records by foreign key
-        const recordsByForeignKey = new Map<unknown, Record<string, unknown>[]>();
-        for (const record of relatedRecords) {
-          const foreignVal = (record as Record<string, unknown>)[relationConfig.foreignKey];
-          if (!recordsByForeignKey.has(foreignVal)) {
-            recordsByForeignKey.set(foreignVal, []);
-          }
-          recordsByForeignKey.get(foreignVal)!.push(record as Record<string, unknown>);
-        }
-
-        // Map results back to items
-        results = results.map((item) => {
-          const localValue = item[localKey];
-          const related = recordsByForeignKey.get(localValue) || [];
-          return {
-            ...item,
-            [relationName]: relationConfig.type === 'hasMany' ? related : related[0] || null,
-          };
-        });
-        break;
-      }
-
-      case 'belongsTo': {
-        // For belongsTo, the foreign key is on the current item
-        const refLocalKey = relationConfig.localKey || 'id';
-
-        // Collect all unique foreign key values
-        const foreignValues = [
-          ...new Set(
-            results
-              .map((item) => item[relationConfig.foreignKey])
-              .filter((val) => val !== undefined && val !== null),
-          ),
-        ];
-
-        if (foreignValues.length === 0) {
-          // Set null for all items
-          results = results.map((item) => ({
-            ...item,
-            [relationName]: null,
-          }));
-          continue;
-        }
-
-        // Batch query: Load all parent records in a single query
-        const localKeyColumn = getColumn(relatedTable, refLocalKey);
-        const relatedRecords = await cast(db)
-          .select()
-          .from(relatedTable)
-          .where(inArray(localKeyColumn, foreignValues));
-
-        // Create a map for quick lookup
-        const recordsByLocalKey = new Map<unknown, Record<string, unknown>>();
-        for (const record of relatedRecords) {
-          const localVal = (record as Record<string, unknown>)[refLocalKey];
-          recordsByLocalKey.set(localVal, record as Record<string, unknown>);
-        }
-
-        // Map results back to items
-        results = results.map((item) => {
-          const foreignValue = item[relationConfig.foreignKey];
-          return {
-            ...item,
-            [relationName]: recordsByLocalKey.get(foreignValue) || null,
-          };
-        });
-        break;
-      }
-    }
-  }
-
-  return results;
+  return batchLoadRelations(items, meta, drizzleRelationAdapter(db), includeOptions);
 }
 
 /**

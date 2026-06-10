@@ -1,3 +1,4 @@
+import { MemoryTtlStore } from 'hono-crud/internal';
 import type { IdempotencyEntry, IdempotencyStorage } from '../types';
 
 /**
@@ -14,19 +15,32 @@ import type { IdempotencyEntry, IdempotencyStorage } from '../types';
  * ```
  */
 export class MemoryIdempotencyStorage implements IdempotencyStorage {
-  private entries = new Map<string, { entry: IdempotencyEntry; expiresAt: number }>();
-  private locks = new Map<string, number>();
+  /** Entry store. The wrapper carries the per-entry expiry timestamp. */
+  private entryStore: MemoryTtlStore<{ entry: IdempotencyEntry; expiresAt: number }>;
+  /** Lock store. The value IS the lock's expiry timestamp. */
+  private lockStore: MemoryTtlStore<number>;
 
   /** Minimum interval between cleanup runs (ms) */
   private cleanupInterval: number;
   /** Timestamp of last cleanup run */
   private lastCleanup = 0;
-  /** Maximum number of entries before evicting oldest */
-  private maxEntries: number;
 
   constructor(options?: { cleanupInterval?: number; maxEntries?: number }) {
     this.cleanupInterval = options?.cleanupInterval ?? 60000;
-    this.maxEntries = options?.maxEntries ?? 10_000;
+    const maxEntries = options?.maxEntries ?? 10_000;
+    // Both inner stores keep `cleanupInterval: 0` so their built-in
+    // `maybeCleanup` is a no-op; the domain class owns the single guarded
+    // lazy sweep over BOTH maps (see `maybeCleanup` below).
+    this.entryStore = new MemoryTtlStore({
+      isExpired: (wrapper, now) => now > wrapper.expiresAt,
+      cleanupInterval: 0,
+      maxEntries,
+    });
+    this.lockStore = new MemoryTtlStore<number>({
+      isExpired: (expiresAt, now) => now > expiresAt,
+      cleanupInterval: 0,
+      maxEntries: 0,
+    });
   }
 
   private maybeCleanup(): void {
@@ -34,26 +48,9 @@ export class MemoryIdempotencyStorage implements IdempotencyStorage {
     const now = Date.now();
     if (now - this.lastCleanup >= this.cleanupInterval) {
       this.lastCleanup = now;
-      this.cleanupExpired();
+      this.entryStore.cleanup(now);
+      this.lockStore.cleanup(now);
     }
-  }
-
-  private cleanupExpired(): number {
-    const now = Date.now();
-    let removed = 0;
-    for (const [key, value] of this.entries.entries()) {
-      if (now > value.expiresAt) {
-        this.entries.delete(key);
-        removed++;
-      }
-    }
-    for (const [key, expiresAt] of this.locks.entries()) {
-      if (now > expiresAt) {
-        this.locks.delete(key);
-        removed++;
-      }
-    }
-    return removed;
   }
 
   /**
@@ -61,61 +58,42 @@ export class MemoryIdempotencyStorage implements IdempotencyStorage {
    * @returns Number of expired entries and locks removed.
    */
   async cleanup(): Promise<number> {
-    return this.cleanupExpired();
+    return this.entryStore.cleanup() + this.lockStore.cleanup();
   }
 
   async get(key: string): Promise<IdempotencyEntry | null> {
     this.maybeCleanup();
-    const stored = this.entries.get(key);
-    if (!stored) return null;
-    if (Date.now() > stored.expiresAt) {
-      this.entries.delete(key);
-      return null;
-    }
-    return stored.entry;
+    const wrapper = this.entryStore.get(key);
+    return wrapper ? wrapper.entry : null;
   }
 
   async set(key: string, entry: IdempotencyEntry, ttlMs: number): Promise<void> {
     this.maybeCleanup();
-    // Evict oldest entry if at capacity
-    if (this.maxEntries > 0 && this.entries.size >= this.maxEntries && !this.entries.has(key)) {
-      const oldestKey = this.entries.keys().next().value;
-      if (oldestKey !== undefined) {
-        this.entries.delete(oldestKey);
-      }
-    }
-    this.entries.set(key, {
-      entry,
-      expiresAt: Date.now() + ttlMs,
-    });
+    // Capacity eviction (oldest-first) happens inside the store.
+    this.entryStore.set(key, { entry, expiresAt: Date.now() + ttlMs });
   }
 
   async isLocked(key: string): Promise<boolean> {
-    const expiresAt = this.locks.get(key);
-    if (!expiresAt) return false;
-    if (Date.now() > expiresAt) {
-      this.locks.delete(key);
-      return false;
-    }
-    return true;
+    // Expiry-on-read deletes a stale lock and reports it as absent.
+    return this.lockStore.has(key);
   }
 
   async lock(key: string, ttlMs: number): Promise<boolean> {
     if (await this.isLocked(key)) return false;
-    this.locks.set(key, Date.now() + ttlMs);
+    this.lockStore.set(key, Date.now() + ttlMs);
     return true;
   }
 
   async unlock(key: string): Promise<void> {
-    this.locks.delete(key);
+    this.lockStore.delete(key);
   }
 
   destroy(): void {
-    this.entries.clear();
-    this.locks.clear();
+    this.entryStore.clear();
+    this.lockStore.clear();
   }
 
   getSize(): number {
-    return this.entries.size;
+    return this.entryStore.size;
   }
 }

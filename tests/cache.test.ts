@@ -152,6 +152,40 @@ describe('MemoryCacheStorage', () => {
 
       vi.useRealTimers();
     });
+
+    it('should re-sync getStats().size after expiry-on-read via get()', async () => {
+      // Regression guard: expiry-on-read now goes through the delegated
+      // MemoryTtlStore, which fires onEvict (tag cleanup) but does NOT touch
+      // stats.size. The store call must re-sync `stats.size = store.size` so
+      // getStats().size stays consistent once the expired entry is evicted.
+      vi.useFakeTimers();
+
+      await cache.set('key1', 'value', { ttlMs: 60_000 });
+      expect(cache.getStats().size).toBe(1);
+
+      vi.advanceTimersByTime(61 * 1000);
+
+      // Expiry-on-read deletes the entry and must reflect in size.
+      expect(await cache.get('key1')).toBeNull();
+      expect(cache.getStats().size).toBe(0);
+
+      vi.useRealTimers();
+    });
+
+    it('should re-sync getStats().size after expiry-on-read via has()', async () => {
+      // Same regression guard for the has() path (also expiry-deletes on read).
+      vi.useFakeTimers();
+
+      await cache.set('key1', 'value', { ttlMs: 60_000 });
+      expect(cache.getStats().size).toBe(1);
+
+      vi.advanceTimersByTime(61 * 1000);
+
+      expect(await cache.has('key1')).toBe(false);
+      expect(cache.getStats().size).toBe(0);
+
+      vi.useRealTimers();
+    });
   });
 
   describe('pattern deletion', () => {
@@ -203,6 +237,17 @@ describe('MemoryCacheStorage', () => {
     it('should return 0 for non-existent tag', async () => {
       const count = await cache.deleteByTag!('nonexistent');
       expect(count).toBe(0);
+    });
+
+    it('should drop the now-empty tag bucket from getTags() after deleteByTag', async () => {
+      // Regression guard: onEvict → removeFromTagIndex only removes the key from
+      // each tag's Set; the explicit final tagIndex.delete(tag) in deleteByTag is
+      // load-bearing to drop the emptied bucket so getTags() stays consistent.
+      expect(cache.getTags()).toContain('posts');
+
+      await cache.deleteByTag!('posts');
+
+      expect(cache.getTags()).not.toContain('posts');
     });
   });
 
