@@ -63,7 +63,7 @@ a health check at `/health`.
 
 `examples/local-consumer` is the consumer-style example. It installs this
 library as `"hono-crud": "file:../.."`, imports from `hono-crud` and
-`hono-crud/adapters/memory`, and runs a real Hono HTTP server. This is the
+`@hono-crud/memory`, and runs a real Hono HTTP server. This is the
 closest local simulation of installing the package from npm.
 
 Spin up the API from the repo root:

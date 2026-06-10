@@ -1,5 +1,6 @@
 import { scalarUI, setupScalar } from '@hono-crud/scalar';
 import type { ScalarConfig, ScalarTheme } from '@hono-crud/scalar';
+import { setupDocsIndex } from '@hono-crud/swagger';
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
@@ -290,5 +291,24 @@ describe('Scalar Integration', () => {
 
     const html = await res.text();
     expect(html).toContain('https://api.example.com');
+  });
+
+  it('docs hub links to the path scalar serves by default', async () => {
+    const app = new Hono();
+
+    // Mount both packages with their respective defaults: the swagger docs hub
+    // and the scalar reference UI must agree on a single path.
+    setupDocsIndex(app);
+    setupScalar(app);
+
+    // The hub renders a link to Scalar; extract its href and follow it.
+    const hubRes = await app.request('/');
+    const hubHtml = await hubRes.text();
+    const scalarHref = hubHtml.match(/href="([^"]*)"[^>]*>Open Scalar/)?.[1];
+    expect(scalarHref).toBeDefined();
+
+    const linkedRes = await app.request(scalarHref as string);
+    expect(linkedRes.status).toBe(200);
+    expect(linkedRes.headers.get('content-type')).toContain('text/html');
   });
 });

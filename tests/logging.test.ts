@@ -689,7 +689,9 @@ describe('Logging Middleware', () => {
       await new Promise((r) => setTimeout(r, 50));
 
       const logs = await storage.query({});
-      expect(logs[0].response.responseTimeMs).toBeGreaterThanOrEqual(50);
+      // Tolerance below the 50ms sleep: Date.now() truncates to whole ms on
+      // both reads, so the measured delta can land 1-2ms under the slept time.
+      expect(logs[0].response.responseTimeMs).toBeGreaterThanOrEqual(45);
     });
   });
 

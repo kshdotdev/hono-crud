@@ -101,7 +101,8 @@ class UserRead extends withCache(MemoryReadEndpoint) {
 | `setCachedResponse<T>(data)` | Store data in cache |
 | `invalidateCache(options?)` | Manually invalidate cache entries |
 | `getCacheStatus()` | Returns `'HIT'` or `'MISS'` |
-| `successWithCache(result)` | Response with `X-Cache` header |
+| `successWithCache(result)` | Single-item response with `X-Cache` header (body formatted by the configured `responseEnvelope`) |
+| `successPaginatedWithCache(result, info)` | List response with `X-Cache` header and pagination `info` threaded through the `responseEnvelope` |
 
 ---
 

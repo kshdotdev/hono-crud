@@ -17,7 +17,7 @@ import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { Hono } from 'hono';
-import { defineModel, fromHono, registerCrud } from 'hono-crud';
+import { type AggregateOptions, defineModel, fromHono, registerCrud } from 'hono-crud';
 /**
  * Tests for Drizzle ORM adapter.
  * Uses SQLite via libsql for testing.
@@ -197,6 +197,27 @@ class PostAggregate extends DrizzleAggregateEndpoint {
   };
 }
 
+// Operator-syntax aggregate filters ({ field: { op: value } }) cannot be
+// produced from a flat query string, so this endpoint injects them directly to
+// exercise the aggregate filter conversion path (buildWhereCondition).
+let injectedAggregateFilters: AggregateOptions['filters'];
+
+class PostAggregateFiltered extends DrizzleAggregateEndpoint {
+  _meta = { model: PostModel };
+  db = db as unknown as DrizzleDatabase;
+
+  aggregateConfig = {
+    sumFields: ['views'],
+    avgFields: ['views'],
+    minMaxFields: ['views'],
+  };
+
+  protected async getAggregateOptions(): Promise<AggregateOptions> {
+    const base = await super.getAggregateOptions();
+    return { ...base, filters: injectedAggregateFilters };
+  }
+}
+
 // ============================================================================
 // App Setup
 // ============================================================================
@@ -236,6 +257,7 @@ function createApp() {
   // Post endpoints
   // Note: aggregate must be before :id to avoid conflict
   app.get('/posts/aggregate', withContext(PostAggregate));
+  app.get('/posts/aggregate-filtered', withContext(PostAggregateFiltered));
   app.post('/posts', withContext(PostCreate));
   app.get('/posts', withContext(PostList));
   app.get('/posts/:id', withContext(PostRead));
@@ -715,6 +737,46 @@ describe('Drizzle Adapter', () => {
       const result = (await response.json()) as { result: { groups: unknown[] } };
 
       expect(result.result.groups).toHaveLength(2);
+    });
+  });
+
+  describe('Aggregate operator-syntax filters', () => {
+    beforeEach(async () => {
+      const user = await db
+        .insert(usersTable)
+        .values({
+          id: crypto.randomUUID(),
+          name: 'Author',
+          email: 'author@example.com',
+          role: 'user',
+        })
+        .returning();
+
+      await db.insert(postsTable).values([
+        { id: crypto.randomUUID(), title: 'Post 1', authorId: user[0].id, views: 100 },
+        { id: crypto.randomUUID(), title: 'Post 2', authorId: user[0].id, views: 200 },
+        { id: crypto.randomUUID(), title: 'Post 3', authorId: user[0].id, views: 50 },
+      ]);
+    });
+
+    it('honors a documented operator (gte) in aggregate filters', async () => {
+      injectedAggregateFilters = { views: { gte: 100 } };
+      const response = await app.request('/posts/aggregate-filtered?count=*');
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as { result: { values: { count: number } } };
+      // Two posts have views >= 100 (100 and 200).
+      expect(result.result.values.count).toBe(2);
+    });
+
+    it('matches nothing (count 0, HTTP 200) for an unknown operator instead of throwing', async () => {
+      // An unknown/untrusted operator must fail closed, not throw assertNever -> 500.
+      injectedAggregateFilters = { views: { contains: 100 } as Record<string, unknown> };
+      const response = await app.request('/posts/aggregate-filtered?count=*');
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as { result: { values: { count: number } } };
+      expect(result.result.values.count).toBe(0);
     });
   });
 

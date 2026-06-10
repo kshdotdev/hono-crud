@@ -186,7 +186,7 @@ class UserList extends User.List {
   schema = { tags: ['Users'], summary: 'List users' };
   filterFields = ['role'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'createdAt'];
+  sortFields = ['name', 'createdAt'];
 }
 
 class UserRead extends User.Read {
@@ -331,9 +331,8 @@ class UserList extends PrismaListEndpoint {
   schema = { tags: ['Users'], summary: 'List users' };
   filterFields = ['role'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'createdAt'];
-  defaultOrderBy = 'createdAt';
-  defaultOrderDirection: 'asc' | 'desc' = 'desc';
+  sortFields = ['name', 'createdAt'];
+  defaultSort = { field: 'createdAt', order: 'desc' as const };
   defaultPerPage = 20;
   maxPerPage = 100;
 }

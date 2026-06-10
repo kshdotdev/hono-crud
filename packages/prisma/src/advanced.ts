@@ -8,6 +8,8 @@ import {
   VersionRollbackEndpoint,
 } from 'hono-crud/internal';
 import { AggregateEndpoint, computeAggregations } from 'hono-crud/internal';
+import { isFilterOperator } from 'hono-crud/internal';
+import { NotFoundException } from 'hono-crud/internal';
 import { SearchEndpoint, searchInMemory } from 'hono-crud/internal';
 import { ExportEndpoint } from 'hono-crud/internal';
 import { ImportEndpoint } from 'hono-crud/internal';
@@ -15,6 +17,7 @@ import type {
   AggregateField,
   AggregateOptions,
   AggregateResult,
+  FilterCondition,
   IncludeOptions,
   ListFilters,
   MetaInput,
@@ -484,7 +487,7 @@ export abstract class PrismaVersionRollbackEndpoint<
     });
 
     if (!existing) {
-      throw new Error(`Record not found: ${lookupValue}`);
+      throw new NotFoundException(this._meta.model.tableName, lookupValue);
     }
 
     // Update the record with version data and new version number
@@ -523,6 +526,13 @@ export abstract class PrismaAggregateEndpoint<
 
   /**
    * Builds the where clause for aggregation queries.
+   *
+   * Filter operators reach this path UNVALIDATED (unlike the list path, which
+   * runs through allow-listed query parsing), so each operator is checked with
+   * `isFilterOperator` and conversion is delegated to the canonical
+   * `buildPrismaWhere` rather than a duplicated inline switch. A field carrying
+   * any unrecognized operator fails CLOSED — it matches NOTHING (`{ in: [] }`)
+   * instead of forwarding an arbitrary operator string into the Prisma query.
    */
   protected async buildAggregateWhere(options: AggregateOptions): Promise<Record<string, unknown>> {
     const where: Record<string, unknown> = {};
@@ -540,45 +550,34 @@ export abstract class PrismaAggregateEndpoint<
 
     // Apply filters
     if (options.filters) {
+      const conditions: FilterCondition[] = [];
+      const matchNothingFields: string[] = [];
+
       for (const [field, value] of Object.entries(options.filters)) {
         if (typeof value === 'object' && value !== null) {
-          // Operator syntax - convert to Prisma format
-          const prismaCondition: Record<string, unknown> = {};
-          for (const [op, opValue] of Object.entries(value as Record<string, unknown>)) {
-            switch (op) {
-              case 'eq':
-                prismaCondition.equals = opValue;
-                break;
-              case 'ne':
-                prismaCondition.not = opValue;
-                break;
-              case 'gt':
-                prismaCondition.gt = opValue;
-                break;
-              case 'gte':
-                prismaCondition.gte = opValue;
-                break;
-              case 'lt':
-                prismaCondition.lt = opValue;
-                break;
-              case 'lte':
-                prismaCondition.lte = opValue;
-                break;
-              case 'in':
-                prismaCondition.in = opValue;
-                break;
-              case 'nin':
-                prismaCondition.notIn = opValue;
-                break;
-              default:
-                prismaCondition[op] = opValue;
+          // Operator syntax: { field: { op: value } }
+          const ops = Object.entries(value as Record<string, unknown>);
+          if (ops.some(([op]) => !isFilterOperator(op))) {
+            matchNothingFields.push(field);
+            continue;
+          }
+          for (const [op, opValue] of ops) {
+            // `isFilterOperator` narrowed every `op` above.
+            if (isFilterOperator(op)) {
+              conditions.push({ field, operator: op, value: opValue });
             }
           }
-          where[field] = prismaCondition;
         } else {
           // Simple equality
-          where[field] = value;
+          conditions.push({ field, operator: 'eq', value });
         }
+      }
+
+      Object.assign(where, buildPrismaWhere(conditions));
+
+      // A field with an unrecognized operator matches nothing.
+      for (const field of matchNothingFields) {
+        where[field] = { in: [] };
       }
     }
 

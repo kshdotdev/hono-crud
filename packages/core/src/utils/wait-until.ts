@@ -24,24 +24,3 @@ export function getWaitUntil<E extends Env>(ctx: Context<E>): WaitUntil | undefi
   }
   return undefined;
 }
-
-/**
- * Schedule `fn` to run after the response is sent. Falls back to running
- * inline if no executionCtx is available. Errors are caught and reported via
- * the optional `onError` callback to avoid unhandled rejections.
- */
-export function runAfterResponse<E extends Env>(
-  ctx: Context<E>,
-  fn: () => Promise<unknown>,
-  onError?: (err: unknown) => void,
-): void {
-  const waitUntil = getWaitUntil(ctx);
-  const promise = (async () => {
-    try {
-      await fn();
-    } catch (err) {
-      if (onError) onError(err);
-    }
-  })();
-  if (waitUntil) waitUntil(promise);
-}

@@ -26,6 +26,7 @@ import type {
   SearchResult,
 } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
+import { isFilterOperator } from 'hono-crud/internal';
 import { matchesFilter } from './filter';
 import { getStore, loadRelations } from './helpers';
 import { isVisible } from './visibility';
@@ -437,37 +438,25 @@ export abstract class MemoryAggregateEndpoint<
       }
     }
 
-    // Apply filters
+    // Apply filters. All operator handling delegates to `matchesFilter` (the
+    // single source of truth shared with list/search/export), which fails CLOSED
+    // on unknown operators. We adapt the aggregate `{ field: { op: value } }`
+    // shape into the `FilterCondition` shape it expects; an operator that isn't a
+    // recognized `FilterOperator` (e.g. from untrusted input) matches nothing
+    // rather than every record.
     if (options.filters) {
       for (const [field, value] of Object.entries(options.filters)) {
         records = records.filter((record) => {
-          // Handle operator syntax: field[op]=value
+          const recordValue = record[field];
+          // Operator syntax: { field: { op: value } }
           if (typeof value === 'object' && value !== null) {
-            for (const [op, opValue] of Object.entries(value as Record<string, unknown>)) {
-              const recordValue = record[field];
-              switch (op) {
-                case 'eq':
-                  return String(recordValue) === String(opValue);
-                case 'ne':
-                  return String(recordValue) !== String(opValue);
-                case 'gt':
-                  return Number(recordValue) > Number(opValue);
-                case 'gte':
-                  return Number(recordValue) >= Number(opValue);
-                case 'lt':
-                  return Number(recordValue) < Number(opValue);
-                case 'lte':
-                  return Number(recordValue) <= Number(opValue);
-                case 'in':
-                  return (opValue as unknown[]).map(String).includes(String(recordValue));
-                default:
-                  return true;
-              }
-            }
-            return true;
+            return Object.entries(value as Record<string, unknown>).every(([op, opValue]) => {
+              if (!isFilterOperator(op)) return false;
+              return matchesFilter(recordValue, { field, operator: op, value: opValue });
+            });
           }
           // Simple equality
-          return String(record[field]) === String(value);
+          return matchesFilter(recordValue, { field, operator: 'eq', value });
         });
       }
     }

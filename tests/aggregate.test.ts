@@ -433,4 +433,66 @@ describe('Aggregations', () => {
       expect(result.result.groups.length).toBeGreaterThan(3);
     });
   });
+
+  // Operator-object filter shape (`{ field: { op: value } }`) is not reachable
+  // through plain query strings, so these call `aggregate()` directly via a route
+  // that exposes the endpoint instance with a live Hono context.
+  describe('MemoryAggregateEndpoint operator filters', () => {
+    let app: Hono;
+
+    beforeEach(() => {
+      app = new Hono();
+
+      app.onError((err, c) => {
+        return c.json({ success: false, error: { message: err.message } }, 400);
+      });
+
+      // Crafted filters are passed as a JSON-encoded `filters` query param so the
+      // operator-object shape survives into the endpoint, which then runs
+      // aggregate() against it directly.
+      app.get('/products/aggregate-filtered', async (c) => {
+        const endpoint = new ProductAggregate();
+        endpoint.setContext(c);
+        const filters = JSON.parse(c.req.query('filters') ?? '{}') as Record<string, unknown>;
+        const result = await endpoint.aggregate({
+          aggregations: [{ operation: 'count', field: '*' }],
+          filters,
+        });
+        return c.json({ result });
+      });
+    });
+
+    it('should match NOTHING for an unknown/unsupported operator (fail-closed)', async () => {
+      const filters = encodeURIComponent(JSON.stringify({ price: { bogus: 999 } }));
+      const response = await app.request(`/products/aggregate-filtered?filters=${filters}`);
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as { result: { values: Record<string, number> } };
+      // An unrecognized operator must filter out every record, not match all of
+      // them (the previous inline switch failed OPEN with `default: return true`).
+      expect(result.result.values.count).toBe(0);
+    });
+
+    it('should support operators the inline switch lacked (e.g. between)', async () => {
+      const filters = encodeURIComponent(JSON.stringify({ price: { between: [100, 600] } }));
+      const response = await app.request(`/products/aggregate-filtered?filters=${filters}`);
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as { result: { values: Record<string, number> } };
+      // Phone (599), Tablet (399), Desk (299), Chair (199) are within [100, 600].
+      expect(result.result.values.count).toBe(4);
+    });
+
+    it('should support nin (not-in), also missing from the inline switch', async () => {
+      const filters = encodeURIComponent(
+        JSON.stringify({ category: { nin: ['electronics', 'books'] } }),
+      );
+      const response = await app.request(`/products/aggregate-filtered?filters=${filters}`);
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as { result: { values: Record<string, number> } };
+      // Only the 3 furniture rows remain.
+      expect(result.result.values.count).toBe(3);
+    });
+  });
 });

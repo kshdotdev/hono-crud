@@ -800,9 +800,8 @@ GET /users?age[null]=true
 ```typescript
 class UserList extends MemoryListEndpoint {
   _meta = userMeta;
-  orderByFields = ['name', 'createdAt', 'age'];
-  defaultOrderBy = 'createdAt';
-  defaultOrderDirection: 'asc' | 'desc' = 'desc';
+  sortFields = ['name', 'createdAt', 'age'];
+  defaultSort = { field: 'createdAt', order: 'desc' as const };
   defaultPerPage = 20;
   maxPerPage = 100;
 }

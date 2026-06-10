@@ -28,18 +28,9 @@
     "clean": "rm -rf dist .tsup",
     "lint": "biome check src/"
   },
-  "keywords": [
-    "hono",
-    "crud",
-    "prisma",
-    "adapter"
-  ],
+  "keywords": ["hono", "crud", "prisma", "adapter"],
   "sideEffects": false,
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
   "engines": {
     "node": ">=20.19.0"
   },
@@ -62,6 +53,12 @@
       "optional": true
     },
     "@prisma/client": {
+      "optional": true
+    },
+    "pluralize": {
+      "optional": true
+    },
+    "fastest-levenshtein": {
       "optional": true
     }
   },

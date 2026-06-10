@@ -172,9 +172,8 @@ export async function createApp() {
 
     filterFields = ['category', 'inStock'];
     searchFields = ['name', 'description'];
-    orderByFields = ['name', 'price', 'createdAt'];
-    defaultOrderBy = 'createdAt';
-    defaultOrderDirection: 'asc' | 'desc' = 'desc';
+    sortFields = ['name', 'price', 'createdAt'];
+    defaultSort = { field: 'createdAt', order: 'desc' as const };
   }
 
   class ProductRead extends DrizzleReadEndpoint<Env, typeof productMeta> {

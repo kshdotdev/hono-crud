@@ -28,19 +28,9 @@
     "clean": "rm -rf dist .tsup",
     "lint": "biome check src/"
   },
-  "keywords": [
-    "hono",
-    "crud",
-    "drizzle",
-    "drizzle-orm",
-    "adapter"
-  ],
+  "keywords": ["hono", "crud", "drizzle", "drizzle-orm", "adapter"],
   "sideEffects": false,
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
   "engines": {
     "node": ">=20.19.0"
   },
@@ -63,5 +53,10 @@
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",
     "zod": "^4.3.5"
+  },
+  "peerDependenciesMeta": {
+    "drizzle-zod": {
+      "optional": true
+    }
   }
 }

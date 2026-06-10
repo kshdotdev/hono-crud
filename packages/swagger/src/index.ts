@@ -11,7 +11,7 @@ export interface UIOptions {
    */
   redocPath?: string;
   /**
-   * Path to serve Scalar (default: '/scalar')
+   * Path to serve Scalar (default: '/reference')
    */
   scalarPath?: string;
   /**
@@ -71,7 +71,7 @@ export function setupDocsIndex<E extends Env>(
     indexPath = '/',
     docsPath = '/docs',
     redocPath = '/redoc',
-    scalarPath = '/scalar',
+    scalarPath = '/reference',
     specPath = '/openapi.json',
     title = 'API Documentation',
   } = options;

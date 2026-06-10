@@ -1,6 +1,7 @@
 import type { Context, Env } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { ZodObject, ZodRawShape } from 'zod';
+import { getWaitUntil } from '../utils/wait-until';
 import { getLogger } from './logger';
 import {
   type OpenAPIRouteSchema,
@@ -209,17 +210,7 @@ export abstract class OpenAPIRoute<
    * otherwise falls back to fire-and-forget with error logging.
    */
   protected runAfterResponse(promise: Promise<unknown>): void {
-    let waitUntil: ((p: Promise<unknown>) => void) | undefined;
-    try {
-      const execCtx = this.getContext().executionCtx;
-      if (execCtx && typeof (execCtx as { waitUntil?: unknown }).waitUntil === 'function') {
-        waitUntil = (execCtx as { waitUntil: (p: Promise<unknown>) => void }).waitUntil.bind(
-          execCtx,
-        );
-      }
-    } catch {
-      // executionCtx getter throws when not in a Workers/edge runtime
-    }
+    const waitUntil = getWaitUntil(this.getContext());
     if (waitUntil) {
       waitUntil(promise);
     } else {

@@ -112,66 +112,87 @@ export function coerceValue(value: unknown): unknown {
 }
 
 /**
- * Converts filter conditions to Prisma where clause.
+ * Converts a single filter condition to its Prisma where value (the right-hand
+ * side keyed by `filter.field`). Exhaustive over `FilterOperator` so a new
+ * operator must be handled here; the `assertNever` default is unreachable at
+ * runtime because operators are validated upstream (`parseFilterValue` /
+ * allow-listed query parsing) before reaching an adapter.
+ */
+function filterToPrismaValue(filter: FilterCondition): unknown {
+  const value = coerceValue(filter.value);
+
+  switch (filter.operator) {
+    case 'eq':
+      return value;
+    case 'ne':
+      return { not: value };
+    case 'gt':
+      return { gt: value };
+    case 'gte':
+      return { gte: value };
+    case 'lt':
+      return { lt: value };
+    case 'lte':
+      return { lte: value };
+    case 'in': {
+      const arr = Array.isArray(filter.value) ? filter.value : [filter.value];
+      return { in: arr.map(coerceValue) };
+    }
+    case 'nin': {
+      const arr = Array.isArray(filter.value) ? filter.value : [filter.value];
+      return { notIn: arr.map(coerceValue) };
+    }
+    case 'like':
+      return { contains: String(filter.value).replace(/%/g, '') };
+    case 'ilike':
+      return {
+        contains: String(filter.value).replace(/%/g, ''),
+        mode: 'insensitive',
+      };
+    case 'null':
+      return filter.value ? null : { not: null };
+    case 'between': {
+      const [min, max] = filter.value as [unknown, unknown];
+      return { gte: coerceValue(min), lte: coerceValue(max) };
+    }
+    default:
+      return assertNever(filter.operator);
+  }
+}
+
+/**
+ * Converts filter conditions to a Prisma where clause.
+ *
+ * Multiple conditions on the SAME field (e.g. `views[gte]` + `views[lte]`, which
+ * `parseListFilters` emits as two separate `FilterCondition`s) must be ANDed,
+ * not overwritten. A field with a single condition is keyed directly; a field
+ * with two or more conditions emits each into a top-level `AND: [...]` array
+ * (Prisma combines top-level `AND` entries conjunctively) so none is lost.
  */
 export function buildPrismaWhere(filters: FilterCondition[]): Record<string, unknown> {
-  const where: Record<string, unknown> = {};
-
+  // Preserve input order while grouping every condition by its field.
+  const byField = new Map<string, unknown[]>();
   for (const filter of filters) {
-    const value = coerceValue(filter.value);
+    const conditions = byField.get(filter.field) ?? [];
+    conditions.push(filterToPrismaValue(filter));
+    byField.set(filter.field, conditions);
+  }
 
-    switch (filter.operator) {
-      case 'eq':
-        where[filter.field] = value;
-        break;
-      case 'ne':
-        where[filter.field] = { not: value };
-        break;
-      case 'gt':
-        where[filter.field] = { gt: value };
-        break;
-      case 'gte':
-        where[filter.field] = { gte: value };
-        break;
-      case 'lt':
-        where[filter.field] = { lt: value };
-        break;
-      case 'lte':
-        where[filter.field] = { lte: value };
-        break;
-      case 'in': {
-        const arr = Array.isArray(filter.value) ? filter.value : [filter.value];
-        where[filter.field] = { in: arr.map(coerceValue) };
-        break;
+  const where: Record<string, unknown> = {};
+  const and: Record<string, unknown>[] = [];
+
+  for (const [field, conditions] of byField) {
+    if (conditions.length === 1) {
+      where[field] = conditions[0];
+    } else {
+      for (const condition of conditions) {
+        and.push({ [field]: condition });
       }
-      case 'nin': {
-        const arr = Array.isArray(filter.value) ? filter.value : [filter.value];
-        where[filter.field] = { notIn: arr.map(coerceValue) };
-        break;
-      }
-      case 'like':
-        where[filter.field] = { contains: String(filter.value).replace(/%/g, '') };
-        break;
-      case 'ilike':
-        where[filter.field] = {
-          contains: String(filter.value).replace(/%/g, ''),
-          mode: 'insensitive',
-        };
-        break;
-      case 'null':
-        where[filter.field] = filter.value ? null : { not: null };
-        break;
-      case 'between': {
-        const [min, max] = filter.value as [unknown, unknown];
-        where[filter.field] = { gte: coerceValue(min), lte: coerceValue(max) };
-        break;
-      }
-      default:
-        // Exhaustive over FilterOperator: a new operator must be handled here.
-        // Unreachable at runtime — operators are validated upstream
-        // (`parseFilterValue` / allow-listed query parsing) before reaching an adapter.
-        assertNever(filter.operator);
     }
+  }
+
+  if (and.length > 0) {
+    where.AND = and;
   }
 
   return where;
