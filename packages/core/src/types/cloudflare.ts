@@ -31,6 +31,31 @@ import type { KVNamespace } from '../shared/cloudflare-kv-types';
 export type { KVNamespace };
 
 /**
+ * Extracts the bound `executionCtx.waitUntil` from a Hono context, returning
+ * `undefined` (rather than throwing) when no execution context is available —
+ * e.g. outside a Workers/edge runtime, where Hono's `executionCtx` getter
+ * throws `This context has no ExecutionContext`.
+ *
+ * Re-exported from the shared `utils/wait-until` implementation, the single
+ * source of truth for this behaviour.
+ *
+ * @example
+ * ```ts
+ * import { getWaitUntil } from 'hono-crud/cloudflare';
+ * import { registerWebhooks } from 'hono-crud';
+ *
+ * app.use('*', async (c, next) => {
+ *   registerWebhooks({
+ *     endpoints: [{ url: 'https://hooks.example.com', events: ['create'] }],
+ *     waitUntil: getWaitUntil(c),
+ *   });
+ *   await next();
+ * });
+ * ```
+ */
+export { getWaitUntil } from '../utils/wait-until';
+
+/**
  * Type for the `waitUntil` function available on Workers execution context.
  * Extends the lifetime of the event past the response.
  */
@@ -54,30 +79,3 @@ export type WaitUntilFn = (promise: Promise<unknown>) => void;
 export type CloudflareEnv<B extends Record<string, unknown> = Record<string, unknown>> = {
   Bindings: B;
 };
-
-/**
- * Extracts the `waitUntil` function from a Hono context's execution context.
- * Bind it to `executionCtx` so it can be passed as a standalone function.
- *
- * @param ctx - The Hono context (must have `executionCtx.waitUntil`)
- * @returns Bound `waitUntil` function
- *
- * @example
- * ```ts
- * import { getWaitUntil } from 'hono-crud/cloudflare';
- * import { registerWebhooks } from 'hono-crud';
- *
- * app.use('*', async (c, next) => {
- *   registerWebhooks({
- *     endpoints: [{ url: 'https://hooks.example.com', events: ['create'] }],
- *     waitUntil: getWaitUntil(c),
- *   });
- *   await next();
- * });
- * ```
- */
-export function getWaitUntil(ctx: {
-  executionCtx: { waitUntil: WaitUntilFn };
-}): WaitUntilFn {
-  return ctx.executionCtx.waitUntil.bind(ctx.executionCtx);
-}

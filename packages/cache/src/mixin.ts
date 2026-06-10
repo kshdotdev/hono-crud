@@ -1,5 +1,10 @@
 import type { Context, Env } from 'hono';
-import type { Constructor, MetaInput, OpenAPIRoute } from 'hono-crud/internal';
+import type {
+  Constructor,
+  MetaInput,
+  OpenAPIRoute,
+  ResponseEnvelopeInfo,
+} from 'hono-crud/internal';
 import { ConfigurationException, createRegistryWithDefault, getLogger } from 'hono-crud/internal';
 import {
   createInvalidationPattern,
@@ -98,7 +103,19 @@ export interface CacheEndpointMethods {
   invalidateCache(options?: { pattern?: string; tags?: string[] }): Promise<void>;
   getCacheStatus(): 'HIT' | 'MISS';
   successWithCache<T>(result: T, status?: number): Response;
-  jsonWithCache<T>(data: T, status?: number): Response;
+  successPaginatedWithCache<T>(result: T, info: ResponseEnvelopeInfo, status?: number): Response;
+}
+
+/**
+ * Subset of the base `OpenAPIRoute` body formatters the cache mixin delegates
+ * to. These are `protected` on the base and invisible to the mixin through
+ * the generic constructor (TS#17744), so we reach them via this cast. They
+ * are the single source of truth for the response envelope — the mixin only
+ * layers the `X-Cache` header on top.
+ */
+interface EnvelopeFormatters {
+  success(result: unknown, status?: number): Response;
+  successPaginated(result: unknown, info: ResponseEnvelopeInfo, status?: number): Response;
 }
 
 /**
@@ -245,29 +262,38 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
     }
 
     /**
-     * Create a response with cache header included.
+     * Create a single-item success response with the `X-Cache` header.
+     *
+     * Body formatting is delegated to the inherited `success()` so the
+     * configured `ResponseEnvelope` is the single source of truth — the cache
+     * HIT path and the MISS path (which also calls `success()` upstream) emit
+     * byte-identical bodies. We only attach `X-Cache` on top.
      */
     protected successWithCache<T>(result: T, status = 200): Response {
-      return new Response(JSON.stringify({ success: true, result }), {
-        status,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Cache': this.getCacheStatus(),
-        },
-      });
+      const response = (this as unknown as EnvelopeFormatters).success(result, status);
+      response.headers.set('X-Cache', this.getCacheStatus());
+      return response;
     }
 
     /**
-     * Create a JSON response with cache header included.
+     * Create a paginated/list success response with the `X-Cache` header.
+     *
+     * Delegates body formatting to the inherited `successPaginated()` so the
+     * pagination metadata is threaded through the configured
+     * `ResponseEnvelope` exactly as on a cache miss.
      */
-    protected jsonWithCache<T>(data: T, status = 200): Response {
-      return new Response(JSON.stringify(data), {
+    protected successPaginatedWithCache<T>(
+      result: T,
+      info: ResponseEnvelopeInfo,
+      status = 200,
+    ): Response {
+      const response = (this as unknown as EnvelopeFormatters).successPaginated(
+        result,
+        info,
         status,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Cache': this.getCacheStatus(),
-        },
-      });
+      );
+      response.headers.set('X-Cache', this.getCacheStatus());
+      return response;
     }
 
     /**

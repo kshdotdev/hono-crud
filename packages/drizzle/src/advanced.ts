@@ -10,13 +10,13 @@ import {
   VersionRollbackEndpoint,
 } from 'hono-crud/internal';
 import { AggregateEndpoint, computeAggregations } from 'hono-crud/internal';
+import { isFilterOperator } from 'hono-crud/internal';
 import { SearchEndpoint, searchInMemory } from 'hono-crud/internal';
 import { ExportEndpoint } from 'hono-crud/internal';
 import { ImportEndpoint } from 'hono-crud/internal';
 import type {
   AggregateOptions,
   AggregateResult,
-  FilterCondition,
   IncludeOptions,
   ListFilters,
   MetaInput,
@@ -604,11 +604,19 @@ export abstract class DrizzleAggregateEndpoint<
     if (options.filters) {
       for (const [field, value] of Object.entries(options.filters)) {
         if (typeof value === 'object' && value !== null) {
-          // Operator syntax
+          // Operator syntax. `op` may be untrusted (it reaches the aggregate
+          // path unvalidated, unlike the list path), so it MUST be validated
+          // before constructing a FilterCondition — `buildWhereCondition`'s
+          // `assertNever` would otherwise throw at runtime. An unrecognized
+          // operator fails closed: a never-true condition that matches nothing.
           for (const [op, opValue] of Object.entries(value as Record<string, unknown>)) {
+            if (!isFilterOperator(op)) {
+              conditions.push(sql`1 = 0`);
+              continue;
+            }
             const condition = buildWhereCondition(table, {
               field,
-              operator: op as FilterCondition['operator'],
+              operator: op,
               value: opValue,
             });
             if (condition) {

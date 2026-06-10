@@ -13,12 +13,22 @@ import {
   PrismaSearchEndpoint,
   PrismaUpdateEndpoint,
   PrismaUpsertEndpoint,
+  PrismaVersionRollbackEndpoint,
   clearPrismaModelMappings,
   registerPrismaModelMapping,
   registerPrismaModelMappings,
 } from '@hono-crud/prisma';
 import { Hono } from 'hono';
-import { defineModel, fromHono, registerCrud } from 'hono-crud';
+import {
+  type AggregateOptions,
+  MemoryVersioningStorage,
+  createVersionManager,
+  defineModel,
+  fromHono,
+  getVersioningConfig,
+  registerCrud,
+  setVersioningStorage,
+} from 'hono-crud';
 /**
  * Tests for Prisma ORM adapter.
  * Uses a mock Prisma client for testing without requiring a real database.
@@ -57,9 +67,43 @@ function clearMockStorage() {
   postStorage = [];
 }
 
+// Predicate per Prisma field-operator: returns true when the condition HOLDS for
+// `fieldVal`. `mode` is a modifier on `contains` (already case-folded) so it is a
+// no-op. Any operator key NOT in this map is unknown — the adapter must never
+// emit one — and is treated as a non-match so a leak is observable.
+const FIELD_OP_PREDICATES: Record<string, (fieldVal: unknown, opVal: unknown) => boolean> = {
+  not: (fieldVal, opVal) =>
+    opVal === null ? fieldVal !== null && fieldVal !== undefined : fieldVal !== opVal,
+  in: (fieldVal, opVal) => (opVal as unknown[]).includes(fieldVal),
+  notIn: (fieldVal, opVal) => !(opVal as unknown[]).includes(fieldVal),
+  gt: (fieldVal, opVal) => (fieldVal as number) > (opVal as number),
+  gte: (fieldVal, opVal) => (fieldVal as number) >= (opVal as number),
+  lt: (fieldVal, opVal) => (fieldVal as number) < (opVal as number),
+  lte: (fieldVal, opVal) => (fieldVal as number) <= (opVal as number),
+  equals: (fieldVal, opVal) => fieldVal === opVal,
+  contains: (fieldVal, opVal) =>
+    String(fieldVal ?? '')
+      .toLowerCase()
+      .includes(String(opVal).toLowerCase()),
+  mode: () => true,
+};
+
+// Evaluate a single Prisma field-condition object (e.g. { gte: 100, lte: 200 })
+// against a record value. Models real Prisma semantics where every operator key
+// present must hold (an empty object matches everything).
+function matchesFieldCondition(fieldVal: unknown, cond: Record<string, unknown>): boolean {
+  return Object.entries(cond).every(([op, opVal]) => {
+    const predicate = FIELD_OP_PREDICATES[op];
+    return predicate ? predicate(fieldVal, opVal) : false;
+  });
+}
+
 function matchesWhere(record: MockRecord, where: Record<string, unknown>): boolean {
   for (const [key, value] of Object.entries(where)) {
-    if (key === 'OR') {
+    if (key === 'AND') {
+      const andConditions = value as Record<string, unknown>[];
+      if (!andConditions.every((cond) => matchesWhere(record, cond))) return false;
+    } else if (key === 'OR') {
       const orConditions = value as Record<string, unknown>[];
       const matches = orConditions.some((cond) => {
         for (const [ck, cv] of Object.entries(cond)) {
@@ -75,27 +119,8 @@ function matchesWhere(record: MockRecord, where: Record<string, unknown>): boole
     } else if (value === null) {
       // value === null means we want records where field IS NULL
       if (record[key] !== null && record[key] !== undefined) return false;
-    } else if (typeof value === 'object' && value !== null && 'not' in value) {
-      if ((value as { not: unknown }).not === null) {
-        // { not: null } means we want records where field IS NOT NULL
-        if (record[key] === null || record[key] === undefined) return false;
-      } else {
-        if (record[key] === (value as { not: unknown }).not) return false;
-      }
-    } else if (typeof value === 'object' && value !== null && 'in' in value) {
-      if (!(value as { in: unknown[] }).in.includes(record[key])) return false;
-    } else if (typeof value === 'object' && value !== null && 'gt' in value) {
-      if ((record[key] as number) <= (value as { gt: number }).gt) return false;
-    } else if (typeof value === 'object' && value !== null && 'gte' in value) {
-      if ((record[key] as number) < (value as { gte: number }).gte) return false;
-    } else if (typeof value === 'object' && value !== null && 'lt' in value) {
-      if ((record[key] as number) >= (value as { lt: number }).lt) return false;
-    } else if (typeof value === 'object' && value !== null && 'lte' in value) {
-      if ((record[key] as number) > (value as { lte: number }).lte) return false;
-    } else if (typeof value === 'object' && value !== null && 'contains' in value) {
-      const searchVal = (value as { contains: string; mode?: string }).contains.toLowerCase();
-      const fieldVal = String(record[key] || '').toLowerCase();
-      if (!fieldVal.includes(searchVal)) return false;
+    } else if (typeof value === 'object' && value !== null) {
+      if (!matchesFieldCondition(record[key], value as Record<string, unknown>)) return false;
     } else if (record[key] !== value) {
       return false;
     }
@@ -328,6 +353,13 @@ const PostModel = defineModel({
   },
 });
 
+const VersionedUserModel = defineModel({
+  tableName: 'users',
+  schema: UserSchema.extend({ version: z.number().default(1) }),
+  primaryKeys: ['id'],
+  versioning: { enabled: true, field: 'version' },
+});
+
 // ============================================================================
 // Endpoint Classes
 // ============================================================================
@@ -429,6 +461,13 @@ class UserClone extends PrismaCloneEndpoint {
   }
 }
 
+class UserVersionRollback extends PrismaVersionRollbackEndpoint {
+  _meta = { model: VersionedUserModel };
+  get prisma() {
+    return mockPrisma;
+  }
+}
+
 class PostCreate extends PrismaCreateEndpoint {
   _meta = { model: PostModel };
   get prisma() {
@@ -444,6 +483,17 @@ class PostList extends PrismaListEndpoint {
   orderByFields = ['title', 'views'];
 }
 
+// Allows range filters on `views` so two operators land on the SAME field,
+// exercising the per-field merge in buildPrismaWhere.
+class PostListRanged extends PrismaListEndpoint {
+  _meta = { model: PostModel };
+  get prisma() {
+    return mockPrisma;
+  }
+  orderByFields = ['title', 'views'];
+  filterConfig = { views: ['gte' as const, 'lte' as const] };
+}
+
 class PostAggregate extends PrismaAggregateEndpoint {
   _meta = { model: PostModel };
   get prisma() {
@@ -457,6 +507,33 @@ class PostAggregate extends PrismaAggregateEndpoint {
     countDistinctFields: ['authorId'],
     groupByFields: ['authorId'],
   };
+}
+
+// Operator-syntax aggregate filters ({ field: { op: value } }) cannot be
+// produced from a flat query string, so this endpoint injects them directly to
+// exercise the aggregate filter -> Prisma where conversion path.
+let injectedAggregateFilters: AggregateOptions['filters'];
+
+class PostAggregateFiltered extends PrismaAggregateEndpoint {
+  _meta = { model: PostModel };
+  get prisma() {
+    return mockPrisma;
+  }
+
+  // The mock Prisma model has no `aggregate`/`groupBy` methods, so native
+  // aggregation throws and the endpoint falls back to findMany({ where }) +
+  // in-memory computation — which means the built where clause is actually
+  // evaluated by the mock's matchesWhere.
+  aggregateConfig = {
+    sumFields: ['views'],
+    avgFields: ['views'],
+    minMaxFields: ['views'],
+  };
+
+  protected async getAggregateOptions(): Promise<AggregateOptions> {
+    const base = await super.getAggregateOptions();
+    return { ...base, filters: injectedAggregateFilters };
+  }
 }
 
 // ============================================================================
@@ -512,11 +589,14 @@ function createApp() {
   app.delete('/users/:id', withContext(UserDelete));
   app.post('/users/:id/restore', withContext(UserRestore));
   app.post('/users/:id/clone', withContext(UserClone));
+  app.post('/users/:id/versions/:version/rollback', withContext(UserVersionRollback));
 
   // Post endpoints
   app.get('/posts/aggregate', withContext(PostAggregate));
+  app.get('/posts/aggregate-filtered', withContext(PostAggregateFiltered));
   app.post('/posts', withContext(PostCreate));
   app.get('/posts', withContext(PostList));
+  app.get('/posts-ranged', withContext(PostListRanged));
 
   return app;
 }
@@ -1041,6 +1121,63 @@ describe('Prisma Adapter', () => {
     });
   });
 
+  describe('Aggregate operator-syntax filters', () => {
+    beforeEach(() => {
+      postStorage.push(
+        { id: crypto.randomUUID(), title: 'Post 1', authorId: 'a1', views: 100 },
+        { id: crypto.randomUUID(), title: 'Post 2', authorId: 'a1', views: 200 },
+        { id: crypto.randomUUID(), title: 'Post 3', authorId: 'a1', views: 50 },
+      );
+    });
+
+    it('honors the documented between operator (mishandled by the old switch)', async () => {
+      injectedAggregateFilters = { views: { between: [75, 150] } };
+      const response = await app.request('/posts/aggregate-filtered?count=*');
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as { result: { values: { count: number } } };
+      // Only the views=100 post is in [75, 150].
+      expect(result.result.values.count).toBe(1);
+    });
+
+    it('ANDs multiple operators on the same field instead of overwriting', async () => {
+      injectedAggregateFilters = { views: { gte: 100, lte: 200 } };
+      const response = await app.request('/posts/aggregate-filtered?count=*');
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as { result: { values: { count: number } } };
+      // Posts with 100 <= views <= 200: the 100 and 200 posts (the 50 is excluded).
+      // A regression that drops the gte would also count the 50 post (=3).
+      expect(result.result.values.count).toBe(2);
+    });
+
+    it('matches nothing for an unknown/untrusted operator instead of forwarding it', async () => {
+      // `contains` is a real Prisma operator that must NOT be reachable via an
+      // untrusted aggregate filter. The old default-case forwarded it verbatim.
+      injectedAggregateFilters = { views: { contains: '0' } as Record<string, unknown> };
+      const response = await app.request('/posts/aggregate-filtered?count=*');
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as { result: { values: { count: number } } };
+      expect(result.result.values.count).toBe(0);
+    });
+
+    it('list path: two range operators on one field ANDs (no per-field overwrite)', async () => {
+      // ?views[gte]=100&views[lte]=200 produces two FilterConditions on `views`.
+      // buildPrismaWhere must merge them (AND) rather than letting the second
+      // overwrite the first — otherwise the gte is lost and the 50 post leaks in.
+      const response = await app.request('/posts-ranged?views[gte]=100&views[lte]=200');
+
+      expect(response.status).toBe(200);
+      const result = (await response.json()) as {
+        result: Array<{ views: number }>;
+        result_info: { total_count: number };
+      };
+      const views = result.result.map((p) => p.views).sort((a, b) => a - b);
+      expect(views).toEqual([100, 200]);
+    });
+  });
+
   describe('Clone', () => {
     it('clones a record with a fresh primary key, copying source data', async () => {
       const sourceId = crypto.randomUUID();
@@ -1124,6 +1261,39 @@ describe('Prisma Adapter', () => {
       });
 
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe('Version Rollback', () => {
+    beforeEach(() => {
+      setVersioningStorage(new MemoryVersioningStorage());
+    });
+
+    it('returns 404 NOT_FOUND when rolling back a record that no longer exists', async () => {
+      const userId = crypto.randomUUID();
+
+      // Seed a version so the base handler passes its version-existence check,
+      // but leave the table empty so the adapter's rollback finds no record.
+      const manager = createVersionManager(
+        getVersioningConfig(VersionedUserModel.versioning, VersionedUserModel.tableName),
+        VersionedUserModel.tableName,
+      );
+      await manager.saveVersion(userId, {
+        id: userId,
+        name: 'Gone',
+        email: 'gone@example.com',
+        role: 'user',
+        version: 1,
+      });
+
+      const response = await app.request(`/users/${userId}/versions/1/rollback`, {
+        method: 'POST',
+      });
+
+      expect(response.status).toBe(404);
+      const result = (await response.json()) as { success: boolean; error: { code: string } };
+      expect(result.success).toBe(false);
+      expect(result.error.code).toBe('NOT_FOUND');
     });
   });
 });

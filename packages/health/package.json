@@ -30,7 +30,7 @@
   },
   "keywords": ["hono", "crud", "health", "healthcheck"],
   "sideEffects": false,
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
   "engines": {
     "node": ">=20.19.0"
   },

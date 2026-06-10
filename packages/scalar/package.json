@@ -28,19 +28,9 @@
     "clean": "rm -rf dist .tsup",
     "lint": "biome check src/"
   },
-  "keywords": [
-    "hono",
-    "crud",
-    "scalar",
-    "openapi",
-    "docs"
-  ],
+  "keywords": ["hono", "crud", "scalar", "openapi", "docs"],
   "sideEffects": false,
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
   "engines": {
     "node": ">=20.19.0"
   },

@@ -85,8 +85,8 @@ class CategoryList extends PrismaListEndpoint {
 
   schema = { tags: ['Categories'], summary: 'List categories' };
   searchFields = ['name'];
-  orderByFields = ['name', 'sortOrder'];
-  defaultOrderBy = 'sortOrder';
+  sortFields = ['name', 'sortOrder'];
+  defaultSort = { field: 'sortOrder', order: 'asc' as const };
 }
 
 // ============================================================================

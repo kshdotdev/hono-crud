@@ -22,7 +22,7 @@ import {
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import { fromHono, registerCrud } from 'hono-crud';
-import type { MetaInput, Model } from 'hono-crud';
+import type { MetaInput, Model, ResponseEnvelope } from 'hono-crud';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
@@ -548,11 +548,7 @@ describe('withCache Mixin', () => {
     async handle(): Promise<Response> {
       const cached = await this.getCachedResponse<UserItem[]>();
       if (cached) {
-        return this.jsonWithCache({
-          success: true,
-          result: cached,
-          result_info: { page: 1, per_page: 20 },
-        });
+        return this.successPaginatedWithCache(cached, { page: 1, per_page: 20 });
       }
 
       const response = await super.handle();
@@ -562,7 +558,7 @@ describe('withCache Mixin', () => {
         await this.setCachedResponse(data.result);
 
         // Return with cache header
-        return this.jsonWithCache(data);
+        return this.successPaginatedWithCache(data.result, data.result_info);
       }
 
       return response;
@@ -743,11 +739,7 @@ describe('withCacheInvalidation Mixin', () => {
     async handle(): Promise<Response> {
       const cached = await this.getCachedResponse<UserItem[]>();
       if (cached) {
-        return this.jsonWithCache({
-          success: true,
-          result: cached,
-          result_info: { page: 1, per_page: 20 },
-        });
+        return this.successPaginatedWithCache(cached, { page: 1, per_page: 20 });
       }
 
       const response = await super.handle();
@@ -756,7 +748,7 @@ describe('withCacheInvalidation Mixin', () => {
         const data = await response.clone().json();
         await this.setCachedResponse(data.result);
 
-        return this.jsonWithCache(data);
+        return this.successPaginatedWithCache(data.result, data.result_info);
       }
 
       return response;
@@ -937,5 +929,155 @@ describe('Global Cache Storage', () => {
 
     // Reset to default
     setCacheStorage(new MemoryCacheStorage());
+  });
+});
+
+// ============================================================================
+// Cache + responseEnvelope: HIT and MISS must share the configured shape
+// ============================================================================
+
+describe('withCache + responseEnvelope', () => {
+  // RFC-7807-ish envelope, observably different from the legacy
+  // `{ success, result }` shape so any leak of the default body is caught.
+  const dataEnvelope: ResponseEnvelope = {
+    success: (result, info) => (info ? { data: result, meta: info } : { data: result }),
+    error: (err) => ({ error: err }),
+  };
+
+  // Read endpoint: BOTH MISS and HIT route their body through the cache
+  // helper. The helper must apply the configured envelope so the two share
+  // one shape. `setCachedResponse` stores the raw row, not a serialised body.
+  class CachedUserRead extends withCache(MemoryReadEndpoint) {
+    _meta = userMeta;
+    cacheConfig = { ttl: 300 };
+
+    async handle(): Promise<Response> {
+      const cached = await this.getCachedResponse<UserItem>();
+      if (cached) {
+        return this.successWithCache(cached);
+      }
+
+      const response = await super.handle();
+      if (response.status === 200) {
+        // Read the raw row from inside the envelope-applied body, store the
+        // raw row, then re-emit via the cache helper.
+        const data = (await response.clone().json()) as { data: UserItem };
+        await this.setCachedResponse(data.data);
+        return this.successWithCache(data.data);
+      }
+      return response;
+    }
+  }
+
+  // List endpoint: BOTH MISS and HIT route through successPaginatedWithCache
+  // so the configured envelope (with pagination `info`) is applied uniformly.
+  class CachedUserList extends withCache(MemoryListEndpoint) {
+    _meta = userMeta;
+    cacheConfig = { ttl: 300, keyFields: ['page', 'per_page'] };
+
+    async handle(): Promise<Response> {
+      const cached = await this.getCachedResponse<UserItem[]>();
+      if (cached) {
+        return this.successPaginatedWithCache(cached, { page: 1, per_page: 20 });
+      }
+
+      const response = await super.handle();
+      if (response.status === 200) {
+        const data = (await response.clone().json()) as {
+          data: UserItem[];
+          meta: { page: number; per_page: number };
+        };
+        await this.setCachedResponse(data.data);
+        return this.successPaginatedWithCache(data.data, data.meta);
+      }
+      return response;
+    }
+  }
+
+  class UserCreate extends MemoryCreateEndpoint<any, UserMeta> {
+    _meta = userMeta;
+  }
+
+  let app: ReturnType<typeof fromHono>;
+  let cacheStorage: MemoryCacheStorage;
+
+  beforeEach(() => {
+    clearStorage();
+    cacheStorage = new MemoryCacheStorage();
+    setCacheStorage(cacheStorage);
+
+    app = fromHono(new Hono());
+    registerCrud(
+      app,
+      '/users',
+      {
+        create: UserCreate as any,
+        list: CachedUserList as any,
+        read: CachedUserRead as any,
+      },
+      { responseEnvelope: dataEnvelope },
+    );
+  });
+
+  afterEach(() => {
+    cacheStorage.clear();
+  });
+
+  it('read: MISS and HIT bodies share the configured envelope shape', async () => {
+    const createRes = await app.request('/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'John', email: 'john@example.com' }),
+    });
+    const { data: user } = await createRes.json();
+
+    const missRes = await app.request(`/users/${user.id}`);
+    expect(missRes.headers.get('X-Cache')).toBe('MISS');
+    const missBody = await missRes.json();
+
+    const hitRes = await app.request(`/users/${user.id}`);
+    expect(hitRes.headers.get('X-Cache')).toBe('HIT');
+    const hitBody = await hitRes.json();
+
+    // The envelope shape is honoured on MISS...
+    expect(missBody).toEqual({
+      data: { id: user.id, name: 'John', email: 'john@example.com', status: 'active' },
+    });
+    // ...and the HIT must match it byte-for-byte (no default-shape leak).
+    expect(hitBody).toEqual(missBody);
+    expect(hitBody.success).toBeUndefined();
+    expect(hitBody.result).toBeUndefined();
+  });
+
+  it('list: MISS and HIT bodies share the configured envelope shape', async () => {
+    await app.request('/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'John', email: 'john@example.com' }),
+    });
+
+    const missRes = await app.request('/users');
+    expect(missRes.headers.get('X-Cache')).toBe('MISS');
+    const missBody = await missRes.json();
+
+    const hitRes = await app.request('/users');
+    expect(hitRes.headers.get('X-Cache')).toBe('HIT');
+    const hitBody = await hitRes.json();
+
+    // MISS honours the envelope: `{ data: [...], meta: {...} }`, no legacy keys.
+    expect(Array.isArray(missBody.data)).toBe(true);
+    expect(missBody.data.length).toBe(1);
+    expect(missBody.meta).toBeDefined();
+    expect(missBody.success).toBeUndefined();
+    expect(missBody.result).toBeUndefined();
+    expect(missBody.result_info).toBeUndefined();
+
+    // HIT must carry the same envelope-shaped body (no default-shape leak).
+    expect(Array.isArray(hitBody.data)).toBe(true);
+    expect(hitBody.data).toEqual(missBody.data);
+    expect(hitBody.meta).toBeDefined();
+    expect(hitBody.success).toBeUndefined();
+    expect(hitBody.result).toBeUndefined();
+    expect(hitBody.result_info).toBeUndefined();
   });
 });

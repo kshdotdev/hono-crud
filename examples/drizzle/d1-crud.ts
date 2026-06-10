@@ -154,9 +154,8 @@ class TaskList extends TaskCrud.List {
   };
 
   searchFields = ['title', 'description'];
-  orderByFields = ['createdAt', 'priority', 'title'];
-  defaultOrderBy = 'createdAt';
-  defaultOrderDirection: 'asc' | 'desc' = 'desc';
+  sortFields = ['createdAt', 'priority', 'title'];
+  defaultSort = { field: 'createdAt', order: 'desc' as const };
 
   defaultPerPage = 20;
   maxPerPage = 100;

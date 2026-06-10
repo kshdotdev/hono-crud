@@ -85,7 +85,7 @@ Supports multiple filter operators:
   };
 
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'age', 'createdAt'];
+  sortFields = ['name', 'age', 'createdAt'];
 }
 
 // ============================================================================
@@ -123,9 +123,8 @@ class CategoryList extends PrismaListEndpoint {
     description: ['null'] as const,
   };
 
-  orderByFields = ['name', 'sortOrder'];
-  defaultOrderBy = 'sortOrder';
-  defaultOrderDirection: 'asc' | 'desc' = 'asc';
+  sortFields = ['name', 'sortOrder'];
+  defaultSort = { field: 'sortOrder', order: 'asc' as const };
 }
 
 // ============================================================================

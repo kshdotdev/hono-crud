@@ -87,8 +87,8 @@ class ClassUserList extends MemoryListEndpoint {
   schema = { tags: ['Users (Class-based)'], summary: 'List users (class)' };
   filterFields = ['role', 'status'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'createdAt'];
-  defaultOrderDirection: 'asc' | 'desc' = 'desc';
+  sortFields = ['name', 'createdAt'];
+  defaultSort = { field: 'createdAt', order: 'desc' as const };
 }
 
 class ClassUserRead extends MemoryReadEndpoint {
@@ -130,8 +130,8 @@ const FnUserList = createList(
     schema: { tags: ['Users (Function-based)'], summary: 'List users (function)' },
     filterFields: ['role', 'status'],
     searchFields: ['name', 'email'],
-    orderByFields: ['name', 'createdAt'],
-    defaultOrderDirection: 'desc',
+    sortFields: ['name', 'createdAt'],
+    defaultSort: { field: 'createdAt', order: 'desc' },
   },
   MemoryListEndpoint,
 );
@@ -226,7 +226,7 @@ const configEndpoints = defineEndpoints(
       sorting: {
         fields: ['name', 'createdAt'],
         default: 'createdAt',
-        defaultDirection: 'desc',
+        defaultOrder: 'desc',
       },
       pagination: { defaultPerPage: 20, maxPerPage: 100 },
     },
