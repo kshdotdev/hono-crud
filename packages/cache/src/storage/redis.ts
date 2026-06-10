@@ -1,4 +1,5 @@
 import { getLogger } from 'hono-crud/internal';
+import { buildCacheEntry, isCacheEntryExpired, normalizeStoredEntry } from '../entry';
 import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 
 /**
@@ -129,22 +130,10 @@ export class RedisCacheStorage implements CacheStorage {
     }
 
     try {
-      const entry = JSON.parse(value) as CacheEntry<T>;
-
-      // Migration guard: convert legacy Date strings to epoch ms
-      const legacyCreatedAt = entry.createdAt as unknown;
-      if (typeof legacyCreatedAt === 'string') {
-        const parsed = Date.parse(legacyCreatedAt);
-        entry.createdAt = Number.isNaN(parsed) ? Date.now() : parsed;
-      }
-      const legacyExpiresAt = entry.expiresAt as unknown;
-      if (typeof legacyExpiresAt === 'string') {
-        const parsed = Date.parse(legacyExpiresAt);
-        entry.expiresAt = Number.isNaN(parsed) ? null : parsed;
-      }
+      const entry = normalizeStoredEntry(JSON.parse(value) as CacheEntry<T>);
 
       // Redis handles TTL, but check just in case
-      if (entry.expiresAt && entry.expiresAt < Date.now()) {
+      if (isCacheEntryExpired(entry)) {
         this.stats.misses++;
         return null;
       }
@@ -166,12 +155,7 @@ export class RedisCacheStorage implements CacheStorage {
     const tags = options?.tags;
 
     const now = Date.now();
-    const entry: CacheEntry<T> = {
-      data,
-      createdAt: now,
-      expiresAt: ttlMs > 0 ? now + ttlMs : null,
-      tags,
-    };
+    const entry = buildCacheEntry(data, ttlMs, tags, now);
 
     const value = JSON.stringify(entry);
     // Redis expirations are in whole seconds; round up so a sub-second TTL

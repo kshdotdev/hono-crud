@@ -1,3 +1,5 @@
+import { MemoryTtlStore } from 'hono-crud/internal';
+import { buildCacheEntry, isCacheEntryExpired } from '../entry';
 import { matchesPattern } from '../key-generator';
 import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 
@@ -24,8 +26,8 @@ import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../t
  * ```
  */
 export class MemoryCacheStorage implements CacheStorage {
-  /** Main storage: key -> CacheEntry */
-  private storage = new Map<string, CacheEntry>();
+  /** Generic TTL Map store: key -> CacheEntry (composed). */
+  private store: MemoryTtlStore<CacheEntry>;
 
   /** Tag index: tag -> Set of keys */
   private tagIndex = new Map<string, Set<string>>();
@@ -46,6 +48,37 @@ export class MemoryCacheStorage implements CacheStorage {
   constructor(options?: { defaultTtlMs?: number; maxEntries?: number }) {
     this.defaultTtlMs = options?.defaultTtlMs ?? 300_000; // 5 minutes
     this.maxEntries = options?.maxEntries ?? 10_000;
+    this.store = new MemoryTtlStore<CacheEntry>({
+      isExpired: isCacheEntryExpired,
+      maxEntries: this.maxEntries,
+      onEvict: (key, entry) => this.removeFromTagIndex(key, entry),
+    });
+  }
+
+  /**
+   * Remove a key from every tag bucket it belongs to. Fired by the store's
+   * `onEvict` on eviction/expiry-on-read/delete/overwrite (old value).
+   */
+  private removeFromTagIndex(key: string, entry: CacheEntry): void {
+    if (entry.tags) {
+      for (const tag of entry.tags) {
+        this.tagIndex.get(tag)?.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Add a key to every tag bucket in `tags`.
+   */
+  private addToTagIndex(key: string, tags: string[] | undefined): void {
+    if (tags) {
+      for (const tag of tags) {
+        if (!this.tagIndex.has(tag)) {
+          this.tagIndex.set(tag, new Set());
+        }
+        this.tagIndex.get(tag)!.add(key);
+      }
+    }
   }
 
   /**
@@ -53,17 +86,11 @@ export class MemoryCacheStorage implements CacheStorage {
    * Returns null if not found or expired.
    */
   async get<T>(key: string): Promise<CacheEntry<T> | null> {
-    const entry = this.storage.get(key) as CacheEntry<T> | undefined;
+    const entry = this.store.get(key) as CacheEntry<T> | undefined;
+    // Re-sync: expiry-on-read may have evicted the entry.
+    this.stats.size = this.store.size;
 
     if (!entry) {
-      this.stats.misses++;
-      return null;
-    }
-
-    // Check expiration
-    if (entry.expiresAt && entry.expiresAt < Date.now()) {
-      // Entry has expired, delete it
-      await this.delete(key);
       this.stats.misses++;
       return null;
     }
@@ -79,65 +106,22 @@ export class MemoryCacheStorage implements CacheStorage {
     const ttlMs = options?.ttlMs ?? this.defaultTtlMs;
     const tags = options?.tags;
 
-    // Evict if at capacity
-    if (this.maxEntries > 0 && this.storage.size >= this.maxEntries && !this.storage.has(key)) {
-      this.evictOldest();
-    }
+    const entry = buildCacheEntry(data, ttlMs, tags);
 
-    const now = Date.now();
-    const entry: CacheEntry<T> = {
-      data,
-      createdAt: now,
-      expiresAt: ttlMs > 0 ? now + ttlMs : null,
-      tags,
-    };
-
-    // Remove old entry from tag index if exists
-    const oldEntry = this.storage.get(key);
-    if (oldEntry?.tags) {
-      for (const tag of oldEntry.tags) {
-        this.tagIndex.get(tag)?.delete(key);
-      }
-    }
-
-    // Delete and re-insert to move to newest position (Map insertion order)
-    if (oldEntry) {
-      this.storage.delete(key);
-    }
-    this.storage.set(key, entry);
-    this.stats.size = this.storage.size;
-
-    // Update tag index
-    if (tags) {
-      for (const tag of tags) {
-        if (!this.tagIndex.has(tag)) {
-          this.tagIndex.set(tag, new Set());
-        }
-        this.tagIndex.get(tag)!.add(key);
-      }
-    }
+    // Overwrite re-tags via `refreshLruOnOverwrite` (fires `onEvict` for the old
+    // value → removes stale tag entries) + moves the key to the newest position.
+    this.store.set(key, entry, /* refreshLruOnOverwrite */ true);
+    this.addToTagIndex(key, tags);
+    this.stats.size = this.store.size;
   }
 
   /**
    * Delete a cache entry by key.
    */
   async delete(key: string): Promise<boolean> {
-    const entry = this.storage.get(key);
-
-    if (!entry) {
-      return false;
-    }
-
-    // Remove from tag index
-    if (entry.tags) {
-      for (const tag of entry.tags) {
-        this.tagIndex.get(tag)?.delete(key);
-      }
-    }
-
-    this.storage.delete(key);
-    this.stats.size = this.storage.size;
-    return true;
+    const ok = this.store.delete(key);
+    this.stats.size = this.store.size;
+    return ok;
   }
 
   /**
@@ -147,7 +131,7 @@ export class MemoryCacheStorage implements CacheStorage {
     let count = 0;
     const keysToDelete: string[] = [];
 
-    for (const key of this.storage.keys()) {
+    for (const key of this.store.getKeys()) {
       if (matchesPattern(key, pattern)) {
         keysToDelete.push(key);
       }
@@ -183,7 +167,9 @@ export class MemoryCacheStorage implements CacheStorage {
       }
     }
 
-    // Clean up empty tag set
+    // Clean up empty tag set. `onEvict` → `removeFromTagIndex` only removes the
+    // key from the Set, so the now-empty tag bucket must be dropped explicitly
+    // to keep `getTags()` consistent.
     this.tagIndex.delete(tag);
 
     return count;
@@ -193,26 +179,17 @@ export class MemoryCacheStorage implements CacheStorage {
    * Check if a key exists in the cache (and is not expired).
    */
   async has(key: string): Promise<boolean> {
-    const entry = this.storage.get(key);
-
-    if (!entry) {
-      return false;
-    }
-
-    // Check expiration
-    if (entry.expiresAt && entry.expiresAt < Date.now()) {
-      await this.delete(key);
-      return false;
-    }
-
-    return true;
+    const ok = this.store.has(key);
+    // Re-sync: expiry-on-read may have evicted the entry.
+    this.stats.size = this.store.size;
+    return ok;
   }
 
   /**
    * Clear all cache entries.
    */
   async clear(): Promise<void> {
-    this.storage.clear();
+    this.store.clear();
     this.tagIndex.clear();
     this.stats.size = 0;
   }
@@ -236,7 +213,7 @@ export class MemoryCacheStorage implements CacheStorage {
    * Get all keys (for debugging).
    */
   getKeys(): string[] {
-    return Array.from(this.storage.keys());
+    return this.store.getKeys();
   }
 
   /**
@@ -247,35 +224,11 @@ export class MemoryCacheStorage implements CacheStorage {
   }
 
   /**
-   * Evict oldest entry when at capacity.
-   * Uses Map insertion order for O(1) lookup instead of scanning all entries.
-   */
-  private evictOldest(): void {
-    const oldestKey = this.storage.keys().next().value;
-    if (oldestKey !== undefined) {
-      this.delete(oldestKey).catch(() => {});
-    }
-  }
-
-  /**
    * Clean up expired entries (manual garbage collection).
    */
   async cleanup(): Promise<number> {
-    const now = Date.now();
-    let count = 0;
-    const keysToDelete: string[] = [];
-
-    for (const [key, entry] of this.storage.entries()) {
-      if (entry.expiresAt && entry.expiresAt < now) {
-        keysToDelete.push(key);
-      }
-    }
-
-    for (const key of keysToDelete) {
-      await this.delete(key);
-      count++;
-    }
-
-    return count;
+    const n = this.store.cleanup();
+    this.stats.size = this.store.size;
+    return n;
   }
 }

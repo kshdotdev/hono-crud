@@ -58,3 +58,25 @@ export type { PathPattern } from './utils/path-match';
 export { getClientIp } from './utils/request-info';
 export type { ClientIpOptions } from './utils/request-info';
 export { defaultExtractToken as extractBearerToken } from './auth/middleware/jwt';
+
+// Generic TTL Map store composed by the in-memory cache/rate-limit/idempotency backends.
+export { MemoryTtlStore } from './storage/memory-ttl-store';
+export type { MemoryTtlStoreOptions } from './storage/memory-ttl-store';
+
+// Relation batch/single-item orchestrator consumed by the drizzle/prisma/memory adapters.
+export {
+  batchLoadRelations,
+  loadRelationsForItem,
+  loadRelationsForItemSync,
+  resolveRelationValueAsync,
+  resolveRelationValueSync,
+} from './relations/batch-loader';
+export type {
+  RelatedRecord,
+  ResolveRelation,
+  FetchRelated,
+  RelationLoaderAdapter,
+  SyncResolveRelation,
+  SyncFetchRelated,
+  SyncRelationLoaderAdapter,
+} from './relations/batch-loader';

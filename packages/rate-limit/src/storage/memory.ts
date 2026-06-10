@@ -1,3 +1,4 @@
+import { MemoryTtlStore } from 'hono-crud/internal';
 import type {
   FixedWindowEntry,
   RateLimitEntry,
@@ -17,6 +18,16 @@ export interface MemoryRateLimitStorageOptions {
    * @default 60000 (1 minute)
    */
   cleanupInterval?: number;
+}
+
+/**
+ * Wrapper folding the entry together with its expiration timestamp so a single
+ * {@link MemoryTtlStore} owns both (replacing the old separate `expirations` Map).
+ */
+interface RateLimitWrapper {
+  entry: RateLimitEntry;
+  /** Expiration timestamp (ms). Entry is expired once `now > expiresAt`. */
+  expiresAt: number;
 }
 
 /**
@@ -43,49 +54,15 @@ export interface MemoryRateLimitStorageOptions {
  * ```
  */
 export class MemoryRateLimitStorage implements RateLimitStorage {
-  /** Main storage: key -> entry */
-  private storage = new Map<string, RateLimitEntry>();
-
-  /** Expiration times: key -> expiration timestamp (ms) */
-  private expirations = new Map<string, number>();
-
-  /** Minimum interval between cleanup runs (ms) */
-  private cleanupInterval: number;
-
-  /** Timestamp of last cleanup run */
-  private lastCleanup = 0;
+  /** Main storage: key -> { entry, expiresAt } wrapper. */
+  private store: MemoryTtlStore<RateLimitWrapper>;
 
   constructor(options?: MemoryRateLimitStorageOptions) {
-    this.cleanupInterval = options?.cleanupInterval ?? 60000;
-  }
-
-  /**
-   * Runs cleanup if enough time has passed since last cleanup.
-   * Called lazily on access to avoid background timers.
-   */
-  private maybeCleanup(): void {
-    if (this.cleanupInterval <= 0) return;
-    const now = Date.now();
-    if (now - this.lastCleanup >= this.cleanupInterval) {
-      this.lastCleanup = now;
-      this.cleanupSync();
-    }
-  }
-
-  /**
-   * Synchronous cleanup of expired entries.
-   */
-  private cleanupSync(): number {
-    const now = Date.now();
-    let count = 0;
-    for (const [key, expiration] of this.expirations.entries()) {
-      if (now > expiration) {
-        this.storage.delete(key);
-        this.expirations.delete(key);
-        count++;
-      }
-    }
-    return count;
+    this.store = new MemoryTtlStore<RateLimitWrapper>({
+      isExpired: (wrapper, now) => now > wrapper.expiresAt,
+      cleanupInterval: options?.cleanupInterval ?? 60000,
+      maxEntries: 0,
+    });
   }
 
   /**
@@ -93,29 +70,27 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
    * Creates the entry if it doesn't exist or window has expired.
    */
   async increment(key: string, windowMs: number): Promise<FixedWindowEntry> {
-    this.maybeCleanup();
+    this.store.maybeCleanup();
     const now = Date.now();
-    const existing = this.storage.get(key) as FixedWindowEntry | undefined;
+    // peek: read the raw wrapper without expiry-deleting it mid-mutation.
+    const wrapper = this.store.peek(key);
+    const existing = wrapper?.entry as FixedWindowEntry | undefined;
 
-    // Check if we have a valid existing entry
-    if (existing && 'count' in existing) {
-      const windowEnd = existing.windowStart + windowMs;
-
-      if (now < windowEnd) {
-        // Within current window, increment
-        existing.count++;
-        return existing;
-      }
+    // Check if we have a valid existing entry within the current window.
+    if (existing && 'count' in existing && now < existing.windowStart + windowMs) {
+      // Within current window: increment the live entry in place. The wrapper is
+      // the same object the store holds, and the fixed-window expiry stays at
+      // `windowStart + windowMs` (do NOT slide it), so no re-set is needed.
+      existing.count++;
+      return existing;
     }
 
-    // Start new window
+    // Start new window and set its expiry.
     const entry: FixedWindowEntry = {
       count: 1,
       windowStart: now,
     };
-
-    this.storage.set(key, entry);
-    this.expirations.set(key, now + windowMs);
+    this.store.set(key, { entry, expiresAt: now + windowMs });
 
     return entry;
   }
@@ -125,27 +100,27 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
    * Removes timestamps outside the window.
    */
   async addTimestamp(key: string, windowMs: number, now?: number): Promise<SlidingWindowEntry> {
-    this.maybeCleanup();
+    this.store.maybeCleanup();
     const currentTime = now ?? Date.now();
     const windowStart = currentTime - windowMs;
 
-    const existing = this.storage.get(key) as SlidingWindowEntry | undefined;
+    // peek: read the raw wrapper without expiry-deleting it mid-mutation.
+    const wrapper = this.store.peek(key);
+    const existing = wrapper?.entry as SlidingWindowEntry | undefined;
 
     let timestamps: number[];
     if (existing && 'timestamps' in existing) {
-      // Filter out expired timestamps and add new one
+      // Filter out expired timestamps and add new one.
       timestamps = existing.timestamps.filter((t) => t > windowStart);
       timestamps.push(currentTime);
       existing.timestamps = timestamps;
+      // Sliding window refreshes expiry every call (window duration from now).
+      this.store.set(key, { entry: existing, expiresAt: currentTime + windowMs });
     } else {
-      // Create new entry
+      // Create new entry.
       timestamps = [currentTime];
-      const entry: SlidingWindowEntry = { timestamps };
-      this.storage.set(key, entry);
+      this.store.set(key, { entry: { timestamps }, expiresAt: currentTime + windowMs });
     }
-
-    // Set expiration (window duration from now)
-    this.expirations.set(key, currentTime + windowMs);
 
     return { timestamps };
   }
@@ -154,58 +129,43 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
    * Get the current entry for a key.
    */
   async get(key: string): Promise<RateLimitEntry | null> {
-    this.maybeCleanup();
-    const entry = this.storage.get(key);
-
-    if (!entry) {
-      return null;
-    }
-
-    // Check expiration
-    const expiration = this.expirations.get(key);
-    if (expiration && Date.now() > expiration) {
-      this.storage.delete(key);
-      this.expirations.delete(key);
-      return null;
-    }
-
-    return entry;
+    this.store.maybeCleanup();
+    const wrapper = this.store.get(key);
+    return wrapper ? wrapper.entry : null;
   }
 
   /**
    * Reset the rate limit for a key.
    */
   async reset(key: string): Promise<void> {
-    this.storage.delete(key);
-    this.expirations.delete(key);
+    this.store.delete(key);
   }
 
   /**
    * Clean up expired entries.
    */
   async cleanup(): Promise<number> {
-    return this.cleanupSync();
+    return this.store.cleanup();
   }
 
   /**
    * Destroy the storage and clear all data.
    */
   destroy(): void {
-    this.storage.clear();
-    this.expirations.clear();
+    this.store.clear();
   }
 
   /**
    * Get the number of entries (for debugging/monitoring).
    */
   getSize(): number {
-    return this.storage.size;
+    return this.store.size;
   }
 
   /**
    * Get all keys (for debugging).
    */
   getKeys(): string[] {
-    return Array.from(this.storage.keys());
+    return this.store.getKeys();
   }
 }

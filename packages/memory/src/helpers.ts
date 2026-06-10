@@ -1,4 +1,10 @@
-import type { IncludeOptions, MetaInput, RelationConfig } from 'hono-crud/internal';
+import {
+  type IncludeOptions,
+  type MetaInput,
+  type RelatedRecord,
+  type SyncRelationLoaderAdapter,
+  loadRelationsForItemSync,
+} from 'hono-crud/internal';
 
 /**
  * Module-level in-memory storage.
@@ -24,68 +30,34 @@ export function getStore<T>(tableName: string): Map<string, T> {
 }
 
 /**
- * Loads related records for a given item based on relation configuration.
+ * Builds the synchronous relation-loader adapter backing the in-memory store.
+ *
+ * The handle is the backing per-table Map; `resolveRelation` never returns
+ * `null` because `getStore` always creates the table lazily (memory never skips
+ * a relation). `fetchRelated` filters the store's records by the requested key.
  */
-export function loadRelation<T extends Record<string, unknown>>(
-  item: T,
-  relationName: string,
-  relationConfig: RelationConfig,
-): T {
-  const relatedStore = getStore<Record<string, unknown>>(relationConfig.model);
-  const localKey = relationConfig.localKey || 'id';
-  const localValue = item[localKey];
-
-  if (localValue === undefined || localValue === null) {
-    return item;
-  }
-
-  const relatedItems = Array.from(relatedStore.values()).filter((relatedItem) => {
-    return relatedItem[relationConfig.foreignKey] === localValue;
-  });
-
-  switch (relationConfig.type) {
-    case 'hasOne':
-      return { ...item, [relationName]: relatedItems[0] || null };
-    case 'hasMany':
-      return { ...item, [relationName]: relatedItems };
-    case 'belongsTo': {
-      // For belongsTo, the foreign key is on the current item
-      const foreignValue = item[relationConfig.foreignKey];
-      if (foreignValue === undefined || foreignValue === null) {
-        return { ...item, [relationName]: null };
-      }
-      const parentItem = Array.from(relatedStore.values()).find(
-        (r) => r[relationConfig.localKey || 'id'] === foreignValue,
-      );
-      return { ...item, [relationName]: parentItem || null };
-    }
-    default:
-      return item;
-  }
+function memoryRelationAdapter(): SyncRelationLoaderAdapter<Map<string, RelatedRecord>> {
+  return {
+    resolveRelation: (config) => getStore<RelatedRecord>(config.model),
+    fetchRelated: (store, keyField, values) =>
+      Array.from(store.values()).filter((r) => values.includes(r[keyField])),
+  };
 }
 
 /**
  * Loads all requested relations for an item.
+ *
+ * Delegates to the core synchronous orchestrator so the single-item read path
+ * always sets the relation key (hasOne/belongsTo → record-or-null, hasMany →
+ * array), gating belongsTo on `item[foreignKey]` and hasOne/hasMany on
+ * `item[localKey]`.
  */
 export function loadRelations<T extends Record<string, unknown>, M extends MetaInput>(
   item: T,
   meta: M,
   includeOptions?: IncludeOptions,
 ): T {
-  if (!includeOptions?.relations?.length || !meta.model.relations) {
-    return item;
-  }
-
-  let result = { ...item } as T;
-
-  for (const relationName of includeOptions.relations) {
-    const relationConfig = meta.model.relations[relationName];
-    if (relationConfig) {
-      result = loadRelation(result, relationName, relationConfig);
-    }
-  }
-
-  return result;
+  return loadRelationsForItemSync(item, meta, memoryRelationAdapter(), includeOptions);
 }
 
 /**

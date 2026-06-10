@@ -31,6 +31,10 @@ export {
 export { createStorageFeature } from './feature';
 export type { StorageFeature, StorageFeatureOptions } from './feature';
 
+// Generic TTL Map store composed by the in-memory cache/rate-limit/idempotency backends
+export { MemoryTtlStore } from './memory-ttl-store';
+export type { MemoryTtlStoreOptions } from './memory-ttl-store';
+
 // Helpers
 export {
   getStorage,
