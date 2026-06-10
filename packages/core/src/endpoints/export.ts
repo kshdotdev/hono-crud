@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { ListFilters, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { type CsvGenerateOptions, escapeCsvValue, generateCsv } from '../utils/csv';
 import { ListEndpoint } from './list';
+import { errorResponseSchema } from './responses';
 import type { ModelObject } from './types';
 
 // ============================================================================
@@ -132,6 +133,7 @@ export abstract class ExportEndpoint<
             },
           },
         },
+        400: errorResponseSchema('Validation error'),
       },
     };
   }

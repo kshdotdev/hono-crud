@@ -1,8 +1,8 @@
 import type { Context } from 'hono';
-import { z } from 'zod';
 import { ForbiddenException, UnauthorizedException } from '../core/exceptions';
 import { OpenAPIRoute } from '../core/route';
 import type { Constructor, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { errorResponseSchema } from '../endpoints/responses';
 import type { AuthEnv, AuthUser, EndpointAuthConfig } from './types';
 
 // ============================================================================
@@ -264,34 +264,8 @@ export abstract class AuthenticatedEndpoint<
 
     // Add 401/403 responses
     const authResponses = {
-      401: {
-        description: 'Unauthorized - Authentication required',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(false),
-              error: z.object({
-                code: z.literal('UNAUTHORIZED'),
-                message: z.string(),
-              }),
-            }),
-          },
-        },
-      },
-      403: {
-        description: 'Forbidden - Insufficient permissions',
-        content: {
-          'application/json': {
-            schema: z.object({
-              success: z.literal(false),
-              error: z.object({
-                code: z.literal('FORBIDDEN'),
-                message: z.string(),
-              }),
-            }),
-          },
-        },
-      },
+      401: errorResponseSchema('Unauthorized - Authentication required'),
+      403: errorResponseSchema('Forbidden - Insufficient permissions'),
     };
 
     return {
@@ -546,34 +520,8 @@ export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
 
       // Add 401/403 responses
       const authResponses = {
-        401: {
-          description: 'Unauthorized - Authentication required',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.literal('UNAUTHORIZED'),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
-        403: {
-          description: 'Forbidden - Insufficient permissions',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.literal('FORBIDDEN'),
-                  message: z.string(),
-                }),
-              }),
-            },
-          },
-        },
+        401: errorResponseSchema('Unauthorized - Authentication required'),
+        403: errorResponseSchema('Forbidden - Insufficient permissions'),
       };
 
       return {

@@ -359,7 +359,15 @@ Every CRUD endpoint defaults to a small, predictable response envelope so consum
 // Error — produced by `ApiException`s thrown from the endpoint or by
 // `createErrorHandler` for everything else
 { "success": false, "error": { "code": "NOT_FOUND", "message": "…", "details": … } }
+
+// Error — validation (request schema failure): same envelope, status 400
+{ "success": false, "error": { "code": "VALIDATION_ERROR", "message": "Validation failed",
+    "details": [{ "path": "name", "message": "Required", "code": "invalid_type" }] } }
 ```
+
+Validation failures use the same envelope: `fromHono` installs the canonical validation hook as the router's `defaultHook`, so every request-schema failure responds `400` with `code: "VALIDATION_ERROR"` and per-issue `details`. To supply your own hook, pass a pre-configured router — `fromHono(new OpenAPIHono({ defaultHook }))` (`OpenAPIHono` from `@hono/zod-openapi`) — and it wins.
+
+Thrown `ApiException`s serialize to this envelope even without any error-handler wiring (via their `getResponse()`); wiring `createErrorHandler` with `app.onError` is what extends the fully-uniform wire shape to *non*-`ApiException` errors (and adds `requestId` enrichment).
 
 ### Pluggable envelope (`responseEnvelope`)
 

@@ -1,5 +1,6 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { ApiException } from '../core/exceptions';
 import type {
   FilterConfig,
   MetaInput,
@@ -509,15 +510,10 @@ export abstract class SearchEndpoint<
 
     // Validate query length
     if (!searchOptions.query || searchOptions.query.length < this.minQueryLength) {
-      return this.json(
-        {
-          success: false,
-          error: {
-            code: 'INVALID_QUERY',
-            message: `Search query must be at least ${this.minQueryLength} characters`,
-          },
-        },
+      throw new ApiException(
+        `Search query must be at least ${this.minQueryLength} characters`,
         400,
+        'INVALID_QUERY',
       );
     }
 

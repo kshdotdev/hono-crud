@@ -1,6 +1,6 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
-import { HTTPException } from 'hono/http-exception';
 import { CONTEXT_KEYS } from '../core/context-keys';
+import { ApiException } from '../core/exceptions';
 import { setContextVar } from '../utils/context';
 
 /**
@@ -57,13 +57,14 @@ export interface MultiTenantMiddlewareOptions {
 
   /**
    * Whether the tenant ID is required.
-   * If true, requests without tenant ID will receive a 400 error.
+   * If true, requests without tenant ID receive a 400 `TENANT_REQUIRED` error.
    * @default true
    */
   required?: boolean;
 
   /**
-   * Custom error message when tenant ID is missing.
+   * Custom error message for the 400 `TENANT_REQUIRED` error when the
+   * tenant ID is missing.
    * @default 'Tenant ID is required'
    */
   errorMessage?: string;
@@ -81,7 +82,8 @@ export interface MultiTenantMiddlewareOptions {
   validate?: <E extends Env>(tenantId: string, ctx: Context<E>) => boolean | Promise<boolean>;
 
   /**
-   * Custom error message when tenant ID is invalid.
+   * Custom error message for the 400 `INVALID_TENANT` error when
+   * `validate()` returns false.
    * @default 'Invalid tenant ID'
    */
   invalidMessage?: string;
@@ -184,7 +186,7 @@ export function multiTenant<E extends Env = Env>(
         if (onMissing) {
           return onMissing(ctx);
         }
-        throw new HTTPException(400, { message: errorMessage });
+        throw new ApiException(errorMessage, 400, 'TENANT_REQUIRED');
       }
       // If not required, continue without tenant ID
       return next();
@@ -194,7 +196,7 @@ export function multiTenant<E extends Env = Env>(
     if (validate) {
       const isValid = await validate(tenantId, ctx);
       if (!isValid) {
-        throw new HTTPException(400, { message: invalidMessage });
+        throw new ApiException(invalidMessage, 400, 'INVALID_TENANT');
       }
     }
 

@@ -12,7 +12,6 @@
  */
 
 import type { Env } from 'hono';
-import { HTTPException } from 'hono/http-exception';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 
 import { type AuditLogger, createAuditLogger } from '../audit';
@@ -21,7 +20,7 @@ import { POLICIES_CONTEXT_KEY } from '../auth/guards';
 import type { AuthUser } from '../auth/types';
 import { applyComputedFields, applyComputedFieldsToArray } from '../core/computed-fields';
 import { CONTEXT_KEYS } from '../core/context-keys';
-import { ApiException, InputValidationException } from '../core/exceptions';
+import { ApiException, ForbiddenException, InputValidationException } from '../core/exceptions';
 import {
   type AdapterKind,
   type NormalizedTimestampsConfig,
@@ -263,7 +262,7 @@ export abstract class CrudEndpoint<
 
   /**
    * Validates that tenant ID is present when required.
-   * Throws HTTPException if missing and required.
+   * Throws a 400 `TENANT_REQUIRED` ApiException if missing and required.
    */
   protected validateTenantId(): string | undefined {
     const config = this.getMultiTenantConfig();
@@ -271,7 +270,7 @@ export abstract class CrudEndpoint<
 
     const tenantId = this.getTenantId();
     if (!tenantId && config.required) {
-      throw new HTTPException(400, { message: config.errorMessage });
+      throw new ApiException(config.errorMessage, 400, 'TENANT_REQUIRED');
     }
     return tenantId;
   }
@@ -556,7 +555,7 @@ export abstract class CrudEndpoint<
     const allowed = await policies.write(this.buildPolicyContext(), record);
     if (!allowed) {
       // Use a generic 403 message — don't leak which field tripped the policy.
-      throw new HTTPException(403, { message: 'Forbidden by policy' });
+      throw new ForbiddenException('Forbidden by policy');
     }
   }
 

@@ -2,6 +2,7 @@ import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import type { HookMode, ListFilters, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import type { ListFilterParseOptions, ModelObject } from './types';
 import { parseListFilters } from './types';
 
@@ -103,17 +104,9 @@ export abstract class BulkPatchEndpoint<
             },
           },
         },
-        '400': {
-          description: 'Bad request',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.boolean(),
-                error: z.string(),
-              }),
-            },
-          },
-        },
+        '400': errorResponseSchema(
+          'Bulk patch rejected (empty body, size limit, or missing confirmation)',
+        ),
       },
     };
   }

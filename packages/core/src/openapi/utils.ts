@@ -1,6 +1,7 @@
 import type { Hook } from '@hono/zod-openapi';
 import type { Env } from 'hono';
-import { z } from 'zod';
+import type { z } from 'zod';
+import { InputValidationException } from '../core/exceptions';
 
 /**
  * Creates a JSON content type definition for OpenAPI responses.
@@ -79,81 +80,18 @@ export function jsonContentRequired<T extends z.ZodSchema>(
 }
 
 /**
- * Schema for a single Zod validation issue.
- */
-export const ZodIssueSchema = z.object({
-  code: z.string(),
-  path: z.array(z.union([z.string(), z.number()])),
-  message: z.string(),
-});
-
-/**
- * Schema for Zod validation error response.
- */
-export const ZodErrorSchema = z.object({
-  success: z.literal(false),
-  error: z.object({
-    name: z.literal('ZodError'),
-    issues: z.array(ZodIssueSchema),
-  }),
-});
-
-/**
- * Creates an error schema showing what validation errors look like for a given schema.
- * Useful for documenting 422 responses in OpenAPI specs.
+ * Canonical validation hook, installed automatically by `fromHono(...)` when
+ * the app has no `defaultHook` of its own.
  *
- * @param schema - The Zod schema to create error documentation for
- * @returns Zod schema representing the validation error format
+ * On schema failure it throws `InputValidationException.fromZodError(...)`,
+ * which serializes as the canonical 400 envelope:
+ * `{ success: false, error: { code: 'VALIDATION_ERROR', message: 'Validation
+ * failed', details: [{ path, message, code }] } }`.
  *
- * @example
- * ```ts
- * const UserSchema = z.object({
- *   name: z.string().min(1),
- *   email: z.email(),
- * });
- *
- * // In route definition:
- * responses: {
- *   422: {
- *     content: jsonContent(
- *       createErrorSchema(UserSchema),
- *       'Validation error'
- *     ),
- *   },
- * }
- * ```
- */
-export function createErrorSchema<T extends z.ZodSchema>(_schema: T): typeof ZodErrorSchema {
-  // The error schema format is the same regardless of input schema
-  // The input schema parameter allows TypeScript to infer documentation context
-  return ZodErrorSchema;
-}
-
-/**
- * Creates an error schema for a one-of-many validation scenario.
- * This is useful when you have multiple possible schemas and want to show
- * the error format.
- *
- * @param schemas - Array of Zod schemas
- * @returns Zod schema representing the validation error format
- */
-export function createOneOfErrorSchema<T extends z.ZodSchema[]>(
-  ..._schemas: T
-): typeof ZodErrorSchema {
-  return ZodErrorSchema;
-}
-
-/**
- * Type for the validation hook result.
- */
-export interface ValidationHookResult<_E extends Env = Env> {
-  success: false;
-  error: z.ZodError;
-}
-
-/**
- * Default validation hook that returns 422 status on validation failure.
- * Use this as the defaultHook option when creating OpenAPI routes.
+ * The throw propagates to `app.onError` — so apps wired with
+ * `createErrorHandler` get per-route `responseEnvelope` composition and
+ * `requestId` enrichment — while unwired apps fall back to
+ * `ApiException.getResponse()`, which emits the same canonical JSON body.
  *
  * @example
  * ```ts
@@ -165,18 +103,9 @@ export interface ValidationHookResult<_E extends Env = Env> {
  * });
  * ```
  */
-export const openApiValidationHook: Hook<unknown, Env, '', unknown> = (result, c) => {
+export const openApiValidationHook: Hook<unknown, Env, '', unknown> = (result) => {
   if (!result.success) {
-    return c.json(
-      {
-        success: false,
-        error: {
-          name: 'ZodError' as const,
-          issues: result.error.issues,
-        },
-      },
-      422,
-    );
+    throw InputValidationException.fromZodError(result.error);
   }
 };
 
@@ -184,7 +113,7 @@ export const openApiValidationHook: Hook<unknown, Env, '', unknown> = (result, c
  * Creates a custom validation hook with configurable error response.
  *
  * @param formatError - Function to format the error response
- * @param statusCode - HTTP status code for validation errors (default: 422)
+ * @param statusCode - HTTP status code for validation errors (default: 400)
  * @returns Hook function for validation
  *
  * @example
@@ -194,7 +123,7 @@ export const openApiValidationHook: Hook<unknown, Env, '', unknown> = (result, c
  *     message: 'Validation failed',
  *     errors: error.issues.map(i => i.message),
  *   }),
- *   400
+ *   422
  * );
  *
  * const app = new OpenAPIHono({
@@ -204,7 +133,7 @@ export const openApiValidationHook: Hook<unknown, Env, '', unknown> = (result, c
  */
 export function createValidationHook<T>(
   formatError: (error: z.ZodError) => T,
-  statusCode: 400 | 422 = 422,
+  statusCode: 400 | 422 = 400,
 ): Hook<unknown, Env, '', unknown> {
   return (result, c) => {
     if (!result.success) {
@@ -217,37 +146,3 @@ export function createValidationHook<T>(
  * Type helper for extracting the inferred type from a Zod schema.
  */
 export type InferZodSchema<T extends z.ZodSchema> = z.infer<T>;
-
-/**
- * Common HTTP error response schema for 4xx/5xx errors.
- */
-export const HttpErrorSchema = z.object({
-  success: z.literal(false),
-  error: z.object({
-    message: z.string(),
-    code: z.string().optional(),
-  }),
-});
-
-/**
- * Creates a generic HTTP error content definition.
- *
- * @param description - Description of the error response
- * @returns Object with content type definition
- */
-export function httpErrorContent(description: string) {
-  return jsonContent(HttpErrorSchema, description);
-}
-
-/**
- * Common error responses for reuse in OpenAPI definitions.
- */
-export const commonResponses = {
-  badRequest: httpErrorContent('Bad request'),
-  unauthorized: httpErrorContent('Unauthorized'),
-  forbidden: httpErrorContent('Forbidden'),
-  notFound: httpErrorContent('Resource not found'),
-  conflict: httpErrorContent('Resource conflict'),
-  validationError: jsonContent(ZodErrorSchema, 'Validation error'),
-  internalError: httpErrorContent('Internal server error'),
-} as const;

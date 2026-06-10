@@ -157,6 +157,44 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           },
           "description": "List of resources",
         },
+        "400": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Validation error",
+        },
       },
       "summary": "List articles",
       "tags": [
@@ -785,6 +823,44 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
             },
           },
           "description": "Export successful",
+        },
+        "400": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "error": {
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                      },
+                      "details": {},
+                      "message": {
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "code",
+                      "message",
+                    ],
+                    "type": "object",
+                  },
+                  "success": {
+                    "enum": [
+                      false,
+                    ],
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "success",
+                  "error",
+                ],
+                "type": "object",
+              },
+            },
+          },
+          "description": "Validation error",
         },
       },
       "tags": [

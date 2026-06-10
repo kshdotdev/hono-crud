@@ -80,6 +80,7 @@ export {
   SORT_DIRECTIONS,
   SEARCH_MODES,
   AGGREGATE_OPERATIONS,
+  validationIssueSchema,
   structuredErrorSchema,
   errorEnvelopeSchema,
   successEnvelopeSchema,
@@ -151,6 +152,7 @@ export type {
   ResponseEnvelope,
   ResponseEnvelopeInfo,
   StructuredError,
+  ValidationIssue,
   SchemaResolveContext,
   ModelPolicies,
   PolicyContext,
@@ -257,7 +259,7 @@ export type {
 } from './endpoints/types';
 
 // Utility exports
-export { registerCrud, contentJson, successResponse, errorResponse } from './core/register';
+export { registerCrud, contentJson } from './core/register';
 export type {
   CrudEndpoints,
   EndpointClass,
@@ -315,17 +317,15 @@ export {
 export {
   jsonContent,
   jsonContentRequired,
-  createErrorSchema,
-  createOneOfErrorSchema,
   openApiValidationHook,
   createValidationHook,
-  httpErrorContent,
-  commonResponses,
-  ZodIssueSchema,
-  ZodErrorSchema,
-  HttpErrorSchema,
 } from './openapi/utils';
-export type { ValidationHookResult, InferZodSchema } from './openapi/utils';
+export type { InferZodSchema } from './openapi/utils';
+export {
+  errorResponseZodSchema,
+  errorResponseSchema,
+  errorResponses,
+} from './endpoints/responses';
 
 // Auth exports
 export {
