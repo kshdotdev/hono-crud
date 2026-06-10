@@ -1354,6 +1354,24 @@ export interface SuccessResponse<T> {
 }
 
 /**
+ * Canonical schema for a single validation issue carried in the `details`
+ * array of a 400 `VALIDATION_ERROR` envelope, as produced by
+ * `InputValidationException.fromZodError(...)` (`path` is the dot-joined
+ * Zod issue path).
+ */
+export const validationIssueSchema = z.object({
+  /** Dot-joined path to the failing field (`'address.city'`). */
+  path: z.string(),
+  /** Human-readable issue message. */
+  message: z.string(),
+  /** Zod issue code (`'invalid_type'`, `'too_small'`, …). */
+  code: z.string(),
+});
+
+/** A single validation issue (see {@link validationIssueSchema}). */
+export type ValidationIssue = z.infer<typeof validationIssueSchema>;
+
+/**
  * Canonical schema for the structured error object passed to
  * `ResponseEnvelope.error` — the single source of truth for the
  * `{ code, message, details?, … }` shape produced by `ApiException.toJSON()`,

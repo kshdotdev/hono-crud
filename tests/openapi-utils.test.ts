@@ -1,14 +1,7 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { Hono } from 'hono';
+import { createErrorHandler } from 'hono-crud';
 import {
-  HttpErrorSchema,
-  ZodErrorSchema,
-  ZodIssueSchema,
-  commonResponses,
-  createErrorSchema,
-  createOneOfErrorSchema,
   createValidationHook,
-  httpErrorContent,
   jsonContent,
   jsonContentRequired,
   openApiValidationHook,
@@ -86,93 +79,45 @@ describe('jsonContentRequired', () => {
 });
 
 // ============================================================================
-// createErrorSchema() Tests
-// ============================================================================
-
-describe('createErrorSchema', () => {
-  it('should return ZodErrorSchema regardless of input schema', () => {
-    const userSchema = z.object({ name: z.string(), email: z.string() });
-    const result = createErrorSchema(userSchema);
-
-    expect(result).toBe(ZodErrorSchema);
-  });
-
-  it('should return a schema that validates error objects', () => {
-    const schema = z.object({ id: z.number() });
-    const errorSchema = createErrorSchema(schema);
-
-    const validError = {
-      success: false,
-      error: {
-        name: 'ZodError',
-        issues: [{ code: 'invalid_type', path: ['id'], message: 'Expected number' }],
-      },
-    };
-
-    expect(() => errorSchema.parse(validError)).not.toThrow();
-  });
-
-  it('should reject invalid error objects', () => {
-    const schema = z.object({ id: z.number() });
-    const errorSchema = createErrorSchema(schema);
-
-    const invalidError = {
-      success: true, // Should be false
-      error: { name: 'ZodError', issues: [] },
-    };
-
-    expect(() => errorSchema.parse(invalidError)).toThrow();
-  });
-});
-
-// ============================================================================
-// createOneOfErrorSchema() Tests
-// ============================================================================
-
-describe('createOneOfErrorSchema', () => {
-  it('should return ZodErrorSchema for multiple schemas', () => {
-    const schema1 = z.object({ type: z.literal('a') });
-    const schema2 = z.object({ type: z.literal('b') });
-    const result = createOneOfErrorSchema(schema1, schema2);
-
-    expect(result).toBe(ZodErrorSchema);
-  });
-});
-
-// ============================================================================
 // openApiValidationHook Tests
 // ============================================================================
 
-describe('openApiValidationHook', () => {
-  it('should return 422 with ZodError format on validation failure', async () => {
-    const app = new OpenAPIHono({
-      defaultHook: openApiValidationHook,
-    });
+/** Builds an app with the canonical validation hook and a single POST /test route. */
+function buildHookApp(schema: z.ZodObject<z.ZodRawShape>): OpenAPIHono {
+  const app = new OpenAPIHono({
+    defaultHook: openApiValidationHook,
+  });
 
-    const route = createRoute({
-      method: 'post',
-      path: '/test',
-      request: {
-        body: {
-          content: {
-            'application/json': {
-              schema: z.object({
-                name: z.string().min(1),
-                age: z.number().int().positive(),
-              }),
-            },
-          },
-          required: true,
+  const route = createRoute({
+    method: 'post',
+    path: '/test',
+    request: {
+      body: {
+        content: {
+          'application/json': { schema },
         },
+        required: true,
       },
-      responses: {
-        200: jsonContent(z.object({ success: z.boolean() }), 'Success'),
-      },
-    });
+    },
+    responses: {
+      200: jsonContent(z.object({ ok: z.boolean() }), 'Success'),
+    },
+  });
 
-    app.openapi(route, (c) => {
-      return c.json({ success: true }, 200);
-    });
+  app.openapi(route, (c) => c.json({ ok: true }, 200));
+  return app;
+}
+
+describe('openApiValidationHook', () => {
+  it('should return 400 with the canonical envelope on validation failure (unwired app → getResponse fallback)', async () => {
+    // No app.onError wiring: the thrown InputValidationException is rendered
+    // by ApiException.getResponse() and must still be the canonical envelope.
+    const app = buildHookApp(
+      z.object({
+        name: z.string().min(1),
+        age: z.number().int().positive(),
+      }),
+    );
 
     const res = await app.request('/test', {
       method: 'POST',
@@ -180,12 +125,41 @@ describe('openApiValidationHook', () => {
       body: JSON.stringify({ name: '', age: -5 }),
     });
 
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
+    expect(res.headers.get('content-type')).toContain('application/json');
     const data = await res.json();
     expect(data.success).toBe(false);
-    expect(data.error.name).toBe('ZodError');
-    expect(Array.isArray(data.error.issues)).toBe(true);
-    expect(data.error.issues.length).toBeGreaterThan(0);
+    expect(data.error.code).toBe('VALIDATION_ERROR');
+    expect(data.error.message).toBe('Validation failed');
+    expect(Array.isArray(data.error.details)).toBe(true);
+    expect(data.error.details.length).toBeGreaterThan(0);
+    for (const issue of data.error.details) {
+      expect(typeof issue.path).toBe('string');
+      expect(typeof issue.message).toBe('string');
+      expect(typeof issue.code).toBe('string');
+    }
+  });
+
+  it('should return the same canonical envelope through createErrorHandler (wired app)', async () => {
+    const app = buildHookApp(
+      z.object({
+        name: z.string().min(1),
+      }),
+    );
+    app.onError(createErrorHandler());
+
+    const res = await app.request('/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '' }),
+    });
+
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.success).toBe(false);
+    expect(data.error.code).toBe('VALIDATION_ERROR');
+    expect(data.error.message).toBe('Validation failed');
+    expect(Array.isArray(data.error.details)).toBe(true);
   });
 
   it('should pass through on successful validation', async () => {
@@ -227,34 +201,14 @@ describe('openApiValidationHook', () => {
     expect(data.received).toBe('Alice');
   });
 
-  it('should include all validation issues in response', async () => {
-    const app = new OpenAPIHono({
-      defaultHook: openApiValidationHook,
-    });
-
-    const route = createRoute({
-      method: 'post',
-      path: '/test',
-      request: {
-        body: {
-          content: {
-            'application/json': {
-              schema: z.object({
-                email: z.string().email(),
-                age: z.number().min(0).max(150),
-                role: z.enum(['admin', 'user']),
-              }),
-            },
-          },
-          required: true,
-        },
-      },
-      responses: {
-        200: jsonContent(z.object({ ok: z.boolean() }), 'Success'),
-      },
-    });
-
-    app.openapi(route, (c) => c.json({ ok: true }, 200));
+  it('should include all validation issues in details', async () => {
+    const app = buildHookApp(
+      z.object({
+        email: z.string().email(),
+        age: z.number().min(0).max(150),
+        role: z.enum(['admin', 'user']),
+      }),
+    );
 
     const res = await app.request('/test', {
       method: 'POST',
@@ -262,9 +216,9 @@ describe('openApiValidationHook', () => {
       body: JSON.stringify({ email: 'not-email', age: 200, role: 'invalid' }),
     });
 
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
     const data = await res.json();
-    expect(data.error.issues.length).toBe(3);
+    expect(data.error.details.length).toBe(3);
   });
 });
 
@@ -273,13 +227,13 @@ describe('openApiValidationHook', () => {
 // ============================================================================
 
 describe('createValidationHook', () => {
-  it('should create a custom validation hook with custom error format', async () => {
+  it('should create a custom validation hook with custom error format and explicit status code', async () => {
     const customHook = createValidationHook(
       (error) => ({
         message: 'Validation failed',
         errors: error.issues.map((i) => i.message),
       }),
-      400,
+      422,
     );
 
     const app = new OpenAPIHono({
@@ -312,13 +266,13 @@ describe('createValidationHook', () => {
       body: JSON.stringify({ name: 'ab' }),
     });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
     const data = await res.json();
     expect(data.message).toBe('Validation failed');
     expect(Array.isArray(data.errors)).toBe(true);
   });
 
-  it('should use 422 as default status code', async () => {
+  it('should use 400 as default status code', async () => {
     const customHook = createValidationHook((error) => ({
       failed: true,
       count: error.issues.length,
@@ -354,140 +308,8 @@ describe('createValidationHook', () => {
       body: JSON.stringify({ value: 'not a number' }),
     });
 
-    expect(res.status).toBe(422);
-  });
-});
-
-// ============================================================================
-// httpErrorContent() Tests
-// ============================================================================
-
-describe('httpErrorContent', () => {
-  it('should create HTTP error content with HttpErrorSchema', () => {
-    const result = httpErrorContent('Resource not found');
-
-    expect(result.description).toBe('Resource not found');
-    expect(result.content['application/json'].schema).toBe(HttpErrorSchema);
-  });
-});
-
-// ============================================================================
-// commonResponses Tests
-// ============================================================================
-
-describe('commonResponses', () => {
-  it('should have all standard error responses', () => {
-    expect(commonResponses.badRequest).toBeDefined();
-    expect(commonResponses.unauthorized).toBeDefined();
-    expect(commonResponses.forbidden).toBeDefined();
-    expect(commonResponses.notFound).toBeDefined();
-    expect(commonResponses.conflict).toBeDefined();
-    expect(commonResponses.validationError).toBeDefined();
-    expect(commonResponses.internalError).toBeDefined();
-  });
-
-  it('should have correct descriptions', () => {
-    expect(commonResponses.badRequest.description).toBe('Bad request');
-    expect(commonResponses.unauthorized.description).toBe('Unauthorized');
-    expect(commonResponses.forbidden.description).toBe('Forbidden');
-    expect(commonResponses.notFound.description).toBe('Resource not found');
-    expect(commonResponses.conflict.description).toBe('Resource conflict');
-    expect(commonResponses.validationError.description).toBe('Validation error');
-    expect(commonResponses.internalError.description).toBe('Internal server error');
-  });
-
-  it('should use ZodErrorSchema for validationError', () => {
-    expect(commonResponses.validationError.content['application/json'].schema).toBe(ZodErrorSchema);
-  });
-
-  it('should use HttpErrorSchema for other errors', () => {
-    expect(commonResponses.badRequest.content['application/json'].schema).toBe(HttpErrorSchema);
-    expect(commonResponses.notFound.content['application/json'].schema).toBe(HttpErrorSchema);
-  });
-});
-
-// ============================================================================
-// Schema Validation Tests
-// ============================================================================
-
-describe('ZodIssueSchema', () => {
-  it('should validate a proper Zod issue', () => {
-    const issue = {
-      code: 'invalid_type',
-      path: ['user', 'email'],
-      message: 'Expected string, received number',
-    };
-
-    expect(() => ZodIssueSchema.parse(issue)).not.toThrow();
-  });
-
-  it('should accept numeric path elements', () => {
-    const issue = {
-      code: 'too_small',
-      path: ['items', 0, 'quantity'],
-      message: 'Number must be greater than 0',
-    };
-
-    expect(() => ZodIssueSchema.parse(issue)).not.toThrow();
-  });
-});
-
-describe('ZodErrorSchema', () => {
-  it('should validate a proper Zod error response', () => {
-    const errorResponse = {
-      success: false,
-      error: {
-        name: 'ZodError',
-        issues: [
-          { code: 'invalid_type', path: ['name'], message: 'Required' },
-          { code: 'too_small', path: ['age'], message: 'Must be positive' },
-        ],
-      },
-    };
-
-    expect(() => ZodErrorSchema.parse(errorResponse)).not.toThrow();
-  });
-
-  it('should reject success: true', () => {
-    const invalid = {
-      success: true,
-      error: { name: 'ZodError', issues: [] },
-    };
-
-    expect(() => ZodErrorSchema.parse(invalid)).toThrow();
-  });
-
-  it('should reject wrong error name', () => {
-    const invalid = {
-      success: false,
-      error: { name: 'Error', issues: [] },
-    };
-
-    expect(() => ZodErrorSchema.parse(invalid)).toThrow();
-  });
-});
-
-describe('HttpErrorSchema', () => {
-  it('should validate a proper HTTP error response', () => {
-    const errorResponse = {
-      success: false,
-      error: {
-        message: 'Resource not found',
-        code: 'NOT_FOUND',
-      },
-    };
-
-    expect(() => HttpErrorSchema.parse(errorResponse)).not.toThrow();
-  });
-
-  it('should allow optional code field', () => {
-    const errorResponse = {
-      success: false,
-      error: {
-        message: 'Something went wrong',
-      },
-    };
-
-    expect(() => HttpErrorSchema.parse(errorResponse)).not.toThrow();
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.failed).toBe(true);
   });
 });

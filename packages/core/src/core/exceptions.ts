@@ -1,7 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { ZodError } from 'zod';
-import type { ErrorResponse, StructuredError } from './types';
+import type { ErrorResponse, StructuredError, ValidationIssue } from './types';
 
 /**
  * Valid HTTP status codes for API exceptions.
@@ -44,13 +44,27 @@ export class ApiException extends HTTPException {
       code: this.code,
       message: this.message,
     };
-    if (this.details) {
+    if (this.details !== undefined) {
       errorObj.details = this.details;
     }
     return {
       success: false as const,
       error: errorObj,
     };
+  }
+
+  /**
+   * Builds the canonical JSON error Response for this exception.
+   *
+   * Hono's default error handling calls `HTTPException.getResponse()`, which
+   * returns a plain-text body. This override ensures apps that never wire
+   * `createErrorHandler` still emit the canonical
+   * `{ success: false, error: { code, message, details? } }` envelope for any
+   * thrown `ApiException`. (Per-route `responseEnvelope` composition and
+   * `requestId` enrichment remain exclusive to the `createErrorHandler` path.)
+   */
+  override getResponse(): Response {
+    return Response.json(this.toJSON(), { status: this.status });
   }
 
   /**
@@ -69,7 +83,7 @@ export class InputValidationException extends ApiException {
   }
 
   static fromZodError(error: ZodError): InputValidationException {
-    const issues = error.issues.map((issue) => ({
+    const issues: ValidationIssue[] = error.issues.map((issue) => ({
       path: issue.path.join('.'),
       message: issue.message,
       code: issue.code,

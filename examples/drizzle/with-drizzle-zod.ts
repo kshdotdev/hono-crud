@@ -33,16 +33,7 @@ import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { type Env, Hono } from 'hono';
-import {
-  createErrorSchema,
-  defineMeta,
-  defineModel,
-  fromHono,
-  // OpenAPI utilities
-  jsonContent,
-  openApiValidationHook,
-  registerCrud,
-} from 'hono-crud';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
 import { z } from 'zod';
 
 // ============================================================================
@@ -268,7 +259,7 @@ export async function start(port: number = Number(process.env.PORT) || 3456): Pr
 This example demonstrates:
 - Auto-generating Zod schemas from Drizzle tables using drizzle-zod
 - Using the new Scalar API Reference UI
-- OpenAPI utilities (jsonContent, createErrorSchema, etc.)
+- Canonical 400 validation error envelopes (fromHono installs the validation hook by default)
 
 Server running at http://localhost:${port}
 

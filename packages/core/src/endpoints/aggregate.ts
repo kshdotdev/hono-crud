@@ -1,7 +1,7 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { parseAggregateQuery } from '../core/aggregate';
-import { InputValidationException } from '../core/exceptions';
+import { AggregationException } from '../core/exceptions';
 import type {
   AggregateConfig,
   AggregateField,
@@ -174,18 +174,24 @@ export abstract class AggregateEndpoint<
           break;
         case 'sum':
           if (config.sumFields.length > 0 && !config.sumFields.includes(agg.field)) {
-            throw new Error(`Field '${agg.field}' is not allowed for SUM aggregation`);
+            throw new AggregationException(
+              `Field '${agg.field}' is not allowed for SUM aggregation`,
+            );
           }
           break;
         case 'avg':
           if (config.avgFields.length > 0 && !config.avgFields.includes(agg.field)) {
-            throw new Error(`Field '${agg.field}' is not allowed for AVG aggregation`);
+            throw new AggregationException(
+              `Field '${agg.field}' is not allowed for AVG aggregation`,
+            );
           }
           break;
         case 'min':
         case 'max':
           if (config.minMaxFields.length > 0 && !config.minMaxFields.includes(agg.field)) {
-            throw new Error(`Field '${agg.field}' is not allowed for MIN/MAX aggregation`);
+            throw new AggregationException(
+              `Field '${agg.field}' is not allowed for MIN/MAX aggregation`,
+            );
           }
           break;
         case 'countDistinct':
@@ -193,7 +199,9 @@ export abstract class AggregateEndpoint<
             config.countDistinctFields.length > 0 &&
             !config.countDistinctFields.includes(agg.field)
           ) {
-            throw new Error(`Field '${agg.field}' is not allowed for COUNT DISTINCT aggregation`);
+            throw new AggregationException(
+              `Field '${agg.field}' is not allowed for COUNT DISTINCT aggregation`,
+            );
           }
           break;
         default:
@@ -204,13 +212,11 @@ export abstract class AggregateEndpoint<
     // Validate groupBy fields
     if (options.groupBy) {
       if (options.groupBy.length > this.maxGroupByFields) {
-        throw new InputValidationException(
-          `Maximum ${this.maxGroupByFields} GROUP BY fields allowed`,
-        );
+        throw new AggregationException(`Maximum ${this.maxGroupByFields} GROUP BY fields allowed`);
       }
       for (const field of options.groupBy) {
         if (config.groupByFields.length > 0 && !config.groupByFields.includes(field)) {
-          throw new Error(`Field '${field}' is not allowed for GROUP BY`);
+          throw new AggregationException(`Field '${field}' is not allowed for GROUP BY`);
         }
       }
     }
@@ -218,7 +224,7 @@ export abstract class AggregateEndpoint<
     // Apply limit constraints
     if (options.limit !== undefined) {
       if (options.limit > config.maxLimit) {
-        throw new Error(`Limit cannot exceed ${config.maxLimit}`);
+        throw new AggregationException(`Limit cannot exceed ${config.maxLimit}`);
       }
     }
   }

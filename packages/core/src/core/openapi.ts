@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { Context, Env, Hono, MiddlewareHandler } from 'hono';
+import { openApiValidationHook } from '../openapi/utils';
 import { ApiException } from './exceptions';
 import type { OpenAPIRoute } from './route';
 import { isRouteClass, jsonResponse } from './route';
@@ -292,6 +293,14 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
  * Pass an OpenAPIHono instance to use middleware with your routes.
  * Middleware should be applied directly to the app using `app.use()`.
  *
+ * Installs the canonical validation hook (`openApiValidationHook`) as the
+ * app's `defaultHook` when none is set, so request-schema failures emit the
+ * canonical 400 `VALIDATION_ERROR` envelope. To override, pass a
+ * pre-configured `new OpenAPIHono({ defaultHook })` — a user-supplied hook
+ * always wins. Note: routes registered on a pre-configured `OpenAPIHono`
+ * *before* calling `fromHono` keep whatever hook they captured at
+ * registration time.
+ *
  * @example
  * ```ts
  * import { OpenAPIHono } from '@hono/zod-openapi';
@@ -313,6 +322,11 @@ export function fromHono<E extends Env = Env>(
 ): HonoOpenAPIApp<E> {
   // Use the router directly if it's an OpenAPIHono, otherwise create one
   const app = 'openAPIRegistry' in router ? (router as OpenAPIHono<E>) : new OpenAPIHono<E>();
+
+  // Install the canonical validation hook unless the caller pre-configured
+  // one (`new OpenAPIHono({ defaultHook })`) — a user-supplied hook always
+  // wins. The cast is required because the hook is typed against `Env`.
+  app.defaultHook ??= openApiValidationHook as unknown as OpenAPIHono<E>['defaultHook'];
 
   const handler = new HonoOpenAPIHandler<E>(app, options);
   const methods: RouteMethod[] = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'];

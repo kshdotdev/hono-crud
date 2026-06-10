@@ -1,5 +1,6 @@
 import type { Context, Env } from 'hono';
 import { streamSSE } from 'hono/streaming';
+import { ApiException } from '../core/exceptions';
 import { type CrudEventEmitter, resolveEventEmitter } from '../events/emitter';
 import type { CrudEventPayload, CrudEventType, EventSubscription } from '../events/types';
 
@@ -101,25 +102,13 @@ export function createSubscribeHandler(config: SubscribeEndpointConfig) {
   return (ctx: Context<Env>) => {
     const emitter = resolveEventEmitter(ctx, customEmitter);
     if (!emitter) {
-      return ctx.json(
-        {
-          success: false,
-          error: { code: 'EVENT_EMITTER_NOT_CONFIGURED', message: 'Event emitter not configured' },
-        },
-        500,
-      );
+      throw new ApiException('Event emitter not configured', 500, 'EVENT_EMITTER_NOT_CONFIGURED');
     }
 
     // Check connection limit
     const currentCount = connectionCounts.get(table) || 0;
     if (currentCount >= maxConnections) {
-      return ctx.json(
-        {
-          success: false,
-          error: { code: 'TOO_MANY_CONNECTIONS', message: 'Too many SSE connections' },
-        },
-        503,
-      );
+      throw new ApiException('Too many SSE connections', 503, 'TOO_MANY_CONNECTIONS');
     }
 
     // Increment connection count

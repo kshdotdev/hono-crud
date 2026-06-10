@@ -1,10 +1,17 @@
 /**
- * Shared OpenAPI error-response factories.
+ * Shared OpenAPI error-response factories — the exported, doc-facing source
+ * of truth for the canonical error envelope.
  *
  * Every endpoint declares the same `{ success: false, error: { code,
  * message, details? } }` envelope for its 4xx/5xx responses. These factories
  * are the single source of truth for that shape, replacing the ~28 inlined
  * copies that previously lived across the endpoint `getSchema()` methods.
+ *
+ * The shape is defined as the runtime `structuredErrorSchema`
+ * (`core/types.ts`) minus the handler-enrichment fields (`requestId`/`stack`,
+ * added only on the `createErrorHandler` onError path); the doc-schema ⊆
+ * runtime-output relationship is enforced by the error-envelope contract
+ * test.
  */
 
 import { type ZodObject, z } from 'zod';

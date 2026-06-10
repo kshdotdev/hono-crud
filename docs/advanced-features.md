@@ -625,7 +625,7 @@ import { multiTenant } from 'hono-crud';
 app.use('/api/*', multiTenant({
   source: 'header',
   headerName: 'X-Tenant-ID',  // default
-  required: true,               // 400 if missing
+  required: true,               // 400 TENANT_REQUIRED if missing
 }));
 
 // Extract from JWT claims
@@ -646,6 +646,13 @@ app.use('/api/*', multiTenant({
   extractor: (ctx) => ctx.req.header('X-Org-ID'),
 }));
 ```
+
+**Error codes:** denials use the canonical error envelope. A missing tenant ID
+with `required: true` (the default) throws 400 `TENANT_REQUIRED` (message
+configurable via `errorMessage`); a tenant rejected by your `validate()`
+function throws 400 `INVALID_TENANT` (message configurable via
+`invalidMessage`). Pass `onMissing` to return a fully custom `Response`
+instead, or `required: false` to continue without a tenant.
 
 **Model-level config:**
 
@@ -738,31 +745,54 @@ class UserCreate extends MemoryCreateEndpoint {
 ### Custom Error Handler
 
 ```typescript
-import { createErrorHandler, zodErrorMapper } from 'hono-crud';
+import { createErrorHandler } from 'hono-crud';
 
 const errorHandler = createErrorHandler({
-  mappers: [zodErrorMapper],
-  defaultStatus: 500,
-  includeStack: process.env.NODE_ENV !== 'production',
+  defaultErrorCode: 'INTERNAL_ERROR', // code for unmapped errors (default)
+  defaultErrorMessage: 'An internal error occurred', // message for unmapped errors (default)
+  includeStackTrace: process.env.NODE_ENV !== 'production', // never enable in production
 });
 
 app.onError(errorHandler);
 ```
 
+Unmapped errors become a 500 with `defaultErrorCode` / `defaultErrorMessage`. Raw
+`ZodError`s are always mapped to 400 `VALIDATION_ERROR` by the built-in
+`zodErrorMapper` — you don't need to pass it. Thrown `ApiException`s serialize to
+the canonical envelope even without this handler; wiring it is what extends the
+uniform shape to everything else and adds `requestId` enrichment.
+
 ### Exception Types
 
-| Exception | Status | Use Case |
-|-----------|--------|----------|
-| `ApiException` | configurable | Base exception class |
-| `NotFoundException` | 404 | Resource not found |
-| `ConflictException` | 409 | Duplicate resource |
-| `UnauthorizedException` | 401 | Authentication required |
-| `ForbiddenException` | 403 | Insufficient permissions |
-| `InputValidationException` | 400 | Invalid input data |
-| `AggregationException` | 400 | Invalid aggregation query |
-| `CacheException` | 500 | Cache operation failure |
-| `ConfigurationException` | 500 | Invalid configuration |
-| `RateLimitExceededException` | 429 | Rate limit exceeded |
+| Exception | Status | Code | Use Case |
+|-----------|--------|------|----------|
+| `ApiException` | configurable | configurable (default `INTERNAL_ERROR`) | Base exception class |
+| `NotFoundException` | 404 | `NOT_FOUND` | Resource not found |
+| `ConflictException` | 409 | `CONFLICT` | Duplicate resource |
+| `UnauthorizedException` | 401 | `UNAUTHORIZED` | Authentication required |
+| `ForbiddenException` | 403 | `FORBIDDEN` | Insufficient permissions (including write-policy denials) |
+| `InputValidationException` | 400 | `VALIDATION_ERROR` | Zod schema validation failures |
+| `AggregationException` | 400 | `AGGREGATION_ERROR` | Aggregation allow-list / limit denials |
+| `CacheException` | 500 | `CACHE_ERROR` | Cache operation failure |
+| `ConfigurationException` | 500 | `CONFIGURATION_ERROR` | Invalid configuration |
+| `RateLimitExceededException` (from `@hono-crud/rate-limit`) | 429 | `RATE_LIMIT_EXCEEDED` | Rate limit exceeded |
+
+### Stable Error Codes
+
+Some failures are emitted as plain `ApiException`s (or sanctioned short-circuit
+responses) with stable codes rather than dedicated classes:
+
+| Code | Status | When |
+|------|--------|------|
+| `TENANT_REQUIRED` | 400 | Multi-tenancy: required tenant ID is missing |
+| `INVALID_TENANT` | 400 | Multi-tenancy: the configured `validate()` rejected the tenant |
+| `INVALID_QUERY` | 400 | Search: query shorter than `minQueryLength` |
+| `EMPTY_BODY` | 400 | Bulk patch: empty request body |
+| `BULK_TOO_LARGE` | 400 | Bulk patch: matched records exceed `maxBulkSize` |
+| `CONFIRMATION_REQUIRED` | 400 | Bulk patch: matched records ≥ `confirmThreshold` without the `X-Confirm-Bulk: true` header |
+| `EVENT_EMITTER_NOT_CONFIGURED` | 500 | SSE subscribe: no event emitter configured |
+| `TOO_MANY_CONNECTIONS` | 503 | SSE subscribe: max concurrent connections reached |
+| `HTTP_ERROR` | varies | Third-party or Hono-internal `HTTPException`s (e.g. malformed JSON bodies) flattened by `createErrorHandler` — no library code path produces it |
 
 ---
 

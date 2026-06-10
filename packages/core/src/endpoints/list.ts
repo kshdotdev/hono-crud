@@ -9,6 +9,7 @@ import type {
 } from '../core/types';
 import { SORT_DIRECTIONS } from '../core/types';
 import { CrudEndpoint } from './base';
+import { errorResponseSchema } from './responses';
 import {
   type ListFilterParseOptions,
   type ListFilters,
@@ -245,6 +246,7 @@ export abstract class ListEndpoint<
             },
           },
         },
+        400: errorResponseSchema('Validation error'),
       },
     };
   }

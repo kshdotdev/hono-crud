@@ -107,8 +107,8 @@ describe('Memory Adapter', () => {
       expect(res.status).toBe(400);
       const data = await res.json();
       expect(data.success).toBe(false);
-      // @hono/zod-openapi returns ZodError format
-      expect(data.error).toBeDefined();
+      expect(data.error.code).toBe('VALIDATION_ERROR');
+      expect(Array.isArray(data.error.details)).toBe(true);
     });
   });
 
@@ -264,9 +264,9 @@ describe('Memory Adapter', () => {
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.result.length).toBe(2);
-      expect(data.result.every((item: TestItem) => (item.age ?? 0) >= 28 && (item.age ?? 0) <= 32)).toBe(
-        true,
-      );
+      expect(
+        data.result.every((item: TestItem) => (item.age ?? 0) >= 28 && (item.age ?? 0) <= 32),
+      ).toBe(true);
     });
 
     it('should paginate results', async () => {

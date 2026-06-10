@@ -242,7 +242,7 @@ export abstract class OpenAPIRoute<
     details?: unknown,
   ): Response {
     const errorObj: { code: string; message: string; details?: unknown } = { code, message };
-    if (details) {
+    if (details !== undefined) {
       errorObj.details = details;
     }
     const envelope = this.getResponseEnvelope();
