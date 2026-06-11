@@ -1,8 +1,8 @@
-export { apiVersion, getApiVersion, getApiVersionConfig, versionedResponse } from './middleware';
+export { apiVersion, getApiVersion, getApiVersionConfig, apiVersionedResponse } from './middleware';
 export type {
-  VersionStrategy,
-  VersionTransformer,
+  ApiVersionStrategy,
+  ApiVersionTransformer,
   ApiVersionConfig,
-  VersioningMiddlewareConfig,
+  ApiVersioningConfig,
   ApiVersionEnv,
 } from './types';

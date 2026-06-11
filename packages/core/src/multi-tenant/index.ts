@@ -1,34 +1,28 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import { ApiException } from '../core/exceptions';
+import type { MultiTenantConfig, TenantIdSource } from '../core/types';
 import { setContextVar } from '../utils/context';
 
 /**
- * Options for the multi-tenant middleware.
+ * Config for the multi-tenant middleware.
  */
-export interface MultiTenantMiddlewareOptions {
+export interface MultiTenantMiddlewareConfig
+  extends Pick<MultiTenantConfig, 'headerName' | 'pathParam'> {
   /**
-   * How to extract the tenant ID from the request.
+   * Where the middleware extracts the tenant ID from the REQUEST.
    * - 'header': From request header
    * - 'path': From URL path parameter
    * - 'query': From query string parameter
    * - 'jwt': From JWT claims (requires JWT middleware to run first)
    * - 'custom': Use a custom extraction function
+   *
+   * 'context' is excluded: the middleware is the context WRITER — a 'context'
+   * source would read a key nothing wrote. Model-side consumption of the
+   * published value is MultiTenantConfig.source 'context'.
    * @default 'header'
    */
-  source?: 'header' | 'path' | 'query' | 'jwt' | 'custom';
-
-  /**
-   * Header name when source is 'header'.
-   * @default 'X-Tenant-ID'
-   */
-  headerName?: string;
-
-  /**
-   * Path parameter name when source is 'path'.
-   * @default 'tenantId'
-   */
-  pathParam?: string;
+  source?: Exclude<TenantIdSource, 'context'>;
 
   /**
    * Query parameter name when source is 'query'.
@@ -49,7 +43,8 @@ export interface MultiTenantMiddlewareOptions {
   extractor?: <E extends Env>(ctx: Context<E>) => string | undefined | Promise<string | undefined>;
 
   /**
-   * The key to store the tenant ID in context.
+   * Context variable to WRITE the tenant ID to (the model side reads it back
+   * via MultiTenantConfig.contextKey).
    * Access via ctx.get('tenantId') or your custom key.
    * @default 'tenantId'
    */
@@ -127,7 +122,7 @@ export interface MultiTenantMiddlewareOptions {
  * ```
  */
 export function multiTenant<E extends Env = Env>(
-  options: MultiTenantMiddlewareOptions = {},
+  options: MultiTenantMiddlewareConfig = {},
 ): MiddlewareHandler<E> {
   const {
     source = 'header',
@@ -159,7 +154,7 @@ export function multiTenant<E extends Env = Env>(
    * O(1) lookup instead of switch statement.
    */
   const extractors: Record<
-    'header' | 'path' | 'query' | 'jwt' | 'custom',
+    Exclude<TenantIdSource, 'context'>,
     (ctx: Context<E>) => string | undefined | Promise<string | undefined>
   > = {
     header: (ctx) => ctx.req.header(headerName),

@@ -2,7 +2,7 @@ import {
   type IdempotencyEntry,
   type IdempotencyStorage,
   MemoryIdempotencyStorage,
-  idempotency,
+  createIdempotencyMiddleware,
   setIdempotencyStorage,
 } from '@hono-crud/idempotency';
 import { idempotencyStorageRegistry } from '@hono-crud/idempotency/middleware';
@@ -99,7 +99,7 @@ describe('§4.7 idempotency storage lifecycle', () => {
 });
 
 // ============================================================================
-// §4.8 — config.storage precedence: idempotency({ storage }) uses the explicit
+// §4.8 — config.storage precedence: createIdempotencyMiddleware({ storage }) uses the explicit
 // storage over a context-injected and a global one (single resolution tier via
 // resolveIdempotencyStorage(ctx, config.storage); no double-apply).
 // ============================================================================
@@ -115,7 +115,7 @@ describe('§4.8 idempotency config.storage precedence', () => {
     // Inject a DIFFERENT storage into context.
     app.use('/*', createStorageMiddleware({ idempotencyStorage: contextStorage }));
     // config.storage must win over both.
-    app.use('/*', idempotency({ storage: explicitStorage }));
+    app.use('/*', createIdempotencyMiddleware({ storage: explicitStorage }));
     app.post('/op', (c) => c.json({ ok: true }));
 
     const res = await app.request('/op', {
@@ -137,7 +137,7 @@ describe('§4.8 idempotency config.storage precedence', () => {
 
     let handlerCalls = 0;
     const app = new Hono<StorageEnv>();
-    app.use('/*', idempotency({ storage: explicitStorage }));
+    app.use('/*', createIdempotencyMiddleware({ storage: explicitStorage }));
     app.post('/op', (c) => {
       handlerCalls++;
       return c.json({ count: handlerCalls });

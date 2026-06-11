@@ -2,6 +2,7 @@ import type { Context, MiddlewareHandler } from 'hono';
 import { CONTEXT_KEYS } from '../../core/context-keys';
 import { ConfigurationException, UnauthorizedException } from '../../core/exceptions';
 import { resolveAPIKeyStorage } from '../../storage/helpers';
+import { hashAPIKey } from '../hash';
 import type { APIKeyConfig, APIKeyEntry, APIKeyLookupResult, AuthEnv, AuthUser } from '../types';
 import { validateAPIKeyEntry } from '../validators/api-key';
 
@@ -10,17 +11,10 @@ import { validateAPIKeyEntry } from '../validators/api-key';
 // ============================================================================
 
 /**
- * Default function to hash an API key using SHA-256.
+ * Alias of {@link hashAPIKey}; the default `hashKey` used by
+ * createAPIKeyMiddleware/validateAPIKey.
  */
-export async function defaultHashAPIKey(key: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(key);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = new Uint8Array(hashBuffer);
-  return Array.from(hashArray)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
+export const defaultHashAPIKey = hashAPIKey;
 
 /**
  * Default function to extract user info from API key entry.

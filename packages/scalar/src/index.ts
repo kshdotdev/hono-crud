@@ -1,6 +1,6 @@
 import { apiReference } from '@scalar/hono-api-reference';
 import type { ApiReferenceConfiguration } from '@scalar/hono-api-reference';
-import type { Env, Hono, MiddlewareHandler } from 'hono';
+import type { MiddlewareHandler } from 'hono';
 
 /**
  * Available Scalar themes.
@@ -77,7 +77,7 @@ export interface ScalarConfig {
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import { scalarUI } from 'hono-crud';
+ * import { scalarUI } from '@hono-crud/scalar';
  *
  * const app = new Hono();
  *
@@ -143,32 +143,4 @@ export function scalarUI(config: ScalarConfig = {}): MiddlewareHandler {
   }
 
   return apiReference(scalarConfig);
-}
-
-/**
- * Sets up Scalar API Reference endpoint on a Hono app.
- *
- * @param app - Hono app instance
- * @param path - Path to serve the API reference (default: '/reference')
- * @param config - Scalar configuration options
- *
- * @example
- * ```ts
- * import { Hono } from 'hono';
- * import { setupScalar } from 'hono-crud';
- *
- * const app = new Hono();
- *
- * setupScalar(app, '/reference', {
- *   specUrl: '/openapi.json',
- *   theme: 'moon',
- * });
- * ```
- */
-export function setupScalar<E extends Env>(
-  app: Hono<E>,
-  path = '/reference',
-  config: ScalarConfig = {},
-): void {
-  app.get(path, scalarUI(config));
 }

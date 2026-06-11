@@ -61,7 +61,7 @@ import {
 /**
  * Drizzle adapter bundle for use with `defineEndpoints`.
  *
- * Populates the 11 verbs Drizzle implements natively plus a stub
+ * Populates the 16 verbs Drizzle implements natively plus a stub
  * `CloneEndpoint` (throws on request — subclass to implement).
  *
  * @example

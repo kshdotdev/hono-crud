@@ -142,8 +142,10 @@ export interface RateLimitConfig<E extends Env = Env> {
 
   /**
    * Prefix for storage keys.
-   * Useful for namespacing different rate limiters.
-   * @default 'rl'
+   * Useful for namespacing different rate limiters. This is the single source
+   * of key namespacing — storage adapters add no prefix of their own by
+   * default, so persisted keys are `<keyPrefix>:<path>:<clientKey>`.
+   * @default 'rl' (`DEFAULT_RATE_LIMIT_KEY_PREFIX`)
    */
   keyPrefix?: string;
 
@@ -210,7 +212,7 @@ export interface RateLimitConfig<E extends Env = Env> {
  *
  * @example
  * ```ts
- * import type { RateLimitEnv } from 'hono-crud';
+ * import type { RateLimitEnv } from '@hono-crud/rate-limit';
  *
  * type AppEnv = RateLimitEnv & {
  *   Variables: {

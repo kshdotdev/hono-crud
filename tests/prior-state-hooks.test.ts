@@ -29,7 +29,11 @@ import { Hono } from 'hono';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { DrizzleDeleteEndpoint, DrizzleUpdateEndpoint } from '@hono-crud/drizzle';
+import {
+  type DrizzleDatabaseConstraint,
+  DrizzleDeleteEndpoint,
+  DrizzleUpdateEndpoint,
+} from '@hono-crud/drizzle';
 import {
   MEMORY_NOOP_TX,
   MemoryDeleteEndpoint,
@@ -37,7 +41,7 @@ import {
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
-import { type DrizzleDatabase, type HookContext, defineMeta, defineModel } from 'hono-crud';
+import { type HookContext, defineMeta, defineModel } from 'hono-crud';
 
 // ============================================================================
 // Memory adapter — Update
@@ -291,7 +295,7 @@ describe('afterUpdate / afterDelete prior — drizzle adapter (real tx)', () => 
       delete: db.delete.bind(db),
     };
     return {
-      db: wrapped as unknown as DrizzleDatabase,
+      db: wrapped as unknown as DrizzleDatabaseConstraint,
       get committed() {
         return txCommitted;
       },

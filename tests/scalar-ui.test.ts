@@ -1,6 +1,6 @@
-import { scalarUI, setupScalar } from '@hono-crud/scalar';
+import { scalarUI } from '@hono-crud/scalar';
 import type { ScalarConfig, ScalarTheme } from '@hono-crud/scalar';
-import { setupDocsIndex } from '@hono-crud/swagger';
+import { docsIndex } from '@hono-crud/swagger';
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
@@ -128,32 +128,35 @@ describe('scalarUI', () => {
 });
 
 // ============================================================================
-// setupScalar() Tests
+// scalarUI() mounting Tests
 // ============================================================================
 
-describe('setupScalar', () => {
-  it('should register a GET route at the specified path', async () => {
+describe('scalarUI mounting', () => {
+  it('should serve a GET route at the mounted path', async () => {
     const app = new Hono();
-    setupScalar(app, '/docs');
+    app.get('/docs', scalarUI());
 
     const res = await app.request('/docs');
     expect(res.status).toBe(200);
   });
 
-  it('should use /reference as default path', async () => {
+  it('should serve at the conventional /reference mount path', async () => {
     const app = new Hono();
-    setupScalar(app);
+    app.get('/reference', scalarUI());
 
     const res = await app.request('/reference');
     expect(res.status).toBe(200);
   });
 
-  it('should pass config to scalarUI', async () => {
+  it('should render the provided config', async () => {
     const app = new Hono();
-    setupScalar(app, '/api-docs', {
-      specUrl: '/spec.json',
-      theme: 'kepler',
-    });
+    app.get(
+      '/api-docs',
+      scalarUI({
+        specUrl: '/spec.json',
+        theme: 'kepler',
+      }),
+    );
 
     const res = await app.request('/api-docs');
     expect(res.status).toBe(200);
@@ -167,7 +170,7 @@ describe('setupScalar', () => {
     const app = new Hono();
 
     app.get('/health', (c) => c.json({ status: 'ok' }));
-    setupScalar(app, '/reference');
+    app.get('/reference', scalarUI());
     app.get('/api/users', (c) => c.json({ users: [] }));
 
     const healthRes = await app.request('/health');
@@ -185,7 +188,7 @@ describe('setupScalar', () => {
 
   it('should work with nested paths', async () => {
     const app = new Hono();
-    setupScalar(app, '/api/v1/docs');
+    app.get('/api/v1/docs', scalarUI());
 
     const res = await app.request('/api/v1/docs');
     expect(res.status).toBe(200);
@@ -195,7 +198,7 @@ describe('setupScalar', () => {
     const mainApp = new Hono();
     const subApp = new Hono();
 
-    setupScalar(subApp, '/docs', { specUrl: '/api/openapi.json' });
+    subApp.get('/docs', scalarUI({ specUrl: '/api/openapi.json' }));
 
     mainApp.route('/api', subApp);
 
@@ -265,7 +268,7 @@ describe('Scalar Integration', () => {
     );
 
     // Scalar UI
-    setupScalar(app, '/reference', { specUrl: '/openapi.json' });
+    app.get('/reference', scalarUI({ specUrl: '/openapi.json' }));
 
     // Test OpenAPI endpoint
     const specRes = await app.request('/openapi.json');
@@ -281,10 +284,13 @@ describe('Scalar Integration', () => {
 
   it('should work with baseServerURL configuration', async () => {
     const app = new Hono();
-    setupScalar(app, '/reference', {
-      specUrl: '/openapi.json',
-      baseServerURL: 'https://api.example.com',
-    });
+    app.get(
+      '/reference',
+      scalarUI({
+        specUrl: '/openapi.json',
+        baseServerURL: 'https://api.example.com',
+      }),
+    );
 
     const res = await app.request('/reference');
     expect(res.status).toBe(200);
@@ -296,16 +302,18 @@ describe('Scalar Integration', () => {
   it('docs hub links to the path scalar serves by default', async () => {
     const app = new Hono();
 
-    // Mount both packages with their respective defaults: the swagger docs hub
-    // and the scalar reference UI must agree on a single path.
-    setupDocsIndex(app);
-    setupScalar(app);
+    // The agreement between the docs hub and the scalar UI is a
+    // documented-default contract, not runtime wiring: DocsIndexConfig.scalarPath
+    // defaults to '/reference', the conventional scalar mount path.
+    app.get('/', docsIndex());
+    app.get('/reference', scalarUI());
 
-    // The hub renders a link to Scalar; extract its href and follow it.
+    // The hub renders a link to Scalar; extract its href, pin it to the
+    // documented default, and follow it.
     const hubRes = await app.request('/');
     const hubHtml = await hubRes.text();
     const scalarHref = hubHtml.match(/href="([^"]*)"[^>]*>Open Scalar/)?.[1];
-    expect(scalarHref).toBeDefined();
+    expect(scalarHref).toBe('/reference');
 
     const linkedRes = await app.request(scalarHref as string);
     expect(linkedRes.status).toBe(200);

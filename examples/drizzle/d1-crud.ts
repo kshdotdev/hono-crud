@@ -31,7 +31,7 @@
 
 import { KVCacheStorage } from '@hono-crud/cache';
 import { type DrizzleDatabaseConstraint, createDrizzleCrud } from '@hono-crud/drizzle';
-import { setupSwaggerUI } from '@hono-crud/swagger';
+import { swaggerUI } from '@hono-crud/swagger';
 import { drizzle } from 'drizzle-orm/d1';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { Hono } from 'hono';
@@ -264,7 +264,7 @@ openApiApp.doc('/openapi.json', {
 });
 
 // Swagger UI
-setupSwaggerUI(openApiApp, { docsPath: '/docs', specPath: '/openapi.json' });
+openApiApp.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
 
 // Health check
 openApiApp.get('/health', (c) => c.json({ status: 'ok', adapter: 'drizzle', database: 'd1' }));

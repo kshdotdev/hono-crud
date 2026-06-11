@@ -10,7 +10,7 @@
  * @example
  * ```ts
  * import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
- * import { createDrizzleSchemas } from 'hono-crud/adapters/drizzle';
+ * import { createDrizzleSchemas } from '@hono-crud/drizzle';
  *
  * const users = pgTable('users', {
  *   id: uuid('id').primaryKey().defaultRandom(),
@@ -86,7 +86,7 @@ async function ensureDrizzleZod(): Promise<typeof _drizzleZod> {
  * @example
  * ```ts
  * import { users } from './schema';
- * import { createSelectSchema } from 'hono-crud/adapters/drizzle';
+ * import { createSelectSchema } from '@hono-crud/drizzle';
  *
  * const UserSchema = await createSelectSchema(users);
  * type User = z.infer<typeof UserSchema>;
@@ -111,7 +111,7 @@ export async function createSelectSchema<T extends DrizzleTable>(
  * @example
  * ```ts
  * import { users } from './schema';
- * import { createInsertSchema } from 'hono-crud/adapters/drizzle';
+ * import { createInsertSchema } from '@hono-crud/drizzle';
  *
  * const CreateUserSchema = await createInsertSchema(users);
  * type CreateUser = z.infer<typeof CreateUserSchema>;
@@ -139,7 +139,7 @@ export async function createInsertSchema<T extends DrizzleTable>(
  * @example
  * ```ts
  * import { users } from './schema';
- * import { createUpdateSchema } from 'hono-crud/adapters/drizzle';
+ * import { createUpdateSchema } from '@hono-crud/drizzle';
  *
  * const UpdateUserSchema = await createUpdateSchema(users);
  * type UpdateUser = z.infer<typeof UpdateUserSchema>;
@@ -194,7 +194,7 @@ export interface DrizzleSchemas {
  * @example
  * ```ts
  * import { pgTable, text, uuid } from 'drizzle-orm/pg-core';
- * import { createDrizzleSchemas, defineModel, defineMeta } from 'hono-crud/adapters/drizzle';
+ * import { createDrizzleSchemas, defineModel, defineMeta } from '@hono-crud/drizzle';
  * import { z } from 'zod';
  *
  * const users = pgTable('users', {

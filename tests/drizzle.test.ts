@@ -4,7 +4,7 @@ import {
   DrizzleBatchDeleteEndpoint,
   DrizzleCloneEndpoint,
   DrizzleCreateEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleDeleteEndpoint,
   DrizzleListEndpoint,
   DrizzleReadEndpoint,
@@ -112,81 +112,79 @@ const PostModel = defineModel({
 
 class UserCreate extends DrizzleCreateEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 
 class UserRead extends DrizzleReadEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   allowedIncludes = ['posts'];
 }
 
 class UserUpdate extends DrizzleUpdateEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 
 class UserDelete extends DrizzleDeleteEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 
 class UserList extends DrizzleListEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   filterFields = ['role'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'email'];
   allowedIncludes = ['posts'];
 }
 
 class UserRestore extends DrizzleRestoreEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 
 class UserUpsert extends DrizzleUpsertEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   upsertKeys = ['email'];
 }
 
 class UserBatchCreate extends DrizzleBatchCreateEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 
 class UserBatchDelete extends DrizzleBatchDeleteEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 
 class UserClone extends DrizzleCloneEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 
 class PostCreate extends DrizzleCreateEndpoint {
   _meta = { model: PostModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 
 class PostRead extends DrizzleReadEndpoint {
   _meta = { model: PostModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   allowedIncludes = ['author'];
 }
 
 class PostList extends DrizzleListEndpoint {
   _meta = { model: PostModel };
-  db = db as unknown as DrizzleDatabase;
-  orderByFields = ['title', 'views'];
+  db = db as unknown as DrizzleDatabaseConstraint;
   allowedIncludes = ['author'];
 }
 
 class PostAggregate extends DrizzleAggregateEndpoint {
   _meta = { model: PostModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 
   aggregateConfig = {
     sumFields: ['views'],
@@ -204,7 +202,7 @@ let injectedAggregateFilters: AggregateOptions['filters'];
 
 class PostAggregateFiltered extends DrizzleAggregateEndpoint {
   _meta = { model: PostModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 
   aggregateConfig = {
     sumFields: ['views'],
@@ -894,7 +892,7 @@ describe('Drizzle Transaction Support', () => {
     // Verify that endpoints can be configured with useTransaction
     class TestEndpoint extends DrizzleCreateEndpoint {
       _meta = { model: UserModel };
-      db = db as unknown as DrizzleDatabase;
+      db = db as unknown as DrizzleDatabaseConstraint;
       protected useTransaction = true;
     }
 
@@ -921,7 +919,7 @@ describe('Drizzle Transaction Support', () => {
 
     class UserCreateWithTx extends DrizzleCreateEndpoint {
       _meta = { model: UserModel };
-      db = mockDb as unknown as DrizzleDatabase;
+      db = mockDb as unknown as DrizzleDatabaseConstraint;
       protected useTransaction = true;
     }
 
@@ -963,7 +961,7 @@ describe('Drizzle Transaction Support', () => {
 
     class UserCreateNoTx extends DrizzleCreateEndpoint {
       _meta = { model: UserModel };
-      db = mockDb as unknown as DrizzleDatabase;
+      db = mockDb as unknown as DrizzleDatabaseConstraint;
       protected useTransaction = false; // Default
     }
 
@@ -1011,7 +1009,7 @@ describe('Drizzle Transaction Support', () => {
 
     class UserCreateWithError extends DrizzleCreateEndpoint {
       _meta = { model: UserModel };
-      db = mockDb as unknown as DrizzleDatabase;
+      db = mockDb as unknown as DrizzleDatabaseConstraint;
       protected useTransaction = true;
 
       override async after(data: z.infer<typeof UserSchema>): Promise<z.infer<typeof UserSchema>> {

@@ -1,6 +1,6 @@
 import { MemoryCacheStorage } from '@hono-crud/cache';
-import { createHealthEndpoints } from '@hono-crud/health';
-import { MemoryIdempotencyStorage, idempotency } from '@hono-crud/idempotency';
+import { createHealthRoutes } from '@hono-crud/health';
+import { MemoryIdempotencyStorage, createIdempotencyMiddleware } from '@hono-crud/idempotency';
 import {
   MemoryAggregateEndpoint,
   MemoryBatchCreateEndpoint,
@@ -28,7 +28,7 @@ import {
   getStorage,
 } from '@hono-crud/memory';
 import { MemoryRateLimitStorage, createRateLimitMiddleware } from '@hono-crud/rate-limit';
-import { setupSwaggerUI } from '@hono-crud/swagger';
+import { swaggerUI } from '@hono-crud/swagger';
 import { type Context, Hono, type MiddlewareHandler } from 'hono';
 import {
   type AuthEnv,
@@ -521,7 +521,7 @@ export function createApp() {
       storage: rateLimitStorage,
     }),
   );
-  app.use('/idempotent/*', idempotency({ storage: idempotencyStorage }));
+  app.use('/idempotent/*', createIdempotencyMiddleware({ storage: idempotencyStorage }));
   app.use('/tenant/*', multiTenant<AppEnv>({ source: 'header', required: true }));
   app.use(
     '/versioned/*',
@@ -655,19 +655,22 @@ export function createApp() {
     return c.json({ userId, postId });
   });
 
-  createHealthEndpoints(app, {
-    path: '/live',
-    readyPath: '/ready',
-    version: 'local-consumer',
-    checks: [
-      { name: 'memory-users', check: async () => `${getStorage<User>('users').size} users` },
-      {
-        name: 'memory-cache',
-        check: async () => `${cacheStorage.getStats().size} cache entries`,
-        critical: false,
-      },
-    ],
-  });
+  app.route(
+    '/',
+    createHealthRoutes({
+      path: '/live',
+      readyPath: '/ready',
+      version: 'local-consumer',
+      checks: [
+        { name: 'memory-users', check: async () => `${getStorage<User>('users').size} users` },
+        {
+          name: 'memory-cache',
+          check: async () => `${cacheStorage.getStats().size} cache entries`,
+          critical: false,
+        },
+      ],
+    }),
+  );
 
   app.get('/health', (c) =>
     c.json({
@@ -714,7 +717,7 @@ export function createApp() {
     },
   });
 
-  setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
+  app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
 
   return app;
 }

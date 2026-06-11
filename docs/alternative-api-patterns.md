@@ -464,7 +464,7 @@ registerCrud(app, '/users', userEndpoints);
 // Built-in Memory adapter bundle
 import { MemoryAdapters } from '@hono-crud/memory';
 
-// Create custom adapter bundles for Drizzle or Prisma
+// Built-in Drizzle bundle (PrismaAdapters from @hono-crud/prisma works the same way)
 import { DrizzleAdapters } from '@hono-crud/drizzle';
 
 const endpoints = defineEndpoints(config, DrizzleAdapters);

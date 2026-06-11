@@ -39,7 +39,7 @@ export interface KVCacheStorageOptions {
  *
  * @example
  * ```ts
- * import { KVCacheStorage } from 'hono-crud/cache';
+ * import { KVCacheStorage } from '@hono-crud/cache';
  * import { createStorageMiddleware } from 'hono-crud';
  *
  * app.use('*', async (c, next) => {

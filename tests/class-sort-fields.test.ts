@@ -7,9 +7,9 @@ import { z } from 'zod';
 
 // Regression: class-based ListEndpoint subclasses must configure sorting via the
 // canonical `sortFields` / `defaultSort` fields that the base ListEndpoint reads.
-// The `orderByFields` / `defaultOrderBy` / `defaultOrderDirection` names only
-// exist as aliases inside the functional createList() config — as class fields
-// they are silently ignored, so sorting is dead.
+// The old orderBy-flavored alias keys were removed from createList() config in the
+// naming sweep; as class fields they were always silently ignored, so any such
+// field is dead config.
 
 const ItemSchema = z.object({
   id: z.uuid(),

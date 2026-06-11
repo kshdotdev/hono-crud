@@ -31,8 +31,8 @@ import {
   DrizzleUpdateEndpoint,
   DrizzleUpsertEndpoint,
 } from '@hono-crud/drizzle';
-import { setupScalar } from '@hono-crud/scalar';
-import { setupReDoc, setupSwaggerUI } from '@hono-crud/swagger';
+import { scalarUI } from '@hono-crud/scalar';
+import { redocUI, swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
@@ -510,9 +510,9 @@ This API demonstrates ALL hono-crud features:
   },
 });
 
-setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
-setupReDoc(app, { redocPath: '/redoc', specPath: '/openapi.json', title: 'Comprehensive API' });
-setupScalar(app, '/reference', { specUrl: '/openapi.json', theme: 'purple' });
+app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
+app.get('/redoc', redocUI({ specUrl: '/openapi.json', pageTitle: 'Comprehensive API' }));
+app.get('/reference', scalarUI({ specUrl: '/openapi.json', theme: 'purple' }));
 app.get('/health', (c) => c.json({ status: 'ok', adapter: 'drizzle', database: 'postgresql' }));
 
 // ============================================================================

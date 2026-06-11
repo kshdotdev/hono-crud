@@ -5,7 +5,8 @@
  *
  * @example
  * ```ts
- * import { defineEndpoints, MemoryAdapters } from 'hono-crud';
+ * import { defineEndpoints } from 'hono-crud';
+ * import { MemoryAdapters } from '@hono-crud/memory';
  *
  * const userEndpoints = defineEndpoints({
  *   meta: userMeta,
@@ -135,8 +136,6 @@ interface SortingConfig {
   default?: string;
   /** Default sort direction */
   defaultOrder?: SortDirection;
-  /** Backward-compatible alias for defaultOrder */
-  defaultDirection?: SortDirection;
 }
 
 /**
@@ -750,7 +749,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       defaultSort: cfg.sorting?.default
         ? {
             field: cfg.sorting.default,
-            order: cfg.sorting.defaultOrder ?? cfg.sorting.defaultDirection ?? 'asc',
+            order: cfg.sorting.defaultOrder ?? 'asc',
           }
         : undefined,
       defaultPerPage: cfg.pagination?.defaultPerPage,

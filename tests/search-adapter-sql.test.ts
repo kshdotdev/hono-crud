@@ -1,4 +1,4 @@
-import { type DrizzleDatabase, DrizzleSearchEndpoint } from '@hono-crud/drizzle';
+import { type DrizzleDatabaseConstraint, DrizzleSearchEndpoint } from '@hono-crud/drizzle';
 import { MemorySearchEndpoint, clearStorage, getStorage } from '@hono-crud/memory';
 import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
@@ -54,7 +54,7 @@ const DrizzleProductModel = defineModel({
 
 class DrizzleProductSearch extends DrizzleSearchEndpoint {
   _meta = { model: DrizzleProductModel };
-  db = drizzleDb as unknown as DrizzleDatabase;
+  db = drizzleDb as unknown as DrizzleDatabaseConstraint;
   schema = { tags: ['Products'], summary: 'Search products' };
 
   protected searchFields = ['name', 'description'];

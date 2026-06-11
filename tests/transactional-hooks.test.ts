@@ -17,7 +17,7 @@ import { Hono } from 'hono';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { DrizzleCreateEndpoint } from '@hono-crud/drizzle';
+import { DrizzleCreateEndpoint, type DrizzleDatabaseConstraint } from '@hono-crud/drizzle';
 import {
   MEMORY_NOOP_TX,
   MemoryCreateEndpoint,
@@ -26,7 +26,7 @@ import {
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
-import { type DrizzleDatabase, type HookContext, defineMeta, defineModel } from 'hono-crud';
+import { type HookContext, defineMeta, defineModel } from 'hono-crud';
 
 // ============================================================================
 // Memory-adapter cases
@@ -196,7 +196,7 @@ describe('Transactional hooks — drizzle adapter', () => {
 
     class WithRollback extends DrizzleCreateEndpoint {
       _meta = meta;
-      db = mockDb as unknown as DrizzleDatabase;
+      db = mockDb as unknown as DrizzleDatabaseConstraint;
       protected override useTransaction = true;
 
       override async after(

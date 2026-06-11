@@ -2,7 +2,7 @@ import {
   DrizzleBatchCreateEndpoint,
   DrizzleBatchUpsertEndpoint,
   DrizzleCreateEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleImportEndpoint,
   DrizzleUpsertEndpoint,
 } from '@hono-crud/drizzle';
@@ -72,27 +72,27 @@ const meta = defineMeta({ model });
 // `tests/managed-fields-coverage.test.ts` uses for the clone 409 case.
 class WidgetCreate extends DrizzleCreateEndpoint<any, typeof meta> {
   _meta = meta;
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 class WidgetBatchCreate extends DrizzleBatchCreateEndpoint<any, typeof meta> {
   _meta = meta;
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 class WidgetUpsertById extends DrizzleUpsertEndpoint<any, typeof meta> {
   _meta = meta;
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   // Match on `id` so a duplicate `slug` (a different UNIQUE column) is a
   // genuine violation, not just an upsert.
   protected upsertKeys = ['id'];
 }
 class WidgetBatchUpsertById extends DrizzleBatchUpsertEndpoint<any, typeof meta> {
   _meta = meta;
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   protected upsertKeys = ['id'];
 }
 class WidgetImport extends DrizzleImportEndpoint<any, typeof meta> {
   _meta = meta;
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
 }
 
 function buildApp(): Hono {

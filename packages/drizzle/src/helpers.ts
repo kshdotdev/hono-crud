@@ -185,7 +185,7 @@ export type DrizzleDialect = (typeof DRIZZLE_DIALECTS)[number];
  *
  * @example
  * ```ts
- * import { DrizzleEnv } from 'hono-crud/adapters/drizzle';
+ * import { DrizzleEnv } from '@hono-crud/drizzle';
  *
  * type AppEnv = DrizzleEnv<typeof db>;
  *

@@ -225,10 +225,10 @@ import {
   DrizzleReadEndpoint,
   DrizzleUpdateEndpoint,
   DrizzleDeleteEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
 } from '@hono-crud/drizzle';
 
-const typedDb = db as unknown as DrizzleDatabase;
+const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 class UserList extends DrizzleListEndpoint {
   _meta = userMeta;

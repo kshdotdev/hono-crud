@@ -1,4 +1,8 @@
-import { type DrizzleDatabase, DrizzleListEndpoint, createDrizzleCrud } from '@hono-crud/drizzle';
+import {
+  type DrizzleDatabaseConstraint,
+  DrizzleListEndpoint,
+  createDrizzleCrud,
+} from '@hono-crud/drizzle';
 import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
@@ -57,7 +61,7 @@ const ProductModel = defineModel({
 
 class ProductList extends DrizzleListEndpoint {
   _meta = { model: ProductModel };
-  db = drizzleDb as unknown as DrizzleDatabase;
+  db = drizzleDb as unknown as DrizzleDatabaseConstraint;
   schema = { tags: ['Products'], summary: 'List products' };
 
   protected searchFields = ['name', 'description'];
@@ -244,7 +248,7 @@ function literalChunks(node: unknown): string {
  * to the count and main query. Returns a no-op chain for the rest so the
  * list endpoint can run end-to-end without a real driver.
  */
-function makeWhereCaptureDb(): { db: DrizzleDatabase; capture: WhereCapture } {
+function makeWhereCaptureDb(): { db: DrizzleDatabaseConstraint; capture: WhereCapture } {
   const capture: WhereCapture = { whereSql: undefined };
 
   const countChain = {
@@ -298,7 +302,7 @@ function makeWhereCaptureDb(): { db: DrizzleDatabase; capture: WhereCapture } {
     transaction<T>(fn: (tx: unknown) => Promise<T>) {
       return fn(db);
     },
-  } as unknown as DrizzleDatabase;
+  } as unknown as DrizzleDatabaseConstraint;
 
   return { db, capture };
 }

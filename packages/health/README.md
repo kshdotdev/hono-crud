@@ -1,6 +1,6 @@
 # @hono-crud/health
 
-Health check endpoints for [hono-crud](https://github.com/kshdotdev/hono-crud).
+Health check routes for [hono-crud](https://github.com/kshdotdev/hono-crud).
 
 ## Install
 
@@ -11,11 +11,11 @@ npm install @hono-crud/health hono-crud hono
 ## Usage
 
 ```ts
-import { createHealthEndpoints } from '@hono-crud/health';
+import { createHealthRoutes } from '@hono-crud/health';
 
-createHealthEndpoints(app, {
+app.route('/', createHealthRoutes({
   path: '/health',
-});
+}));
 ```
 
-Exports `createHealthEndpoints` for registering liveness / readiness routes.
+Exports `createHealthRoutes`, a router factory returning a mountable `Hono` that owns the liveness (`path`, default `/health`) and readiness (`readyPath`, default `/ready`) routes.

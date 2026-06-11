@@ -26,8 +26,8 @@ import {
   // drizzle-zod helpers
   createDrizzleSchemas,
 } from '@hono-crud/drizzle';
-import { setupScalar } from '@hono-crud/scalar';
-import { setupSwaggerUI } from '@hono-crud/swagger';
+import { scalarUI } from '@hono-crud/scalar';
+import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
@@ -232,12 +232,15 @@ export async function createApp() {
   });
 
   // Setup both Swagger UI and Scalar API Reference
-  setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
-  setupScalar(app, '/reference', {
-    specUrl: '/openapi.json',
-    theme: 'purple',
-    pageTitle: 'drizzle-zod Example API',
-  });
+  app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
+  app.get(
+    '/reference',
+    scalarUI({
+      specUrl: '/openapi.json',
+      theme: 'purple',
+      pageTitle: 'drizzle-zod Example API',
+    }),
+  );
 
   // Health check
   app.get('/health', (c) =>

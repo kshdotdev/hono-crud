@@ -18,9 +18,6 @@ export interface OpenAPIConfig {
 }
 
 export interface RouterOptions {
-  base?: string;
-  docs_url?: string;
-  redoc_url?: string;
   openapi_url?: string;
 }
 
@@ -146,8 +143,6 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
   constructor(app: OpenAPIHono<E>, options: RouterOptions = {}) {
     this.app = app;
     this.options = {
-      docs_url: '/docs',
-      redoc_url: '/redoc',
       openapi_url: '/openapi.json',
       ...options,
     };

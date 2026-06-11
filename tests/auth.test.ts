@@ -15,6 +15,7 @@ import {
   createAPIKeyMiddleware,
   createAuthMiddleware,
   createJWTMiddleware,
+  defaultHashAPIKey,
   fromHono,
   generateAPIKey,
   hashAPIKey,
@@ -966,6 +967,18 @@ describe('API Key Utilities', () => {
 
     expect(hash1).toBe(hash2);
     expect(hash1).toHaveLength(64); // SHA-256 hex string
+  });
+
+  it('defaultHashAPIKey is an alias of hashAPIKey', () => {
+    expect(defaultHashAPIKey).toBe(hashAPIKey);
+  });
+
+  it('hashAPIKey produces the frozen SHA-256 lowercase-hex digest', async () => {
+    // Golden value: SHA-256('test') — pins the algorithm so stored key hashes
+    // in user databases keep matching across releases.
+    expect(await hashAPIKey('test')).toBe(
+      '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+    );
   });
 
   it('isValidAPIKeyFormat should validate key format', () => {

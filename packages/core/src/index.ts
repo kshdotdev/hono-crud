@@ -96,7 +96,7 @@ export { getMultiTenantConfig, extractTenantId } from './multi-tenant/config';
 export { parseSearchMode } from './endpoints/search-utils';
 export { multiTenant } from './multi-tenant';
 export type {
-  MultiTenantMiddlewareOptions,
+  MultiTenantMiddlewareConfig,
   TenantEnv,
 } from './multi-tenant';
 export type {
@@ -113,6 +113,7 @@ export type {
   IdStrategy,
   SoftDeleteConfig,
   NormalizedSoftDeleteConfig,
+  TenantIdSource,
   MultiTenantConfig,
   NormalizedMultiTenantConfig,
   RelationType,
@@ -546,13 +547,13 @@ export {
   apiVersion,
   getApiVersion,
   getApiVersionConfig,
-  versionedResponse,
+  apiVersionedResponse,
 } from './api-version/index';
 export type {
-  VersionStrategy,
-  VersionTransformer,
+  ApiVersionStrategy,
+  ApiVersionTransformer,
   ApiVersionConfig,
-  VersioningMiddlewareConfig,
+  ApiVersioningConfig,
   ApiVersionEnv,
 } from './api-version/index';
 

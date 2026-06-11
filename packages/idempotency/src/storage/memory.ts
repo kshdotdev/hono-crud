@@ -9,7 +9,7 @@ import type { IdempotencyEntry, IdempotencyStorage } from '../types';
  *
  * @example
  * ```ts
- * import { MemoryIdempotencyStorage, setIdempotencyStorage } from 'hono-crud';
+ * import { MemoryIdempotencyStorage, setIdempotencyStorage } from '@hono-crud/idempotency';
  *
  * setIdempotencyStorage(new MemoryIdempotencyStorage());
  * ```

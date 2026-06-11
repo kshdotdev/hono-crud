@@ -1,6 +1,5 @@
 import type { Env } from 'hono';
 import type { MetaInput } from 'hono-crud/internal';
-import type { AdapterBundle } from 'hono-crud/internal';
 import {
   DrizzleBatchUpsertEndpoint,
   DrizzleSearchEndpoint,
@@ -77,7 +76,7 @@ export interface CreateDrizzleCrudOptions {
  *
  * @example
  * ```ts
- * import { createDrizzleCrud } from 'hono-crud/adapters/drizzle';
+ * import { createDrizzleCrud } from '@hono-crud/drizzle';
  *
  * const projectMeta = defineMeta({ model: ProjectModel, fields: projectSchemas.insert });
  * const Project = createDrizzleCrud(db, projectMeta, { dialect: 'pg' });
@@ -161,39 +160,3 @@ export function createDrizzleCrud<M extends MetaInput, E extends Env = Env>(
     },
   } as DrizzleCrudClasses<M, E>;
 }
-
-// ============================================================================
-// Drizzle Adapters Bundle (for Config-based API)
-// ============================================================================
-
-/**
- * Drizzle adapter bundle for use with defineEndpoints.
- *
- * Note: When using DrizzleAdapters with defineEndpoints, you need to provide
- * your own base classes that extend the Drizzle endpoint classes and include
- * the `db` property. The config-based API cannot inject the database instance.
- *
- * @example
- * ```ts
- * import { defineEndpoints } from 'hono-crud';
- * import { DrizzleAdapters } from 'hono-crud/adapters/drizzle';
- *
- * // Create custom adapters with db injected
- * const MyDrizzleAdapters = {
- *   CreateEndpoint: class extends DrizzleCreateEndpoint { db = myDb; },
- *   ListEndpoint: class extends DrizzleListEndpoint { db = myDb; },
- *   ReadEndpoint: class extends DrizzleReadEndpoint { db = myDb; },
- *   UpdateEndpoint: class extends DrizzleUpdateEndpoint { db = myDb; },
- *   DeleteEndpoint: class extends DrizzleDeleteEndpoint { db = myDb; },
- * };
- *
- * const userEndpoints = defineEndpoints({ meta: userMeta, ... }, MyDrizzleAdapters);
- * ```
- */
-export const DrizzleAdapters: AdapterBundle = {
-  CreateEndpoint: DrizzleCreateEndpoint,
-  ListEndpoint: DrizzleListEndpoint,
-  ReadEndpoint: DrizzleReadEndpoint,
-  UpdateEndpoint: DrizzleUpdateEndpoint,
-  DeleteEndpoint: DrizzleDeleteEndpoint,
-};

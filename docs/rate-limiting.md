@@ -26,9 +26,12 @@ import { RedisRateLimitStorage, setRateLimitStorage } from '@hono-crud/rate-limi
 
 setRateLimitStorage(new RedisRateLimitStorage({
   client: redisClient,
-  prefix: 'rl:',
 }));
 ```
+
+The optional `prefix` adds extra namespacing on top of the keys the middleware
+produces; it defaults to `''` because keys are already namespaced by the
+middleware's `keyPrefix` (default `'rl'`).
 
 ### Context-scoped Storage
 

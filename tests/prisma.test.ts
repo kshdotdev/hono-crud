@@ -399,7 +399,6 @@ class UserList extends PrismaListEndpoint {
   }
   filterFields = ['role'];
   searchFields = ['name', 'email'];
-  orderByFields = ['name', 'email'];
 }
 
 class UserRestore extends PrismaRestoreEndpoint {
@@ -480,7 +479,6 @@ class PostList extends PrismaListEndpoint {
   get prisma() {
     return mockPrisma;
   }
-  orderByFields = ['title', 'views'];
 }
 
 // Allows range filters on `views` so two operators land on the SAME field,
@@ -490,7 +488,6 @@ class PostListRanged extends PrismaListEndpoint {
   get prisma() {
     return mockPrisma;
   }
-  orderByFields = ['title', 'views'];
   filterConfig = { views: ['gte' as const, 'lte' as const] };
 }
 

@@ -53,7 +53,7 @@ export interface ResourceOptions {
   tools?: Partial<Record<OperationName, ToolOptions>>;
 }
 
-/** Context handed to a custom {@link CrudMcpOptions.naming} strategy. */
+/** Context handed to a custom {@link CrudMcpConfig.naming} strategy. */
 export interface NamingContext {
   resource: string;
   operation: OperationName;
@@ -112,8 +112,8 @@ export interface OAuthAuthOptions {
 
 export type McpAuthOptions = VerifierAuthOptions | MiddlewareAuthOptions | OAuthAuthOptions;
 
-/** Options for {@link createCrudMcp}. */
-export interface CrudMcpOptions {
+/** Config for {@link createCrudMcp}. */
+export interface CrudMcpConfig {
   /** MCP server name advertised to clients. */
   name: string;
   /** MCP server version advertised to clients. */

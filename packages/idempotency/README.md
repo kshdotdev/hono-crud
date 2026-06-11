@@ -12,7 +12,7 @@ npm install @hono-crud/idempotency hono-crud hono
 
 ```ts
 import {
-  idempotency,
+  createIdempotencyMiddleware,
   setIdempotencyStorage,
   MemoryIdempotencyStorage,
 } from '@hono-crud/idempotency';
@@ -20,7 +20,7 @@ import {
 setIdempotencyStorage(new MemoryIdempotencyStorage());
 
 // Replays the original response for repeated requests carrying the same Idempotency-Key.
-app.use('/api/*', idempotency());
+app.use('/api/*', createIdempotencyMiddleware());
 ```
 
-Exports `idempotency`, `setIdempotencyStorage`, and `MemoryIdempotencyStorage`.
+Exports `createIdempotencyMiddleware`, `setIdempotencyStorage`, and `MemoryIdempotencyStorage`.

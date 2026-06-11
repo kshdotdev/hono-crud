@@ -44,7 +44,11 @@ export interface RedisRateLimitClient {
 export interface RedisRateLimitStorageOptions {
   /** Redis client instance */
   client: RedisRateLimitClient;
-  /** Key prefix for all rate limit entries @default 'ratelimit:' */
+  /**
+   * Extra namespace prefix prepended to every key. Default `''` — keys are
+   * already namespaced by the middleware's `keyPrefix` (default `'rl'`).
+   * @default ''
+   */
   prefix?: string;
 }
 
@@ -99,7 +103,7 @@ return cjson.encode({timestamps = timestamps})
  * @example
  * ```ts
  * import { Redis } from '@upstash/redis';
- * import { RedisRateLimitStorage, setRateLimitStorage } from 'hono-crud';
+ * import { RedisRateLimitStorage, setRateLimitStorage } from '@hono-crud/rate-limit';
  *
  * const storage = new RedisRateLimitStorage({
  *   client: new Redis({
@@ -113,7 +117,7 @@ return cjson.encode({timestamps = timestamps})
  * @example
  * ```ts
  * import Redis from 'ioredis';
- * import { RedisRateLimitStorage, setRateLimitStorage } from 'hono-crud';
+ * import { RedisRateLimitStorage, setRateLimitStorage } from '@hono-crud/rate-limit';
  *
  * const storage = new RedisRateLimitStorage({
  *   client: new Redis(c.env.REDIS_URL),
@@ -128,7 +132,7 @@ export class RedisRateLimitStorage implements RateLimitStorage {
 
   constructor(options: RedisRateLimitStorageOptions) {
     this.client = options.client;
-    this.prefix = options.prefix ?? 'ratelimit:';
+    this.prefix = options.prefix ?? '';
   }
 
   /**
