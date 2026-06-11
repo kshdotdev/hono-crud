@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/scalar",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Scalar API reference documentation endpoint for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
