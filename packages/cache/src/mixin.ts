@@ -70,7 +70,7 @@ export const cacheStorageRegistry = cacheStorageFeature.registry;
  * @example
  * ```ts
  * import { Redis } from '@upstash/redis';
- * import { RedisCacheStorage, setCacheStorage } from 'hono-crud/cache';
+ * import { RedisCacheStorage, setCacheStorage } from '@hono-crud/cache';
  *
  * setCacheStorage(new RedisCacheStorage({
  *   client: new Redis({ url: c.env.REDIS_URL }),

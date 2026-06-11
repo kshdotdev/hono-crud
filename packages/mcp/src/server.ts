@@ -8,7 +8,7 @@ import {
 } from 'hono-crud/internal';
 import { type ResolvedAuth, resolveAuth } from './auth';
 import { registerResourceTools } from './tools';
-import type { AutoOptions, CrudMcpOptions, ResourceEndpoints, ResourceOptions } from './types';
+import type { AutoOptions, CrudMcpConfig, ResourceEndpoints, ResourceOptions } from './types';
 
 function normalizePath(path: string): string {
   return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
@@ -31,7 +31,7 @@ export class CrudMcpServer {
   constructor(
     // biome-ignore lint/suspicious/noExplicitAny: re-dispatch targets any Hono app.
     private readonly app: Hono<any, any, any>,
-    private readonly options: CrudMcpOptions,
+    private readonly options: CrudMcpConfig,
   ) {
     this.server = new McpServer(
       { name: options.name, version: options.version },
@@ -112,7 +112,7 @@ export class CrudMcpServer {
 export function createCrudMcp(
   // biome-ignore lint/suspicious/noExplicitAny: re-dispatch targets any Hono app.
   app: Hono<any, any, any>,
-  options: CrudMcpOptions,
+  options: CrudMcpConfig,
 ): CrudMcpServer {
   return new CrudMcpServer(app, options);
 }

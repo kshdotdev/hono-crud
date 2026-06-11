@@ -570,7 +570,7 @@ Prevent duplicate operations via idempotency keys.
 
 ```typescript
 import {
-  idempotency,
+  createIdempotencyMiddleware,
   setIdempotencyStorage,
   MemoryIdempotencyStorage,
 } from '@hono-crud/idempotency';
@@ -578,7 +578,7 @@ import {
 setIdempotencyStorage(new MemoryIdempotencyStorage());
 
 // Apply to mutation endpoints
-app.use('/api/*', idempotency({
+app.use('/api/*', createIdempotencyMiddleware({
   headerName: 'Idempotency-Key',  // default
   ttl: 86400,                      // 24 hours (default)
 }));
@@ -656,15 +656,28 @@ instead, or `required: false` to continue without a tenant.
 
 **Model-level config:**
 
+Multi-tenancy is a two-stage pipeline. Stage 1 is the `multiTenant()`
+middleware above: it extracts the tenant ID from the request (header, path,
+query, JWT, or custom), enforces `required`/`validate`, and publishes the
+value to a context variable (`contextKey`, default `'tenantId'`). Stage 2 is
+the model-level config: with `source: 'context'` (the default) the data layer
+reads exactly what the middleware published, then filters every query by
+`field` and injects it on create.
+
 ```typescript
 const UserModel = defineModel({
   tableName: 'users',
   schema: UserSchema,
   primaryKeys: ['id'],
   multiTenant: {
-    tenantIdField: 'tenantId',
-    enforceOnCreate: true,
-    enforceOnRead: true,
+    field: 'tenantId',        // column that stores the tenant ID (default 'tenantId')
+    source: 'context',        // 'context' (default) | 'header' | 'path' | 'custom'
+    contextKey: 'tenantId',   // context var the data layer READS (middleware WRITES it)
+    headerName: 'X-Tenant-ID',// used when source is 'header'
+    pathParam: 'tenantId',    // used when source is 'path'
+    getTenantId: undefined,   // custom extractor when source is 'custom'
+    required: true,           // false = silently return no results when missing
+    errorMessage: 'Tenant ID is required',
   },
 });
 ```
@@ -676,9 +689,9 @@ const UserModel = defineModel({
 Liveness and readiness endpoints.
 
 ```typescript
-import { createHealthEndpoints } from '@hono-crud/health';
+import { createHealthRoutes } from '@hono-crud/health';
 
-createHealthEndpoints(app, {
+app.route('/', createHealthRoutes({
   version: '1.0.0',
   path: '/health',       // Liveness (always 200)
   readyPath: '/ready',   // Readiness (runs checks)
@@ -695,7 +708,7 @@ createHealthEndpoints(app, {
       timeout: 3000,     // Per-check timeout
     },
   ],
-});
+}));
 ```
 
 **Response:**
@@ -885,25 +898,42 @@ GET /users?page=2&per_page=50
 
 ## API Versioning
 
+Negotiate the API version per request and transform responses per version.
+Registration order matters: `apiVersion()` first, then `apiVersionedResponse()`,
+then your route handlers — `apiVersionedResponse()` wraps handlers via
+`await next()`, and middleware registered after a response-producing handler
+never runs.
+
 ```typescript
-import { apiVersion, getApiVersion, versionedResponse } from 'hono-crud';
+import { apiVersion, apiVersionedResponse, getApiVersion, getApiVersionConfig } from 'hono-crud';
 
 app.use('/api/*', apiVersion({
-  strategy: 'header',     // 'header' | 'path' | 'query'
-  headerName: 'API-Version',
-  defaultVersion: '1',
-  supported: ['1', '2'],
+  versions: [
+    { version: '1', responseTransformer: (data) => ({ id: data.id, name: data.name }) },
+    { version: '2' },
+  ],
+  defaultVersion: '2',        // falls back to the first entry when omitted
+  strategy: 'header',         // 'url' | 'header' | 'query' (default 'header')
+  headerName: 'Accept-Version', // default
+  queryParam: 'version',      // for strategy 'query' (default)
+  urlPattern: '/v{version}',  // for strategy 'url' (default)
+  extractVersion: undefined,  // custom extractor (overrides strategy)
+  addHeaders: true,           // adds version response headers (default)
 }));
 
-app.get('/api/users', (c) => {
-  const version = getApiVersion(c);
+// Rewrites response JSON through the active version's responseTransformer.
+app.use('/api/*', apiVersionedResponse());
 
-  return versionedResponse(c, userData, {
-    '1': (data) => ({ id: data.id, name: data.name }),
-    '2': (data) => ({ id: data.id, fullName: data.name, email: data.email }),
-  });
+app.get('/api/users/:id', (c) => {
+  const version = getApiVersion(c);          // e.g. '1'
+  const config = getApiVersionConfig(c);     // the matched ApiVersionConfig entry
+  return c.json(userData);                   // transformed on the way out for v1 clients
 });
 ```
+
+Each entry in `versions` is an `ApiVersionConfig` (`version`, optional
+`middleware`, `requestTransformer`, `responseTransformer`, `deprecated`,
+`sunset`).
 
 ---
 

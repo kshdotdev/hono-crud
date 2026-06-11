@@ -511,7 +511,9 @@ export interface VersionHistoryEntry<T = Record<string, unknown>> {
 }
 
 /**
- * Versioning configuration for a model.
+ * Versioning configuration for a model (stored record-history versions).
+ * HTTP API version negotiation is configured separately via `ApiVersioningConfig`
+ * (api-version).
  */
 export interface VersioningConfig {
   /** Enable versioning for this model */
@@ -681,6 +683,13 @@ export type ComputedFieldsConfig<T = Record<string, unknown>> = Record<
 // ============================================================================
 
 /**
+ * Every recognized tenant-ID source across both pipeline stages.
+ * Single source of truth: the middleware and the model layer each derive their
+ * legal subset via Exclude<> below, so the two sides cannot drift.
+ */
+export type TenantIdSource = 'header' | 'context' | 'path' | 'query' | 'jwt' | 'custom';
+
+/**
  * Configuration for multi-tenant behavior.
  * When enabled, all queries are automatically filtered by tenant ID,
  * and tenant ID is automatically injected on create operations.
@@ -693,14 +702,18 @@ export interface MultiTenantConfig {
   field?: string;
 
   /**
-   * How to retrieve the tenant ID from the request context.
+   * Where the DATA LAYER reads the tenant ID.
    * - 'header': From request header (specify headerName)
    * - 'context': From Hono context variable (c.get('tenantId'))
    * - 'path': From URL path parameter
    * - 'custom': Use a custom function
+   *
+   * 'query'/'jwt' are excluded: raw-HTTP extraction belongs to the multiTenant()
+   * middleware, which validates and publishes to context — set source 'context'
+   * (the default) to consume it.
    * @default 'context'
    */
-  source?: 'header' | 'context' | 'path' | 'custom';
+  source?: Exclude<TenantIdSource, 'query' | 'jwt'>;
 
   /**
    * Header name when source is 'header'.
@@ -709,7 +722,8 @@ export interface MultiTenantConfig {
   headerName?: string;
 
   /**
-   * Context variable name when source is 'context'.
+   * Context variable the data layer READS when source is 'context'
+   * (the middleware's contextKey is where it WRITES).
    * @default 'tenantId'
    */
   contextKey?: string;
@@ -1221,7 +1235,7 @@ export interface NormalizedSoftDeleteConfig {
 export interface NormalizedMultiTenantConfig {
   enabled: boolean;
   field: string;
-  source: 'header' | 'context' | 'path' | 'custom';
+  source: Exclude<TenantIdSource, 'query' | 'jwt'>;
   headerName: string;
   contextKey: string;
   pathParam: string;

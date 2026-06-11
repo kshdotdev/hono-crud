@@ -60,16 +60,19 @@ async function runAllChecks(
 }
 
 /**
- * Create health check endpoints and register them on a Hono app.
+ * Create a mountable Hono sub-app that owns the health routes:
+ * liveness (`path`, default `/health`, always 200) and readiness
+ * (`readyPath`, default `/ready`, 200 or 503 based on the configured checks).
+ * Paths are relative to wherever the sub-app is mounted.
  *
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import { createHealthEndpoints } from 'hono-crud';
+ * import { createHealthRoutes } from '@hono-crud/health';
  *
  * const app = new Hono();
  *
- * createHealthEndpoints(app, {
+ * app.route('/', createHealthRoutes({
  *   version: '1.0.0',
  *   checks: [
  *     {
@@ -82,13 +85,10 @@ async function runAllChecks(
  *       critical: false, // degraded, not unhealthy
  *     },
  *   ],
- * });
+ * }));
  * ```
  */
-export function createHealthEndpoints<E extends Env = Env>(
-  app: Hono<E>,
-  config: HealthConfig = {},
-): void {
+export function createHealthRoutes<E extends Env = Env>(config: HealthConfig = {}): Hono<E> {
   const {
     checks = [],
     version,
@@ -97,6 +97,8 @@ export function createHealthEndpoints<E extends Env = Env>(
     defaultTimeout = 5000,
     verbose = true,
   } = config;
+
+  const app = new Hono<E>();
 
   // Liveness — always 200 if process is running
   app.get(path, (c) => {
@@ -129,14 +131,6 @@ export function createHealthEndpoints<E extends Env = Env>(
     const statusCode = status === 'unhealthy' ? 503 : 200;
     return c.json(response, statusCode);
   });
-}
 
-/**
- * Create a standalone health check handler (no app registration).
- * Useful for composing into existing routers.
- */
-export function createHealthHandler(config: HealthConfig = {}) {
-  const app = new Hono();
-  createHealthEndpoints(app, config);
   return app;
 }

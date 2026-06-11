@@ -1,4 +1,4 @@
-import { DrizzleCloneEndpoint, type DrizzleDatabase } from '@hono-crud/drizzle';
+import { DrizzleCloneEndpoint, type DrizzleDatabaseConstraint } from '@hono-crud/drizzle';
 import {
   MemoryBatchCreateEndpoint,
   MemoryCloneEndpoint,
@@ -293,7 +293,7 @@ describe('clone unique-violation → 409 JSON envelope', () => {
 
   class ProdClone extends DrizzleCloneEndpoint<any, typeof meta> {
     _meta = meta;
-    db = db as unknown as DrizzleDatabase;
+    db = db as unknown as DrizzleDatabaseConstraint;
   }
 
   let app: Hono;

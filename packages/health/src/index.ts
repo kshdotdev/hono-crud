@@ -1,4 +1,4 @@
-export { createHealthEndpoints, createHealthHandler } from './endpoint';
+export { createHealthRoutes } from './endpoint';
 export type {
   HealthCheck,
   HealthCheckFn,

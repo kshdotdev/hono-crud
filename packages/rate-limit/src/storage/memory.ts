@@ -47,7 +47,7 @@ interface RateLimitWrapper {
  *
  * @example
  * ```ts
- * import { MemoryRateLimitStorage, setRateLimitStorage } from 'hono-crud';
+ * import { MemoryRateLimitStorage, setRateLimitStorage } from '@hono-crud/rate-limit';
  *
  * const storage = new MemoryRateLimitStorage();
  * setRateLimitStorage(storage);

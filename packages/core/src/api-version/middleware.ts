@@ -1,7 +1,7 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import { ApiException } from '../core/exceptions';
-import type { ApiVersionConfig, VersioningMiddlewareConfig } from './types';
+import type { ApiVersionConfig, ApiVersioningConfig } from './types';
 
 /**
  * Extract version from the Accept-Version (or custom) header.
@@ -59,7 +59,7 @@ function extractFromUrl(ctx: Context, pattern: string): string | undefined {
  * }));
  * ```
  */
-export function apiVersion(config: VersioningMiddlewareConfig): MiddlewareHandler {
+export function apiVersion(config: ApiVersioningConfig): MiddlewareHandler {
   const {
     versions,
     strategy = 'header',
@@ -143,16 +143,18 @@ export function getApiVersionConfig(ctx: Context): ApiVersionConfig | undefined 
 
 /**
  * Middleware that transforms response JSON using the active version's responseTransformer.
- * Apply AFTER your route handlers.
+ * Register it BEFORE your route handlers (and after apiVersion()) — like all Hono
+ * middleware it wraps the handler via `await next()` and rewrites the response on the
+ * way out. Middleware registered after a response-producing handler never runs.
  *
  * @example
  * ```ts
  * app.use('*', apiVersion({ ... }));
+ * app.use('*', apiVersionedResponse());
  * app.get('/users/:id', handler);
- * app.use('*', versionedResponse());
  * ```
  */
-export function versionedResponse(): MiddlewareHandler {
+export function apiVersionedResponse(): MiddlewareHandler {
   return async (ctx, next) => {
     await next();
 

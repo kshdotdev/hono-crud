@@ -16,7 +16,7 @@ import {
   DrizzleCreateEndpoint,
   DrizzleReadEndpoint,
   DrizzleListEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
 } from '@hono-crud/drizzle';
 
 const app = fromHono(new Hono());
@@ -27,4 +27,4 @@ registerCrud(app, '/users', {
 });
 ```
 
-Exports `DrizzleAdapters`, the `Drizzle*Endpoint` classes, `createDrizzleCrud`, `createDrizzleSchemas`, and the `DrizzleDatabase` type.
+Exports `DrizzleAdapters` (the 17-entry adapter bundle), the `Drizzle*Endpoint` classes, `createDrizzleCrud`, `createDrizzleSchemas`, and the `DrizzleDatabaseConstraint` type.

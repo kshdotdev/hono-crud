@@ -1,7 +1,7 @@
 import {
   DrizzleCloneEndpoint,
   DrizzleCreateEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleUpsertEndpoint,
 } from '@hono-crud/drizzle';
 import {
@@ -274,16 +274,16 @@ describe("Model.id 'database' strategy (Drizzle $defaultFn)", () => {
 
   class DbCreate extends DrizzleCreateEndpoint<any, typeof meta> {
     _meta = meta;
-    db = db as unknown as DrizzleDatabase;
+    db = db as unknown as DrizzleDatabaseConstraint;
   }
   class DbUpsert extends DrizzleUpsertEndpoint<any, typeof meta> {
     _meta = meta;
-    db = db as unknown as DrizzleDatabase;
+    db = db as unknown as DrizzleDatabaseConstraint;
     upsertKeys = ['email'];
   }
   class DbClone extends DrizzleCloneEndpoint<any, typeof meta> {
     _meta = meta;
-    db = db as unknown as DrizzleDatabase;
+    db = db as unknown as DrizzleDatabaseConstraint;
   }
 
   let app: Hono;

@@ -113,10 +113,10 @@ export type { AuthEndpointMethods } from './endpoint';
 // Storage Exports
 // ============================================================================
 
+export { hashAPIKey } from './hash';
 export {
   MemoryAPIKeyStorage,
   generateAPIKey,
-  hashAPIKey,
   isValidAPIKeyFormat,
   getAPIKeyStorage,
   setAPIKeyStorage,

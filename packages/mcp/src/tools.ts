@@ -11,7 +11,7 @@ import {
 } from './dispatch';
 import { buildInputShape, extractRequestPlan } from './schema';
 import {
-  type CrudMcpOptions,
+  type CrudMcpConfig,
   type EndpointInstance,
   OPERATIONS,
   type ResourceEndpoints,
@@ -68,7 +68,7 @@ export function registerResourceTools(
   app: Hono<any, any, any>,
   basePath: string,
   endpoints: ResourceEndpoints,
-  options: CrudMcpOptions,
+  options: CrudMcpConfig,
   resourceOptions: ResourceOptions = {},
 ): string[] {
   const normalizedPath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;

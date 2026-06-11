@@ -1,6 +1,6 @@
 import {
   DrizzleBatchUpsertEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleUpsertEndpoint,
   createDrizzleCrud,
 } from '@hono-crud/drizzle';
@@ -63,7 +63,7 @@ interface StubCall {
 
 interface StubDb {
   calls: StubCall[];
-  db: DrizzleDatabase;
+  db: DrizzleDatabaseConstraint;
 }
 
 /**
@@ -123,7 +123,7 @@ function makeStubDb(): StubDb {
     transaction<T>(fn: (tx: unknown) => Promise<T>) {
       return fn(db);
     },
-  } as unknown as DrizzleDatabase;
+  } as unknown as DrizzleDatabaseConstraint;
 
   return { calls, db };
 }

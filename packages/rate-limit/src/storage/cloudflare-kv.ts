@@ -12,7 +12,11 @@ import type {
 export interface KVRateLimitStorageOptions {
   /** KV namespace binding. */
   kv: KVNamespace;
-  /** Key prefix for all rate limit entries. @default 'rl:' */
+  /**
+   * Extra namespace prefix prepended to every key. Default `''` — keys are
+   * already namespaced by the middleware's `keyPrefix` (default `'rl'`).
+   * @default ''
+   */
   prefix?: string;
   /**
    * Whether KV read/write failures should allow the request to continue.
@@ -45,7 +49,8 @@ export interface KVRateLimitStorageOptions {
  *
  * @example
  * ```ts
- * import { KVRateLimitStorage, createStorageMiddleware } from 'hono-crud';
+ * import { KVRateLimitStorage } from '@hono-crud/rate-limit';
+ * import { createStorageMiddleware } from 'hono-crud';
  *
  * app.use('*', async (c, next) => {
  *   const rateLimitStorage = new KVRateLimitStorage({ kv: c.env.RATE_LIMIT_KV });
@@ -61,7 +66,7 @@ export class KVRateLimitStorage implements RateLimitStorage {
 
   constructor(options: KVRateLimitStorageOptions) {
     this.kv = options.kv;
-    this.prefix = options.prefix ?? 'rl:';
+    this.prefix = options.prefix ?? '';
     this.failOpen = options.failOpen ?? true;
     this.onError = options.onError;
   }

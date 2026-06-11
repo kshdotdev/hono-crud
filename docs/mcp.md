@@ -258,7 +258,7 @@ mcp-session-id: <id from the initialize response>
 
 ## Configuration reference
 
-### `createCrudMcp(app, options)` — `CrudMcpOptions`
+### `createCrudMcp(app, options)` — `CrudMcpConfig`
 
 | Option | Type | Default | Description |
 |---|---|---|---|

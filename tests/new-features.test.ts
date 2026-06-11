@@ -1,4 +1,4 @@
-import { idempotency } from '@hono-crud/idempotency/middleware';
+import { createIdempotencyMiddleware } from '@hono-crud/idempotency/middleware';
 import { MemoryIdempotencyStorage } from '@hono-crud/idempotency/storage/memory';
 import {
   MemoryCloneEndpoint,
@@ -532,7 +532,7 @@ describe('Idempotency Middleware', () => {
   beforeEach(() => {
     storage = new MemoryIdempotencyStorage();
     app = new Hono();
-    app.use('/*', idempotency({ storage }));
+    app.use('/*', createIdempotencyMiddleware({ storage }));
     app.post('/items', (c) => c.json({ success: true, result: { id: crypto.randomUUID() } }, 201));
     app.get('/items', (c) => c.json({ success: true, result: [] }));
   });
@@ -571,7 +571,7 @@ describe('Idempotency Middleware', () => {
 
   it('should require idempotency key when configured', async () => {
     const requiredApp = new Hono();
-    requiredApp.use('/*', idempotency({ storage, required: true }));
+    requiredApp.use('/*', createIdempotencyMiddleware({ storage, required: true }));
     requiredApp.post('/items', (c) => c.json({ ok: true }));
 
     const res = await requiredApp.request('/items', { method: 'POST' });

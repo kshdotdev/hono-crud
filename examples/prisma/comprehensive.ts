@@ -32,7 +32,7 @@ import {
   PrismaUpdateEndpoint,
   PrismaUpsertEndpoint,
 } from '@hono-crud/prisma';
-import { setupReDoc, setupSwaggerUI } from '@hono-crud/swagger';
+import { redocUI, swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
@@ -443,8 +443,8 @@ This API demonstrates ALL hono-crud features:
   },
 });
 
-setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
-setupReDoc(app, { redocPath: '/redoc', specPath: '/openapi.json', title: 'Comprehensive API' });
+app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
+app.get('/redoc', redocUI({ specUrl: '/openapi.json', pageTitle: 'Comprehensive API' }));
 app.get('/health', (c) => c.json({ status: 'ok', adapter: 'prisma', database: 'postgresql' }));
 
 // ============================================================================

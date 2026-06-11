@@ -21,7 +21,7 @@ import {
   DrizzleListEndpoint,
   DrizzleUpsertEndpoint,
 } from '@hono-crud/drizzle';
-import { setupSwaggerUI } from '@hono-crud/swagger';
+import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { integer, numeric, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { Hono } from 'hono';
@@ -238,7 +238,7 @@ app.doc('/openapi.json', {
   },
 });
 
-setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
+app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
 // ============================================================================

@@ -59,7 +59,7 @@ export interface RedisCacheStorageOptions {
  * @example
  * ```ts
  * import { Redis } from '@upstash/redis';
- * import { RedisCacheStorage, setCacheStorage } from 'hono-crud/cache';
+ * import { RedisCacheStorage, setCacheStorage } from '@hono-crud/cache';
  *
  * const cache = new RedisCacheStorage({
  *   client: new Redis({
@@ -73,7 +73,7 @@ export interface RedisCacheStorageOptions {
  * @example
  * ```ts
  * import Redis from 'ioredis';
- * import { RedisCacheStorage, setCacheStorage } from 'hono-crud/cache';
+ * import { RedisCacheStorage, setCacheStorage } from '@hono-crud/cache';
  *
  * const cache = new RedisCacheStorage({
  *   client: new Redis(c.env.REDIS_URL),

@@ -1,5 +1,5 @@
 export {
-  idempotency,
+  createIdempotencyMiddleware,
   setIdempotencyStorage,
   getIdempotencyStorage,
   getIdempotencyStorageRequired,

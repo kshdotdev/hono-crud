@@ -21,7 +21,7 @@ import {
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
-import { setupSwaggerUI } from '@hono-crud/swagger';
+import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { type ComputedFieldsConfig, defineMeta, defineModel, fromHono } from 'hono-crud';
@@ -260,7 +260,7 @@ Use \`?fields=field1,field2,field3\` to select specific fields.
 });
 
 // Swagger UI
-setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
+app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
 
 // ============================================================================
 // Add Sample Data

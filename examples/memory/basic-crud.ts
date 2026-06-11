@@ -19,8 +19,8 @@ import {
   MemoryUpdateEndpoint,
   clearStorage,
 } from '@hono-crud/memory';
-import { setupScalar } from '@hono-crud/scalar';
-import { setupReDoc, setupSwaggerUI } from '@hono-crud/swagger';
+import { scalarUI } from '@hono-crud/scalar';
+import { redocUI, swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { type Env, Hono } from 'hono';
 import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
@@ -142,9 +142,9 @@ app.doc('/openapi.json', {
 });
 
 // API Documentation UIs
-setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
-setupReDoc(app, { redocPath: '/redoc', specPath: '/openapi.json', title: 'User API' });
-setupScalar(app, '/reference', { specUrl: '/openapi.json', theme: 'default' });
+app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
+app.get('/redoc', redocUI({ specUrl: '/openapi.json', pageTitle: 'User API' }));
+app.get('/reference', scalarUI({ specUrl: '/openapi.json', theme: 'default' }));
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', adapter: 'memory' }));

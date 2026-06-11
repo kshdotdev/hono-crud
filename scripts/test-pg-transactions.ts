@@ -16,7 +16,7 @@ import pg from 'pg';
 import { z } from 'zod';
 import {
   DrizzleCreateEndpoint,
-  type DrizzleDatabase,
+  type DrizzleDatabaseConstraint,
   DrizzleDeleteEndpoint,
   DrizzleUpdateEndpoint,
 } from '../src/adapters/drizzle/index.js';
@@ -69,13 +69,13 @@ const UserModel = defineModel({
 
 class UserCreateWithTx extends DrizzleCreateEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   protected useTransaction = true;
 }
 
 class UserCreateWithTxAndError extends DrizzleCreateEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   protected useTransaction = true;
 
   override async after(data: z.infer<typeof UserSchema>): Promise<z.infer<typeof UserSchema>> {
@@ -85,19 +85,19 @@ class UserCreateWithTxAndError extends DrizzleCreateEndpoint {
 
 class UserCreateWithoutTx extends DrizzleCreateEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   protected useTransaction = false;
 }
 
 class UserUpdateWithTx extends DrizzleUpdateEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   protected useTransaction = true;
 }
 
 class UserDeleteWithTx extends DrizzleDeleteEndpoint {
   _meta = { model: UserModel };
-  db = db as unknown as DrizzleDatabase;
+  db = db as unknown as DrizzleDatabaseConstraint;
   protected useTransaction = true;
 }
 

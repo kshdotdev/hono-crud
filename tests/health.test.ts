@@ -1,12 +1,11 @@
-import { createHealthEndpoints, createHealthHandler } from '@hono-crud/health';
+import { createHealthRoutes } from '@hono-crud/health';
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 
 describe('Health Endpoints', () => {
-  describe('createHealthEndpoints', () => {
+  describe('createHealthRoutes', () => {
     it('should return 200 for liveness check', async () => {
-      const app = new Hono();
-      createHealthEndpoints(app);
+      const app = createHealthRoutes();
 
       const res = await app.request('/health');
       expect(res.status).toBe(200);
@@ -17,8 +16,7 @@ describe('Health Endpoints', () => {
     });
 
     it('should include version when provided', async () => {
-      const app = new Hono();
-      createHealthEndpoints(app, { version: '1.2.3' });
+      const app = createHealthRoutes({ version: '1.2.3' });
 
       const res = await app.request('/health');
       const body = await res.json();
@@ -26,8 +24,7 @@ describe('Health Endpoints', () => {
     });
 
     it('should use custom paths', async () => {
-      const app = new Hono();
-      createHealthEndpoints(app, {
+      const app = createHealthRoutes({
         path: '/liveness',
         readyPath: '/readiness',
       });
@@ -40,8 +37,7 @@ describe('Health Endpoints', () => {
     });
 
     it('should return 200 readiness when all checks pass', async () => {
-      const app = new Hono();
-      createHealthEndpoints(app, {
+      const app = createHealthRoutes({
         checks: [
           { name: 'db', check: async () => true },
           { name: 'cache', check: async () => 'connected' },
@@ -59,8 +55,7 @@ describe('Health Endpoints', () => {
     });
 
     it('should return 503 when critical check fails', async () => {
-      const app = new Hono();
-      createHealthEndpoints(app, {
+      const app = createHealthRoutes({
         checks: [
           {
             name: 'db',
@@ -81,8 +76,7 @@ describe('Health Endpoints', () => {
     });
 
     it('should return degraded when non-critical check fails', async () => {
-      const app = new Hono();
-      createHealthEndpoints(app, {
+      const app = createHealthRoutes({
         checks: [
           { name: 'db', check: async () => true },
           {
@@ -102,8 +96,7 @@ describe('Health Endpoints', () => {
     });
 
     it('should timeout slow checks', async () => {
-      const app = new Hono();
-      createHealthEndpoints(app, {
+      const app = createHealthRoutes({
         defaultTimeout: 50,
         checks: [
           {
@@ -123,8 +116,7 @@ describe('Health Endpoints', () => {
     });
 
     it('should report latency', async () => {
-      const app = new Hono();
-      createHealthEndpoints(app, {
+      const app = createHealthRoutes({
         checks: [{ name: 'fast', check: async () => true }],
       });
 
@@ -135,8 +127,7 @@ describe('Health Endpoints', () => {
     });
 
     it('should respect per-check timeout', async () => {
-      const app = new Hono();
-      createHealthEndpoints(app, {
+      const app = createHealthRoutes({
         defaultTimeout: 5000,
         checks: [
           {
@@ -153,12 +144,12 @@ describe('Health Endpoints', () => {
       const body = await res.json();
       expect(body.checks[0].healthy).toBe(false);
     });
-  });
 
-  describe('createHealthHandler', () => {
-    it('should create a standalone Hono app with health routes', async () => {
-      const health = createHealthHandler({ version: '2.0.0' });
-      const res = await health.request('/health');
+    it('should mount as a sub-app via app.route()', async () => {
+      const app = new Hono();
+      app.route('/', createHealthRoutes({ version: '2.0.0' }));
+
+      const res = await app.request('/health');
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.version).toBe('2.0.0');

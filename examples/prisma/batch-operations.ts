@@ -26,7 +26,7 @@ import {
   PrismaRestoreEndpoint,
   PrismaUpdateEndpoint,
 } from '@hono-crud/prisma';
-import { setupSwaggerUI } from '@hono-crud/swagger';
+import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
@@ -192,7 +192,7 @@ app.doc('/openapi.json', {
   },
 });
 
-setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
+app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
 // ============================================================================

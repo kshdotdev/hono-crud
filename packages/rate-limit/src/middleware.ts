@@ -34,7 +34,7 @@ export const rateLimitStorageRegistry = rateLimitStorageFeature.registry;
  *
  * @example
  * ```ts
- * import { setRateLimitStorage, MemoryRateLimitStorage } from 'hono-crud';
+ * import { setRateLimitStorage, MemoryRateLimitStorage } from '@hono-crud/rate-limit';
  *
  * setRateLimitStorage(new MemoryRateLimitStorage());
  * ```
@@ -218,6 +218,15 @@ async function checkSlidingWindow(
 // ============================================================================
 
 /**
+ * Default prefix the middleware prepends to every generated rate-limit key
+ * (joined with `':'` by `generateKey`), yielding keys shaped
+ * `rl:<path>:<clientKey>`. Storage adapters add no prefix of their own by
+ * default, so this is the single source of key namespacing. Override per
+ * middleware via {@link RateLimitConfig.keyPrefix}.
+ */
+export const DEFAULT_RATE_LIMIT_KEY_PREFIX = 'rl';
+
+/**
  * Creates rate limit middleware.
  *
  * @example
@@ -227,7 +236,7 @@ async function checkSlidingWindow(
  *   createRateLimitMiddleware,
  *   setRateLimitStorage,
  *   MemoryRateLimitStorage,
- * } from 'hono-crud';
+ * } from '@hono-crud/rate-limit';
  *
  * // Setup storage (do this once at startup)
  * setRateLimitStorage(new MemoryRateLimitStorage());
@@ -273,7 +282,7 @@ export function createRateLimitMiddleware<E extends Env = Env>(
   const windowSeconds = config.windowSeconds ?? 60;
   const algorithm = config.algorithm ?? 'sliding-window';
   const keyStrategy = config.keyStrategy ?? 'ip';
-  const keyPrefix = config.keyPrefix ?? 'rl';
+  const keyPrefix = config.keyPrefix ?? DEFAULT_RATE_LIMIT_KEY_PREFIX;
   const skipPaths = config.skipPaths ?? [];
   const includeHeaders = config.includeHeaders ?? true;
   const errorMessage = config.errorMessage ?? 'Too many requests';

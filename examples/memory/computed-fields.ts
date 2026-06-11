@@ -22,7 +22,7 @@ import {
   clearStorage,
   getStorage,
 } from '@hono-crud/memory';
-import { setupSwaggerUI } from '@hono-crud/swagger';
+import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { type ComputedFieldsConfig, defineMeta, defineModel, fromHono } from 'hono-crud';
@@ -243,7 +243,7 @@ These fields appear in all responses but are not stored in the database.
 });
 
 // Swagger UI
-setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
+app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
 
 // ============================================================================
 // Add Sample Data

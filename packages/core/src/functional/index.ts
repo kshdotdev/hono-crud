@@ -6,7 +6,7 @@
  * @example
  * ```ts
  * import { createCreate, createList } from 'hono-crud';
- * import { MemoryCreateEndpoint, MemoryListEndpoint } from 'hono-crud/adapters/memory';
+ * import { MemoryCreateEndpoint, MemoryListEndpoint } from '@hono-crud/memory';
  *
  * const UserCreate = createCreate({
  *   meta: userMeta,
@@ -29,7 +29,6 @@ import type {
   HookMode,
   MetaInput,
   OpenAPIRouteSchema,
-  SortDirection,
   SortSpec,
 } from '../core/types';
 import type { ModelObject } from '../endpoints/types';
@@ -71,10 +70,7 @@ export interface ListConfig<M extends MetaInput, E extends Env = Env> {
   searchFields?: string[];
   searchFieldName?: string;
   sortFields?: string[];
-  orderByFields?: string[];
   defaultSort?: SortSpec;
-  defaultOrderBy?: string;
-  defaultOrderDirection?: SortDirection;
   defaultPerPage?: number;
   maxPerPage?: number;
   allowedIncludes?: string[];
@@ -185,12 +181,6 @@ export function createList<
   E extends Env = Env,
   B extends abstract new () => unknown = abstract new () => unknown,
 >(config: ListConfig<M, E>, BaseClass: B): GeneratedClass<B> {
-  const defaultSort =
-    config.defaultSort ??
-    (config.defaultOrderBy
-      ? { field: config.defaultOrderBy, order: config.defaultOrderDirection ?? 'asc' }
-      : undefined);
-
   return generateEndpointClass(BaseClass, {
     meta: config.meta,
     schema: config.schema,
@@ -201,8 +191,8 @@ export function createList<
     filterConfig: config.filterConfig,
     searchFields: config.searchFields,
     searchFieldName: config.searchFieldName,
-    sortFields: config.sortFields ?? config.orderByFields,
-    defaultSort,
+    sortFields: config.sortFields,
+    defaultSort: config.defaultSort,
     defaultPerPage: config.defaultPerPage,
     maxPerPage: config.maxPerPage,
     allowedIncludes: config.allowedIncludes,

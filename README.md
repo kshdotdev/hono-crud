@@ -52,12 +52,12 @@ Peer dependencies: `hono >= 4.0.0` and `zod >= 4.0.0` are required.
 | `@hono-crud/memory` | In-memory CRUD adapter (tests, demos) |
 | `@hono-crud/drizzle` | Drizzle ORM CRUD adapter |
 | `@hono-crud/prisma` | Prisma CRUD adapter |
-| `@hono-crud/swagger` | Swagger UI + ReDoc documentation endpoints |
-| `@hono-crud/scalar` | Scalar API reference documentation endpoint |
+| `@hono-crud/swagger` | Swagger UI + ReDoc documentation pages (`swaggerUI`, `redocUI`, `docsIndex`) |
+| `@hono-crud/scalar` | Scalar API reference documentation page (`scalarUI`) |
 | `@hono-crud/cache` | Caching mixins and storage backends |
 | `@hono-crud/rate-limit` | Rate limiting middleware and storage backends |
 | `@hono-crud/idempotency` | Idempotency middleware and storage backends |
-| `@hono-crud/health` | Health check endpoints |
+| `@hono-crud/health` | Health check routes (`createHealthRoutes`) |
 | `@hono-crud/mcp` | Expose your CRUD resources as Model Context Protocol (MCP) tools for AI agents |
 
 ## Quick Start
@@ -66,7 +66,7 @@ Peer dependencies: `hono >= 4.0.0` and `zod >= 4.0.0` are required.
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { setupSwaggerUI } from '@hono-crud/swagger';
+import { swaggerUI } from '@hono-crud/swagger';
 import {
   MemoryCreateEndpoint,
   MemoryReadEndpoint,
@@ -137,7 +137,7 @@ app.doc('/openapi.json', {
   openapi: '3.1.0',
   info: { title: 'My API', version: '1.0.0' },
 });
-setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
+app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
 
 export default app;
 ```
@@ -460,8 +460,11 @@ These symbols also remain available from the `'hono-crud'` barrel for convenienc
 Idempotency and health checks ship as their own packages:
 
 ```typescript
-import { idempotency, MemoryIdempotencyStorage } from '@hono-crud/idempotency';
-import { createHealthEndpoints } from '@hono-crud/health';
+import { createIdempotencyMiddleware, MemoryIdempotencyStorage } from '@hono-crud/idempotency';
+import { createHealthRoutes } from '@hono-crud/health';
+
+app.use('/api/*', createIdempotencyMiddleware());
+app.route('/', createHealthRoutes());
 ```
 
 ## API Documentation
@@ -469,8 +472,8 @@ import { createHealthEndpoints } from '@hono-crud/health';
 `npm install @hono-crud/swagger @hono-crud/scalar`:
 
 ```typescript
-import { setupSwaggerUI, setupReDoc } from '@hono-crud/swagger';
-import { setupScalar } from '@hono-crud/scalar';
+import { swaggerUI, redocUI } from '@hono-crud/swagger';
+import { scalarUI } from '@hono-crud/scalar';
 
 // OpenAPI spec
 app.doc('/openapi.json', {
@@ -479,9 +482,9 @@ app.doc('/openapi.json', {
 });
 
 // Documentation UIs
-setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
-setupReDoc(app, { redocPath: '/redoc', specPath: '/openapi.json' });
-setupScalar(app, '/reference', { specUrl: '/openapi.json' });
+app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
+app.get('/redoc', redocUI({ specUrl: '/openapi.json' }));
+app.get('/reference', scalarUI({ specUrl: '/openapi.json' }));
 ```
 
 ## Examples

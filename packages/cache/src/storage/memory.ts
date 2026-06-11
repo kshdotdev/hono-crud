@@ -15,7 +15,7 @@ import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../t
  *
  * @example
  * ```ts
- * import { MemoryCacheStorage, setCacheStorage } from 'hono-crud/cache';
+ * import { MemoryCacheStorage, setCacheStorage } from '@hono-crud/cache';
  *
  * const cache = new MemoryCacheStorage();
  * setCacheStorage(cache);

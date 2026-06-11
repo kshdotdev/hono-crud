@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import {
   apiVersion,
+  apiVersionedResponse,
   getApiVersion,
   getApiVersionConfig,
-  versionedResponse,
 } from 'hono-crud/api-version';
 import { describe, expect, it } from 'vitest';
 
@@ -222,7 +222,7 @@ describe('API Versioning', () => {
     });
   });
 
-  describe('versionedResponse', () => {
+  describe('apiVersionedResponse', () => {
     it('should transform response based on version', async () => {
       const app = new Hono();
       app.use(
@@ -241,8 +241,8 @@ describe('API Versioning', () => {
           defaultVersion: '2',
         }),
       );
-      // versionedResponse must wrap the handler
-      app.use('*', versionedResponse());
+      // apiVersionedResponse must wrap the handler
+      app.use('*', apiVersionedResponse());
       app.get('/user', (c) => {
         return c.json({ firstName: 'John', lastName: 'Doe', id: '1' });
       });

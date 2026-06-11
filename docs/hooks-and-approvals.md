@@ -1153,8 +1153,8 @@ LIMIT 50;
 
 An approved action could in principle be resumed multiple times if the
 resume call is idempotent at the HTTP layer. If your handler is non-
-idempotent (transfer money), wrap with the lib's existing `idempotency`
-middleware OR mark the action `consumed` after first resume. The minimal
+idempotent (transfer money), wrap with the lib's existing
+`createIdempotencyMiddleware` OR mark the action `consumed` after first resume. The minimal
 addition would be a 5th method on `ApprovalStorage`:
 
 ```ts

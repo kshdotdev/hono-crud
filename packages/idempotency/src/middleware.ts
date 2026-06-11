@@ -34,7 +34,7 @@ export const idempotencyStorageRegistry = idempotencyStorageFeature.registry;
  *
  * @example
  * ```ts
- * import { setIdempotencyStorage, MemoryIdempotencyStorage } from 'hono-crud';
+ * import { setIdempotencyStorage, MemoryIdempotencyStorage } from '@hono-crud/idempotency';
  *
  * setIdempotencyStorage(new MemoryIdempotencyStorage());
  * ```
@@ -72,7 +72,7 @@ export function resolveIdempotencyStorage<E extends Env>(
 // ============================================================================
 
 /**
- * Idempotency middleware for safe request retries.
+ * Creates idempotency middleware for safe request retries.
  *
  * When a client sends an `Idempotency-Key` header on a mutating request,
  * the server stores the response and replays it for duplicate keys.
@@ -80,26 +80,33 @@ export function resolveIdempotencyStorage<E extends Env>(
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import { idempotency } from 'hono-crud';
+ * import {
+ *   createIdempotencyMiddleware,
+ *   MemoryIdempotencyStorage,
+ * } from '@hono-crud/idempotency';
  *
  * const app = new Hono();
- * app.use('/api/*', idempotency({ storage: new MemoryIdempotencyStorage() }));
+ * app.use('/api/*', createIdempotencyMiddleware({
+ *   storage: new MemoryIdempotencyStorage(),
+ * }));
  *
  * // Or with configuration:
- * app.use('/api/*', idempotency({
+ * app.use('/api/*', createIdempotencyMiddleware({
  *   ttl: 3600,              // 1 hour
  *   enforcedMethods: ['POST', 'PUT'],
  *   required: true,         // Require the header
  * }));
  * ```
  */
-export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
-  const headerName = config?.headerName ?? 'Idempotency-Key';
-  const ttlSeconds = config?.ttl ?? 86400;
+export function createIdempotencyMiddleware<E extends Env = Env>(
+  config: IdempotencyConfig = {},
+): MiddlewareHandler<E> {
+  const headerName = config.headerName ?? 'Idempotency-Key';
+  const ttlSeconds = config.ttl ?? 86400;
   const ttlMs = ttlSeconds * 1000;
-  const enforcedMethods = (config?.enforcedMethods ?? ['POST']).map((m) => m.toUpperCase());
-  const required = config?.required ?? false;
-  const lockTimeoutMs = (config?.lockTimeout ?? 60) * 1000;
+  const enforcedMethods = (config.enforcedMethods ?? ['POST']).map((m) => m.toUpperCase());
+  const required = config.required ?? false;
+  const lockTimeoutMs = (config.lockTimeout ?? 60) * 1000;
 
   return async (ctx, next) => {
     const method = ctx.req.method.toUpperCase();
@@ -126,7 +133,7 @@ export function idempotency(config?: IdempotencyConfig): MiddlewareHandler {
     }
 
     // Resolve storage (explicit config.storage > context > global, single tier)
-    const storage = resolveIdempotencyStorage(ctx, config?.storage);
+    const storage = resolveIdempotencyStorage(ctx, config.storage);
     if (!storage) {
       // No storage configured, pass through
       return next();

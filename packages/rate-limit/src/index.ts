@@ -31,6 +31,7 @@ export {
 
 // Middleware
 export {
+  DEFAULT_RATE_LIMIT_KEY_PREFIX,
   createRateLimitMiddleware,
   setRateLimitStorage,
   getRateLimitStorage,

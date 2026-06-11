@@ -23,7 +23,7 @@ import {
   MemoryUpdateEndpoint,
   clearStorage,
 } from '@hono-crud/memory';
-import { setupSwaggerUI } from '@hono-crud/swagger';
+import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
@@ -195,7 +195,7 @@ app.doc('/openapi.json', {
 });
 
 // Swagger UI
-setupSwaggerUI(app, { docsPath: '/docs', specPath: '/openapi.json' });
+app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok' }));
