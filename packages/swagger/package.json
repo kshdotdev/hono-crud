@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/swagger",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Swagger UI and ReDoc documentation endpoints for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
