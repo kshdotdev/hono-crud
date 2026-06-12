@@ -12,7 +12,8 @@
 
 import { MemoryCreateEndpoint, MemoryListEndpoint, clearStorage } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { buildPerTenantOpenApi, defineMeta, defineModel, fromHono, multiTenant } from 'hono-crud';
+import { buildPerTenantOpenApi, defineMeta, defineModel, fromHono } from 'hono-crud';
+import { multiTenant } from 'hono-crud/multi-tenant';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 

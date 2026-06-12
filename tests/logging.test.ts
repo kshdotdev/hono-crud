@@ -1,29 +1,24 @@
 import { Hono } from 'hono';
 import type { ExecutionContext } from 'hono';
+import { generateRequestId, getRequestId } from 'hono-crud';
 import {
-  // Types
   type LogEntry,
   type LogLevel,
   type LoggingStorage,
-  // Storage
   MemoryLoggingStorage,
-  // Middleware
   createLoggingMiddleware,
   extractHeaders,
-  generateRequestId,
   getLoggingStorage,
-  getRequestId,
   getRequestStartTime,
   isAllowedContentType,
-  matchLoggingPath,
+  matchPath,
   redactHeaders,
   redactObject,
   setLoggingStorage,
   shouldExcludePath,
-  // Utilities
   shouldRedact,
   truncateBody,
-} from 'hono-crud';
+} from 'hono-crud/logging';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ============================================================================
@@ -149,37 +144,37 @@ describe('Logging Utilities', () => {
     });
   });
 
-  describe('matchLoggingPath', () => {
+  describe('matchPath', () => {
     it('should match exact paths', () => {
-      expect(matchLoggingPath('/health', '/health')).toBe(true);
-      expect(matchLoggingPath('/api/users', '/api/users')).toBe(true);
-      expect(matchLoggingPath('/api/users', '/api/posts')).toBe(false);
+      expect(matchPath('/health', '/health')).toBe(true);
+      expect(matchPath('/api/users', '/api/users')).toBe(true);
+      expect(matchPath('/api/users', '/api/posts')).toBe(false);
     });
 
     it('should match single wildcard (*)', () => {
-      expect(matchLoggingPath('/api/users', '/api/*')).toBe(true);
-      expect(matchLoggingPath('/api/posts', '/api/*')).toBe(true);
-      expect(matchLoggingPath('/api/users/123', '/api/*')).toBe(false);
-      expect(matchLoggingPath('/other/users', '/api/*')).toBe(false);
+      expect(matchPath('/api/users', '/api/*')).toBe(true);
+      expect(matchPath('/api/posts', '/api/*')).toBe(true);
+      expect(matchPath('/api/users/123', '/api/*')).toBe(false);
+      expect(matchPath('/other/users', '/api/*')).toBe(false);
     });
 
     it('should match double wildcard (**)', () => {
-      expect(matchLoggingPath('/api/v1/users', '/api/**')).toBe(true);
-      expect(matchLoggingPath('/api/v1/users/123', '/api/**')).toBe(true);
-      expect(matchLoggingPath('/api/', '/api/**')).toBe(true);
-      expect(matchLoggingPath('/other/path', '/api/**')).toBe(false);
+      expect(matchPath('/api/v1/users', '/api/**')).toBe(true);
+      expect(matchPath('/api/v1/users/123', '/api/**')).toBe(true);
+      expect(matchPath('/api/', '/api/**')).toBe(true);
+      expect(matchPath('/other/path', '/api/**')).toBe(false);
     });
 
     it('should match regex patterns', () => {
-      expect(matchLoggingPath('/v1/test', /^\/v\d+\/test$/)).toBe(true);
-      expect(matchLoggingPath('/v2/test', /^\/v\d+\/test$/)).toBe(true);
-      expect(matchLoggingPath('/va/test', /^\/v\d+\/test$/)).toBe(false);
+      expect(matchPath('/v1/test', /^\/v\d+\/test$/)).toBe(true);
+      expect(matchPath('/v2/test', /^\/v\d+\/test$/)).toBe(true);
+      expect(matchPath('/va/test', /^\/v\d+\/test$/)).toBe(false);
     });
 
     it('should handle mixed wildcards', () => {
-      expect(matchLoggingPath('/api/v1/users', '/api/*/users')).toBe(true);
-      expect(matchLoggingPath('/api/v2/users', '/api/*/users')).toBe(true);
-      expect(matchLoggingPath('/api/v1/posts', '/api/*/users')).toBe(false);
+      expect(matchPath('/api/v1/users', '/api/*/users')).toBe(true);
+      expect(matchPath('/api/v2/users', '/api/*/users')).toBe(true);
+      expect(matchPath('/api/v1/posts', '/api/*/users')).toBe(false);
     });
   });
 

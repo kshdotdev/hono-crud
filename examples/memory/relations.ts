@@ -14,7 +14,7 @@ import {
   MemoryListEndpoint,
   MemoryReadEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
@@ -337,7 +337,7 @@ app.get('/seed', async (c) => {
   clearStorage();
 
   // Create users
-  const users = getStorage<z.infer<typeof UserSchema>>('users');
+  const users = getStore<z.infer<typeof UserSchema>>('users');
   const userId1 = 'a0000000-0000-0000-0000-000000000001';
   const userId2 = 'a0000000-0000-0000-0000-000000000002';
 
@@ -355,7 +355,7 @@ app.get('/seed', async (c) => {
   });
 
   // Create profiles
-  const profiles = getStorage<z.infer<typeof ProfileSchema>>('profiles');
+  const profiles = getStore<z.infer<typeof ProfileSchema>>('profiles');
   const profileId1 = 'b0000000-0000-0000-0000-000000000001';
   const profileId2 = 'b0000000-0000-0000-0000-000000000002';
 
@@ -372,7 +372,7 @@ app.get('/seed', async (c) => {
   });
 
   // Create posts
-  const posts = getStorage<z.infer<typeof PostSchema>>('posts');
+  const posts = getStore<z.infer<typeof PostSchema>>('posts');
   const postId1 = 'c0000000-0000-0000-0000-000000000001';
   const postId2 = 'c0000000-0000-0000-0000-000000000002';
 
@@ -392,7 +392,7 @@ app.get('/seed', async (c) => {
   });
 
   // Create comments
-  const comments = getStorage<z.infer<typeof CommentSchema>>('comments');
+  const comments = getStore<z.infer<typeof CommentSchema>>('comments');
   const commentId1 = 'd0000000-0000-0000-0000-000000000001';
   const commentId2 = 'd0000000-0000-0000-0000-000000000002';
 

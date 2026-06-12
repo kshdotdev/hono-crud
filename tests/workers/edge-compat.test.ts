@@ -95,7 +95,9 @@ describe('Edge Runtime Compatibility (Workers)', () => {
   describe('Hono app in Workers', () => {
     it('should import the root package entry in a Workers isolate', async () => {
       const mod = await import('hono-crud');
-      expect(mod.createStorageMiddleware).toBeTypeOf('function');
+      expect(mod.fromHono).toBeTypeOf('function');
+      const { createStorageMiddleware } = await import('hono-crud/storage');
+      expect(createStorageMiddleware).toBeTypeOf('function');
       const { KVCacheStorage } = await import('@hono-crud/cache');
       const { KVRateLimitStorage } = await import('@hono-crud/rate-limit');
       expect(KVCacheStorage).toBeTypeOf('function');
@@ -133,7 +135,8 @@ describe('Edge Runtime Compatibility (Workers)', () => {
       // createStorageMiddleware injects every first-class storage slot
       // (audit/versioning/logging/events plus cache/rate-limit/idempotency)
       // via the CONTEXT_KEYS lookup map.
-      const { createStorageMiddleware, MemoryAuditLogStorage } = await import('hono-crud');
+      const { createStorageMiddleware } = await import('hono-crud/storage');
+      const { MemoryAuditLogStorage } = await import('hono-crud/audit');
 
       const audit = new MemoryAuditLogStorage();
       const app = new Hono<StorageEnv>();

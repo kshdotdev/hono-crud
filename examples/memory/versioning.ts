@@ -15,16 +15,13 @@ import {
  * to track the history of changes to your data.
  */
 import { Hono } from 'hono';
+import { type VersionHistoryEntry, defineMeta, defineModel, fromHono } from 'hono-crud';
 import {
   MemoryVersioningStorage,
-  type VersionHistoryEntry,
   type VersioningStorage,
-  defineMeta,
-  defineModel,
-  fromHono,
   getVersioningStorage,
   setVersioningStorage,
-} from 'hono-crud';
+} from 'hono-crud/versioning';
 import { z } from 'zod';
 
 type AppEnv = {

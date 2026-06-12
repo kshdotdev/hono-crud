@@ -1,8 +1,5 @@
 import {
   ApiException,
-  type AuthEndpointMethods,
-  AuthenticatedEndpoint,
-  type EndpointAuthConfig,
   ForbiddenException,
   InputValidationException,
   NotFoundException,
@@ -14,8 +11,13 @@ import {
   structuredErrorSchema,
   successEnvelopeSchema,
   validationIssueSchema,
-  withAuth,
 } from 'hono-crud';
+import {
+  type AuthEndpointMethods,
+  AuthenticatedEndpoint,
+  type EndpointAuthConfig,
+  withAuth,
+} from 'hono-crud/auth';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 

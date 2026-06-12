@@ -3,18 +3,18 @@ import {
   MemoryDeleteEndpoint,
   MemoryUpdateEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
+import { defineModel } from 'hono-crud';
 import {
   AuditLogger,
   MemoryAuditLogStorage,
   calculateChanges,
   createAuditLogger,
-  defineModel,
   getAuditStorage,
   setAuditStorage,
-} from 'hono-crud';
+} from 'hono-crud/audit';
 /**
  * Tests for audit logging functionality.
  */
@@ -305,7 +305,7 @@ describe('Audit Logging', () => {
 
     it('should log update from endpoint', async () => {
       // First create a record
-      const store = getStorage<Record<string, unknown>>('users');
+      const store = getStore<Record<string, unknown>>('users');
       store.set('123', {
         id: '123',
         name: 'John',
@@ -342,7 +342,7 @@ describe('Audit Logging', () => {
 
     it('should log delete from endpoint', async () => {
       // First create a record
-      const store = getStorage<Record<string, unknown>>('users');
+      const store = getStore<Record<string, unknown>>('users');
       store.set('123', {
         id: '123',
         name: 'John',

@@ -4,7 +4,7 @@ import {
   MemoryCloneEndpoint,
   MemoryImportEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
@@ -80,18 +80,18 @@ function memoryProductsApp() {
     async create(data: any) {
       // Re-use the adapter's create path so engine-managed fields are stamped.
       const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'memory');
-      const store = getStorage<Product>('mfc_products');
+      const store = getStore<Product>('mfc_products');
       store.set(String((record as any).id), record as Product);
       return record as Product;
     }
     async update(existing: Product, data: any) {
-      const store = getStorage<Product>('mfc_products');
+      const store = getStore<Product>('mfc_products');
       const merged = { ...existing, ...data, updatedAt: Date.now() } as Product;
       store.set(existing.id, merged);
       return merged;
     }
     async findExisting(data: any) {
-      const store = getStorage<Product>('mfc_products');
+      const store = getStore<Product>('mfc_products');
       for (const v of store.values()) {
         if (v.slug === data.slug) return v;
       }
@@ -109,7 +109,7 @@ function memoryProductsApp() {
     _meta = meta;
     async create(data: any) {
       const record = this.applyManagedInsertFields(data as Record<string, unknown>, 'memory');
-      const store = getStorage<Product>('mfc_products');
+      const store = getStore<Product>('mfc_products');
       store.set(String((record as any).id), record as Product);
       return record as Product;
     }
@@ -195,7 +195,7 @@ describe('clone fresh-stamping: timestamps + id are engine-fresh, not copied fro
     // Seed directly into the in-memory store with an old timestamp so a
     // copy-vs-stamp difference is unambiguous.
     const sourceCreatedAt = 1_000;
-    const store = getStorage<Product>('mfc_products');
+    const store = getStore<Product>('mfc_products');
     store.set('src-1', {
       id: 'src-1',
       name: 'Source',

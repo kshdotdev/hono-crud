@@ -19,16 +19,13 @@ import {
   registerPrismaModelMappings,
 } from '@hono-crud/prisma';
 import { Hono } from 'hono';
+import { type AggregateOptions, defineModel, fromHono, registerCrud } from 'hono-crud';
 import {
-  type AggregateOptions,
   MemoryVersioningStorage,
   createVersionManager,
-  defineModel,
-  fromHono,
   getVersioningConfig,
-  registerCrud,
   setVersioningStorage,
-} from 'hono-crud';
+} from 'hono-crud/versioning';
 /**
  * Tests for Prisma ORM adapter.
  * Uses a mock Prisma client for testing without requiring a real database.

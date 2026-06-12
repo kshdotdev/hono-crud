@@ -422,3 +422,7 @@ export function createVersionManager(
 ): VersionManager {
   return new VersionManager(config, tableName, storage, ctx);
 }
+
+// Config normalization — the versioning barrel is the complete canonical
+// surface of the versioning family.
+export { getVersioningConfig } from './config';

@@ -15,13 +15,8 @@
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  ApiException,
-  MemoryApprovalStorage,
-  parseIso8601Duration,
-  requireApproval,
-  setContextVar,
-} from 'hono-crud';
+import { ApiException, setContextVar } from 'hono-crud';
+import { MemoryApprovalStorage, parseIso8601Duration, requireApproval } from 'hono-crud/auth';
 
 describe('requireApproval middleware', () => {
   let storage: MemoryApprovalStorage;

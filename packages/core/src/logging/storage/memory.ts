@@ -47,7 +47,7 @@ export interface MemoryLoggingStorageOptions {
  *
  * @example
  * ```ts
- * import { MemoryLoggingStorage, setLoggingStorage } from 'hono-crud';
+ * import { MemoryLoggingStorage, setLoggingStorage } from 'hono-crud/logging';
  *
  * const storage = new MemoryLoggingStorage({
  *   maxEntries: 5000,

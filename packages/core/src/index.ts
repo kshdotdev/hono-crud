@@ -1,3 +1,12 @@
+/**
+ * Public root barrel — owns the CRUD core only.
+ *
+ * Feature families (auth, logging, storage, events, serialization, encryption,
+ * api-version, audit, versioning, multi-tenant, functional, builder, config,
+ * health, cloudflare) live exclusively on their `hono-crud/<feature>` subpaths.
+ * This barrel never exports renamed aliases.
+ */
+
 // Combined environment type
 import type { AuthEnv } from './auth/types';
 import type { LoggingEnv } from './logging/types';
@@ -8,7 +17,7 @@ export type HonoCrudEnv = AuthEnv & LoggingEnv & StorageEnv;
 
 // Core exports
 export { OpenAPIRoute, isRouteClass } from './core/route';
-export { fromHono, HonoOpenAPIHandler, getHandlerForApp } from './core/openapi';
+export { fromHono, HonoOpenAPIHandler } from './core/openapi';
 export type { OpenAPIConfig, RouterOptions, RegisteredRoute } from './core/openapi';
 export { buildPerTenantOpenApi, wrapCacheStorageForOpenApi } from './openapi/lazy';
 export type {
@@ -38,22 +47,6 @@ export type {
   ErrorHook,
   ErrorHandlerConfig,
 } from './core/error-handler';
-export {
-  AuditLogger,
-  MemoryAuditLogStorage,
-  createAuditLogger,
-  setAuditStorage,
-  getAuditStorage,
-} from './audit';
-export type { AuditLogStorage } from './audit';
-export {
-  VersionManager,
-  MemoryVersioningStorage,
-  createVersionManager,
-  setVersioningStorage,
-  getVersioningStorage,
-} from './versioning';
-export type { VersioningStorage } from './versioning';
 export {
   getTimestampsConfig,
   getManagedInputExclusions,
@@ -89,15 +82,7 @@ export { applyComputedFields, applyComputedFieldsToArray } from './core/computed
 export { extractNestedData, isDirectNestedData } from './core/nested-writes';
 export { parseAggregateField, parseAggregateQuery } from './core/aggregate';
 export { applyUpsertRestore, getSoftDeleteConfig } from './core/soft-delete';
-export { getAuditConfig, calculateChanges } from './audit/config';
-export { getVersioningConfig } from './versioning/config';
-export { getMultiTenantConfig, extractTenantId } from './multi-tenant/config';
 export { parseSearchMode } from './endpoints/search-utils';
-export { multiTenant } from './multi-tenant';
-export type {
-  MultiTenantMiddlewareConfig,
-  TenantEnv,
-} from './multi-tenant';
 export type {
   FilterOperator,
   FilterConfig,
@@ -295,26 +280,15 @@ export {
   getErrorMessage,
 } from './utils/error-coerce';
 
-// Context helper exports — generic accessors from utils/context, the
-// auth-flavored accessor family from auth/context.
+// Context helper exports — generic accessors from utils/context. The
+// auth-flavored accessor family (getUser, hasRole, …) lives on 'hono-crud/auth'.
 export {
   getContextVar,
   setContextVar,
   getTenantId,
-  getRequestId as getContextRequestId,
+  getRequestId,
+  generateRequestId,
 } from './utils/context';
-export {
-  getUserId,
-  getUser,
-  getUserRoles,
-  getUserPermissions,
-  getAuthType,
-  hasRole,
-  hasPermission,
-  hasAllRoles,
-  hasAnyRole,
-  hasAllPermissions,
-} from './auth/context';
 
 // OpenAPI utilities
 export {
@@ -330,285 +304,10 @@ export {
   errorResponses,
 } from './endpoints/responses';
 
-// Auth exports
-export {
-  // Middleware
-  createJWTMiddleware,
-  verifyJWT,
-  decodeJWT,
-  createAPIKeyMiddleware,
-  validateAPIKey,
-  defaultHashAPIKey,
-  createAuthMiddleware,
-  optionalAuth,
-  requireAuthentication,
-  // Guards
-  requireRoles,
-  requireAllRoles,
-  requirePermissions,
-  requireAnyPermission,
-  requireAuth,
-  requireOwnership,
-  requireOwnershipOrRole,
-  requirePolicy,
-  POLICIES_CONTEXT_KEY,
-  // Approval guard (HIL)
-  requireApproval,
-  // Approval storage
-  MemoryApprovalStorage,
-  parseIso8601Duration,
-  allOf,
-  anyOf,
-  denyAll,
-  allowAll,
-  requireAuthenticated,
-  // Endpoint
-  AuthenticatedEndpoint,
-  withAuth,
-  // Storage
-  MemoryAPIKeyStorage,
-  generateAPIKey,
-  hashAPIKey,
-  isValidAPIKeyFormat,
-  getAPIKeyStorage,
-  setAPIKeyStorage,
-  // Validators
-  validateJWTClaims,
-  validateAPIKeyEntry,
-  // JWT Claims Schema
-  JWTClaimsSchema,
-  parseJWTClaims,
-  safeParseJWTClaims,
-  JWT_ALGORITHMS,
-} from './auth/index';
-export type {
-  AuthUser,
-  AuthType,
-  AuthEnv,
-  JWTAlgorithm,
-  JWTClaims,
-  JWTConfig,
-  ValidatedJWTClaims,
-  APIKeyEntry,
-  APIKeyLookupResult,
-  APIKeyConfig,
-  PathPattern,
-  AuthConfig,
-  AuthorizationCheck,
-  OwnershipExtractor,
-  Guard,
-  EndpointAuthConfig,
-  AuthEndpointMethods,
-  JWTClaimsValidationOptions,
-  // Approval types
-  ApprovalConfig,
-  ApprovalStorage,
-  PendingAction,
-  PendingActionStatus,
-  ActionSource,
-} from './auth/index';
-
-// Logging exports
-export {
-  // Middleware
-  createLoggingMiddleware,
-  setLoggingStorage,
-  getLoggingStorage,
-  getRequestId,
-  getRequestStartTime,
-  // Utilities
-  shouldRedact,
-  redactObject,
-  redactHeaders,
-  matchPath as matchLoggingPath,
-  shouldExcludePath,
-  extractClientIp,
-  extractHeaders,
-  extractQuery,
-  extractUserId as extractLoggingUserId,
-  truncateBody,
-  isAllowedContentType,
-  generateRequestId,
-  // Storage implementations
-  MemoryLoggingStorage,
-} from './logging/index';
-export type {
-  LogLevel,
-  RequestLogEntry,
-  ResponseLogEntry,
-  LogEntry,
-  LogQueryOptions,
-  LoggingStorage,
-  PathPattern as LoggingPathPattern,
-  RedactField,
-  RequestBodyConfig,
-  ResponseBodyConfig,
-  LoggingConfig,
-  LoggingEnv,
-  MemoryLoggingStorageOptions,
-} from './logging/index';
-
-// Storage exports (context-based storage management)
-export {
-  // Middleware
-  createStorageMiddleware,
-  createLoggingStorageMiddleware,
-  createAuditStorageMiddleware,
-  createVersioningStorageMiddleware,
-  createAPIKeyStorageMiddleware,
-  createCacheStorageMiddleware,
-  createRateLimitStorageMiddleware,
-  createIdempotencyStorageMiddleware,
-  // Helpers
-  getStorage,
-  resolveLoggingStorage,
-  resolveAuditStorage,
-  resolveVersioningStorage,
-  resolveAPIKeyStorage,
-  getLoggingStorageRequired,
-  getAuditStorageRequired,
-  getVersioningStorageRequired,
-  // Shared storage-feature helper
-  createStorageFeature,
-  // Registry
-  StorageRegistry,
-} from './storage/index';
-export type {
-  StorageEnv,
-  StorageMiddlewareConfig,
-  StorageFeature,
-  StorageFeatureOptions,
-  CacheStorage,
-  CacheEntry,
-  CacheSetOptions,
-  CacheStats,
-  RateLimitStorage,
-  FixedWindowEntry,
-  SlidingWindowEntry,
-  RateLimitEntry,
-  IdempotencyStorage,
-  IdempotencyEntry,
-} from './storage/index';
-
 // Context-var key registry (single source of truth for context-var keys)
 export { CONTEXT_KEYS } from './core/context-keys';
 export type { ContextKey } from './core/context-keys';
 
-// Event system exports
-export {
-  CrudEventEmitter,
-  getEventEmitter,
-  setEventEmitter,
-  resolveEventEmitter,
-  registerWebhooks,
-  CRUD_EVENT_TYPES,
-} from './events/index';
-export type {
-  CrudEventType,
-  CrudEventPayload,
-  CrudEventListener,
-  EventSubscription,
-  WebhookEndpoint,
-  WebhookConfig,
-  WebhookDeliveryResult,
-} from './events/index';
-
-// Serialization profile exports
-export {
-  applyProfile,
-  applyProfileToArray,
-  resolveProfile,
-  createSerializer,
-  createArraySerializer,
-} from './serialization/index';
-export type {
-  SerializationProfile,
-  SerializationConfig,
-} from './serialization/index';
-
-// Encryption exports
-export {
-  encryptValue,
-  decryptValue,
-  isEncryptedValue,
-  encryptFields,
-  decryptFields,
-  StaticKeyProvider,
-  encryptedValueSchema,
-} from './encryption/index';
-export type {
-  EncryptionKeyProvider,
-  FieldEncryptionConfig,
-  EncryptedValue,
-} from './encryption/index';
-
-// API versioning exports
-export {
-  apiVersion,
-  getApiVersion,
-  getApiVersionConfig,
-  apiVersionedResponse,
-} from './api-version/index';
-export type {
-  ApiVersionStrategy,
-  ApiVersionTransformer,
-  ApiVersionConfig,
-  ApiVersioningConfig,
-  ApiVersionEnv,
-} from './api-version/index';
-
-// ============================================================================
-// Alternative API Patterns
-// ============================================================================
-
-// Functional API
-export {
-  createCreate,
-  createList,
-  createRead,
-  createUpdate,
-  createDelete,
-} from './functional/index';
-export type {
-  CreateConfig,
-  ListConfig,
-  ReadConfig,
-  UpdateConfig,
-  DeleteConfig,
-} from './functional/index';
-
-// Builder/Fluent API
-export {
-  crud,
-  CrudBuilder,
-  CreateBuilder,
-  ListBuilder,
-  ReadBuilder,
-  UpdateBuilder,
-  DeleteBuilder,
-} from './builder/index';
-
-// Config-Based API
+// Config-Based API. The endpoint-config TYPES live canonically on
+// 'hono-crud/config'; only the function is part of the CRUD core.
 export { defineEndpoints } from './config/index';
-export type {
-  CreateEndpointConfig as ConfigCreateEndpoint,
-  ListEndpointConfig as ConfigListEndpoint,
-  ReadEndpointConfig as ConfigReadEndpoint,
-  UpdateEndpointConfig as ConfigUpdateEndpoint,
-  DeleteEndpointConfig as ConfigDeleteEndpoint,
-  SearchEndpointConfig as ConfigSearchEndpoint,
-  AggregateEndpointConfig as ConfigAggregateEndpoint,
-  RestoreEndpointConfig as ConfigRestoreEndpoint,
-  BatchCreateEndpointConfig as ConfigBatchCreateEndpoint,
-  BatchUpdateEndpointConfig as ConfigBatchUpdateEndpoint,
-  BatchDeleteEndpointConfig as ConfigBatchDeleteEndpoint,
-  BatchRestoreEndpointConfig as ConfigBatchRestoreEndpoint,
-  BatchUpsertEndpointConfig as ConfigBatchUpsertEndpoint,
-  ExportEndpointConfig as ConfigExportEndpoint,
-  ImportEndpointConfig as ConfigImportEndpoint,
-  UpsertEndpointConfig as ConfigUpsertEndpoint,
-  CloneEndpointConfig as ConfigCloneEndpoint,
-  EndpointsConfig,
-  AdapterBundle,
-  GeneratedEndpoints,
-} from './config/index';

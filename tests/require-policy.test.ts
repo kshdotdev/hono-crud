@@ -29,9 +29,9 @@ import {
   defineMeta,
   defineModel,
   fromHono,
-  requirePolicy,
   setContextVar,
 } from 'hono-crud';
+import { requirePolicy } from 'hono-crud/auth';
 
 // ============================================================================
 // Fixture

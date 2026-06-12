@@ -2,7 +2,7 @@ import {
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import { defineMeta, defineModel, fromHono } from 'hono-crud';
@@ -174,14 +174,14 @@ describe('Cascade Delete', () => {
 
   beforeEach(() => {
     clearStorage();
-    userCascadeStore = getStorage<User>('users_cascade');
-    postCascadeStore = getStorage<Post>('posts_cascade');
-    profileCascadeStore = getStorage<Profile>('profiles_cascade');
-    commentStore = getStorage<Comment>('comments');
-    userSetNullStore = getStorage<User>('users_setnull');
-    postSetNullStore = getStorage<Post>('posts_setnull');
-    userRestrictStore = getStorage<User>('users_restrict');
-    postRestrictStore = getStorage<Post>('posts_restrict');
+    userCascadeStore = getStore<User>('users_cascade');
+    postCascadeStore = getStore<Post>('posts_cascade');
+    profileCascadeStore = getStore<Profile>('profiles_cascade');
+    commentStore = getStore<Comment>('comments');
+    userSetNullStore = getStore<User>('users_setnull');
+    postSetNullStore = getStore<Post>('posts_setnull');
+    userRestrictStore = getStore<User>('users_restrict');
+    postRestrictStore = getStore<Post>('posts_restrict');
 
     app = fromHono(new Hono());
     app.post('/users-cascade', UserCascadeCreate);

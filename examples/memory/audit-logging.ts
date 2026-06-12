@@ -12,16 +12,13 @@ import {
  * to track changes to your data.
  */
 import { Hono } from 'hono';
+import { type AuditLogEntry, defineMeta, defineModel, fromHono } from 'hono-crud';
 import {
-  type AuditLogEntry,
   type AuditLogStorage,
   MemoryAuditLogStorage,
-  defineMeta,
-  defineModel,
-  fromHono,
   getAuditStorage,
   setAuditStorage,
-} from 'hono-crud';
+} from 'hono-crud/audit';
 import { z } from 'zod';
 
 type AppEnv = {

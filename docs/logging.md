@@ -11,7 +11,7 @@ import {
   createLoggingMiddleware,
   setLoggingStorage,
   MemoryLoggingStorage,
-} from 'hono-crud';
+} from 'hono-crud/logging';
 
 // Set storage (required before middleware runs)
 setLoggingStorage(new MemoryLoggingStorage({ maxEntries: 10000 }));
@@ -25,8 +25,8 @@ context var that the logging middleware resolves from (context storage takes
 priority over the global one):
 
 ```typescript
-import { createStorageMiddleware } from 'hono-crud';
-import { MemoryLoggingStorage } from 'hono-crud';
+import { createStorageMiddleware } from 'hono-crud/storage';
+import { MemoryLoggingStorage } from 'hono-crud/logging';
 
 app.use('*', createStorageMiddleware({
   loggingStorage: new MemoryLoggingStorage(),
@@ -114,7 +114,7 @@ app.use('*', createLoggingMiddleware({
 ## Accessing Request Context
 
 ```typescript
-import { getRequestId, getRequestStartTime } from 'hono-crud';
+import { getRequestId, getRequestStartTime } from 'hono-crud/logging';
 
 app.get('/api/data', (c) => {
   const requestId = getRequestId(c);       // string
@@ -134,7 +134,7 @@ app.get('/api/data', (c) => {
 Implement the `LoggingStorage` interface for custom backends:
 
 ```typescript
-import type { LoggingStorage, LogEntry, LogQueryOptions } from 'hono-crud';
+import type { LoggingStorage, LogEntry, LogQueryOptions } from 'hono-crud/logging';
 
 class PostgresLoggingStorage implements LoggingStorage {
   async store(entry: LogEntry): Promise<void> {
@@ -173,7 +173,7 @@ Sensitive values are replaced with `'[REDACTED]'` in logged output. Redaction ap
 ### Using Redaction Utilities Directly
 
 ```typescript
-import { redactHeaders, redactObject, shouldRedact } from 'hono-crud';
+import { redactHeaders, redactObject, shouldRedact } from 'hono-crud/logging';
 
 // Redact specific headers
 const safeHeaders = redactHeaders(

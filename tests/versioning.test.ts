@@ -6,18 +6,18 @@ import {
   MemoryVersionReadEndpoint,
   MemoryVersionRollbackEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
+import { defineModel } from 'hono-crud';
 import {
   MemoryVersioningStorage,
   VersionManager,
   createVersionManager,
-  defineModel,
   getVersioningConfig,
   getVersioningStorage,
   setVersioningStorage,
-} from 'hono-crud';
+} from 'hono-crud/versioning';
 /**
  * Tests for record versioning functionality.
  */
@@ -384,7 +384,7 @@ describe('Record Versioning', () => {
   describe('UpdateEndpoint with Versioning', () => {
     it('should save version before update', async () => {
       // First create a document
-      const store = getStorage<Record<string, unknown>>('documents');
+      const store = getStore<Record<string, unknown>>('documents');
       const docId = crypto.randomUUID();
       store.set(docId, {
         id: docId,
@@ -432,7 +432,7 @@ describe('Record Versioning', () => {
     beforeEach(async () => {
       // Create a document
       docId = crypto.randomUUID();
-      const store = getStorage<Record<string, unknown>>('documents');
+      const store = getStore<Record<string, unknown>>('documents');
       store.set(docId, {
         id: docId,
         title: 'Current Title',
@@ -540,7 +540,7 @@ describe('Record Versioning', () => {
       expect(result.result.version).toBe(4); // Incremented to 4 after rollback
 
       // Verify the document was updated
-      const store = getStorage<Record<string, unknown>>('documents');
+      const store = getStore<Record<string, unknown>>('documents');
       const doc = store.get(docId);
       expect(doc?.title).toBe('Title v1');
       expect(doc?.version).toBe(4);

@@ -39,7 +39,7 @@ import {
   MemoryDeleteEndpoint,
   MemoryUpdateEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { type HookContext, defineMeta, defineModel } from 'hono-crud';
 
@@ -63,7 +63,7 @@ describe('afterUpdate(prior, current, ctx) — memory adapter', () => {
 
   beforeEach(() => {
     clearStorage();
-    const store = getStorage<Row>('widgets');
+    const store = getStore<Row>('widgets');
     store.set('w1', { id: 'w1', name: 'A', counter: 1 });
   });
 
@@ -158,7 +158,7 @@ describe('afterDelete(prior, ctx) — memory adapter', () => {
       primaryKeys: ['id'],
     });
     const meta = defineMeta({ model: Model });
-    getStorage<Row>('rigid').set('d1', { id: 'd1', label: 'first' });
+    getStore<Row>('rigid').set('d1', { id: 'd1', label: 'first' });
 
     let captured: Row | undefined;
 
@@ -190,7 +190,7 @@ describe('afterDelete(prior, ctx) — memory adapter', () => {
       softDelete: true,
     });
     const meta = defineMeta({ model: Model });
-    getStorage<Row>('soft').set('s1', { id: 's1', label: 'soft', deletedAt: null });
+    getStore<Row>('soft').set('s1', { id: 's1', label: 'soft', deletedAt: null });
 
     let captured: Row | undefined;
 
@@ -218,7 +218,7 @@ describe('afterDelete(prior, ctx) — memory adapter', () => {
     expect(captured?.deletedAt ?? null).toBeNull();
 
     // Confirm the row was actually soft-deleted by inspecting the store.
-    const stored = getStorage<Row>('soft').get('s1');
+    const stored = getStore<Row>('soft').get('s1');
     expect(stored?.deletedAt).toBeTruthy();
   });
 });

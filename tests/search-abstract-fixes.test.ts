@@ -1,4 +1,4 @@
-import { MemorySearchEndpoint, clearStorage, getStorage } from '@hono-crud/memory';
+import { MemorySearchEndpoint, clearStorage, getStore } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import { defineModel } from 'hono-crud';
 import type { SearchOptions, SearchResult } from 'hono-crud/core/types';
@@ -70,7 +70,7 @@ describe('Fix 1 — getSearchableFields() works on Zod 4', () => {
 
   it('returns a non-empty field set so default-search end-to-end matches rows', async () => {
     clearStorage();
-    const store = getStorage<Record<string, unknown>>('autodetect');
+    const store = getStore<Record<string, unknown>>('autodetect');
     store.set('a', { id: 'a', title: 'hello world', description: 'something' });
     store.set('b', { id: 'b', title: 'unrelated', description: 'something else' });
 
@@ -151,7 +151,7 @@ describe('Fix 2 — searchParamName changes the on-wire query param', () => {
 
   beforeEach(() => {
     clearStorage();
-    const store = getStorage<Record<string, unknown>>('posts');
+    const store = getStore<Record<string, unknown>>('posts');
     store.set('1', { id: '1', title: 'hello world', body: 'a post body' });
     store.set('2', { id: '2', title: 'goodbye', body: 'another post body' });
   });

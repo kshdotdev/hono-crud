@@ -31,14 +31,8 @@ import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import {
-  type HookContext,
-  defineMeta,
-  defineModel,
-  fromHono,
-  multiTenant,
-  registerCrud,
-} from 'hono-crud';
+import { type HookContext, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { multiTenant } from 'hono-crud/multi-tenant';
 import { z } from 'zod';
 import type { AdapterContext, AdapterDescriptor, HookRecorder } from '../contract';
 import { CONFORMANCE_FILTER_CONFIG, buildConformanceSchema } from '../model';

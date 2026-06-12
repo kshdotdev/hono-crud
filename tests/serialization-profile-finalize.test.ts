@@ -17,7 +17,7 @@ import {
   MemoryRestoreEndpoint,
   MemorySearchEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import { defineModel } from 'hono-crud';
@@ -89,7 +89,7 @@ describe('serializationProfile is applied by the finalize pipeline', () => {
 
   beforeEach(() => {
     clearStorage();
-    const store = getStorage<Record<string, unknown>>('widgets');
+    const store = getStore<Record<string, unknown>>('widgets');
     store.set('w1', { id: 'w1', name: 'alpha gadget', secret: 'top-secret-1', deletedAt: null });
     store.set('w2', { id: 'w2', name: 'beta gadget', secret: 'top-secret-2', deletedAt: null });
     // A soft-deleted record for the restore path.

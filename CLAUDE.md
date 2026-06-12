@@ -70,6 +70,22 @@ This pattern avoids coupling to specific Drizzle versions while maintaining inte
 - Documented exceptions (legacy, rename only with owner sign-off): RouterOptions,
   RegisterCrudOptions, CreateDrizzleCrudOptions, PerTenantOpenApiOptions.
 
+## Export Surface Doctrine
+
+1. **Each feature subpath barrel is the complete canonical surface of its feature.** If a
+   symbol belongs to a feature family (auth, logging, storage, events, serialization,
+   encryption, api-version, audit, versioning, multi-tenant, functional, builder, config,
+   health, cloudflare), it is importable from that subpath and nowhere else.
+2. **The root barrel (`hono-crud`) owns only the CRUD core** — model/meta, router/registrar,
+   endpoint classes and their result types, exceptions/error-handler, generic context helpers,
+   core infra utils, and OpenAPI utilities. It may never export renamed aliases.
+3. **`/internal` is an explicit curated list** — `export * from './index'` is forbidden in
+   `packages/core/src/internal.ts`. Every re-export is named, grouped by category.
+4. **First-party satellites import only from `hono-crud/internal`** (plus their own deps) —
+   never from the root barrel or feature subpaths.
+5. **Package categories:** a separate npm package requires vendor-dep isolation, or a DB
+   adapter, or a core-extension. Anything else is a core subpath, not a new package.
+
 ## Edge Runtime Compatibility
 
 This library targets edge runtimes (Cloudflare Workers, Deno, Bun). All library source code in `src/` must be edge-safe.

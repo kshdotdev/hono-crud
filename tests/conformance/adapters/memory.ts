@@ -24,14 +24,8 @@ import {
   clearStorage,
 } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
-import {
-  type HookContext,
-  defineMeta,
-  defineModel,
-  fromHono,
-  multiTenant,
-  registerCrud,
-} from 'hono-crud';
+import { type HookContext, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { multiTenant } from 'hono-crud/multi-tenant';
 import { z } from 'zod';
 import type { AdapterContext, AdapterDescriptor, HookRecorder } from '../contract';
 import { CONFORMANCE_FILTER_CONFIG, buildConformanceSchema } from '../model';

@@ -118,7 +118,7 @@ import {
   createRead,
   createUpdate,
   createDelete,
-} from 'hono-crud';
+} from 'hono-crud/functional';
 ```
 
 ### Basic Usage
@@ -252,7 +252,7 @@ Chainable API with method chaining for readable, discoverable configuration.
 ### Import
 
 ```typescript
-import { crud } from 'hono-crud';
+import { crud } from 'hono-crud/builder';
 ```
 
 ### Basic Usage

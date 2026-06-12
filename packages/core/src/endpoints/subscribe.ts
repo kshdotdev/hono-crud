@@ -65,7 +65,8 @@ function stripSensitiveFields(data: unknown, excludeFields: string[]): unknown {
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import { createSubscribeHandler, CrudEventEmitter } from 'hono-crud';
+ * import { createSubscribeHandler } from 'hono-crud';
+ * import { CrudEventEmitter } from 'hono-crud/events';
  *
  * const app = new Hono();
  *

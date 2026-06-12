@@ -8,8 +8,8 @@ hono-crud provides JWT and API Key authentication middleware, plus composable au
 
 ```typescript
 import { Hono } from 'hono';
-import { createJWTMiddleware } from 'hono-crud';
-import type { AuthEnv } from 'hono-crud';
+import { createJWTMiddleware } from 'hono-crud/auth';
+import type { AuthEnv } from 'hono-crud/auth';
 
 const app = new Hono<AuthEnv>();
 
@@ -53,7 +53,7 @@ app.use('/api/*', createJWTMiddleware({
 ### Manual Token Verification
 
 ```typescript
-import { verifyJWT, decodeJWT } from 'hono-crud';
+import { verifyJWT, decodeJWT } from 'hono-crud/auth';
 
 // Verify and decode
 const claims = await verifyJWT(token, { secret: process.env.JWT_SECRET! });
@@ -72,7 +72,7 @@ import {
   MemoryAPIKeyStorage,
   setAPIKeyStorage,
   generateAPIKey,
-} from 'hono-crud';
+} from 'hono-crud/auth';
 
 // Setup storage
 const apiKeyStorage = new MemoryAPIKeyStorage();
@@ -133,7 +133,7 @@ app.use('/api/*', createAPIKeyMiddleware({
 Support both JWT and API Key on the same routes:
 
 ```typescript
-import { createAuthMiddleware, optionalAuth } from 'hono-crud';
+import { createAuthMiddleware, optionalAuth } from 'hono-crud/auth';
 
 // Require one of JWT or API Key
 app.use('/api/*', createAuthMiddleware({
@@ -161,7 +161,7 @@ Guards are Hono middleware that check authorization after authentication.
 ### Role Guards
 
 ```typescript
-import { requireRoles, requireAllRoles, requireAuthenticated } from 'hono-crud';
+import { requireRoles, requireAllRoles, requireAuthenticated } from 'hono-crud/auth';
 
 // Require at least one of the specified roles (OR)
 app.use('/admin/*', requireRoles('admin', 'super-admin'));
@@ -176,7 +176,7 @@ app.use('/api/*', requireAuthenticated());
 ### Permission Guards
 
 ```typescript
-import { requirePermissions, requireAnyPermission } from 'hono-crud';
+import { requirePermissions, requireAnyPermission } from 'hono-crud/auth';
 
 // Require ALL permissions
 app.use('/users/*', requirePermissions('users:read', 'users:write'));
@@ -188,7 +188,7 @@ app.use('/data/*', requireAnyPermission('data:read', 'data:admin'));
 ### Custom Guards
 
 ```typescript
-import { requireAuth, requireOwnership, requireOwnershipOrRole } from 'hono-crud';
+import { requireAuth, requireOwnership, requireOwnershipOrRole } from 'hono-crud/auth';
 
 // Custom authorization check
 app.use('/premium/*', requireAuth((user, ctx) => {
@@ -211,7 +211,7 @@ app.use('/posts/:id/*', requireOwnershipOrRole(
 ### Guard Composition
 
 ```typescript
-import { allOf, anyOf, denyAll, allowAll } from 'hono-crud';
+import { allOf, anyOf, denyAll, allowAll } from 'hono-crud/auth';
 
 // ALL guards must pass (AND)
 app.use('/secure/*', allOf(
@@ -237,7 +237,8 @@ app.use('/public/*', allowAll());
 ### Guards with registerCrud
 
 ```typescript
-import { registerCrud, requireAuthenticated, requireRoles } from 'hono-crud';
+import { registerCrud } from 'hono-crud';
+import { requireAuthenticated, requireRoles } from 'hono-crud/auth';
 
 registerCrud(app, '/users', {
   create: UserCreate,

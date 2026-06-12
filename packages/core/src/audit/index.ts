@@ -404,3 +404,7 @@ export function createAuditLogger(
   // The AuditLogger constructor will use resolveAuditStorage internally
   return new AuditLogger(config, storage, ctx);
 }
+
+// Config normalization + change calculation — the audit barrel is the complete
+// canonical surface of the audit family.
+export { calculateChanges, getAuditConfig } from './config';

@@ -15,7 +15,7 @@ import type {
  *
  * @example
  * ```ts
- * import { CrudEventEmitter } from 'hono-crud';
+ * import { CrudEventEmitter } from 'hono-crud/events';
  *
  * const events = new CrudEventEmitter();
  *

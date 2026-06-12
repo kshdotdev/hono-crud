@@ -41,7 +41,7 @@ rate-limit middleware resolves from (context storage takes priority over the
 global one):
 
 ```typescript
-import { createStorageMiddleware } from 'hono-crud';
+import { createStorageMiddleware } from 'hono-crud/storage';
 import { MemoryRateLimitStorage } from '@hono-crud/rate-limit';
 
 app.use('*', createStorageMiddleware({

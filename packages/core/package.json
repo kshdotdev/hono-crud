@@ -73,6 +73,10 @@
       "types": "./dist/functional/index.d.ts",
       "import": "./dist/functional/index.js"
     },
+    "./builder": {
+      "types": "./dist/builder/index.d.ts",
+      "import": "./dist/builder/index.js"
+    },
     "./health": {
       "types": "./dist/health/index.d.ts",
       "import": "./dist/health/index.js"

@@ -13,7 +13,7 @@ import type { CacheStorage, IdempotencyStorage, RateLimitStorage } from './contr
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import { StorageEnv, createStorageMiddleware } from 'hono-crud';
+ * import { StorageEnv, createStorageMiddleware } from 'hono-crud/storage';
  *
  * const app = new Hono<StorageEnv>();
  *

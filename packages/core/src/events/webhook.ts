@@ -157,7 +157,7 @@ async function deliverToEndpoint(
  *
  * @example
  * ```ts
- * import { registerWebhooks, getEventEmitter } from 'hono-crud';
+ * import { registerWebhooks, getEventEmitter } from 'hono-crud/events';
  *
  * const emitter = getEventEmitter(); // Compatibility global, or pass your own emitter.
  * const unsubscribe = registerWebhooks({

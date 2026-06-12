@@ -1,13 +1,14 @@
 import {
   DrizzleBatchUpsertEndpoint,
   type DrizzleDatabaseConstraint,
+  type DrizzleDialect,
   DrizzleUpsertEndpoint,
   createDrizzleCrud,
 } from '@hono-crud/drizzle';
 import { substringMatch } from '@hono-crud/drizzle/advanced';
 import { sql } from 'drizzle-orm';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { type DrizzleDialect, defineMeta, defineModel } from 'hono-crud';
+import { defineMeta, defineModel } from 'hono-crud';
 /**
  * Tests for the Drizzle adapter's `dialect` option.
  *

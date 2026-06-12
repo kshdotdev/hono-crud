@@ -1,4 +1,4 @@
-import { MemoryAggregateEndpoint, clearStorage, getStorage } from '@hono-crud/memory';
+import { MemoryAggregateEndpoint, clearStorage, getStore } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import {
   computeAggregations,
@@ -49,7 +49,7 @@ describe('Aggregations', () => {
     clearStorage();
 
     // Seed test data
-    const store = getStorage<Record<string, unknown>>('products');
+    const store = getStore<Record<string, unknown>>('products');
 
     const products = [
       {
