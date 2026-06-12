@@ -3,6 +3,11 @@
  *
  * Chainable API with `.build()` at the end to create endpoint classes.
  *
+ * Like the functional API, the builder is deliberate sugar over the 5 basic
+ * verbs (create/list/read/update/delete); use the config API
+ * (`defineEndpoints`) or the class API for extended verbs (search, batch.*,
+ * upsert, versioning, ...).
+ *
  * @example
  * ```ts
  * import { crud } from 'hono-crud/builder';
@@ -13,8 +18,8 @@
  *   .summary('List users')
  *   .filter('role', 'status')
  *   .search('name', 'email')
- *   .orderBy('name', 'createdAt')
- *   .defaultOrder('createdAt', 'desc')
+ *   .sortable('name', 'createdAt')
+ *   .defaultSort('createdAt', 'desc')
  *   .pagination(20, 100)
  *   .include('profile', 'posts')
  *   .build(MemoryListEndpoint);
@@ -30,8 +35,19 @@
  */
 
 import type { Env, MiddlewareHandler } from 'hono';
+import type { ZodObject, ZodRawShape } from 'zod';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
-import type { FilterConfig, HookMode, MetaInput, SortDirection, SortSpec } from '../core/types';
+import type {
+  AfterDeleteHook,
+  AfterUpdateHook,
+  FilterConfig,
+  HookContext,
+  HookMode,
+  MetaInput,
+  OpenAPIRouteSchema,
+  SortDirection,
+  SortSpec,
+} from '../core/types';
 import type { ModelObject } from '../endpoints/types';
 
 type GeneratedClass<B extends abstract new () => unknown> = B & (new () => InstanceType<B>);
@@ -44,18 +60,19 @@ type GeneratedClass<B extends abstract new () => unknown> = B & (new () => Insta
  * Builder for Create endpoints.
  */
 export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
-  private _schema: Record<string, unknown> = {};
+  private _schema: Partial<OpenAPIRouteSchema> = {};
   private _before?: (
     data: ModelObject<M['model']>,
-    tx?: unknown,
+    ctx?: HookContext,
   ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
   private _after?: (
     data: ModelObject<M['model']>,
-    tx?: unknown,
+    ctx?: HookContext,
   ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
-  private _beforeHookMode: HookMode = 'sequential';
-  private _afterHookMode: HookMode = 'sequential';
+  private _beforeHookMode?: HookMode;
+  private _afterHookMode?: HookMode;
   private _allowNestedCreate: string[] = [];
+  private _bodySchema?: ZodObject<ZodRawShape>;
   private _middlewares: MiddlewareHandler<E>[] = [];
 
   constructor(private readonly meta: M) {}
@@ -84,22 +101,32 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
     return this;
   }
 
-  /** Set before hook */
+  /**
+   * Merge a raw OpenAPI route-schema fragment (`responses`, `request`,
+   * `security`, `operationId`, ...) into this endpoint's schema.
+   * User-supplied blocks override the generated ones.
+   */
+  openapi(schema: Partial<OpenAPIRouteSchema>): this {
+    Object.assign(this._schema, schema);
+    return this;
+  }
+
+  /** Set before hook. The optional second argument is the engine-built `HookContext`. */
   before(
     fn: (
       data: ModelObject<M['model']>,
-      tx?: unknown,
+      ctx?: HookContext,
     ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>,
   ): this {
     this._before = fn;
     return this;
   }
 
-  /** Set after hook */
+  /** Set after hook. The optional second argument is the engine-built `HookContext`. */
   after(
     fn: (
       data: ModelObject<M['model']>,
-      tx?: unknown,
+      ctx?: HookContext,
     ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>,
   ): this {
     this._after = fn;
@@ -125,6 +152,15 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /**
+   * Override the request body validation schema (bypasses the generated
+   * default — model schema minus primary keys and managed fields).
+   */
+  bodySchema(schema: ZodObject<ZodRawShape>): this {
+    this._bodySchema = schema;
+    return this;
+  }
+
+  /**
    * Build the endpoint class.
    *
    * @param BaseClass - The adapter-specific base class to extend
@@ -139,6 +175,7 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
       beforeHookMode: this._beforeHookMode,
       afterHookMode: this._afterHookMode,
       allowNestedCreate: this._allowNestedCreate,
+      bodySchema: this._bodySchema,
       middlewares: this._middlewares as MiddlewareHandler[],
     });
   }
@@ -150,17 +187,21 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
 
 /**
  * Builder for List endpoints.
+ *
+ * Unset knobs are passed through as `undefined` so the shared
+ * `generateEndpointClass` factory remains the single source of defaults
+ * (20/100 pagination, `'search'` param name, ...).
  */
 export class ListBuilder<M extends MetaInput, E extends Env = Env> {
-  private _schema: Record<string, unknown> = {};
+  private _schema: Partial<OpenAPIRouteSchema> = {};
   private _filterFields: string[] = [];
   private _filterConfig?: FilterConfig;
   private _searchFields: string[] = [];
-  private _searchFieldName = 'search';
+  private _searchParamName?: string;
   private _sortFields: string[] = [];
   private _defaultSort?: SortSpec;
-  private _defaultPerPage = 20;
-  private _maxPerPage = 100;
+  private _defaultPerPage?: number;
+  private _maxPerPage?: number;
   private _allowedIncludes: string[] = [];
   private _fieldSelectionEnabled = false;
   private _allowedSelectFields: string[] = [];
@@ -199,6 +240,16 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
     return this;
   }
 
+  /**
+   * Merge a raw OpenAPI route-schema fragment (`responses`, `request`,
+   * `security`, `operationId`, ...) into this endpoint's schema.
+   * User-supplied blocks override the generated ones.
+   */
+  openapi(schema: Partial<OpenAPIRouteSchema>): this {
+    Object.assign(this._schema, schema);
+    return this;
+  }
+
   /** Set filter fields */
   filter(...fields: string[]): this {
     this._filterFields = fields;
@@ -217,9 +268,9 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
     return this;
   }
 
-  /** Set search query parameter name */
+  /** Set search query parameter name (default: 'search') */
   searchParam(name: string): this {
-    this._searchFieldName = name;
+    this._searchParamName = name;
     return this;
   }
 
@@ -229,20 +280,10 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
     return this;
   }
 
-  /** Backward-compatible alias for sortable fields. */
-  orderBy(...fields: string[]): this {
-    return this.sortable(...fields);
-  }
-
   /** Set default sort */
   defaultSort(field: string, order: SortDirection = 'asc'): this {
     this._defaultSort = { field, order };
     return this;
-  }
-
-  /** Backward-compatible alias for default sort. */
-  defaultOrder(field: string, order: SortDirection = 'asc'): this {
-    return this.defaultSort(field, order);
   }
 
   /** Set pagination defaults */
@@ -304,7 +345,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
       filterFields: this._filterFields,
       filterConfig: this._filterConfig,
       searchFields: this._searchFields,
-      searchFieldName: this._searchFieldName,
+      searchParamName: this._searchParamName,
       sortFields: this._sortFields,
       defaultSort: this._defaultSort,
       defaultPerPage: this._defaultPerPage,
@@ -330,8 +371,8 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
  * Builder for Read endpoints.
  */
 export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
-  private _schema: Record<string, unknown> = {};
-  private _lookupField = 'id';
+  private _schema: Partial<OpenAPIRouteSchema> = {};
+  private _lookupField?: string;
   private _additionalFilters?: string[];
   private _allowedIncludes: string[] = [];
   private _fieldSelectionEnabled = false;
@@ -368,6 +409,16 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
   /** Set OpenAPI description */
   description(description: string): this {
     this._schema.description = description;
+    return this;
+  }
+
+  /**
+   * Merge a raw OpenAPI route-schema fragment (`responses`, `request`,
+   * `security`, `operationId`, ...) into this endpoint's schema.
+   * User-supplied blocks override the generated ones.
+   */
+  openapi(schema: Partial<OpenAPIRouteSchema>): this {
+    Object.assign(this._schema, schema);
     return this;
   }
 
@@ -453,24 +504,21 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
  * Builder for Update endpoints.
  */
 export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
-  private _schema: Record<string, unknown> = {};
-  private _lookupField = 'id';
+  private _schema: Partial<OpenAPIRouteSchema> = {};
+  private _lookupField?: string;
   private _additionalFilters?: string[];
   private _allowedUpdateFields?: string[];
   private _blockedUpdateFields?: string[];
   private _allowNestedWrites: string[] = [];
   private _before?: (
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown,
+    ctx?: HookContext,
   ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
-  private _after?: (
-    prior: ModelObject<M['model']>,
-    current: ModelObject<M['model']>,
-    ctx: unknown,
-  ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void;
-  private _beforeHookMode: HookMode = 'sequential';
-  private _afterHookMode: HookMode = 'sequential';
+  private _after?: AfterUpdateHook<ModelObject<M['model']>>;
+  private _beforeHookMode?: HookMode;
+  private _afterHookMode?: HookMode;
   private _transform?: (item: ModelObject<M['model']>) => unknown;
+  private _bodySchema?: ZodObject<ZodRawShape>;
   private _middlewares: MiddlewareHandler<E>[] = [];
 
   constructor(private readonly meta: M) {}
@@ -496,6 +544,16 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
   /** Set OpenAPI description */
   description(description: string): this {
     this._schema.description = description;
+    return this;
+  }
+
+  /**
+   * Merge a raw OpenAPI route-schema fragment (`responses`, `request`,
+   * `security`, `operationId`, ...) into this endpoint's schema.
+   * User-supplied blocks override the generated ones.
+   */
+  openapi(schema: Partial<OpenAPIRouteSchema>): this {
+    Object.assign(this._schema, schema);
     return this;
   }
 
@@ -529,11 +587,11 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
     return this;
   }
 
-  /** Set before hook */
+  /** Set before hook. The optional second argument is the engine-built `HookContext`. */
   before(
     fn: (
       data: Partial<ModelObject<M['model']>>,
-      tx?: unknown,
+      ctx?: HookContext,
     ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>,
   ): this {
     this._before = fn;
@@ -541,20 +599,15 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /**
-   * Set after hook.
+   * Set after hook — the exported `AfterUpdateHook` alias:
+   * `(prior, current, ctx: HookContext)`.
    *
    * **0.10.0 — BREAKING:** signature is now `(prior, current, ctx)`. The
    * pre-mutation snapshot is observed inside the parent UPDATE's
    * transaction so consumers can compute field-level diffs without a
    * re-fetch in `before`.
    */
-  after(
-    fn: (
-      prior: ModelObject<M['model']>,
-      current: ModelObject<M['model']>,
-      ctx: unknown,
-    ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void,
-  ): this {
+  after(fn: AfterUpdateHook<ModelObject<M['model']>>): this {
     this._after = fn;
     return this;
   }
@@ -578,6 +631,16 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /**
+   * Override the request body validation schema (bypasses the generated
+   * default). Note: the override is **not** automatically wrapped in
+   * `.partial()`; the caller decides which fields are required.
+   */
+  bodySchema(schema: ZodObject<ZodRawShape>): this {
+    this._bodySchema = schema;
+    return this;
+  }
+
+  /**
    * Build the endpoint class.
    *
    * @param BaseClass - The adapter-specific base class to extend
@@ -597,6 +660,7 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
       beforeHookMode: this._beforeHookMode,
       afterHookMode: this._afterHookMode,
       transform: this._transform as ((...args: unknown[]) => unknown) | undefined,
+      bodySchema: this._bodySchema,
       middlewares: this._middlewares as MiddlewareHandler[],
     });
   }
@@ -610,14 +674,14 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
  * Builder for Delete endpoints.
  */
 export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
-  private _schema: Record<string, unknown> = {};
-  private _lookupField = 'id';
+  private _schema: Partial<OpenAPIRouteSchema> = {};
+  private _lookupField?: string;
   private _additionalFilters?: string[];
-  private _includeCascadeResults = false;
-  private _before?: (lookupValue: string, tx?: unknown) => Promise<void> | void;
-  private _after?: (prior: ModelObject<M['model']>, ctx: unknown) => Promise<void> | void;
-  private _beforeHookMode: HookMode = 'sequential';
-  private _afterHookMode: HookMode = 'sequential';
+  private _includeCascadeResults?: boolean;
+  private _before?: (lookupValue: string, ctx?: HookContext) => Promise<void> | void;
+  private _after?: AfterDeleteHook<ModelObject<M['model']>>;
+  private _beforeHookMode?: HookMode;
+  private _afterHookMode?: HookMode;
   private _middlewares: MiddlewareHandler<E>[] = [];
 
   constructor(private readonly meta: M) {}
@@ -646,6 +710,16 @@ export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
     return this;
   }
 
+  /**
+   * Merge a raw OpenAPI route-schema fragment (`responses`, `request`,
+   * `security`, `operationId`, ...) into this endpoint's schema.
+   * User-supplied blocks override the generated ones.
+   */
+  openapi(schema: Partial<OpenAPIRouteSchema>): this {
+    Object.assign(this._schema, schema);
+    return this;
+  }
+
   /** Set lookup field */
   lookupField(field: string): this {
     this._lookupField = field;
@@ -664,14 +738,15 @@ export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
     return this;
   }
 
-  /** Set before hook */
-  before(fn: (lookupValue: string, tx?: unknown) => Promise<void> | void): this {
+  /** Set before hook. The optional second argument is the engine-built `HookContext`. */
+  before(fn: (lookupValue: string, ctx?: HookContext) => Promise<void> | void): this {
     this._before = fn;
     return this;
   }
 
   /**
-   * Set after hook.
+   * Set after hook — the exported `AfterDeleteHook` alias:
+   * `(prior, ctx: HookContext)`.
    *
    * **0.10.0 — BREAKING:** signature is now `(prior, ctx)`. `prior` is
    * the pre-mutation row (for soft-delete, the row before `deletedAt`
@@ -679,7 +754,7 @@ export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
    * results are still emitted in the response body when
    * `includeCascade(true)` is configured.
    */
-  after(fn: (prior: ModelObject<M['model']>, ctx: unknown) => Promise<void> | void): this {
+  after(fn: AfterDeleteHook<ModelObject<M['model']>>): this {
     this._after = fn;
     return this;
   }

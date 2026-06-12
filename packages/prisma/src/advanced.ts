@@ -1,5 +1,6 @@
 import type { Env } from 'hono';
 import { UpsertEndpoint } from 'hono-crud/internal';
+import { BulkPatchEndpoint } from 'hono-crud/internal';
 import { CloneEndpoint } from 'hono-crud/internal';
 import {
   VersionCompareEndpoint,
@@ -390,6 +391,60 @@ export abstract class PrismaUpsertEndpoint<
       data: result,
       created: false, // Cannot determine with native upsert
     };
+  }
+}
+
+/**
+ * Prisma Bulk Patch endpoint: `PATCH /resource/bulk` updates every record
+ * matching the query-string filters via a single `updateMany`.
+ *
+ * Soft-deleted records are never bulk-patched (the where clause pins the
+ * soft-delete column to `null` when configured), and managed update fields
+ * (`updatedAt`) are bumped — same semantics as PrismaBatchUpdate. DB-managed
+ * `@updatedAt` columns are bumped by Prisma itself on `updateMany`.
+ *
+ * Note: `updateMany` returns only a count, so `returnRecords` is not
+ * supported on this adapter — the response never includes `records`.
+ */
+export abstract class PrismaBulkPatchEndpoint<
+  E extends Env = Env,
+  M extends MetaInput = MetaInput,
+> extends BulkPatchEndpoint<E, M> {
+  declare prisma?: PrismaClient;
+
+  protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
+  }
+
+  /** Where clause shared by countMatching/applyPatch: filters + soft-delete guard. */
+  private buildWhere(filters: ListFilters): Record<string, unknown> {
+    const where = buildPrismaWhere(filters.filters);
+
+    const softDeleteConfig = this.getSoftDeleteConfig();
+    if (softDeleteConfig.enabled) {
+      where[softDeleteConfig.field] = null;
+    }
+
+    return where;
+  }
+
+  override async countMatching(filters: ListFilters): Promise<number> {
+    const model = await this.getModel();
+    return model.count({ where: this.buildWhere(filters) });
+  }
+
+  override async applyPatch(
+    data: Partial<ModelObject<M['model']>>,
+    filters: ListFilters,
+  ): Promise<{ updated: number; records?: ModelObject<M['model']>[] }> {
+    const model = await this.getModel();
+
+    const result = await model.updateMany({
+      where: this.buildWhere(filters),
+      data: this.applyManagedUpdateFields(data as Record<string, unknown>),
+    });
+
+    return { updated: result.count };
   }
 }
 

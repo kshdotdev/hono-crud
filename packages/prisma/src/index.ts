@@ -7,11 +7,16 @@ export * from './advanced';
 import type { AdapterBundle } from 'hono-crud/internal';
 import {
   PrismaAggregateEndpoint,
+  PrismaBulkPatchEndpoint,
   PrismaCloneEndpoint,
   PrismaExportEndpoint,
   PrismaImportEndpoint,
   PrismaSearchEndpoint,
   PrismaUpsertEndpoint,
+  PrismaVersionCompareEndpoint,
+  PrismaVersionHistoryEndpoint,
+  PrismaVersionReadEndpoint,
+  PrismaVersionRollbackEndpoint,
 } from './advanced';
 import {
   PrismaBatchCreateEndpoint,
@@ -32,8 +37,8 @@ import {
 /**
  * Prisma adapter bundle for use with `defineEndpoints`.
  *
- * Populates the 11 verbs Prisma implements natively plus a stub
- * `CloneEndpoint` (throws on request — subclass to implement).
+ * Populates every `defineEndpoints` slot (all 22 verbs), including
+ * `CloneEndpoint` (a stub that throws on request — subclass to implement).
  *
  * @example
  * ```ts
@@ -58,4 +63,9 @@ export const PrismaAdapters: AdapterBundle = {
   ImportEndpoint: PrismaImportEndpoint,
   UpsertEndpoint: PrismaUpsertEndpoint,
   CloneEndpoint: PrismaCloneEndpoint,
+  BulkPatchEndpoint: PrismaBulkPatchEndpoint,
+  VersionHistoryEndpoint: PrismaVersionHistoryEndpoint,
+  VersionReadEndpoint: PrismaVersionReadEndpoint,
+  VersionCompareEndpoint: PrismaVersionCompareEndpoint,
+  VersionRollbackEndpoint: PrismaVersionRollbackEndpoint,
 };

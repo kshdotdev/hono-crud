@@ -11,7 +11,7 @@ import type {
   RelationConfig,
 } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -187,33 +187,35 @@ export abstract class CreateEndpoint<
   getSchema(): OpenAPIRouteSchema {
     const bodySchema = this.getBodySchema();
 
-    return {
-      ...this.schema,
-      request: {
-        body: {
-          content: {
-            'application/json': {
-              schema: bodySchema,
+    return mergeRouteSchema(
+      {
+        request: {
+          body: {
+            content: {
+              'application/json': {
+                schema: bodySchema,
+              },
             },
-          },
-          required: true,
-        },
-      },
-      responses: {
-        201: {
-          description: 'Resource created successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: this.getModelSchema(),
-              }),
-            },
+            required: true,
           },
         },
-        400: errorResponseSchema('Validation error'),
+        responses: {
+          201: {
+            description: 'Resource created successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: this.getModelSchema(),
+                }),
+              },
+            },
+          },
+          400: errorResponseSchema('Validation error'),
+        },
       },
-    };
+      this.schema,
+    );
   }
 
   /**

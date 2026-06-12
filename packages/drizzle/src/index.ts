@@ -37,11 +37,16 @@ import type { AdapterBundle } from 'hono-crud/internal';
 import {
   DrizzleAggregateEndpoint,
   DrizzleBatchUpsertEndpoint,
+  DrizzleBulkPatchEndpoint,
   DrizzleCloneEndpoint,
   DrizzleExportEndpoint,
   DrizzleImportEndpoint,
   DrizzleSearchEndpoint,
   DrizzleUpsertEndpoint,
+  DrizzleVersionCompareEndpoint,
+  DrizzleVersionHistoryEndpoint,
+  DrizzleVersionReadEndpoint,
+  DrizzleVersionRollbackEndpoint,
 } from './advanced';
 import {
   DrizzleBatchCreateEndpoint,
@@ -61,8 +66,8 @@ import {
 /**
  * Drizzle adapter bundle for use with `defineEndpoints`.
  *
- * Populates the 16 verbs Drizzle implements natively plus a stub
- * `CloneEndpoint` (throws on request — subclass to implement).
+ * Populates every `defineEndpoints` slot (all 22 verbs), including
+ * `CloneEndpoint` (a stub that throws on request — subclass to implement).
  *
  * @example
  * ```ts
@@ -87,4 +92,9 @@ export const DrizzleAdapters: AdapterBundle = {
   ImportEndpoint: DrizzleImportEndpoint,
   UpsertEndpoint: DrizzleUpsertEndpoint,
   CloneEndpoint: DrizzleCloneEndpoint,
+  BulkPatchEndpoint: DrizzleBulkPatchEndpoint,
+  VersionHistoryEndpoint: DrizzleVersionHistoryEndpoint,
+  VersionReadEndpoint: DrizzleVersionReadEndpoint,
+  VersionCompareEndpoint: DrizzleVersionCompareEndpoint,
+  VersionRollbackEndpoint: DrizzleVersionRollbackEndpoint,
 };

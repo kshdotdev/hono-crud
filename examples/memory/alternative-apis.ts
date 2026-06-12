@@ -174,8 +174,8 @@ const BuilderUserList = crud(userMeta)
   .summary('List users (builder)')
   .filter('role', 'status')
   .search('name', 'email')
-  .orderBy('name', 'createdAt')
-  .defaultOrder('createdAt', 'desc')
+  .sortable('name', 'createdAt')
+  .defaultSort('createdAt', 'desc')
   .pagination(20, 100)
   .build(MemoryListEndpoint);
 

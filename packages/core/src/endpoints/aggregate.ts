@@ -13,7 +13,7 @@ import type {
 } from '../core/types';
 import { SORT_DIRECTIONS, assertNever } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 
 /**
  * Default aggregate configuration.
@@ -118,30 +118,32 @@ export abstract class AggregateEndpoint<
       values: z.record(z.string(), z.number().nullable()),
     });
 
-    return {
-      ...this.schema,
-      request: {
-        query: this.getQuerySchema(),
-      },
-      responses: {
-        200: {
-          description: 'Aggregation result',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  values: z.record(z.string(), z.number().nullable()).optional(),
-                  groups: z.array(groupResultSchema).optional(),
-                  totalGroups: z.number().optional(),
+    return mergeRouteSchema(
+      {
+        request: {
+          query: this.getQuerySchema(),
+        },
+        responses: {
+          200: {
+            description: 'Aggregation result',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.object({
+                    values: z.record(z.string(), z.number().nullable()).optional(),
+                    groups: z.array(groupResultSchema).optional(),
+                    totalGroups: z.number().optional(),
+                  }),
                 }),
-              }),
+              },
             },
           },
+          400: errorResponseSchema('Invalid aggregation request'),
         },
-        400: errorResponseSchema('Invalid aggregation request'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**
@@ -253,6 +255,14 @@ export abstract class AggregateEndpoint<
   abstract aggregate(options: AggregateOptions): Promise<AggregateResult>;
 
   /**
+   * Lifecycle hook: called after the aggregation is computed.
+   * Override to post-process the result before the response is built.
+   */
+  async after(result: AggregateResult): Promise<AggregateResult> {
+    return result;
+  }
+
+  /**
    * Main handler for the aggregate operation.
    */
   async handle(): Promise<Response> {
@@ -273,8 +283,8 @@ export abstract class AggregateEndpoint<
       options.limit = config.defaultLimit;
     }
 
-    // Perform the aggregation
-    const result = await this.aggregate(options);
+    // Perform the aggregation, then the after hook
+    const result = await this.after(await this.aggregate(options));
 
     return this.success(result);
   }

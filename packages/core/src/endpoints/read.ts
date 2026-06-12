@@ -4,7 +4,7 @@ import { NotFoundException } from '../core/exceptions';
 import type { IncludeOptions, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { generateETag, matchesIfNoneMatch } from '../utils/etag';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import type { FieldSelection, ModelObject } from './types';
 
 /**
@@ -155,27 +155,29 @@ export abstract class ReadEndpoint<
    */
   getSchema(): OpenAPIRouteSchema {
     const querySchema = this.getQuerySchema();
-    return {
-      ...this.schema,
-      request: {
-        params: this.getParamsSchema(),
-        ...(querySchema && { query: querySchema }),
-      },
-      responses: {
-        200: {
-          description: 'Resource retrieved successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: this.getModelSchema(),
-              }),
+    return mergeRouteSchema(
+      {
+        request: {
+          params: this.getParamsSchema(),
+          ...(querySchema && { query: querySchema }),
+        },
+        responses: {
+          200: {
+            description: 'Resource retrieved successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: this.getModelSchema(),
+                }),
+              },
             },
           },
+          404: errorResponseSchema('Resource not found'),
         },
-        404: errorResponseSchema('Resource not found'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**

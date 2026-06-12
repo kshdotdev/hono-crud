@@ -3,7 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { ApiException, NotFoundException } from '../core/exceptions';
 import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import type { ModelObject } from './types';
 
 /**
@@ -88,31 +88,33 @@ export abstract class VersionHistoryEndpoint<
    * Generates OpenAPI schema.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        params: this.getParamsSchema(),
-        query: this.getQuerySchema(),
-      },
-      responses: {
-        200: {
-          description: 'Version history retrieved successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  versions: z.array(VersionEntrySchema),
-                  totalVersions: z.number(),
+    return mergeRouteSchema(
+      {
+        request: {
+          params: this.getParamsSchema(),
+          query: this.getQuerySchema(),
+        },
+        responses: {
+          200: {
+            description: 'Version history retrieved successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.object({
+                    versions: z.array(VersionEntrySchema),
+                    totalVersions: z.number(),
+                  }),
                 }),
-              }),
+              },
             },
           },
+          400: errorResponseSchema('Versioning not enabled'),
+          404: errorResponseSchema('Record not found'),
         },
-        400: errorResponseSchema('Versioning not enabled'),
-        404: errorResponseSchema('Record not found'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**
@@ -220,27 +222,29 @@ export abstract class VersionReadEndpoint<
    * Generates OpenAPI schema.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        params: this.getParamsSchema(),
-      },
-      responses: {
-        200: {
-          description: 'Version retrieved successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: VersionEntrySchema,
-              }),
+    return mergeRouteSchema(
+      {
+        request: {
+          params: this.getParamsSchema(),
+        },
+        responses: {
+          200: {
+            description: 'Version retrieved successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: VersionEntrySchema,
+                }),
+              },
             },
           },
+          400: errorResponseSchema('Versioning not enabled'),
+          404: errorResponseSchema('Version not found'),
         },
-        400: errorResponseSchema('Versioning not enabled'),
-        404: errorResponseSchema('Version not found'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**
@@ -339,38 +343,40 @@ export abstract class VersionCompareEndpoint<
    * Generates OpenAPI schema.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        params: this.getParamsSchema(),
-        query: this.getQuerySchema(),
-      },
-      responses: {
-        200: {
-          description: 'Version comparison completed',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  from: z.number(),
-                  to: z.number(),
-                  changes: z.array(
-                    z.object({
-                      field: z.string(),
-                      oldValue: z.unknown().optional(),
-                      newValue: z.unknown().optional(),
-                    }),
-                  ),
+    return mergeRouteSchema(
+      {
+        request: {
+          params: this.getParamsSchema(),
+          query: this.getQuerySchema(),
+        },
+        responses: {
+          200: {
+            description: 'Version comparison completed',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.object({
+                    from: z.number(),
+                    to: z.number(),
+                    changes: z.array(
+                      z.object({
+                        field: z.string(),
+                        oldValue: z.unknown().optional(),
+                        newValue: z.unknown().optional(),
+                      }),
+                    ),
+                  }),
                 }),
-              }),
+              },
             },
           },
+          400: errorResponseSchema('Versioning not enabled or invalid parameters'),
+          404: errorResponseSchema('Version not found'),
         },
-        400: errorResponseSchema('Versioning not enabled or invalid parameters'),
-        404: errorResponseSchema('Version not found'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**
@@ -463,27 +469,29 @@ export abstract class VersionRollbackEndpoint<
    * Generates OpenAPI schema.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        params: this.getParamsSchema(),
-      },
-      responses: {
-        200: {
-          description: 'Record rolled back successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: this.getModelSchema(),
-              }),
+    return mergeRouteSchema(
+      {
+        request: {
+          params: this.getParamsSchema(),
+        },
+        responses: {
+          200: {
+            description: 'Record rolled back successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: this.getModelSchema(),
+                }),
+              },
             },
           },
+          400: errorResponseSchema('Versioning not enabled'),
+          404: errorResponseSchema('Version not found'),
         },
-        400: errorResponseSchema('Versioning not enabled'),
-        404: errorResponseSchema('Version not found'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**

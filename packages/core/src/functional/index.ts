@@ -3,6 +3,10 @@
  *
  * Thin wrappers over the internal `generateEndpointClass` factory.
  *
+ * Deliberate sugar over the 5 basic verbs (create/list/read/update/delete);
+ * use the config API (`defineEndpoints`) or the class API for extended verbs
+ * (search, batch.*, upsert, versioning, ...).
+ *
  * @example
  * ```ts
  * import { createCreate, createList } from 'hono-crud/functional';
@@ -23,9 +27,13 @@
  */
 
 import type { Env, MiddlewareHandler } from 'hono';
+import type { ZodObject, ZodRawShape } from 'zod';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
 import type {
+  AfterDeleteHook,
+  AfterUpdateHook,
   FilterConfig,
+  HookContext,
   HookMode,
   MetaInput,
   OpenAPIRouteSchema,
@@ -48,17 +56,23 @@ type OpenAPISchema = Partial<OpenAPIRouteSchema> & {
 export interface CreateConfig<M extends MetaInput, E extends Env = Env> {
   meta: M;
   schema?: OpenAPISchema;
+  /** The optional second argument is the engine-built `HookContext`. */
   before?: (
     data: ModelObject<M['model']>,
-    tx?: unknown,
+    ctx?: HookContext,
   ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
   after?: (
     data: ModelObject<M['model']>,
-    tx?: unknown,
+    ctx?: HookContext,
   ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
   allowNestedCreate?: string[];
   beforeHookMode?: HookMode;
   afterHookMode?: HookMode;
+  /**
+   * Override the request body validation schema (bypasses the generated
+   * default — model schema minus primary keys and managed fields).
+   */
+  bodySchema?: ZodObject<ZodRawShape>;
   middlewares?: MiddlewareHandler<E>[];
 }
 
@@ -68,7 +82,7 @@ export interface ListConfig<M extends MetaInput, E extends Env = Env> {
   filterFields?: string[];
   filterConfig?: FilterConfig;
   searchFields?: string[];
-  searchFieldName?: string;
+  searchParamName?: string;
   sortFields?: string[];
   defaultSort?: SortSpec;
   defaultPerPage?: number;
@@ -112,26 +126,30 @@ export interface UpdateConfig<M extends MetaInput, E extends Env = Env> {
   allowedUpdateFields?: string[];
   blockedUpdateFields?: string[];
   allowNestedWrites?: string[];
+  /** The optional second argument is the engine-built `HookContext`. */
   before?: (
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown,
+    ctx?: HookContext,
   ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
   /**
-   * Update after-hook.
+   * Update after-hook — the exported `AfterUpdateHook` alias:
+   * `(prior, current, ctx: HookContext)`.
    *
    * **0.10.0 — BREAKING:** signature is now `(prior, current, ctx)`. The
    * pre-mutation snapshot is observed inside the parent UPDATE's
    * transaction so consumers can compute field-level diffs without a
    * re-fetch in `before`.
    */
-  after?: (
-    prior: ModelObject<M['model']>,
-    current: ModelObject<M['model']>,
-    ctx: unknown,
-  ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void;
+  after?: AfterUpdateHook<ModelObject<M['model']>>;
   beforeHookMode?: HookMode;
   afterHookMode?: HookMode;
   transform?: (item: ModelObject<M['model']>) => unknown;
+  /**
+   * Override the request body validation schema (bypasses the generated
+   * default). Note: the override is **not** automatically wrapped in
+   * `.partial()`; the caller decides which fields are required.
+   */
+  bodySchema?: ZodObject<ZodRawShape>;
   middlewares?: MiddlewareHandler<E>[];
 }
 
@@ -141,15 +159,17 @@ export interface DeleteConfig<M extends MetaInput, E extends Env = Env> {
   lookupField?: string;
   additionalFilters?: string[];
   includeCascadeResults?: boolean;
-  before?: (lookupValue: string, tx?: unknown) => Promise<void> | void;
+  /** The optional second argument is the engine-built `HookContext`. */
+  before?: (lookupValue: string, ctx?: HookContext) => Promise<void> | void;
   /**
-   * Delete after-hook.
+   * Delete after-hook — the exported `AfterDeleteHook` alias:
+   * `(prior, ctx: HookContext)`.
    *
    * **0.10.0 — BREAKING:** signature is now `(prior, ctx)`. `prior` is
    * the pre-mutation row (for soft-delete, before `deletedAt` was set),
    * observed inside the parent DELETE's transaction.
    */
-  after?: (prior: ModelObject<M['model']>, ctx: unknown) => Promise<void> | void;
+  after?: AfterDeleteHook<ModelObject<M['model']>>;
   beforeHookMode?: HookMode;
   afterHookMode?: HookMode;
   middlewares?: MiddlewareHandler<E>[];
@@ -173,6 +193,7 @@ export function createCreate<
     beforeHookMode: config.beforeHookMode,
     afterHookMode: config.afterHookMode,
     allowNestedCreate: config.allowNestedCreate,
+    bodySchema: config.bodySchema,
   });
 }
 
@@ -190,7 +211,7 @@ export function createList<
     filterFields: config.filterFields,
     filterConfig: config.filterConfig,
     searchFields: config.searchFields,
-    searchFieldName: config.searchFieldName,
+    searchParamName: config.searchParamName,
     sortFields: config.sortFields,
     defaultSort: config.defaultSort,
     defaultPerPage: config.defaultPerPage,
@@ -245,6 +266,7 @@ export function createUpdate<
     allowedUpdateFields: config.allowedUpdateFields,
     blockedUpdateFields: config.blockedUpdateFields,
     allowNestedWrites: config.allowNestedWrites,
+    bodySchema: config.bodySchema,
   });
 }
 

@@ -302,6 +302,7 @@ export {
   errorResponseZodSchema,
   errorResponseSchema,
   errorResponses,
+  mergeRouteSchema,
 } from './endpoints/responses';
 
 // Context-var key registry (single source of truth for context-var keys)

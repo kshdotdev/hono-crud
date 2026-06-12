@@ -1,8 +1,17 @@
 import { MemoryAdapters, clearStorage } from '@hono-crud/memory';
 import { Hono } from 'hono';
-import { defineEndpoints, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { type CrudEndpoints, defineEndpoints, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import type { AdapterBundle, GeneratedEndpoints } from 'hono-crud/internal';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
+
+// ============================================================================
+// Compile-time guard: GeneratedEndpoints must stay a structural subset of
+// CrudEndpoints (it is derived as a Pick over CrudEndpoints, so a config slot
+// that is not a registerCrud verb fails to compile here).
+// ============================================================================
+const _generatedEndpointsAreCrudEndpoints: CrudEndpoints = {} as GeneratedEndpoints;
+void _generatedEndpointsAreCrudEndpoints;
 
 const WidgetSchema = z.object({
   id: z.string(),
@@ -38,12 +47,17 @@ const ALL_VERBS = [
   'import',
   'upsert',
   'clone',
+  'bulkPatch',
+  'versionHistory',
+  'versionRead',
+  'versionCompare',
+  'versionRollback',
 ] as const;
 
-describe('defineEndpoints widening to 17 verbs', () => {
+describe('defineEndpoints widening to all 22 verbs', () => {
   beforeEach(() => clearStorage());
 
-  it('generates an endpoint class for every configured verb', () => {
+  it('generates an endpoint class for every configured verb (22-slot round trip)', () => {
     const endpoints = defineEndpoints(
       {
         meta: widgetMeta,
@@ -64,6 +78,11 @@ describe('defineEndpoints widening to 17 verbs', () => {
         import: { maxRows: 1000 },
         upsert: { conflictTarget: 'id' },
         clone: { fieldsToReset: ['status'] },
+        bulkPatch: { fields: ['status'], maxBulkSize: 500, confirmThreshold: 50 },
+        versionHistory: { defaultLimit: 10, maxLimit: 50 },
+        versionRead: {},
+        versionCompare: {},
+        versionRollback: {},
       },
       MemoryAdapters,
     );
@@ -71,6 +90,56 @@ describe('defineEndpoints widening to 17 verbs', () => {
     for (const verb of ALL_VERBS) {
       expect(typeof endpoints[verb]).toBe('function');
     }
+  });
+
+  it('forwards bulkPatch and versionHistory config keys onto the generated instances', () => {
+    const endpoints = defineEndpoints(
+      {
+        meta: widgetMeta,
+        bulkPatch: {
+          fields: ['status'],
+          maxBulkSize: 500,
+          confirmThreshold: 50,
+          returnRecords: true,
+        },
+        versionHistory: { defaultLimit: 10, maxLimit: 50 },
+      },
+      MemoryAdapters,
+    );
+
+    type Probe = Record<string, unknown>;
+    const bulkPatchInst = new endpoints.bulkPatch!() as unknown as Probe;
+    expect(bulkPatchInst.filterFields).toEqual(['status']);
+    expect(bulkPatchInst.maxBulkSize).toBe(500);
+    expect(bulkPatchInst.confirmThreshold).toBe(50);
+    expect(bulkPatchInst.returnRecords).toBe(true);
+
+    const versionHistoryInst = new endpoints.versionHistory!() as unknown as Probe;
+    expect(versionHistoryInst.defaultLimit).toBe(10);
+    expect(versionHistoryInst.maxLimit).toBe(50);
+  });
+
+  it('throws loudly when a verb is configured but the adapter bundle lacks the class', () => {
+    const partialBundle: AdapterBundle = {
+      CreateEndpoint: MemoryAdapters.CreateEndpoint,
+      ListEndpoint: MemoryAdapters.ListEndpoint,
+      ReadEndpoint: MemoryAdapters.ReadEndpoint,
+      UpdateEndpoint: MemoryAdapters.UpdateEndpoint,
+      DeleteEndpoint: MemoryAdapters.DeleteEndpoint,
+    };
+
+    expect(() =>
+      defineEndpoints({ meta: widgetMeta, search: { fields: ['name'] } }, partialBundle),
+    ).toThrow(/"search".*SearchEndpoint/);
+
+    expect(() => defineEndpoints({ meta: widgetMeta, bulkPatch: {} }, partialBundle)).toThrow(
+      /"bulkPatch".*BulkPatchEndpoint/,
+    );
+
+    // A config without the missing verbs still works fine.
+    expect(() =>
+      defineEndpoints({ meta: widgetMeta, create: {}, list: {} }, partialBundle),
+    ).not.toThrow();
   });
 
   it('skips slots not present in the config', () => {
@@ -153,6 +222,11 @@ describe('defineEndpoints widening to 17 verbs', () => {
         import: {},
         upsert: { conflictTarget: 'id' },
         clone: {},
+        bulkPatch: { fields: ['status'] },
+        versionHistory: {},
+        versionRead: {},
+        versionCompare: {},
+        versionRollback: {},
       },
       MemoryAdapters,
     );
@@ -187,6 +261,13 @@ describe('defineEndpoints widening to 17 verbs', () => {
       },
       { method: 'POST', path: '/widgets/import', body: { items: [] } },
       { method: 'POST', path: '/widgets/upsert', body: { id: seedId, name: 'upserted' } },
+      { method: 'PATCH', path: '/widgets/bulk?status=missing', body: { name: 'bulk' } },
+      // Version routes answer 400 (versioning not enabled on this model) — the
+      // probe only asserts the route is mounted and does not 5xx.
+      { method: 'GET', path: `/widgets/${seedId}/versions` },
+      { method: 'GET', path: `/widgets/${seedId}/versions/compare?from=1&to=2` },
+      { method: 'GET', path: `/widgets/${seedId}/versions/1` },
+      { method: 'POST', path: `/widgets/${seedId}/versions/1/rollback` },
       { method: 'GET', path: `/widgets/${seedId}` },
       { method: 'PATCH', path: `/widgets/${seedId}`, body: { name: 'renamed' } },
       { method: 'POST', path: `/widgets/${seedId}/clone`, body: {} },

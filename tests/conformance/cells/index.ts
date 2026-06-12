@@ -7,6 +7,7 @@
  */
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import type { AdapterContext, AdapterDescriptor, CtxGetter } from '../contract';
+import { registerBulkPatchCells } from './bulk-patch';
 import { registerCursorPaginationCells } from './cursor-pagination';
 import { registerEtagConcurrencyCells } from './etag-concurrency';
 import { registerFilterOperatorCells } from './filter-operators';
@@ -52,4 +53,5 @@ export function registerConformanceCells(descriptor: AdapterDescriptor): void {
   registerUpsertRestoreCells(descriptor, ctx);
   registerTransactionalHookCells(descriptor, ctx);
   registerCursorPaginationCells(descriptor, ctx);
+  registerBulkPatchCells(descriptor, ctx);
 }

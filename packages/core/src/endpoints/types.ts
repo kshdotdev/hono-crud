@@ -42,7 +42,7 @@ export interface ListFilterParseOptions {
 
   // Search configuration
   searchFields?: string[];
-  searchFieldName?: string;
+  searchParamName?: string;
 
   // Sorting configuration
   sortFields?: string[];
@@ -127,7 +127,7 @@ export function parseListFilters(
     filterFields = [],
     filterConfig = {},
     searchFields = [],
-    searchFieldName = 'search',
+    searchParamName = 'search',
     sortFields = [],
     defaultSort,
     defaultPerPage = 20,
@@ -196,7 +196,7 @@ export function parseListFilters(
     }
 
     // Handle search
-    if (key === searchFieldName && searchFields.length > 0) {
+    if (key === searchParamName && searchFields.length > 0) {
       options.search = value;
       continue;
     }

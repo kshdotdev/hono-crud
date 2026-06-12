@@ -14,6 +14,7 @@ import {
   MemoryBatchCreateEndpoint,
   MemoryBatchDeleteEndpoint,
   MemoryBatchUpsertEndpoint,
+  MemoryBulkPatchEndpoint,
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
@@ -112,6 +113,10 @@ class ItemBatchCreate extends MemoryBatchCreateEndpoint {
 class ItemBatchUpsert extends MemoryBatchUpsertEndpoint {
   _meta = baseMeta;
   protected override upsertKeys = ['email'];
+}
+class ItemBulkPatch extends MemoryBulkPatchEndpoint {
+  _meta = baseMeta;
+  protected override filterFields = ['role'];
 }
 class CursorItemList extends MemoryListEndpoint {
   _meta = baseMeta;
@@ -212,6 +217,7 @@ async function setup(): Promise<AdapterContext> {
     upsert: ItemUpsert,
     batchCreate: ItemBatchCreate,
     batchUpsert: ItemBatchUpsert,
+    bulkPatch: ItemBulkPatch,
   });
   registerCrud(app, '/tenant-items', {
     create: TenantCreate,

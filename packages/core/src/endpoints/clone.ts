@@ -8,7 +8,7 @@ import {
 } from '../core/managed-fields';
 import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -82,35 +82,37 @@ export abstract class CloneEndpoint<
    * Generates OpenAPI schema.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        params: this.getParamsSchema(),
-        body: {
-          content: {
-            'application/json': {
-              schema: this.getBodySchema(),
+    return mergeRouteSchema(
+      {
+        request: {
+          params: this.getParamsSchema(),
+          body: {
+            content: {
+              'application/json': {
+                schema: this.getBodySchema(),
+              },
             },
-          },
-          required: false,
-        },
-      },
-      responses: {
-        201: {
-          description: 'Resource cloned successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: this.getModelSchema(),
-              }),
-            },
+            required: false,
           },
         },
-        404: errorResponseSchema('Source resource not found'),
-        409: errorResponseSchema('Unique-constraint violation (e.g. natural-key collision)'),
+        responses: {
+          201: {
+            description: 'Resource cloned successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: this.getModelSchema(),
+                }),
+              },
+            },
+          },
+          404: errorResponseSchema('Source resource not found'),
+          409: errorResponseSchema('Unique-constraint violation (e.g. natural-key collision)'),
+        },
       },
-    };
+      this.schema,
+    );
   }
 
   /**

@@ -3,7 +3,12 @@ import type { ZodObject, ZodRawShape } from 'zod';
 import { ApiException } from '../core/exceptions';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { batchResultResponses, errorResponseSchema, idsBodySchema } from './responses';
+import {
+  batchResultResponses,
+  errorResponseSchema,
+  idsBodySchema,
+  mergeRouteSchema,
+} from './responses';
 import type { ModelObject } from './types';
 
 /**
@@ -85,26 +90,28 @@ export abstract class BatchRestoreEndpoint<
    * Generates OpenAPI schema from meta configuration.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        body: {
-          content: {
-            'application/json': {
-              schema: this.getBodySchema(),
+    return mergeRouteSchema(
+      {
+        request: {
+          body: {
+            content: {
+              'application/json': {
+                schema: this.getBodySchema(),
+              },
             },
           },
         },
+        responses: {
+          ...batchResultResponses(
+            'restored',
+            this.getModelSchema(),
+            'Resources restored successfully',
+          ),
+          400: errorResponseSchema('Soft delete not enabled or validation error'),
+        },
       },
-      responses: {
-        ...batchResultResponses(
-          'restored',
-          this.getModelSchema(),
-          'Resources restored successfully',
-        ),
-        400: errorResponseSchema('Soft delete not enabled or validation error'),
-      },
-    };
+      this.schema,
+    );
   }
 
   /**

@@ -6,7 +6,7 @@ import { applyUpsertRestore } from '../core/soft-delete';
 import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { type CsvParseOptions, parseCsv, validateCsvHeaders } from '../utils/csv';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 // ============================================================================
@@ -219,97 +219,99 @@ export abstract class ImportEndpoint<
    * multiple content types (JSON, CSV, multipart/form-data).
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        query: z.object({
-          mode: z.enum(['create', 'upsert']).optional().meta({ description: 'Import mode' }),
-          skipInvalid: z
-            .enum(['true', 'false'])
-            .optional()
-            .meta({ description: 'Skip invalid rows' }),
-          stopOnError: z.enum(['true', 'false']).optional().meta({
-            description: 'Stop on first error',
+    return mergeRouteSchema(
+      {
+        request: {
+          query: z.object({
+            mode: z.enum(['create', 'upsert']).optional().meta({ description: 'Import mode' }),
+            skipInvalid: z
+              .enum(['true', 'false'])
+              .optional()
+              .meta({ description: 'Skip invalid rows' }),
+            stopOnError: z.enum(['true', 'false']).optional().meta({
+              description: 'Stop on first error',
+            }),
           }),
-        }),
-        // Body validation is done manually to support multiple content types
-      },
-      responses: {
-        200: {
-          description: 'Import completed successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  summary: z.object({
-                    total: z.number(),
-                    created: z.number(),
-                    updated: z.number(),
-                    skipped: z.number(),
-                    failed: z.number(),
-                  }),
-                  results: z.array(
-                    z.object({
-                      rowNumber: z.number(),
-                      status: z.enum(['created', 'updated', 'skipped', 'failed']),
-                      data: z.unknown().optional(),
-                      error: z.string().optional(),
-                      code: z.string().optional(),
-                      validationErrors: z
-                        .array(
-                          z.object({
-                            path: z.string(),
-                            message: z.string(),
-                          }),
-                        )
-                        .optional(),
+          // Body validation is done manually to support multiple content types
+        },
+        responses: {
+          200: {
+            description: 'Import completed successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.object({
+                    summary: z.object({
+                      total: z.number(),
+                      created: z.number(),
+                      updated: z.number(),
+                      skipped: z.number(),
+                      failed: z.number(),
                     }),
-                  ),
+                    results: z.array(
+                      z.object({
+                        rowNumber: z.number(),
+                        status: z.enum(['created', 'updated', 'skipped', 'failed']),
+                        data: z.unknown().optional(),
+                        error: z.string().optional(),
+                        code: z.string().optional(),
+                        validationErrors: z
+                          .array(
+                            z.object({
+                              path: z.string(),
+                              message: z.string(),
+                            }),
+                          )
+                          .optional(),
+                      }),
+                    ),
+                  }),
                 }),
-              }),
+              },
             },
           },
-        },
-        207: {
-          description: 'Import completed with partial failures',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  summary: z.object({
-                    total: z.number(),
-                    created: z.number(),
-                    updated: z.number(),
-                    skipped: z.number(),
-                    failed: z.number(),
-                  }),
-                  results: z.array(
-                    z.object({
-                      rowNumber: z.number(),
-                      status: z.enum(['created', 'updated', 'skipped', 'failed']),
-                      data: z.unknown().optional(),
-                      error: z.string().optional(),
-                      code: z.string().optional(),
-                      validationErrors: z
-                        .array(
-                          z.object({
-                            path: z.string(),
-                            message: z.string(),
-                          }),
-                        )
-                        .optional(),
+          207: {
+            description: 'Import completed with partial failures',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.object({
+                    summary: z.object({
+                      total: z.number(),
+                      created: z.number(),
+                      updated: z.number(),
+                      skipped: z.number(),
+                      failed: z.number(),
                     }),
-                  ),
+                    results: z.array(
+                      z.object({
+                        rowNumber: z.number(),
+                        status: z.enum(['created', 'updated', 'skipped', 'failed']),
+                        data: z.unknown().optional(),
+                        error: z.string().optional(),
+                        code: z.string().optional(),
+                        validationErrors: z
+                          .array(
+                            z.object({
+                              path: z.string(),
+                              message: z.string(),
+                            }),
+                          )
+                          .optional(),
+                      }),
+                    ),
+                  }),
                 }),
-              }),
+              },
             },
           },
+          400: errorResponseSchema('Validation error'),
         },
-        400: errorResponseSchema('Validation error'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**

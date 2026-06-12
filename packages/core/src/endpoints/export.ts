@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { ListFilters, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { type CsvGenerateOptions, escapeCsvValue, generateCsv } from '../utils/csv';
 import { ListEndpoint } from './list';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import type { ModelObject } from './types';
 
 // ============================================================================
@@ -108,34 +108,36 @@ export abstract class ExportEndpoint<
    * Generates OpenAPI schema for the export endpoint.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        query: this.getExportQuerySchema(),
-      },
-      responses: {
-        200: {
-          description: 'Export successful',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  data: z.array(this.getModelSchema()),
-                  count: z.number(),
-                  format: z.enum(['json', 'csv']),
-                  exportedAt: z.string(),
+    return mergeRouteSchema(
+      {
+        request: {
+          query: this.getExportQuerySchema(),
+        },
+        responses: {
+          200: {
+            description: 'Export successful',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.object({
+                    data: z.array(this.getModelSchema()),
+                    count: z.number(),
+                    format: z.enum(['json', 'csv']),
+                    exportedAt: z.string(),
+                  }),
                 }),
-              }),
-            },
-            'text/csv': {
-              schema: z.string(),
+              },
+              'text/csv': {
+                schema: z.string(),
+              },
             },
           },
+          400: errorResponseSchema('Validation error'),
         },
-        400: errorResponseSchema('Validation error'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**

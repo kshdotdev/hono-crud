@@ -22,6 +22,7 @@ import {
   PrismaBatchCreateEndpoint,
   PrismaBatchDeleteEndpoint,
   PrismaBatchUpsertEndpoint,
+  PrismaBulkPatchEndpoint,
   PrismaCreateEndpoint,
   PrismaDeleteEndpoint,
   PrismaListEndpoint,
@@ -182,6 +183,11 @@ async function setup(): Promise<AdapterContext> {
     prisma = crudClient;
     protected override upsertKeys = ['email'];
   }
+  class ItemBulkPatch extends PrismaBulkPatchEndpoint {
+    _meta = baseMeta;
+    prisma = crudClient;
+    protected override filterFields = ['role'];
+  }
   class CursorItemList extends PrismaListEndpoint {
     _meta = baseMeta;
     prisma = crudClient;
@@ -285,6 +291,7 @@ async function setup(): Promise<AdapterContext> {
     upsert: ItemUpsert,
     batchCreate: ItemBatchCreate,
     batchUpsert: ItemBatchUpsert,
+    bulkPatch: ItemBulkPatch,
   });
   registerCrud(app, '/tenant-items', {
     create: TenantCreate,
