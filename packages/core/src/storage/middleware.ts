@@ -11,6 +11,7 @@ const STORAGE_SLOTS: Record<keyof StorageMiddlewareConfig, ContextKey> = {
   auditStorage: CONTEXT_KEYS.auditStorage,
   versioningStorage: CONTEXT_KEYS.versioningStorage,
   apiKeyStorage: CONTEXT_KEYS.apiKeyStorage,
+  approvalStorage: CONTEXT_KEYS.approvalStorage,
   cacheStorage: CONTEXT_KEYS.cacheStorage,
   rateLimitStorage: CONTEXT_KEYS.rateLimitStorage,
   idempotencyStorage: CONTEXT_KEYS.idempotencyStorage,
@@ -127,6 +128,18 @@ export function createAPIKeyStorageMiddleware<E extends Env = Env>(
   storage: NonNullable<StorageMiddlewareConfig['apiKeyStorage']>,
 ): MiddlewareHandler<E & StorageEnv> {
   return createStorageMiddleware({ apiKeyStorage: storage });
+}
+
+/**
+ * Creates middleware that injects only approval storage.
+ *
+ * @param storage - Approval storage instance
+ * @returns Middleware handler
+ */
+export function createApprovalStorageMiddleware<E extends Env = Env>(
+  storage: NonNullable<StorageMiddlewareConfig['approvalStorage']>,
+): MiddlewareHandler<E & StorageEnv> {
+  return createStorageMiddleware({ approvalStorage: storage });
 }
 
 /**

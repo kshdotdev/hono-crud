@@ -1,3 +1,4 @@
+import type { Context, Env } from 'hono';
 import { CONTEXT_KEYS } from '../../core/context-keys';
 import { createStorageFeature } from '../../storage/feature';
 import { hashAPIKey } from '../hash';
@@ -261,3 +262,17 @@ export const getAPIKeyStorageRequired = apiKeyStorageFeature.getRequired;
  * Sets the global API key storage.
  */
 export const setAPIKeyStorage = apiKeyStorageFeature.set;
+
+/**
+ * Resolves API key storage with priority: explicit param > context > global.
+ *
+ * @param ctx - Optional Hono context
+ * @param explicitStorage - Optional explicit storage instance
+ * @returns The resolved storage, or null when no storage was configured
+ */
+export function resolveAPIKeyStorage<E extends Env>(
+  ctx?: Context<E>,
+  explicitStorage?: APIKeyStorage,
+): APIKeyStorage | null {
+  return apiKeyStorageFeature.resolve(ctx, explicitStorage);
+}

@@ -30,10 +30,7 @@ export abstract class PrismaCreateEndpoint<
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   /**
@@ -78,10 +75,7 @@ export abstract class PrismaReadEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   override async read(
@@ -131,10 +125,7 @@ export abstract class PrismaUpdateEndpoint<
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   /**
@@ -217,10 +208,7 @@ export abstract class PrismaDeleteEndpoint<
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   /**
@@ -324,10 +312,7 @@ export abstract class PrismaListEndpoint<
   protected override supportsCursorPagination = true;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {

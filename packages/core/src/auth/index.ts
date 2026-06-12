@@ -86,8 +86,15 @@ export {
   requireApproval,
 } from './guards';
 
-// Approval storage
-export { MemoryApprovalStorage } from './storage/approval-memory';
+// Approval storage (set/get/getRequired/resolve quartet + registry)
+export {
+  MemoryApprovalStorage,
+  approvalStorageRegistry,
+  setApprovalStorage,
+  getApprovalStorage,
+  getApprovalStorageRequired,
+  resolveApprovalStorage,
+} from './storage/approval-memory';
 export { parseIso8601Duration } from './utils/duration';
 
 // ============================================================================
@@ -135,8 +142,11 @@ export {
   MemoryAPIKeyStorage,
   generateAPIKey,
   isValidAPIKeyFormat,
-  getAPIKeyStorage,
+  apiKeyStorageRegistry,
   setAPIKeyStorage,
+  getAPIKeyStorage,
+  getAPIKeyStorageRequired,
+  resolveAPIKeyStorage,
 } from './storage/memory';
 
 // ============================================================================

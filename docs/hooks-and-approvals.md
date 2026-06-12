@@ -315,13 +315,16 @@ The middleware intercepts BEFORE the handler runs:
 2. Detects no `_resume_` field → fresh request.
 3. Pulls actor identity from `c.var.*` (`userId`, `agentId`,
    `agentRunId`, `toolCallId`, optional `actionSource`).
-4. Persists a `PendingAction` to the configured `ApprovalStorage`. If
-   `approvalStorage` is omitted, the lib uses a process-local
-   `MemoryApprovalStorage` singleton — convenient for single-server
-   POCs and tutorials. **First use of the default emits a one-time
-   warning** via `getLogger()` so multi-instance / serverless / edge
-   deployments can't silently end up with process-local state. Pass an
-   explicit storage (Postgres / Durable Objects / etc.) for production:
+4. Persists a `PendingAction` to the resolved `ApprovalStorage`. Resolution
+   follows the standard storage priority chain: explicit `config.storage` >
+   context (`createStorageMiddleware({ approvalStorage })` — recommended,
+   edge-safe) > global (`setApprovalStorage()`). When nothing resolves, the
+   lib lazily materializes a process-local `MemoryApprovalStorage` default —
+   convenient for single-server POCs and tutorials. **First use of the
+   default emits a one-time warning** via `getLogger()` so multi-instance /
+   serverless / edge deployments can't silently end up with process-local
+   state. Provide a durable storage (Postgres / Durable Objects / etc.) for
+   production:
 
    ```ts
    {

@@ -4,6 +4,16 @@ import { matchesPattern } from '../key-generator';
 import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 
 /**
+ * Options for MemoryCacheStorage.
+ */
+export interface MemoryCacheStorageOptions {
+  /** Default TTL in milliseconds. @default 300_000 (5 minutes) */
+  defaultTtlMs?: number;
+  /** Maximum entries before oldest-first eviction (0 = unlimited). @default 10_000 */
+  maxEntries?: number;
+}
+
+/**
  * In-memory cache storage implementation.
  * Ideal for development, testing, and single-instance deployments.
  *
@@ -15,14 +25,10 @@ import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../t
  *
  * @example
  * ```ts
- * import { MemoryCacheStorage, setCacheStorage } from '@hono-crud/cache';
+ * import { MemoryCacheStorage } from '@hono-crud/cache';
+ * import { createStorageMiddleware } from 'hono-crud/storage';
  *
- * const cache = new MemoryCacheStorage();
- * setCacheStorage(cache);
- *
- * // Get stats
- * const stats = cache.getStats();
- * console.log(`Hit rate: ${stats.hits / (stats.hits + stats.misses)}`);
+ * app.use('*', createStorageMiddleware({ cacheStorage: new MemoryCacheStorage() }));
  * ```
  */
 export class MemoryCacheStorage implements CacheStorage {
@@ -45,7 +51,7 @@ export class MemoryCacheStorage implements CacheStorage {
   /** Maximum entries (0 = unlimited) */
   private maxEntries: number;
 
-  constructor(options?: { defaultTtlMs?: number; maxEntries?: number }) {
+  constructor(options?: MemoryCacheStorageOptions) {
     this.defaultTtlMs = options?.defaultTtlMs ?? 300_000; // 5 minutes
     this.maxEntries = options?.maxEntries ?? 10_000;
     this.store = new MemoryTtlStore<CacheEntry>({

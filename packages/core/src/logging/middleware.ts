@@ -2,7 +2,6 @@ import type { Context, Env, MiddlewareHandler } from 'hono';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import { getLogger } from '../core/logger';
 import { createStorageFeature } from '../storage/feature';
-import { resolveLoggingStorage } from '../storage/helpers';
 import {
   generateRequestId as defaultGenerateRequestId,
   getContextVar,
@@ -68,6 +67,20 @@ export const getLoggingStorage = loggingStorageFeature.get;
  * Get the global logging storage, throwing if not configured.
  */
 export const getLoggingStorageRequired = loggingStorageFeature.getRequired;
+
+/**
+ * Resolves logging storage with priority: explicit param > context > global.
+ *
+ * @param ctx - Optional Hono context
+ * @param explicitStorage - Optional explicit storage instance
+ * @returns The resolved storage, or null when no storage was configured
+ */
+export function resolveLoggingStorage<E extends Env>(
+  ctx?: Context<E>,
+  explicitStorage?: LoggingStorage,
+): LoggingStorage | null {
+  return loggingStorageFeature.resolve(ctx, explicitStorage);
+}
 
 // ============================================================================
 // Default Configuration

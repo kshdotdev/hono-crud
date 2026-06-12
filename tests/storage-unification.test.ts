@@ -28,6 +28,13 @@ import {
   getAuditStorageRequired,
   setAuditStorage,
 } from 'hono-crud/audit';
+import {
+  MemoryApprovalStorage,
+  approvalStorageRegistry,
+  getApprovalStorage,
+  getApprovalStorageRequired,
+  resolveApprovalStorage,
+} from 'hono-crud/auth';
 import { MemoryAPIKeyStorage } from 'hono-crud/auth/storage/memory';
 import {
   getAPIKeyStorage,
@@ -62,7 +69,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 // The storage features are module-global. Reset every global slot between tests
 // so cross-test leakage can't make a getX()/resolveX() assertion accidentally
 // pass against state set by a previous test. Features WITH a defaultFactory
-// (audit, versioning, cache, eventEmitter) must reset via `registry.reset()` —
+// (audit, versioning, approval, eventEmitter) must reset via `registry.reset()` —
 // it clears the `defaultInitialized` flag so the lazy default re-materializes;
 // a bare `set(null)` would leave the flag set and break the never-null getters.
 function resetGlobalStorage(): void {
@@ -73,6 +80,7 @@ function resetGlobalStorage(): void {
   auditStorageRegistry.reset();
   versioningStorageRegistry.reset();
   cacheStorageRegistry.reset();
+  approvalStorageRegistry.reset();
   eventEmitterRegistry.reset();
 }
 
@@ -146,7 +154,8 @@ describe('§4.1 context-tier now-live (cache / rate-limit / idempotency)', () =>
 //   getX()         → null when unset and no lazyDefaultOnGet
 //   getXRequired() → throws "Storage not configured for '<contextKey>'" when
 //                    unset AND no default; returns the lazy default for
-//                    audit / versioning; never-null at runtime for cache.
+//                    audit / versioning / approval. Cache has no default at
+//                    all anymore (the silent-global-install footgun was removed).
 // ============================================================================
 
 describe('§4.2 two-getter contract per feature', () => {
@@ -205,14 +214,12 @@ describe('§4.2 two-getter contract per feature', () => {
     });
   });
 
-  describe('cache: type-nullable but runtime never-null (lazyDefaultOnGet)', () => {
-    it('getCacheStorage() AND getCacheStorageRequired() both return the default at runtime', () => {
-      const viaGet = getCacheStorage();
-      const viaRequired = getCacheStorageRequired();
-      expect(viaGet).toBeInstanceOf(MemoryCacheStorage);
-      expect(viaRequired).toBeInstanceOf(MemoryCacheStorage);
-      // Same lazily-created instance.
-      expect(viaGet).toBe(viaRequired);
+  describe('cache: honest-null (lazyDefaultOnGet retired — no hidden memory default)', () => {
+    it('getCacheStorage() returns null and getCacheStorageRequired() throws when unset', () => {
+      expect(getCacheStorage()).toBeNull();
+      expect(() => getCacheStorageRequired()).toThrow(
+        `Storage not configured for '${CONTEXT_KEYS.cacheStorage}'`,
+      );
     });
 
     it('getCacheStorage() returns the explicit instance once set', () => {
@@ -220,6 +227,15 @@ describe('§4.2 two-getter contract per feature', () => {
       setCacheStorage(explicit);
       expect(getCacheStorage()).toBe(explicit);
       expect(getCacheStorageRequired()).toBe(explicit);
+    });
+  });
+
+  describe('approval: getX() honest-null, getXRequired() lazy (warned) default', () => {
+    it('getApprovalStorage() is null when unset but getApprovalStorageRequired() materializes a default', () => {
+      expect(getApprovalStorage()).toBeNull();
+      const required = getApprovalStorageRequired();
+      expect(required).toBeInstanceOf(MemoryApprovalStorage);
+      expect(getApprovalStorage()).toBe(required);
     });
   });
 
@@ -233,7 +249,7 @@ describe('§4.2 two-getter contract per feature', () => {
 
 // ============================================================================
 // §4.5 — createCrudMiddleware is deleted; createStorageMiddleware is the single
-// injection factory and the STORAGE_SLOTS lookup map writes EXACTLY the eight
+// injection factory and the STORAGE_SLOTS lookup map writes EXACTLY the nine
 // slots, each readable via getStorage(ctx, key).
 // ============================================================================
 
@@ -249,11 +265,12 @@ describe('§4.5 deleted createCrudMiddleware / unified createStorageMiddleware',
     expect(typeof storageMod.createStorageMiddleware).toBe('function');
   });
 
-  it('createStorageMiddleware injects all eight slots, readable via getStorage()', async () => {
+  it('createStorageMiddleware injects all nine slots, readable via getStorage()', async () => {
     const loggingStorage = new MemoryLoggingStorage();
     const auditStorage = new MemoryAuditLogStorage();
     const versioningStorage = new MemoryVersioningStorage();
     const apiKeyStorage = new MemoryAPIKeyStorage();
+    const approvalStorage = new MemoryApprovalStorage();
     const cacheStorage = new MemoryCacheStorage();
     const rateLimitStorage = new MemoryRateLimitStorage();
     const idempotencyStorage = new MemoryIdempotencyStorage();
@@ -267,6 +284,7 @@ describe('§4.5 deleted createCrudMiddleware / unified createStorageMiddleware',
         auditStorage,
         versioningStorage,
         apiKeyStorage,
+        approvalStorage,
         cacheStorage,
         rateLimitStorage,
         idempotencyStorage,
@@ -275,11 +293,12 @@ describe('§4.5 deleted createCrudMiddleware / unified createStorageMiddleware',
     );
 
     app.get('/test', (ctx) => {
-      // Read each of the eight slots back through the typed accessor.
+      // Read each of the nine slots back through the typed accessor.
       expect(getStorage(ctx, 'loggingStorage')).toBe(loggingStorage);
       expect(getStorage(ctx, 'auditStorage')).toBe(auditStorage);
       expect(getStorage(ctx, 'versioningStorage')).toBe(versioningStorage);
       expect(getStorage(ctx, 'apiKeyStorage')).toBe(apiKeyStorage);
+      expect(getStorage(ctx, 'approvalStorage')).toBe(approvalStorage);
       expect(getStorage(ctx, 'cacheStorage')).toBe(cacheStorage);
       expect(getStorage(ctx, 'rateLimitStorage')).toBe(rateLimitStorage);
       expect(getStorage(ctx, 'idempotencyStorage')).toBe(idempotencyStorage);
@@ -291,7 +310,7 @@ describe('§4.5 deleted createCrudMiddleware / unified createStorageMiddleware',
     expect(res.status).toBe(200);
   });
 
-  it('writes EXACTLY the eight known slots and nothing else', async () => {
+  it('writes EXACTLY the nine known slots and nothing else', async () => {
     const app = new Hono<StorageEnv>();
     app.use(
       '/*',
@@ -309,6 +328,7 @@ describe('§4.5 deleted createCrudMiddleware / unified createStorageMiddleware',
         'auditStorage',
         'versioningStorage',
         'apiKeyStorage',
+        'approvalStorage',
         'cacheStorage',
         'rateLimitStorage',
         'idempotencyStorage',
@@ -320,6 +340,20 @@ describe('§4.5 deleted createCrudMiddleware / unified createStorageMiddleware',
 
     await app.request('/test');
     expect(writtenKeys).toEqual(['cacheStorage']);
+  });
+
+  it('resolveApprovalStorage(ctx) returns the injected instance over a different global', async () => {
+    const contextStorage = new MemoryApprovalStorage();
+
+    const app = new Hono<StorageEnv>();
+    app.use('/*', createStorageMiddleware({ approvalStorage: contextStorage }));
+    app.get('/test', (ctx) => {
+      expect(resolveApprovalStorage(ctx)).toBe(contextStorage);
+      return ctx.text('ok');
+    });
+
+    const res = await app.request('/test');
+    expect(res.status).toBe(200);
   });
 });
 

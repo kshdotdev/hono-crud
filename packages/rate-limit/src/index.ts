@@ -29,13 +29,15 @@ export {
   generateKey,
 } from './utils';
 
-// Middleware
+// Middleware + storage feature (set/get/getRequired/resolve quartet + registry)
 export {
   DEFAULT_RATE_LIMIT_KEY_PREFIX,
   createRateLimitMiddleware,
+  rateLimitStorageRegistry,
   setRateLimitStorage,
   getRateLimitStorage,
   getRateLimitStorageRequired,
+  resolveRateLimitStorage,
   resetRateLimit,
 } from './middleware';
 

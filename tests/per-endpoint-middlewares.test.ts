@@ -49,7 +49,7 @@ describe('EndpointsConfig per-endpoint middlewares slot', () => {
           middlewares: [
             requireApproval({
               reason: 'destructive widget delete',
-              approvalStorage,
+              storage: approvalStorage,
             }),
           ],
         },
@@ -102,7 +102,7 @@ describe('EndpointsConfig per-endpoint middlewares slot', () => {
           middlewares: [
             requireApproval({
               reason: 'gated create',
-              approvalStorage,
+              storage: approvalStorage,
             }),
           ],
         },

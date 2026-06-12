@@ -1,4 +1,5 @@
 import type { Context, Env } from 'hono';
+import { ConfigurationException } from '../core/exceptions';
 import { getContextVar } from '../utils/context';
 
 /**
@@ -91,12 +92,13 @@ export class StorageRegistry<T> {
    * Gets the global storage instance, throwing if not set.
    * Use this when storage is required.
    *
-   * @throws Error if storage is not configured
+   * @throws ConfigurationException if storage is not configured (request-time
+   *   misconfiguration — surfaces as 500 CONFIGURATION_ERROR, not generic INTERNAL)
    */
   getRequired(): T {
     this.ensureDefault();
     if (this.globalStorage === null) {
-      throw new Error(`Storage not configured for '${this.contextKey}'`);
+      throw new ConfigurationException(`Storage not configured for '${this.contextKey}'`);
     }
     return this.globalStorage;
   }
@@ -146,12 +148,13 @@ export class StorageRegistry<T> {
    * @param ctx - Optional Hono context for context-based resolution
    * @param explicit - Optional explicitly provided storage instance
    * @returns The resolved storage
-   * @throws Error if no storage is configured
+   * @throws ConfigurationException if no storage is configured (request-time
+   *   misconfiguration — surfaces as 500 CONFIGURATION_ERROR, not generic INTERNAL)
    */
   resolveRequired<E extends Env>(ctx?: Context<E>, explicit?: T): T {
     const storage = this.resolve(ctx, explicit);
     if (storage === null) {
-      throw new Error(`Storage not configured for '${this.contextKey}'`);
+      throw new ConfigurationException(`Storage not configured for '${this.contextKey}'`);
     }
     return storage;
   }

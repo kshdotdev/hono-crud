@@ -14,7 +14,7 @@
  * implementation and stay in sync (mirrors drizzle's `getDrizzleDb`).
  */
 
-import { CONTEXT_KEYS } from 'hono-crud/internal';
+import { CONTEXT_KEYS, ConfigurationException } from 'hono-crud/internal';
 import type { PrismaClient } from './helpers';
 
 interface PrismaEndpointShape {
@@ -35,7 +35,8 @@ export function getPrismaClient(self: unknown): PrismaClient {
   if (s.prisma) return s.prisma;
   const contextClient = s.context?.get?.(CONTEXT_KEYS.prismaClient as never);
   if (contextClient) return contextClient as PrismaClient;
-  throw new Error(
+  // Request-time misconfiguration — surface as 500 CONFIGURATION_ERROR.
+  throw new ConfigurationException(
     'Prisma client not configured. Either:\n' +
       '1. Set prisma property: prisma = prismaClient;\n' +
       '2. Use middleware: c.set(CONTEXT_KEYS.prismaClient, prismaClient);\n' +

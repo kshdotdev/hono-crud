@@ -1,6 +1,7 @@
 import {
   MemoryCacheStorage,
   RedisCacheStorage,
+  cacheStorageRegistry,
   createInvalidationPattern,
   createRelatedPatterns,
   generateCacheKey,
@@ -1004,9 +1005,11 @@ describe('withCacheInvalidation Mixin', () => {
 // ============================================================================
 
 describe('Global Cache Storage', () => {
-  it('should use default memory storage', () => {
-    const storage = getCacheStorage();
-    expect(storage).toBeInstanceOf(MemoryCacheStorage);
+  it('has NO hidden memory default — getCacheStorage() is null until configured', () => {
+    // The old lazyDefaultOnGet behavior silently installed a global
+    // MemoryCacheStorage on read; that footgun was removed.
+    cacheStorageRegistry.reset();
+    expect(getCacheStorage()).toBeNull();
   });
 
   it('should allow setting custom storage', () => {
@@ -1015,8 +1018,8 @@ describe('Global Cache Storage', () => {
 
     expect(getCacheStorage()).toBe(customStorage);
 
-    // Reset to default
-    setCacheStorage(new MemoryCacheStorage());
+    // Reset to unset so later tests see no global leakage.
+    cacheStorageRegistry.reset();
   });
 });
 

@@ -1,5 +1,6 @@
-import type { Context } from 'hono';
+import type { Context, Env } from 'hono';
 import { CONTEXT_KEYS } from '../core/context-keys';
+import { ConfigurationException } from '../core/exceptions';
 import type { AuditAction, AuditConfig, AuditLogEntry, NormalizedAuditConfig } from '../core/types';
 import { createStorageFeature } from '../storage/feature';
 import { calculateChanges, getAuditConfig } from './config';
@@ -146,6 +147,21 @@ export const getAuditStorage = auditStorageFeature.get;
 export const getAuditStorageRequired = auditStorageFeature.getRequired;
 
 /**
+ * Resolves audit storage with priority: explicit param > context > global.
+ * Never creates a default — returns null when nothing is configured.
+ *
+ * @param ctx - Optional Hono context
+ * @param explicitStorage - Optional explicit storage instance
+ * @returns The resolved storage, or null when no storage was configured
+ */
+export function resolveAuditStorage<E extends Env>(
+  ctx?: Context<E>,
+  explicitStorage?: AuditLogStorage,
+): AuditLogStorage | null {
+  return auditStorageFeature.resolve(ctx, explicitStorage);
+}
+
+/**
  * Audit logger class for creating audit log entries.
  */
 export class AuditLogger {
@@ -159,7 +175,9 @@ export class AuditLogger {
 
   private getStorage(): AuditLogStorage {
     if (!this.storage) {
-      throw new Error(
+      // Request-time misconfiguration: the feature is enabled but no storage
+      // was wired — surface as 500 CONFIGURATION_ERROR, not generic INTERNAL.
+      throw new ConfigurationException(
         'Audit storage not configured. Pass storage explicitly or inject auditStorage with createStorageMiddleware().',
       );
     }

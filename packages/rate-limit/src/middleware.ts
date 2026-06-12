@@ -1,5 +1,11 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
-import { CONTEXT_KEYS, createStorageFeature, getLogger, setContextVar } from 'hono-crud/internal';
+import {
+  CONTEXT_KEYS,
+  ConfigurationException,
+  createStorageFeature,
+  getLogger,
+  setContextVar,
+} from 'hono-crud/internal';
 import { RateLimitExceededException } from './exceptions';
 import type {
   KeyExtractor,
@@ -226,6 +232,9 @@ async function checkSlidingWindow(
  */
 export const DEFAULT_RATE_LIMIT_KEY_PREFIX = 'rl';
 
+/** Once-per-isolate guard for the missing-storage warning (dedup, not request state). */
+let warnedMissingRateLimitStorage = false;
+
 /**
  * Creates rate limit middleware.
  *
@@ -300,7 +309,14 @@ export function createRateLimitMiddleware<E extends Env = Env>(
     // Get storage (priority: config > context > global)
     const storage = resolveRateLimitStorage(ctx, config.storage);
     if (!storage) {
-      getLogger().warn('Rate limit storage not configured. Skipping rate limiting.');
+      if (!warnedMissingRateLimitStorage) {
+        warnedMissingRateLimitStorage = true;
+        getLogger().warn(
+          'Rate limit storage not configured — skipping rate limiting. Inject rateLimitStorage ' +
+            'with createStorageMiddleware() (recommended) or call setRateLimitStorage(). ' +
+            'This warning is logged once per isolate.',
+        );
+      }
       return next();
     }
 
@@ -376,7 +392,8 @@ export function createRateLimitMiddleware<E extends Env = Env>(
 export async function resetRateLimit(key: string, storage?: RateLimitStorage): Promise<void> {
   const effectiveStorage = storage ?? rateLimitStorageFeature.get();
   if (!effectiveStorage) {
-    throw new Error('Rate limit storage not configured');
+    // Request-time misconfiguration — surface as 500 CONFIGURATION_ERROR.
+    throw new ConfigurationException('Rate limit storage not configured');
   }
   await effectiveStorage.reset(key);
 }

@@ -1,6 +1,6 @@
 import type { Env } from 'hono';
 import type { AuditLogStorage } from '../audit';
-import type { APIKeyStorage } from '../auth/types';
+import type { APIKeyStorage, ApprovalStorage } from '../auth/types';
 import type { CrudEventEmitter } from '../events/emitter';
 import type { LoggingStorage } from '../logging/types';
 import type { VersioningStorage } from '../versioning';
@@ -33,6 +33,7 @@ export interface StorageEnv extends Env {
     auditStorage?: AuditLogStorage;
     versioningStorage?: VersioningStorage;
     apiKeyStorage?: APIKeyStorage;
+    approvalStorage?: ApprovalStorage;
     cacheStorage?: CacheStorage;
     rateLimitStorage?: RateLimitStorage;
     idempotencyStorage?: IdempotencyStorage;
@@ -76,6 +77,12 @@ export interface StorageMiddlewareConfig {
    * If provided, will be available as `ctx.var.apiKeyStorage`.
    */
   apiKeyStorage?: APIKeyStorage;
+
+  /**
+   * Approval (human-in-the-loop pending-action) storage instance.
+   * If provided, will be available as `ctx.var.approvalStorage`.
+   */
+  approvalStorage?: ApprovalStorage;
 
   /**
    * Cache storage instance.

@@ -15,12 +15,13 @@ import type {
   RelationLoaderAdapter,
 } from 'hono-crud/internal';
 import {
+  ConfigurationException,
   assertNever,
   batchLoadRelations,
   decodeCursor,
   loadRelationsForItem,
 } from 'hono-crud/internal';
-import { inlineSingular, levenshteinDistance } from './pluralize';
+import { inlineSingular, levenshteinDistance } from './pluralize-util';
 
 /**
  * Structural shape of a Prisma model delegate, generic over the row type `Row`
@@ -92,7 +93,9 @@ export function getPrismaTransaction(
   prisma: PrismaClient,
 ): NonNullable<PrismaClient['$transaction']> {
   if (typeof prisma.$transaction !== 'function') {
-    throw new Error('Prisma client does not support $transaction');
+    // Request-time misconfiguration (capability check on the wired client) —
+    // surface as 500 CONFIGURATION_ERROR, not generic INTERNAL.
+    throw new ConfigurationException('Prisma client does not support $transaction');
   }
   return prisma.$transaction.bind(prisma);
 }
@@ -225,65 +228,13 @@ function cacheModelName(key: string, value: string): void {
 }
 
 /**
- * Custom model name mappings for irregular cases.
- * Users can register mappings via `registerPrismaModelMapping()`.
- */
-const customModelMappings = new Map<string, string>();
-
-/**
- * Registers a custom table name to Prisma model name mapping.
- * Use this for irregular cases where automatic conversion fails.
- *
- * @param tableName - The table name used in your model meta
- * @param modelName - The Prisma model name (camelCase, singular)
- *
- * @example
- * ```ts
- * // Register custom mapping for irregular plural
- * registerPrismaModelMapping('people', 'person');
- * registerPrismaModelMapping('user_addresses', 'userAddress');
- * ```
- */
-export function registerPrismaModelMapping(tableName: string, modelName: string): void {
-  customModelMappings.set(tableName.toLowerCase(), modelName);
-  // Also clear cache entry if it exists
-  modelNameCache.delete(tableName);
-}
-
-/**
- * Registers multiple custom table name to Prisma model name mappings.
- *
- * @param mappings - Object with table names as keys and model names as values
- *
- * @example
- * ```ts
- * registerPrismaModelMappings({
- *   'people': 'person',
- *   'user_addresses': 'userAddress',
- *   'order_items': 'orderItem',
- * });
- * ```
- */
-export function registerPrismaModelMappings(mappings: Record<string, string>): void {
-  for (const [tableName, modelName] of Object.entries(mappings)) {
-    registerPrismaModelMapping(tableName, modelName);
-  }
-}
-
-/**
- * Clears all custom model name mappings and cache.
- * Useful for testing or reconfiguration.
- */
-export function clearPrismaModelMappings(): void {
-  customModelMappings.clear();
-  modelNameCache.clear();
-}
-
-/**
  * Gets the model name for Prisma from the table name.
  * Prisma uses singular camelCase model names (e.g., 'users' -> 'user').
  *
- * Uses caching for performance and supports custom mappings for irregular cases.
+ * Pure derivation (camelCase + singularize) with a bounded memo cache. For
+ * irregular names, set an explicit delegate name instead:
+ * `defineModel({ tableName: 'people', table: 'person', ... })` (resolved by
+ * {@link resolvePrismaDelegateName}) or `RelationConfig.table` for relations.
  *
  * @param tableName - The table name (e.g., 'users', 'user_profiles', 'order-items')
  * @returns The Prisma model name (e.g., 'user', 'userProfile', 'orderItem')
@@ -294,12 +245,6 @@ export async function getModelName(tableName: string): Promise<string> {
     return cached;
   }
 
-  const custom = customModelMappings.get(tableName.toLowerCase());
-  if (custom) {
-    cacheModelName(tableName, custom);
-    return custom;
-  }
-
   // snake_case / kebab-case → camelCase, then plural → singular
   let name = tableName
     .replace(/[-_](.)/g, (_, char) => char.toUpperCase())
@@ -308,6 +253,34 @@ export async function getModelName(tableName: string): Promise<string> {
 
   cacheModelName(tableName, name);
   return name;
+}
+
+/**
+ * The slice of a model meta the Prisma adapter needs to resolve a client
+ * delegate: the table name plus the optional explicit `table` override
+ * (a string delegate name for Prisma — see `Model.table`).
+ */
+export interface PrismaModelRef {
+  tableName: string;
+  table?: unknown;
+}
+
+/**
+ * Resolve the Prisma delegate name for a model meta.
+ *
+ * Resolution order:
+ * 1. Explicit `Model.table` when it is a string (e.g.
+ *    `defineModel({ tableName: 'people', table: 'person', ... })`) — the
+ *    static wiring for irregular names. This replaced the old module-global
+ *    mapping registry, which was per-isolate mutable state that silently
+ *    diverged across Workers isolates.
+ * 2. The camelCase + singularize derivation from `tableName`.
+ */
+export async function resolvePrismaDelegateName(model: PrismaModelRef): Promise<string> {
+  if (typeof model.table === 'string' && model.table.length > 0) {
+    return model.table;
+  }
+  return getModelName(model.tableName);
 }
 
 /**
@@ -359,23 +332,23 @@ async function findSimilarModelNames(
  * Throws an error with helpful suggestions if the model is not found.
  *
  * @param prisma - The Prisma client
- * @param tableName - The table name from the model meta
+ * @param model - The model meta slice (`tableName` + optional explicit `table` delegate name)
  * @returns The Prisma model operations
  * @throws Error if the model is not found in the Prisma client
  */
 export async function getPrismaModel<Row = Record<string, unknown>>(
   prisma: PrismaClient,
-  tableName: string,
+  model: PrismaModelRef,
 ): Promise<PrismaModelOperations<Row>> {
-  const modelName = await getModelName(tableName);
-  const model = getPrismaModelByName<Row>(prisma, modelName);
+  const modelName = await resolvePrismaDelegateName(model);
+  const delegate = getPrismaModelByName<Row>(prisma, modelName);
 
-  if (!model) {
+  if (!delegate) {
     const availableModels = getAvailablePrismaModels(prisma);
     const suggestions = await findSimilarModelNames(modelName, availableModels);
 
     let errorMessage =
-      `Model '${modelName}' not found in Prisma client. ` + `Table name: '${tableName}'. `;
+      `Model '${modelName}' not found in Prisma client. ` + `Table name: '${model.tableName}'. `;
 
     if (suggestions.length > 0) {
       errorMessage += `Did you mean: ${suggestions.map((s) => `'${s}'`).join(', ')}? `;
@@ -385,27 +358,31 @@ export async function getPrismaModel<Row = Record<string, unknown>>(
       errorMessage += `Available models: ${availableModels.join(', ')}. `;
     }
 
-    errorMessage += `You can register a custom mapping with: registerPrismaModelMapping('${tableName}', 'yourModelName')`;
+    errorMessage += `You can set an explicit delegate name on the model meta: defineModel({ tableName: '${model.tableName}', table: '<prismaDelegateName>', ... })`;
 
     throw new Error(errorMessage);
   }
 
-  return model;
+  return delegate;
 }
 
 /**
  * Builds the Prisma relation-loader adapter for the core orchestrator.
  *
- * - `resolveRelation` resolves the related model delegate by name (async because
- *   `getModelName` is async), returning `null` to skip when the model is not
- *   found in the client.
+ * - `resolveRelation` resolves the related model delegate. An explicit string
+ *   `RelationConfig.table` wins (irregular names); otherwise the delegate name
+ *   derives from `config.model` (async because `getModelName` is async).
+ *   Returns `null` to skip when the model is not found in the client.
  * - `fetchRelated` issues the one-line `findMany({ where: { [keyField]: { in } } })`
  *   query the batch + single-item loaders share.
  */
 function prismaRelationAdapter(prisma: PrismaClient): RelationLoaderAdapter<PrismaModelOperations> {
   return {
     resolveRelation: async (config) =>
-      getPrismaModelByName(prisma, await getModelName(config.model)) ?? null,
+      getPrismaModelByName(
+        prisma,
+        await resolvePrismaDelegateName({ tableName: config.model, table: config.table }),
+      ) ?? null,
     fetchRelated: (model, keyField, values) =>
       model.findMany({ where: { [keyField]: { in: values } } }),
   };

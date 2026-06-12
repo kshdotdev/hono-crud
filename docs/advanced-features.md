@@ -253,12 +253,15 @@ import {
 } from 'hono-crud';
 import {
   createVersionManager,
-  setVersioningStorage,
   MemoryVersioningStorage,
 } from 'hono-crud/versioning';
+import { createStorageMiddleware } from 'hono-crud/storage';
 
-// Setup storage
-setVersioningStorage(new MemoryVersioningStorage());
+// Setup storage (recommended: per-request injection, edge-safe; on a
+// long-lived server, `setVersioningStorage()` once is the alternative)
+app.use('*', createStorageMiddleware({
+  versioningStorage: new MemoryVersioningStorage(),
+}));
 
 // Enable in model
 const UserModel = defineModel({
@@ -303,12 +306,15 @@ Track who changed what and when.
 ```typescript
 import {
   createAuditLogger,
-  setAuditStorage,
   MemoryAuditLogStorage,
 } from 'hono-crud/audit';
+import { createStorageMiddleware } from 'hono-crud/storage';
 
-// Setup storage
-setAuditStorage(new MemoryAuditLogStorage());
+// Setup storage (recommended: per-request injection, edge-safe; on a
+// long-lived server, `setAuditStorage()` once is the alternative)
+app.use('*', createStorageMiddleware({
+  auditStorage: new MemoryAuditLogStorage(),
+}));
 
 // Enable in model
 const UserModel = defineModel({
@@ -483,10 +489,13 @@ Event emitter for CRUD operations with webhook delivery.
 ### Event Emitter
 
 ```typescript
-import { CrudEventEmitter, setEventEmitter, getEventEmitter } from 'hono-crud/events';
+import { CrudEventEmitter } from 'hono-crud/events';
+import { createStorageMiddleware } from 'hono-crud/storage';
 
+// Inject per-request (recommended on edge runtimes; `setEventEmitter()` is the
+// long-lived-server compatibility option)
 const events = new CrudEventEmitter();
-setEventEmitter(events);
+app.use('*', createStorageMiddleware({ eventEmitter: events }));
 
 // Subscribe to specific events
 events.on('users', 'created', (event) => {
@@ -573,11 +582,14 @@ Prevent duplicate operations via idempotency keys.
 ```typescript
 import {
   createIdempotencyMiddleware,
-  setIdempotencyStorage,
   MemoryIdempotencyStorage,
 } from '@hono-crud/idempotency';
+import { createStorageMiddleware } from 'hono-crud/storage';
 
-setIdempotencyStorage(new MemoryIdempotencyStorage());
+// Wire storage (recommended: per-request injection, edge-safe)
+app.use('*', createStorageMiddleware({
+  idempotencyStorage: new MemoryIdempotencyStorage(),
+}));
 
 // Apply to mutation endpoints
 app.use('/api/*', createIdempotencyMiddleware({
@@ -588,20 +600,21 @@ app.use('/api/*', createIdempotencyMiddleware({
 
 Clients include `Idempotency-Key: <unique-key>` in the request header. If the same key is seen again within the TTL, the cached response is returned.
 
-### Context-scoped Storage
+For production use `RedisIdempotencyStorage` (Upstash works on edge runtimes) —
+`MemoryIdempotencyStorage` is per-isolate, so it cannot guarantee replay
+protection across instances. There is deliberately no Cloudflare KV backend:
+KV lacks compare-and-swap, so the in-flight lock cannot be made atomic (see the
+[package README](../packages/idempotency/README.md)).
 
-For multi-tenant or per-request storage, inject the storage through
-`createStorageMiddleware`. It writes the `idempotencyStorage` context var that
-the idempotency middleware resolves from (context storage takes priority over
-the global one):
+### Global Storage (long-lived servers)
+
+On a long-lived Node/Bun server you can set a module-global storage once
+instead. Resolution priority is explicit `config.storage` > context > global:
 
 ```typescript
-import { createStorageMiddleware } from 'hono-crud/storage';
-import { MemoryIdempotencyStorage } from '@hono-crud/idempotency';
+import { setIdempotencyStorage, MemoryIdempotencyStorage } from '@hono-crud/idempotency';
 
-app.use('*', createStorageMiddleware({
-  idempotencyStorage: new MemoryIdempotencyStorage(),
-}));
+setIdempotencyStorage(new MemoryIdempotencyStorage());
 ```
 
 ### Accessors

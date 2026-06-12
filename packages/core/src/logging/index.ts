@@ -34,11 +34,14 @@ export {
   getUserId as extractUserId,
 } from '../utils/request-info';
 
-// Middleware
+// Middleware + storage feature (set/get/getRequired/resolve quartet + registry)
 export {
   createLoggingMiddleware,
+  loggingStorageRegistry,
   setLoggingStorage,
   getLoggingStorage,
+  getLoggingStorageRequired,
+  resolveLoggingStorage,
   getRequestId,
   getRequestStartTime,
 } from './middleware';

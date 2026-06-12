@@ -70,13 +70,13 @@ const decoded = decodeJWT(token); // { header, payload } | null
 import {
   createAPIKeyMiddleware,
   MemoryAPIKeyStorage,
-  setAPIKeyStorage,
   generateAPIKey,
 } from 'hono-crud/auth';
+import { createStorageMiddleware } from 'hono-crud/storage';
 
-// Setup storage
+// Setup storage (recommended: per-request injection, edge-safe)
 const apiKeyStorage = new MemoryAPIKeyStorage();
-setAPIKeyStorage(apiKeyStorage);
+app.use('*', createStorageMiddleware({ apiKeyStorage }));
 
 // Generate and store an API key
 const key = generateAPIKey();
@@ -106,10 +106,10 @@ order:
    bare lookup without a full storage backend.
 2. **`storage`** — an `APIKeyStorage` instance passed directly on the config.
    The middleware calls `storage.lookup()` and fires `storage.updateLastUsed()`.
-3. **Configured global / context `apiKeyStorage`** — set via
-   `setAPIKeyStorage()` (as above) or injected with
-   `createStorageMiddleware({ apiKeyStorage })`. `setAPIKeyStorage` is now wired
-   into the middleware path (it used to be ignored there).
+3. **Configured context / global `apiKeyStorage`** — injected with
+   `createStorageMiddleware({ apiKeyStorage })` (as above, recommended) or set
+   once via `setAPIKeyStorage()` on a long-lived server (context takes priority
+   over the global).
 
 If none of these resolve, the middleware throws a `ConfigurationException`.
 

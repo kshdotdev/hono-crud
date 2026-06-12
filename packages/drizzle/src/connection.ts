@@ -13,7 +13,7 @@
  * implementation and stay in sync.
  */
 
-import { CONTEXT_KEYS } from 'hono-crud/internal';
+import { CONTEXT_KEYS, ConfigurationException } from 'hono-crud/internal';
 import type { DrizzleDatabaseConstraint } from './helpers';
 
 interface DrizzleEndpointShape {
@@ -34,7 +34,8 @@ export function getDrizzleDb(self: unknown): DrizzleDatabaseConstraint {
   if (s.db) return s.db;
   const contextDb = s.context?.get?.(CONTEXT_KEYS.db as never);
   if (contextDb) return contextDb as DrizzleDatabaseConstraint;
-  throw new Error(
+  // Request-time misconfiguration — surface as 500 CONFIGURATION_ERROR.
+  throw new ConfigurationException(
     'Database not configured. Either:\n' +
       '1. Set db property: db = myDb;\n' +
       '2. Use middleware: c.set(CONTEXT_KEYS.db, myDb);\n' +

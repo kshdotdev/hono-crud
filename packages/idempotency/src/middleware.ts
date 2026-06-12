@@ -1,17 +1,13 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
-import { CONTEXT_KEYS, createStorageFeature, getContextVar } from 'hono-crud/internal';
-import type { ErrorResponse } from 'hono-crud/internal';
+import {
+  CONTEXT_KEYS,
+  ConfigurationException,
+  createStorageFeature,
+  getContextVar,
+  getLogger,
+} from 'hono-crud/internal';
+import { IdempotencyConflictException, IdempotencyKeyRequiredException } from './exceptions';
 import type { IdempotencyConfig, IdempotencyEntry, IdempotencyStorage } from './types';
-
-/**
- * Build a standard error envelope. Typed as the shared {@link ErrorResponse} so
- * these bodies stay in lockstep with the framework's canonical error contract
- * (`{ success: false, error: { code, message } }`) instead of being re-declared
- * inline at each return site.
- */
-function idempotencyError(code: string, message: string): ErrorResponse {
-  return { success: false, error: { code, message } };
-}
 
 // ============================================================================
 // Global Storage
@@ -71,6 +67,9 @@ export function resolveIdempotencyStorage<E extends Env>(
 // Middleware
 // ============================================================================
 
+/** Once-per-isolate guard for the missing-storage warning (dedup, not request state). */
+let warnedMissingIdempotencyStorage = false;
+
 /**
  * Creates idempotency middleware for safe request retries.
  *
@@ -121,13 +120,7 @@ export function createIdempotencyMiddleware<E extends Env = Env>(
     // If no key provided
     if (!idempotencyKey) {
       if (required) {
-        return ctx.json(
-          idempotencyError(
-            'IDEMPOTENCY_KEY_REQUIRED',
-            `${headerName} header is required for ${method} requests`,
-          ),
-          400,
-        );
+        throw new IdempotencyKeyRequiredException(headerName, method);
       }
       return next();
     }
@@ -135,7 +128,24 @@ export function createIdempotencyMiddleware<E extends Env = Env>(
     // Resolve storage (explicit config.storage > context > global, single tier)
     const storage = resolveIdempotencyStorage(ctx, config.storage);
     if (!storage) {
-      // No storage configured, pass through
+      if (required) {
+        // The consumer declared the idempotency guarantee mandatory; a
+        // mis-wired storage must fail loudly rather than silently void the
+        // replay-protection guarantee (duplicate charges).
+        throw new ConfigurationException(
+          'Idempotency storage not configured but `required: true` was set. Inject ' +
+            'idempotencyStorage with createStorageMiddleware() (recommended) or call ' +
+            'setIdempotencyStorage().',
+        );
+      }
+      if (!warnedMissingIdempotencyStorage) {
+        warnedMissingIdempotencyStorage = true;
+        getLogger().warn(
+          'Idempotency storage not configured — requests pass through WITHOUT replay ' +
+            'protection. Inject idempotencyStorage with createStorageMiddleware() ' +
+            '(recommended) or call setIdempotencyStorage(). This warning is logged once per isolate.',
+        );
+      }
       return next();
     }
 
@@ -158,28 +168,20 @@ export function createIdempotencyMiddleware<E extends Env = Env>(
       });
     }
 
-    // Check for in-flight request with same key
+    // Check for in-flight request with same key.
+    // Lock safety: both 409 throws below happen BEFORE this request holds the
+    // lock (a failed `lock()` did not acquire it), so throwing here can never
+    // leak a held lock — the try/finally that releases it starts only after a
+    // successful acquire.
     const locked = await storage.isLocked(scopedKey);
     if (locked) {
-      return ctx.json(
-        idempotencyError(
-          'IDEMPOTENCY_CONFLICT',
-          'A request with this idempotency key is already being processed',
-        ),
-        409,
-      );
+      throw new IdempotencyConflictException(idempotencyKey);
     }
 
     // Acquire lock
     const acquired = await storage.lock(scopedKey, lockTimeoutMs);
     if (!acquired) {
-      return ctx.json(
-        idempotencyError(
-          'IDEMPOTENCY_CONFLICT',
-          'A request with this idempotency key is already being processed',
-        ),
-        409,
-      );
+      throw new IdempotencyConflictException(idempotencyKey);
     }
 
     try {

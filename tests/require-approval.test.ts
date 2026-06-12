@@ -16,12 +16,22 @@ import { Hono } from 'hono';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ApiException, setContextVar } from 'hono-crud';
-import { MemoryApprovalStorage, parseIso8601Duration, requireApproval } from 'hono-crud/auth';
+import {
+  MemoryApprovalStorage,
+  approvalStorageRegistry,
+  parseIso8601Duration,
+  requireApproval,
+} from 'hono-crud/auth';
+import { createStorageMiddleware } from 'hono-crud/storage';
+import type { StorageEnv } from 'hono-crud/storage/types';
 
 describe('requireApproval middleware', () => {
   let storage: MemoryApprovalStorage;
 
   beforeEach(() => {
+    // The approval storage feature is module-global; reset so the lazy
+    // default from one test can't leak into the next.
+    approvalStorageRegistry.reset();
     storage = new MemoryApprovalStorage();
   });
 
@@ -37,7 +47,7 @@ describe('requireApproval middleware', () => {
       '/transfers',
       requireApproval({
         reason: 'Funds transfer',
-        approvalStorage: storage,
+        storage,
         expiresAfter: 'PT1H',
       }),
       async (c) => {
@@ -143,7 +153,7 @@ describe('requireApproval middleware', () => {
       '/transfers',
       requireApproval({
         reason: 'Funds transfer',
-        approvalStorage: storage,
+        storage,
       }),
       (c) => c.json({ ok: true }),
     );
@@ -175,7 +185,7 @@ describe('requireApproval middleware', () => {
       '/transfers',
       requireApproval({
         reason: 'Funds transfer',
-        approvalStorage: storage,
+        storage,
       }),
       (c) => c.json({ ok: true }),
     );
@@ -192,8 +202,51 @@ describe('requireApproval middleware', () => {
   });
 });
 
+describe('requireApproval context-injected storage (createStorageMiddleware)', () => {
+  it('zero-config endpoint resolves the injected approvalStorage end-to-end (submit → approve → resume)', async () => {
+    approvalStorageRegistry.reset();
+    const injected = new MemoryApprovalStorage();
+
+    const app = new Hono<StorageEnv>();
+    app.use('*', createStorageMiddleware({ approvalStorage: injected }));
+    app.post(
+      '/transfers',
+      // No config.storage — the guard must resolve the CONTEXT instance.
+      requireApproval({ reason: 'Injected storage flow' }),
+      async (c) => c.json({ ok: true, body: await c.req.json() }, 200),
+    );
+
+    // Phase 1 — pending action lands in the INJECTED storage.
+    const res1 = await app.request('/transfers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 75 }),
+    });
+    expect(res1.status).toBe(202);
+    const { actionId } = (await res1.json()) as { actionId: string };
+    expect(await injected.get(actionId)).not.toBeNull();
+    // The global slot stayed untouched (no hidden default materialized).
+    const { getApprovalStorage } = await import('hono-crud/auth');
+    expect(getApprovalStorage()).toBeNull();
+
+    // Phase 1.5 — approve on the same injected instance (consumer inbox).
+    await injected.approve(actionId, 'reviewer-1');
+
+    // Phase 2 — resume runs the handler with the original input.
+    const res2 = await app.request('/transfers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ _resume_: actionId }),
+    });
+    expect(res2.status).toBe(200);
+    const json = (await res2.json()) as { ok: boolean; body: Record<string, unknown> };
+    expect(json.body).toEqual({ amount: 75 });
+  });
+});
+
 describe('requireApproval default storage', () => {
-  it('falls back to a process-local in-memory store when approvalStorage is omitted', async () => {
+  it('falls back to a process-local in-memory store when storage is omitted', async () => {
+    approvalStorageRegistry.reset();
     const app = new Hono();
     app.onError((err, c) => {
       if (err instanceof ApiException) return c.json(err.toJSON(), err.status);
@@ -201,7 +254,8 @@ describe('requireApproval default storage', () => {
     });
     app.post(
       '/quick',
-      // No approvalStorage — POC path. Lib uses an internal singleton.
+      // No storage anywhere — POC path. The feature's warned lazy default
+      // materializes via getApprovalStorageRequired().
       requireApproval({ reason: 'POC' }),
       (c) => c.json({ ok: true }),
     );

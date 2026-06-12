@@ -1,22 +1,26 @@
-import type { Context, Env } from 'hono';
-import type { AuditLogStorage } from '../audit';
-import { auditStorageRegistry } from '../audit';
-import { apiKeyStorageRegistry } from '../auth/storage/memory';
-import type { APIKeyStorage } from '../auth/types';
-import { loggingStorageRegistry } from '../logging/middleware';
-import type { LoggingStorage } from '../logging/types';
-import type { VersioningStorage } from '../versioning';
-import { versioningStorageRegistry } from '../versioning';
+import type { Context } from 'hono';
 import type { StorageEnv } from './types';
 
-// Re-export getters for backward compatibility (used by other modules).
-// The `*Required` variants are created by the audit/versioning/logging/auth
-// migrations (a later work package); the re-export lines are wired here ahead
-// of those implementations.
-export { getLoggingStorage, getLoggingStorageRequired } from '../logging/middleware';
-export { getAuditStorage, getAuditStorageRequired } from '../audit';
-export { getVersioningStorage, getVersioningStorageRequired } from '../versioning';
-export { getAPIKeyStorage } from '../auth/storage/memory';
+// Re-export the storage-feature getters/resolvers from their home feature
+// modules. Each feature module is the single canonical definition site (the
+// quartet lives next to its `createStorageFeature` call); this barrel keeps
+// the storage subpath offering the whole family in one place.
+export {
+  getLoggingStorage,
+  getLoggingStorageRequired,
+  resolveLoggingStorage,
+} from '../logging/middleware';
+export { getAuditStorage, getAuditStorageRequired, resolveAuditStorage } from '../audit';
+export {
+  getVersioningStorage,
+  getVersioningStorageRequired,
+  resolveVersioningStorage,
+} from '../versioning';
+export {
+  getAPIKeyStorage,
+  getAPIKeyStorageRequired,
+  resolveAPIKeyStorage,
+} from '../auth/storage/memory';
 
 // ============================================================================
 // Type-Safe Context Variable Access
@@ -53,66 +57,4 @@ export function getStorage<K extends StorageKey>(
   key: K,
 ): StorageEnv['Variables'][K] {
   return ctx.var[key];
-}
-
-// ============================================================================
-// Storage Resolution Functions
-// All delegate to their respective StorageRegistry.resolve() method which
-// implements the priority chain: explicit param > context variable > global.
-// ============================================================================
-
-/**
- * Resolves logging storage with priority: explicit param > context > global.
- *
- * @param ctx - Optional Hono context
- * @param explicitStorage - Optional explicit storage instance
- * @returns The resolved storage or null if none available
- */
-export function resolveLoggingStorage<E extends Env>(
-  ctx?: Context<E>,
-  explicitStorage?: LoggingStorage,
-): LoggingStorage | null {
-  return loggingStorageRegistry.resolve(ctx, explicitStorage);
-}
-
-/**
- * Resolves audit storage with priority: explicit param > context > global.
- *
- * @param ctx - Optional Hono context
- * @param explicitStorage - Optional explicit storage instance
- * @returns The resolved storage, or null when no storage was configured
- */
-export function resolveAuditStorage<E extends Env>(
-  ctx?: Context<E>,
-  explicitStorage?: AuditLogStorage,
-): AuditLogStorage | null {
-  return auditStorageRegistry.resolve(ctx, explicitStorage);
-}
-
-/**
- * Resolves versioning storage with priority: explicit param > context > global.
- *
- * @param ctx - Optional Hono context
- * @param explicitStorage - Optional explicit storage instance
- * @returns The resolved storage, or null when no storage was configured
- */
-export function resolveVersioningStorage<E extends Env>(
-  ctx?: Context<E>,
-  explicitStorage?: VersioningStorage,
-): VersioningStorage | null {
-  return versioningStorageRegistry.resolve(ctx, explicitStorage);
-}
-
-/**
- * Resolves API key storage with priority: explicit param > context > global.
- *
- * @param ctx - Optional Hono context
- * @param explicitStorage - Optional explicit storage instance
- * @returns The resolved storage, or null when no storage was configured
- */
-export function resolveAPIKeyStorage<E extends Env>(
-  ctx?: Context<E>,
-  explicitStorage?: APIKeyStorage,
-): APIKeyStorage | null {
-  return apiKeyStorageRegistry.resolve(ctx, explicitStorage);
 }

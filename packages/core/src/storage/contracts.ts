@@ -239,6 +239,12 @@ export interface IdempotencyStorage {
   /**
    * Acquire a lock for a key being processed.
    * Returns true if the lock was acquired, false if already locked.
+   *
+   * MUST be atomic (compare-and-set, e.g. Redis `SET NX PX`). This is why
+   * there is deliberately no Cloudflare KV backend for idempotency: KV has no
+   * compare-and-swap, so a KV lock would be advisory only — a correctness
+   * footgun for the one feature whose failure mode is duplicate side effects.
+   * Workers users should use Upstash Redis (or a future Durable Objects backend).
    */
   lock(key: string, ttlMs: number): Promise<boolean>;
 

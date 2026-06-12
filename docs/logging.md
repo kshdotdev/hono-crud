@@ -6,36 +6,35 @@ hono-crud provides request/response logging middleware with automatic redaction 
 
 ## Setup
 
-```typescript
-import {
-  createLoggingMiddleware,
-  setLoggingStorage,
-  MemoryLoggingStorage,
-} from 'hono-crud/logging';
-
-// Set storage (required before middleware runs)
-setLoggingStorage(new MemoryLoggingStorage({ maxEntries: 10000 }));
-```
-
-### Context-scoped Storage
-
 Inject the storage through `createStorageMiddleware` (or the single-storage
-`createLoggingStorageMiddleware` helper). Both write the `loggingStorage`
-context var that the logging middleware resolves from (context storage takes
-priority over the global one):
+`createLoggingStorageMiddleware` helper) — the recommended path, especially on
+edge/serverless runtimes. Both write the `loggingStorage` context var that the
+logging middleware resolves from:
 
 ```typescript
 import { createStorageMiddleware } from 'hono-crud/storage';
 import { MemoryLoggingStorage } from 'hono-crud/logging';
 
 app.use('*', createStorageMiddleware({
-  loggingStorage: new MemoryLoggingStorage(),
+  loggingStorage: new MemoryLoggingStorage({ maxEntries: 10000 }),
 }));
 
 // Single-storage helper (takes a storage instance):
 import { createLoggingStorageMiddleware } from 'hono-crud/storage';
 
 app.use('*', createLoggingStorageMiddleware(new MemoryLoggingStorage()));
+```
+
+### Global Storage (long-lived servers)
+
+On a long-lived Node/Bun server you can set a module-global storage once
+instead. Resolution priority is context > global, so the setter is a
+compatibility option, never a requirement:
+
+```typescript
+import { setLoggingStorage, MemoryLoggingStorage } from 'hono-crud/logging';
+
+setLoggingStorage(new MemoryLoggingStorage({ maxEntries: 10000 }));
 ```
 
 ---
