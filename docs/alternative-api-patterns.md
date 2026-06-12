@@ -4,12 +4,14 @@ hono-crud provides four different ways to define CRUD endpoints. All patterns pr
 
 ## Overview
 
-| Pattern | Best For | Verbosity | Flexibility |
-|---------|----------|-----------|-------------|
-| **Class-based** | Complex logic, database adapters | Medium | High |
-| **Functional** | Quick setup, simple endpoints | Low | Medium |
-| **Builder** | Readable chains, discoverability | Low | Medium |
-| **Config-based** | Declarative, all-in-one definition | Low | Medium |
+| Pattern | Best For | Verbosity | Verb coverage |
+|---------|----------|-----------|---------------|
+| **Class-based** | Complex logic, database adapters | Medium | All 22 verbs |
+| **Functional** | Quick setup, simple endpoints | Low | 5 basic verbs |
+| **Builder** | Readable chains, discoverability | Low | 5 basic verbs |
+| **Config-based** | Declarative, all-in-one definition | Low | All 22 verbs |
+
+The functional and builder APIs are deliberate sugar over the 5 basic verbs (create/list/read/update/delete). The config-based API (`defineEndpoints`) covers every `registerCrud` verb — including search, aggregate, batch.*, export/import, upsert, clone, bulk-patch and the four versioning verbs — and the class API is the full-power surface.
 
 ## Quick Comparison
 
@@ -178,12 +180,13 @@ registerCrud(app, '/users', {
 | Option | Type | Description |
 |--------|------|-------------|
 | `meta` | `MetaInput` | Model metadata (required) |
-| `schema` | `object` | OpenAPI schema (tags, summary, description) |
-| `before` | `function` | Hook called before create |
-| `after` | `function` | Hook called after create |
+| `schema` | `Partial<OpenAPIRouteSchema>` | OpenAPI schema — tags/summary/description, plus `responses`/`request`/`security`/`operationId` overrides merged over the generated blocks |
+| `before` | `function` | Hook called before create — `(data, ctx?: HookContext)` |
+| `after` | `function` | Hook called after create — `(data, ctx?: HookContext)` |
 | `allowNestedCreate` | `string[]` | Relations allowing nested creates |
-| `beforeHookMode` | `'sequential' \| 'parallel'` | Hook execution mode |
-| `afterHookMode` | `'sequential' \| 'parallel'` | Hook execution mode |
+| `beforeHookMode` | `'sequential' \| 'parallel' \| 'fire-and-forget'` | Hook execution mode |
+| `afterHookMode` | `'sequential' \| 'parallel' \| 'fire-and-forget'` | Hook execution mode |
+| `bodySchema` | `ZodObject` | Override the request body validation schema |
 
 #### createList
 
@@ -194,7 +197,7 @@ registerCrud(app, '/users', {
 | `filterFields` | `string[]` | Fields available for filtering |
 | `filterConfig` | `object` | Advanced filter operators per field |
 | `searchFields` | `string[]` | Fields available for search |
-| `searchFieldName` | `string` | Search query parameter name (default: 'search') |
+| `searchParamName` | `string` | Inline-search query parameter name (default: `'search'`; the dedicated `/search` endpoint deliberately defaults to `'q'`) |
 | `sortFields` | `string[]` | Fields available for sorting |
 | `defaultSort` | `{ field: string; order: 'asc' \| 'desc' }` | Default sort field and direction |
 | `defaultPerPage` | `number` | Default page size (default: 20) |
@@ -227,9 +230,10 @@ registerCrud(app, '/users', {
 | `allowedUpdateFields` | `string[]` | Fields allowed to update |
 | `blockedUpdateFields` | `string[]` | Fields blocked from updating |
 | `allowNestedWrites` | `string[]` | Relations allowing nested writes |
-| `before` | `function` | Hook called before update |
-| `after` | `function` | Hook called after update |
+| `before` | `function` | Hook called before update — `(data, ctx?: HookContext)` |
+| `after` | `AfterUpdateHook` | Hook called after update — `(prior, current, ctx)` |
 | `transform` | `function` | Transform the result |
+| `bodySchema` | `ZodObject` | Override the request body validation schema |
 
 #### createDelete
 
@@ -240,8 +244,8 @@ registerCrud(app, '/users', {
 | `lookupField` | `string` | Field for lookup (default: 'id') |
 | `additionalFilters` | `string[]` | Additional filter fields |
 | `includeCascadeResults` | `boolean` | Include cascade results in response |
-| `before` | `function` | Hook called before delete |
-| `after` | `function` | Hook called after delete |
+| `before` | `function` | Hook called before delete — `(lookupValue, ctx?: HookContext)` |
+| `after` | `AfterDeleteHook` | Hook called after delete — `(prior, ctx)` |
 
 ---
 
@@ -273,8 +277,8 @@ const UserList = crud(userMeta)
   .summary('List users')
   .filter('role', 'status')
   .search('name', 'email')
-  .orderBy('name', 'createdAt')
-  .defaultOrder('createdAt', 'desc')
+  .sortable('name', 'createdAt')
+  .defaultSort('createdAt', 'desc')
   .pagination(20, 100)
   .include('profile', 'posts')
   .build(MemoryListEndpoint);
@@ -298,7 +302,7 @@ const UserDelete = crud(userMeta)
   .delete()
   .tags('Users')
   .summary('Delete user')
-  .includeCascadeResults()
+  .includeCascade()
   .build(MemoryDeleteEndpoint);
 
 registerCrud(app, '/users', {
@@ -330,28 +334,32 @@ crud(meta)  // Returns CrudBuilder
 | `.tags(...tags)` | Set OpenAPI tags |
 | `.summary(text)` | Set OpenAPI summary |
 | `.description(text)` | Set OpenAPI description |
+| `.openapi(schema)` | Merge a raw `Partial<OpenAPIRouteSchema>` fragment (`responses`, `request`, `security`, `operationId`, ...) over the generated schema |
+| `.middleware(...handlers)` | Add per-endpoint middleware |
 | `.build(BaseClass)` | Build the endpoint class |
 
 #### CreateBuilder
 
 | Method | Description |
 |--------|-------------|
-| `.before(fn)` | Hook before create |
-| `.after(fn)` | Hook after create |
+| `.before(fn)` | Hook before create — `(data, ctx?: HookContext)` |
+| `.after(fn)` | Hook after create — `(data, ctx?: HookContext)` |
 | `.nestedCreate(...relations)` | Allow nested creates |
-| `.hookMode(before, after)` | Set hook execution mode |
+| `.beforeMode(mode)` | Before-hook execution mode (`'sequential' \| 'parallel' \| 'fire-and-forget'`) |
+| `.afterMode(mode)` | After-hook execution mode (`'sequential' \| 'parallel' \| 'fire-and-forget'`) |
+| `.bodySchema(schema)` | Override the request body validation schema |
 
 #### ListBuilder
 
 | Method | Description |
 |--------|-------------|
 | `.filter(...fields)` | Enable filtering on fields |
-| `.filterConfig(config)` | Advanced filter operators |
+| `.filterWith(config)` | Advanced filter operators |
 | `.search(...fields)` | Enable search on fields |
-| `.searchParam(name)` | Set search parameter name |
-| `.orderBy(...fields)` | Enable sorting on fields |
-| `.defaultOrder(field, direction)` | Set default sort |
-| `.pagination(perPage, maxPerPage)` | Configure pagination |
+| `.searchParam(name)` | Set search parameter name (default: `'search'`) |
+| `.sortable(...fields)` | Enable sorting on fields |
+| `.defaultSort(field, direction?)` | Set default sort |
+| `.pagination(perPage, maxPerPage?)` | Configure pagination |
 | `.include(...relations)` | Allow relation includes |
 | `.fieldSelection(config)` | Configure field selection |
 | `.after(fn)` | Hook after list |
@@ -376,10 +384,12 @@ crud(meta)  // Returns CrudBuilder
 | `.allowedFields(...fields)` | Fields allowed to update |
 | `.blockedFields(...fields)` | Fields blocked from update |
 | `.nestedWrites(...relations)` | Allow nested writes |
-| `.before(fn)` | Hook before update |
-| `.after(fn)` | Hook after update |
+| `.before(fn)` | Hook before update — `(data, ctx?: HookContext)` |
+| `.after(fn)` | Hook after update — `AfterUpdateHook`: `(prior, current, ctx)` |
 | `.transform(fn)` | Transform the result |
-| `.hookMode(before, after)` | Set hook execution mode |
+| `.beforeMode(mode)` | Before-hook execution mode (`'sequential' \| 'parallel' \| 'fire-and-forget'`) |
+| `.afterMode(mode)` | After-hook execution mode (`'sequential' \| 'parallel' \| 'fire-and-forget'`) |
+| `.bodySchema(schema)` | Override the request body validation schema |
 
 #### DeleteBuilder
 
@@ -387,16 +397,21 @@ crud(meta)  // Returns CrudBuilder
 |--------|-------------|
 | `.lookupField(field)` | Set lookup field |
 | `.additionalFilters(...fields)` | Add filter fields |
-| `.includeCascadeResults()` | Include cascade info |
-| `.before(fn)` | Hook before delete |
-| `.after(fn)` | Hook after delete |
-| `.hookMode(before, after)` | Set hook execution mode |
+| `.includeCascade(include?)` | Include cascade info (defaults to `true`) |
+| `.before(fn)` | Hook before delete — `(lookupValue, ctx?: HookContext)` |
+| `.after(fn)` | Hook after delete — `AfterDeleteHook`: `(prior, ctx)` |
+| `.beforeMode(mode)` | Before-hook execution mode (`'sequential' \| 'parallel' \| 'fire-and-forget'`) |
+| `.afterMode(mode)` | After-hook execution mode (`'sequential' \| 'parallel' \| 'fire-and-forget'`) |
 
 ---
 
 ## Pattern 4: Config-based API
 
-Single declarative object defining all endpoints at once.
+Single declarative object defining all endpoints at once. Every `registerCrud` verb has a config slot — the 5 basic verbs plus `search`, `aggregate`, `restore`, `batchCreate`, `batchUpdate`, `batchDelete`, `batchRestore`, `batchUpsert`, `export`, `import`, `upsert`, `clone`, `bulkPatch`, `versionHistory`, `versionRead`, `versionCompare` and `versionRollback`.
+
+Each endpoint's `openapi` accepts the full `Partial<OpenAPIRouteSchema>`: user-supplied `responses`/`request`/`security`/`operationId` blocks are merged over the generated schema.
+
+Configuring a verb whose adapter bundle does not ship the matching base class throws at definition time — explicit configuration never degrades to a silently missing route.
 
 ### Import
 
@@ -519,13 +534,16 @@ registerCrud(app, '/users', {
 - You want quick, simple endpoint definitions
 - Configuration is straightforward
 - You prefer function composition
+- The 5 basic verbs are all you need (extended verbs live on the config and class APIs)
 
 **Use Builder when:**
 - You want readable, self-documenting code
 - You prefer method chaining
 - You want IDE autocomplete to guide configuration
+- The 5 basic verbs are all you need (extended verbs live on the config and class APIs)
 
 **Use Config-based when:**
 - You want to define all endpoints in one place
 - You prefer declarative configuration
 - You want consistent structure across endpoints
+- You need extended verbs (search, batch.*, upsert, bulk-patch, versioning) without writing classes

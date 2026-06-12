@@ -1,10 +1,11 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { getManagedInputExclusions } from '../core/managed-fields';
 import type { HookMode, ListFilters, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import type { ListFilterParseOptions, ModelObject } from './types';
-import { parseListFilters } from './types';
+import { getSchemaFields, parseListFilters } from './types';
 
 /**
  * Result of a bulk patch operation.
@@ -47,11 +48,19 @@ export abstract class BulkPatchEndpoint<
   /** Filter fields allowed in query params */
   protected filterFields?: string[];
 
-  /** Get the model schema */
-  protected abstract getModelSchema(): ZodObject<ZodRawShape>;
-
-  /** Get the update (partial) schema */
-  protected abstract getUpdateSchema(): ZodObject<ZodRawShape>;
+  /**
+   * Returns the Zod schema validating the patch body. Defaults to the model
+   * schema minus engine-managed fields (primary keys + managed timestamps),
+   * all fields optional — the same exclusion set the Update endpoint uses.
+   * Override to narrow the patchable surface further.
+   */
+  protected getUpdateSchema(): ZodObject<ZodRawShape> {
+    const excludeFields = getManagedInputExclusions(this._meta.model);
+    return getSchemaFields(
+      this.getModelSchema(),
+      excludeFields,
+    ).partial() as ZodObject<ZodRawShape>;
+  }
 
   /** Count records matching filters (for dry run and threshold check) */
   protected abstract countMatching(filters: ListFilters): Promise<number>;
@@ -75,40 +84,43 @@ export abstract class BulkPatchEndpoint<
   getSchema(): OpenAPIRouteSchema {
     const updateSchema = this.getUpdateSchema();
 
-    return {
-      request: {
-        body: {
-          content: {
-            'application/json': {
-              schema: updateSchema.partial(),
+    return mergeRouteSchema(
+      {
+        request: {
+          body: {
+            content: {
+              'application/json': {
+                schema: updateSchema.partial(),
+              },
             },
           },
+          query: z
+            .object({
+              dryRun: z.string().optional(),
+            })
+            .passthrough(),
         },
-        query: z
-          .object({
-            dryRun: z.string().optional(),
-          })
-          .passthrough(),
-      },
-      responses: {
-        '200': {
-          description: 'Bulk patch result',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.boolean(),
-                matched: z.number(),
-                updated: z.number(),
-                dryRun: z.boolean(),
-              }),
+        responses: {
+          '200': {
+            description: 'Bulk patch result',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.boolean(),
+                  matched: z.number(),
+                  updated: z.number(),
+                  dryRun: z.boolean(),
+                }),
+              },
             },
           },
+          '400': errorResponseSchema(
+            'Bulk patch rejected (empty body, size limit, or missing confirmation)',
+          ),
         },
-        '400': errorResponseSchema(
-          'Bulk patch rejected (empty body, size limit, or missing confirmation)',
-        ),
       },
-    };
+      this.schema,
+    );
   }
 
   async handle(): Promise<Response> {

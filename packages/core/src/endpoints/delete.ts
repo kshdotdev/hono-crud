@@ -11,7 +11,7 @@ import type {
   RelationConfig,
 } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import type { ModelObject } from './types';
 
 /**
@@ -174,46 +174,48 @@ export abstract class DeleteEndpoint<
           deleted: z.literal(true),
         });
 
-    return {
-      ...this.schema,
-      request: {
-        params: this.getParamsSchema(),
-      },
-      responses: {
-        200: {
-          description: 'Resource deleted successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: resultSchema,
-              }),
-            },
-          },
+    return mergeRouteSchema(
+      {
+        request: {
+          params: this.getParamsSchema(),
         },
-        404: errorResponseSchema('Resource not found'),
-        409: {
-          description: 'Cannot delete - related records exist (restrict)',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(false),
-                error: z.object({
-                  code: z.string(),
-                  message: z.string(),
-                  details: z
-                    .object({
-                      relation: z.string(),
-                      count: z.number(),
-                    })
-                    .optional(),
+        responses: {
+          200: {
+            description: 'Resource deleted successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: resultSchema,
                 }),
-              }),
+              },
+            },
+          },
+          404: errorResponseSchema('Resource not found'),
+          409: {
+            description: 'Cannot delete - related records exist (restrict)',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(false),
+                  error: z.object({
+                    code: z.string(),
+                    message: z.string(),
+                    details: z
+                      .object({
+                        relation: z.string(),
+                        count: z.number(),
+                      })
+                      .optional(),
+                  }),
+                }),
+              },
             },
           },
         },
       },
-    };
+      this.schema,
+    );
   }
 
   /**

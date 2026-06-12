@@ -3,7 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { ApiException, NotFoundException } from '../core/exceptions';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import type { ModelObject } from './types';
 
 /**
@@ -65,27 +65,29 @@ export abstract class RestoreEndpoint<
    * Generates OpenAPI schema from meta configuration.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        params: this.getParamsSchema(),
-      },
-      responses: {
-        200: {
-          description: 'Resource restored successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: this.getModelSchema(),
-              }),
+    return mergeRouteSchema(
+      {
+        request: {
+          params: this.getParamsSchema(),
+        },
+        responses: {
+          200: {
+            description: 'Resource restored successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: this.getModelSchema(),
+                }),
+              },
             },
           },
+          400: errorResponseSchema('Soft delete not enabled or record not deleted'),
+          404: errorResponseSchema('Resource not found'),
         },
-        400: errorResponseSchema('Soft delete not enabled or record not deleted'),
-        404: errorResponseSchema('Resource not found'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**

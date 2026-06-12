@@ -2,6 +2,7 @@ import { eq, isNull, sql } from 'drizzle-orm';
 import type { Env } from 'hono';
 import { UpsertEndpoint } from 'hono-crud/internal';
 import { BatchUpsertEndpoint } from 'hono-crud/internal';
+import { BulkPatchEndpoint } from 'hono-crud/internal';
 import { CloneEndpoint } from 'hono-crud/internal';
 import {
   VersionCompareEndpoint,
@@ -397,6 +398,88 @@ export abstract class DrizzleBatchUpsertEndpoint<
       updatedCount: result.length, // Assume all were updates (conservative)
       totalCount: result.length,
     };
+  }
+}
+
+/**
+ * Drizzle Bulk Patch endpoint: `PATCH /resource/bulk` updates every record
+ * matching the query-string filters in a single `UPDATE ... WHERE`.
+ *
+ * Soft-deleted records are never bulk-patched (the WHERE clause adds
+ * `IS NULL` on the soft-delete column when configured), and managed update
+ * fields (`updatedAt`) are bumped — same semantics as DrizzleBatchUpdate.
+ */
+export abstract class DrizzleBulkPatchEndpoint<
+  E extends Env = Env,
+  M extends MetaInput = MetaInput,
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
+> extends BulkPatchEndpoint<E, M> {
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DB;
+
+  /**
+   * SQL dialect of the underlying Drizzle database. Drives the
+   * `like`/`ilike` substring matching in filter conditions.
+   */
+  protected dialect: DrizzleDialect = 'sqlite';
+
+  /** Gets the database instance from property or context. */
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
+  }
+
+  protected getTable(): DrizzleTable {
+    return getTable(this._meta);
+  }
+
+  protected getColumn(field: string): DrizzleColumn {
+    return getColumn(this.getTable(), field);
+  }
+
+  /** WHERE clause shared by countMatching/applyPatch: filters + soft-delete guard. */
+  private buildConditions(filters: ListFilters): DrizzleSql[] {
+    const table = this.getTable();
+    const conditions: DrizzleSql[] = [];
+
+    for (const filter of filters.filters) {
+      const condition = buildWhereCondition(table, filter, this.dialect);
+      if (condition) {
+        conditions.push(condition);
+      }
+    }
+
+    const softDeleteConfig = this.getSoftDeleteConfig();
+    if (softDeleteConfig.enabled) {
+      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
+    }
+
+    return conditions;
+  }
+
+  override async countMatching(filters: ListFilters): Promise<number> {
+    const conditions = this.buildConditions(filters);
+
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
+      .select({ count: sql<number>`count(*)` })
+      .from(this.getTable())
+      .where(and(...conditions));
+
+    return readCount(result);
+  }
+
+  override async applyPatch(
+    data: Partial<ModelObject<M['model']>>,
+    filters: ListFilters,
+  ): Promise<{ updated: number; records?: ModelObject<M['model']>[] }> {
+    const conditions = this.buildConditions(filters);
+
+    const result = await cast<ModelObject<M['model']>>(this.getDb())
+      .update(this.getTable())
+      .set(this.applyManagedUpdateFields(data as Record<string, unknown>))
+      .where(and(...conditions))
+      .returning();
+
+    return { updated: result.length, records: result };
   }
 }
 

@@ -3,7 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getManagedInputExclusions } from '../core/managed-fields';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { batchResultResponses, errorResponseSchema } from './responses';
+import { batchResultResponses, errorResponseSchema, mergeRouteSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -115,22 +115,28 @@ export abstract class BatchUpdateEndpoint<
    * Generates OpenAPI schema from meta configuration.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        body: {
-          content: {
-            'application/json': {
-              schema: this.getBodySchema(),
+    return mergeRouteSchema(
+      {
+        request: {
+          body: {
+            content: {
+              'application/json': {
+                schema: this.getBodySchema(),
+              },
             },
           },
         },
+        responses: {
+          ...batchResultResponses(
+            'updated',
+            this.getModelSchema(),
+            'Resources updated successfully',
+          ),
+          400: errorResponseSchema('Validation error'),
+        },
       },
-      responses: {
-        ...batchResultResponses('updated', this.getModelSchema(), 'Resources updated successfully'),
-        400: errorResponseSchema('Validation error'),
-      },
-    };
+      this.schema,
+    );
   }
 
   /**

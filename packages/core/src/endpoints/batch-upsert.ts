@@ -6,7 +6,7 @@ import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/man
 import { applyUpsertRestore } from '../core/soft-delete';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -212,46 +212,48 @@ export abstract class BatchUpsertEndpoint<
       index: z.number(),
     });
 
-    return {
-      ...this.schema,
-      request: {
-        body: {
-          content: {
-            'application/json': {
-              schema: this.getBodySchema(),
+    return mergeRouteSchema(
+      {
+        request: {
+          body: {
+            content: {
+              'application/json': {
+                schema: this.getBodySchema(),
+              },
             },
+            required: true,
           },
-          required: true,
         },
-      },
-      responses: {
-        200: {
-          description: 'Batch upsert completed',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  items: z.array(itemResultSchema),
-                  createdCount: z.number(),
-                  updatedCount: z.number(),
-                  totalCount: z.number(),
-                  errors: z
-                    .array(
-                      z.object({
-                        index: z.number(),
-                        error: z.string(),
-                      }),
-                    )
-                    .optional(),
+        responses: {
+          200: {
+            description: 'Batch upsert completed',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.object({
+                    items: z.array(itemResultSchema),
+                    createdCount: z.number(),
+                    updatedCount: z.number(),
+                    totalCount: z.number(),
+                    errors: z
+                      .array(
+                        z.object({
+                          index: z.number(),
+                          error: z.string(),
+                        }),
+                      )
+                      .optional(),
+                  }),
                 }),
-              }),
+              },
             },
           },
+          400: errorResponseSchema('Validation error'),
         },
-        400: errorResponseSchema('Validation error'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**

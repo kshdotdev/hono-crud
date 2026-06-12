@@ -55,7 +55,7 @@ export interface NormalizedEndpointConfig {
   filterFields?: string[];
   filterConfig?: Record<string, unknown>;
   searchFields?: string[];
-  searchFieldName?: string;
+  searchParamName?: string;
   sortFields?: string[];
   defaultSort?: SortSpec;
   defaultPerPage?: number;
@@ -123,6 +123,24 @@ export function generateEndpointClass<B extends abstract new () => unknown>(
       if (extras) {
         Object.assign(this, extras);
       }
+      // Body-schema override (Create/Update/batch-create/upsert family),
+      // installed as an INSTANCE property and only when configured. A
+      // class-level `getBodySchema` override delegating to `super` would make
+      // every generated endpoint — including body-schema-less verbs like
+      // BulkPatch whose base has no `getBodySchema` — pass the
+      // `hasGetBodySchema` feature check and then crash on the missing super
+      // implementation.
+      if (config.bodySchema) {
+        Object.assign(this, { getBodySchema: () => config.bodySchema });
+      }
+      // searchParamName is the ONE list-family knob whose default deliberately
+      // differs between endpoint classes (ListEndpoint inline search:
+      // 'search'; SearchEndpoint /search route: 'q'), so the factory must not
+      // own a default for it — a class-field `= 'search'` here would shadow
+      // SearchEndpoint's 'q'. Assigned only when explicitly configured.
+      if (config.searchParamName !== undefined) {
+        Object.assign(this, { searchParamName: config.searchParamName });
+      }
     }
 
     _meta = config.meta;
@@ -147,11 +165,11 @@ export function generateEndpointClass<B extends abstract new () => unknown>(
     // Delete-specific
     protected includeCascadeResults: boolean = config.includeCascadeResults ?? false;
 
-    // List-specific
+    // List-specific (searchParamName is assigned in the constructor — see
+    // the endpoint-owned-default note there)
     protected filterFields: string[] = config.filterFields ?? [];
     protected filterConfig = config.filterConfig;
     protected searchFields: string[] = config.searchFields ?? [];
-    protected searchFieldName: string = config.searchFieldName ?? 'search';
     protected sortFields: string[] = config.sortFields ?? [];
     protected defaultSort = config.defaultSort;
     protected defaultPerPage: number = config.defaultPerPage ?? 20;
@@ -162,12 +180,6 @@ export function generateEndpointClass<B extends abstract new () => unknown>(
     protected blockedSelectFields: string[] = config.blockedSelectFields ?? [];
     protected alwaysIncludeFields: string[] = config.alwaysIncludeFields ?? [];
     protected defaultSelectFields: string[] = config.defaultSelectFields ?? [];
-
-    // Body schema override (Create/Update)
-    protected getBodySchema(): ZodObject<ZodRawShape> {
-      if (config.bodySchema) return config.bodySchema;
-      return super.getBodySchema();
-    }
 
     async before(...args: unknown[]): Promise<unknown> {
       if (config.before) return config.before(...args);

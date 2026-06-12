@@ -3,7 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -74,57 +74,59 @@ export abstract class BatchCreateEndpoint<
    * Generates OpenAPI schema from meta configuration.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        body: {
-          content: {
-            'application/json': {
-              schema: this.getBodySchema(),
+    return mergeRouteSchema(
+      {
+        request: {
+          body: {
+            content: {
+              'application/json': {
+                schema: this.getBodySchema(),
+              },
             },
           },
+        },
+        responses: {
+          201: {
+            description: 'Resources created successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.object({
+                    created: z.array(this.getModelSchema()),
+                    count: z.number(),
+                  }),
+                }),
+              },
+            },
+          },
+          207: {
+            description: 'Partial success (some items failed)',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.object({
+                    created: z.array(this.getModelSchema()),
+                    count: z.number(),
+                    errors: z
+                      .array(
+                        z.object({
+                          index: z.number(),
+                          error: z.string(),
+                        }),
+                      )
+                      .optional(),
+                  }),
+                }),
+              },
+            },
+          },
+          400: errorResponseSchema('Validation error'),
         },
       },
-      responses: {
-        201: {
-          description: 'Resources created successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  created: z.array(this.getModelSchema()),
-                  count: z.number(),
-                }),
-              }),
-            },
-          },
-        },
-        207: {
-          description: 'Partial success (some items failed)',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  created: z.array(this.getModelSchema()),
-                  count: z.number(),
-                  errors: z
-                    .array(
-                      z.object({
-                        index: z.number(),
-                        error: z.string(),
-                      }),
-                    )
-                    .optional(),
-                }),
-              }),
-            },
-          },
-        },
-        400: errorResponseSchema('Validation error'),
-      },
-    };
+      this.schema,
+    );
   }
 
   /**

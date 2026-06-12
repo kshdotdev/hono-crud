@@ -14,7 +14,7 @@ import type {
 } from '../core/types';
 import { SEARCH_MODES, SORT_DIRECTIONS } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import {
   buildSearchConfig,
   calculateScore,
@@ -368,34 +368,36 @@ export abstract class SearchEndpoint<
       matchedFields: z.array(z.string()),
     });
 
-    return {
-      ...this.schema,
-      request: {
-        query: this.getQuerySchema(),
-      },
-      responses: {
-        200: {
-          description: 'Search results',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.array(searchResultItemSchema),
-                result_info: z.object({
-                  page: z.number(),
-                  per_page: z.number(),
-                  total_count: z.number().optional(),
-                  total_pages: z.number().optional(),
-                  query: z.string(),
-                  searchedFields: z.array(z.string()),
+    return mergeRouteSchema(
+      {
+        request: {
+          query: this.getQuerySchema(),
+        },
+        responses: {
+          200: {
+            description: 'Search results',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.array(searchResultItemSchema),
+                  result_info: z.object({
+                    page: z.number(),
+                    per_page: z.number(),
+                    total_count: z.number().optional(),
+                    total_pages: z.number().optional(),
+                    query: z.string(),
+                    searchedFields: z.array(z.string()),
+                  }),
                 }),
-              }),
+              },
             },
           },
+          400: errorResponseSchema('Invalid search request'),
         },
-        400: errorResponseSchema('Invalid search request'),
       },
-    };
+      this.schema,
+    );
   }
 
   // ============================================================================
@@ -440,7 +442,7 @@ export abstract class SearchEndpoint<
       filterFields: this.filterFields,
       filterConfig: this.filterConfig,
       searchFields: [], // Don't use basic search, we handle it ourselves
-      searchFieldName: 'q',
+      searchParamName: 'q',
       sortFields: this.sortFields,
       defaultSort: this.defaultSort,
       defaultPerPage: this.defaultPerPage,

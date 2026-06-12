@@ -6,11 +6,16 @@ export * from './advanced';
 import type { AdapterBundle } from 'hono-crud/internal';
 import {
   MemoryAggregateEndpoint,
+  MemoryBulkPatchEndpoint,
   MemoryCloneEndpoint,
   MemoryExportEndpoint,
   MemoryImportEndpoint,
   MemorySearchEndpoint,
   MemoryUpsertEndpoint,
+  MemoryVersionCompareEndpoint,
+  MemoryVersionHistoryEndpoint,
+  MemoryVersionReadEndpoint,
+  MemoryVersionRollbackEndpoint,
 } from './advanced';
 import {
   MemoryBatchCreateEndpoint,
@@ -58,4 +63,9 @@ export const MemoryAdapters: AdapterBundle = {
   ImportEndpoint: MemoryImportEndpoint,
   UpsertEndpoint: MemoryUpsertEndpoint,
   CloneEndpoint: MemoryCloneEndpoint,
+  BulkPatchEndpoint: MemoryBulkPatchEndpoint,
+  VersionHistoryEndpoint: MemoryVersionHistoryEndpoint,
+  VersionReadEndpoint: MemoryVersionReadEndpoint,
+  VersionCompareEndpoint: MemoryVersionCompareEndpoint,
+  VersionRollbackEndpoint: MemoryVersionRollbackEndpoint,
 };

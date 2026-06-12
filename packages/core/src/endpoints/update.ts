@@ -15,7 +15,7 @@ import type {
 } from '../core/types';
 import { generateETag, matchesIfMatch } from '../utils/etag';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -257,35 +257,37 @@ export abstract class UpdateEndpoint<
    * Generates OpenAPI schema from meta configuration.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        params: this.getParamsSchema(),
-        body: {
-          content: {
-            'application/json': {
-              schema: this.getBodySchema(),
+    return mergeRouteSchema(
+      {
+        request: {
+          params: this.getParamsSchema(),
+          body: {
+            content: {
+              'application/json': {
+                schema: this.getBodySchema(),
+              },
             },
-          },
-          required: true,
-        },
-      },
-      responses: {
-        200: {
-          description: 'Resource updated successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: this.getModelSchema(),
-              }),
-            },
+            required: true,
           },
         },
-        400: errorResponseSchema('Validation error'),
-        404: errorResponseSchema('Resource not found'),
+        responses: {
+          200: {
+            description: 'Resource updated successfully',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: this.getModelSchema(),
+                }),
+              },
+            },
+          },
+          400: errorResponseSchema('Validation error'),
+          404: errorResponseSchema('Resource not found'),
+        },
       },
-    };
+      this.schema,
+    );
   }
 
   /**

@@ -702,7 +702,12 @@ export abstract class MemoryBulkPatchEndpoint<
 
     for (const item of items) {
       const id = String((item as Record<string, unknown>)[primaryKey]);
-      const patched = { ...item, ...data } as ModelObject<M['model']>;
+      // Merge patch data with the managed `updatedAt` bump — same semantics
+      // as MemoryUpdate/MemoryBatchUpdate.
+      const patched = {
+        ...item,
+        ...this.applyManagedUpdateFields(data as Record<string, unknown>),
+      } as ModelObject<M['model']>;
       store.set(id, patched);
       updated.push(patched);
     }
@@ -712,7 +717,11 @@ export abstract class MemoryBulkPatchEndpoint<
 
   private getFilteredItems(filters: ListFilters): ModelObject<M['model']>[] {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
-    let items = Array.from(store.values());
+    const softDeleteConfig = this.getSoftDeleteConfig();
+
+    // Soft-deleted records are never bulk-patched — same visibility rule as
+    // every other memory write path.
+    let items = Array.from(store.values()).filter((item) => isVisible(item, softDeleteConfig));
 
     for (const filter of filters.filters) {
       items = items.filter((item) => {

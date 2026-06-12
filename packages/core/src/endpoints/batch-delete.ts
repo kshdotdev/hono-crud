@@ -2,7 +2,12 @@ import type { Env } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { batchResultResponses, errorResponseSchema, idsBodySchema } from './responses';
+import {
+  batchResultResponses,
+  errorResponseSchema,
+  idsBodySchema,
+  mergeRouteSchema,
+} from './responses';
 import type { ModelObject } from './types';
 
 /**
@@ -85,26 +90,28 @@ export abstract class BatchDeleteEndpoint<
    */
   getSchema(): OpenAPIRouteSchema {
     const softDelete = this.isSoftDeleteEnabled();
-    return {
-      ...this.schema,
-      request: {
-        body: {
-          content: {
-            'application/json': {
-              schema: this.getBodySchema(),
+    return mergeRouteSchema(
+      {
+        request: {
+          body: {
+            content: {
+              'application/json': {
+                schema: this.getBodySchema(),
+              },
             },
           },
         },
+        responses: {
+          ...batchResultResponses(
+            'deleted',
+            this.getModelSchema(),
+            softDelete ? 'Resources soft-deleted successfully' : 'Resources deleted successfully',
+          ),
+          400: errorResponseSchema('Validation error'),
+        },
       },
-      responses: {
-        ...batchResultResponses(
-          'deleted',
-          this.getModelSchema(),
-          softDelete ? 'Resources soft-deleted successfully' : 'Resources deleted successfully',
-        ),
-        400: errorResponseSchema('Validation error'),
-      },
-    };
+      this.schema,
+    );
   }
 
   /**

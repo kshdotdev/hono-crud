@@ -36,20 +36,34 @@
 import type { Env, MiddlewareHandler } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
-import type { EndpointClass } from '../core/register';
+import type { CrudEndpoints } from '../core/register';
 import type { OpenAPIRoute } from '../core/route';
-import type { HookMode, MetaInput, SortDirection } from '../core/types';
+import type {
+  AfterDeleteHook,
+  AfterUpdateHook,
+  AggregateResult,
+  HookContext,
+  HookMode,
+  MetaInput,
+  OpenAPIRouteSchema,
+  SearchResultItem,
+  SortDirection,
+} from '../core/types';
 import type { FilterConfig } from '../core/types';
+import type { BatchUpsertResult } from '../endpoints/batch-upsert';
 import type {
   AggregateExtras,
   BatchExtras,
   BatchUpsertExtras,
+  BulkPatchExtras,
   CloneExtras,
   ExportExtras,
   ImportExtras,
   SearchExtras,
   UpsertExtras,
+  VersionHistoryExtras,
 } from '../endpoints/extras-config';
+import type { ImportMode, ImportRowResult } from '../endpoints/import';
 import type { ModelObject } from '../endpoints/types';
 
 // ============================================================================
@@ -58,12 +72,13 @@ import type { ModelObject } from '../endpoints/types';
 
 /**
  * OpenAPI configuration for endpoints.
+ *
+ * The full `OpenAPIRouteSchema` surface is accepted: `tags`, `summary` and
+ * `description` for documentation, plus `responses`, `request`, `security`
+ * and `operationId` overrides — user-supplied blocks are merged OVER the
+ * generated schema (see `mergeRouteSchema`).
  */
-interface OpenAPIConfig {
-  tags?: string[];
-  summary?: string;
-  description?: string;
-}
+type OpenAPIConfig = Partial<OpenAPIRouteSchema>;
 
 /**
  * Hook configuration for endpoints.
@@ -74,26 +89,27 @@ interface HookConfig {
 }
 
 /**
- * Create endpoint hooks.
+ * Create endpoint hooks. The optional second argument is the engine-built
+ * `HookContext` (transaction handle + tenant/actor identifiers).
  */
 interface CreateHooks<M extends MetaInput> extends HookConfig {
   before?: (
     data: ModelObject<M['model']>,
-    tx?: unknown,
+    ctx?: HookContext,
   ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
   after?: (
     data: ModelObject<M['model']>,
-    tx?: unknown,
+    ctx?: HookContext,
   ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
 }
 
 /**
  * Create endpoint configuration.
  */
-export interface CreateEndpointConfig<M extends MetaInput> {
+export interface CreateEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   hooks?: CreateHooks<M>;
   nestedCreate?: string[];
   /**
@@ -123,6 +139,11 @@ interface FilteringConfig {
  */
 interface SearchConfig {
   fields?: string[];
+  /**
+   * Query parameter name carrying the inline-search string. Defaults to
+   * `'search'` (maps to `ListEndpoint.searchParamName`). Note the dedicated
+   * `/search` route defaults to `'q'` — a deliberate divergence.
+   */
   paramName?: string;
 }
 
@@ -170,10 +191,10 @@ interface ListHooks<M extends MetaInput> {
 /**
  * List endpoint configuration.
  */
-export interface ListEndpointConfig<M extends MetaInput> {
+export interface ListEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   filtering?: FilteringConfig;
   search?: SearchConfig;
   sorting?: SortingConfig;
@@ -196,10 +217,10 @@ interface ReadHooks<M extends MetaInput> {
 /**
  * Read endpoint configuration.
  */
-export interface ReadEndpointConfig<M extends MetaInput> {
+export interface ReadEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   lookupField?: string;
   additionalFilters?: string[];
   includes?: string[];
@@ -226,23 +247,20 @@ interface UpdateFieldConfig {
 interface UpdateHooks<M extends MetaInput> extends HookConfig {
   before?: (
     data: Partial<ModelObject<M['model']>>,
-    tx?: unknown,
+    ctx?: HookContext,
   ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
-  after?: (
-    prior: ModelObject<M['model']>,
-    current: ModelObject<M['model']>,
-    ctx: unknown,
-  ) => Promise<ModelObject<M['model']> | void> | ModelObject<M['model']> | void;
+  /** The exported `AfterUpdateHook` alias: `(prior, current, ctx: HookContext)`. */
+  after?: AfterUpdateHook<ModelObject<M['model']>>;
   transform?: (item: ModelObject<M['model']>) => unknown;
 }
 
 /**
  * Update endpoint configuration.
  */
-export interface UpdateEndpointConfig<M extends MetaInput> {
+export interface UpdateEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   lookupField?: string;
   additionalFilters?: string[];
   fields?: UpdateFieldConfig;
@@ -270,17 +288,18 @@ export interface UpdateEndpointConfig<M extends MetaInput> {
  * still emitted in the response body when `includeCascadeResults: true`.
  */
 interface DeleteHooks<M extends MetaInput> extends HookConfig {
-  before?: (lookupValue: string, tx?: unknown) => Promise<void> | void;
-  after?: (prior: ModelObject<M['model']>, ctx: unknown) => Promise<void> | void;
+  before?: (lookupValue: string, ctx?: HookContext) => Promise<void> | void;
+  /** The exported `AfterDeleteHook` alias: `(prior, ctx: HookContext)`. */
+  after?: AfterDeleteHook<ModelObject<M['model']>>;
 }
 
 /**
  * Delete endpoint configuration.
  */
-export interface DeleteEndpointConfig<M extends MetaInput> {
+export interface DeleteEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   lookupField?: string;
   additionalFilters?: string[];
   includeCascadeResults?: boolean;
@@ -289,29 +308,32 @@ export interface DeleteEndpointConfig<M extends MetaInput> {
 
 // ----------------------------------------------------------------------------
 // Extended-verb endpoint configs (search, aggregate, restore, batch.*, export,
-// import, upsert, clone). All optional via EndpointsConfig<M>; the dispatch
-// arms below only fire when the slot is present.
+// import, upsert, clone, bulkPatch, version*). All optional via
+// EndpointsConfig<M, E>; a configured verb whose adapter bundle lacks the
+// matching base class throws at definition time (see `requireAdapter`).
 // ----------------------------------------------------------------------------
 
 /**
  * Search endpoint hooks.
  *
- * The dedicated `/search` endpoint (SearchEndpoint) is read-only and only
- * supports an `after` callback for post-processing results.
+ * The dedicated `/search` endpoint (SearchEndpoint) is read-only; `after`
+ * maps to `SearchEndpoint.afterSearch` and receives the scored result items.
  */
 interface SearchHooks<M extends MetaInput> {
   after?: (
-    items: ModelObject<M['model']>[],
-  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+    results: SearchResultItem<ModelObject<M['model']>>[],
+  ) =>
+    | Promise<SearchResultItem<ModelObject<M['model']>>[]>
+    | SearchResultItem<ModelObject<M['model']>>[];
 }
 
 /**
  * Search endpoint configuration.
  */
-export interface SearchEndpointConfig<M extends MetaInput> {
+export interface SearchEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   /** Fields included in the search index (maps to SearchEndpoint.searchFields). */
   fields?: string[];
   /**
@@ -329,149 +351,161 @@ export interface SearchEndpointConfig<M extends MetaInput> {
  * Aggregate endpoint hooks.
  */
 interface AggregateHooks {
-  after?: (result: unknown) => Promise<unknown> | unknown;
+  after?: (result: AggregateResult) => Promise<AggregateResult> | AggregateResult;
 }
 
 /**
  * Aggregate endpoint configuration.
  */
-export interface AggregateEndpointConfig<_M extends MetaInput> {
+export interface AggregateEndpointConfig<_M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   /** Fields the client may filter aggregations by (maps to AggregateEndpoint.filterFields). */
   fields?: string[];
   hooks?: AggregateHooks;
 }
 
 /**
- * Restore endpoint hooks.
+ * Restore endpoint hooks. `before` receives the lookup value; `after`
+ * receives (and may replace) the restored row.
  */
 interface RestoreHooks<M extends MetaInput> extends HookConfig {
-  before?: (lookupValue: string, tx?: unknown) => Promise<void> | void;
-  after?: (restoredItem: ModelObject<M['model']>, tx?: unknown) => Promise<void> | void;
+  before?: (lookupValue: string) => Promise<void> | void;
+  after?: (
+    restoredItem: ModelObject<M['model']>,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
 }
 
 /**
  * Restore endpoint configuration.
  */
-export interface RestoreEndpointConfig<M extends MetaInput> {
+export interface RestoreEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   hooks?: RestoreHooks<M>;
 }
 
 /**
- * Batch-create endpoint hooks.
+ * Batch-create endpoint hooks. Both run once PER ITEM with the item's index.
  */
 interface BatchCreateHooks<M extends MetaInput> extends HookConfig {
   before?: (
-    data: ModelObject<M['model']>[],
-    tx?: unknown,
-  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+    item: Partial<ModelObject<M['model']>>,
+    index: number,
+  ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
   after?: (
-    data: ModelObject<M['model']>[],
-    tx?: unknown,
-  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+    item: ModelObject<M['model']>,
+    index: number,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
 }
 
 /**
  * Batch-create endpoint configuration.
  */
-export interface BatchCreateEndpointConfig<M extends MetaInput> {
+export interface BatchCreateEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   hooks?: BatchCreateHooks<M>;
   bodySchema?: ZodObject<ZodRawShape>;
   maxBatchSize?: number;
 }
 
 /**
- * Batch-update endpoint hooks.
+ * Batch-update endpoint hooks. Both run once PER ITEM: `before` receives the
+ * item's lookup id plus its (field-filtered) patch data, `after` the updated
+ * row.
  */
 interface BatchUpdateHooks<M extends MetaInput> extends HookConfig {
   before?: (
-    data: Partial<ModelObject<M['model']>>[],
-    tx?: unknown,
-  ) => Promise<Partial<ModelObject<M['model']>>[]> | Partial<ModelObject<M['model']>>[];
+    id: string,
+    data: Partial<ModelObject<M['model']>>,
+  ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
   after?: (
-    data: ModelObject<M['model']>[],
-    tx?: unknown,
-  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+    item: ModelObject<M['model']>,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
 }
 
 /**
  * Batch-update endpoint configuration.
  */
-export interface BatchUpdateEndpointConfig<M extends MetaInput> {
+export interface BatchUpdateEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   hooks?: BatchUpdateHooks<M>;
   maxBatchSize?: number;
 }
 
 /**
- * Batch-delete endpoint hooks.
+ * Batch-delete endpoint hooks. Both run once PER ITEM: `before` receives the
+ * id about to be deleted, `after` the deleted row.
  */
 interface BatchDeleteHooks<M extends MetaInput> extends HookConfig {
-  before?: (lookupValues: string[], tx?: unknown) => Promise<void> | void;
-  after?: (deletedItems: ModelObject<M['model']>[], tx?: unknown) => Promise<void> | void;
+  before?: (id: string) => Promise<void> | void;
+  after?: (
+    item: ModelObject<M['model']>,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
 }
 
 /**
  * Batch-delete endpoint configuration.
  */
-export interface BatchDeleteEndpointConfig<M extends MetaInput> {
+export interface BatchDeleteEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   hooks?: BatchDeleteHooks<M>;
   maxBatchSize?: number;
 }
 
 /**
- * Batch-restore endpoint hooks.
+ * Batch-restore endpoint hooks. Both run once PER ITEM: `before` receives
+ * the id about to be restored, `after` the restored row.
  */
 interface BatchRestoreHooks<M extends MetaInput> extends HookConfig {
-  before?: (lookupValues: string[], tx?: unknown) => Promise<void> | void;
-  after?: (restoredItems: ModelObject<M['model']>[], tx?: unknown) => Promise<void> | void;
+  before?: (id: string) => Promise<void> | void;
+  after?: (
+    item: ModelObject<M['model']>,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
 }
 
 /**
  * Batch-restore endpoint configuration.
  */
-export interface BatchRestoreEndpointConfig<M extends MetaInput> {
+export interface BatchRestoreEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   hooks?: BatchRestoreHooks<M>;
   maxBatchSize?: number;
 }
 
 /**
- * Batch-upsert endpoint hooks.
+ * Batch-upsert endpoint hooks. `before` maps to
+ * `BatchUpsertEndpoint.beforeBatch` (the whole validated batch); `after`
+ * maps to `afterBatch` (the computed batch result).
  */
 interface BatchUpsertHooks<M extends MetaInput> extends HookConfig {
   before?: (
-    data: ModelObject<M['model']>[],
-    tx?: unknown,
-  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+    items: Partial<ModelObject<M['model']>>[],
+  ) => Promise<Partial<ModelObject<M['model']>>[]> | Partial<ModelObject<M['model']>>[];
   after?: (
-    data: ModelObject<M['model']>[],
-    tx?: unknown,
-  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+    result: BatchUpsertResult<ModelObject<M['model']>>,
+  ) =>
+    | Promise<BatchUpsertResult<ModelObject<M['model']>>>
+    | BatchUpsertResult<ModelObject<M['model']>>;
 }
 
 /**
  * Batch-upsert endpoint configuration.
  */
-export interface BatchUpsertEndpointConfig<M extends MetaInput> {
+export interface BatchUpsertEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   hooks?: BatchUpsertHooks<M>;
   bodySchema?: ZodObject<ZodRawShape>;
   /** Conflict-target column(s) for the upsert. String is normalized to single-element array. */
@@ -487,66 +521,71 @@ export interface BatchUpsertEndpointConfig<M extends MetaInput> {
  * non-listed formats) require an `allowedFormats` field on ExportEndpoint —
  * deferred.
  */
-export interface ExportEndpointConfig<_M extends MetaInput> {
+export interface ExportEndpointConfig<_M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   formats?: ('csv' | 'json')[];
   /** Maximum rows to export (maps to ExportEndpoint.maxExportRecords). */
   maxRows?: number;
 }
 
 /**
- * Import endpoint hooks.
+ * Import endpoint hooks. Both run once PER ROW: `before` receives the parsed
+ * row, its 1-based row number, the import mode and the transaction handle;
+ * `after` receives the per-row result, row number and mode.
  *
- * Hook callbacks delegate via `super.before/after`; ImportEndpoint does not
- * declare hook-mode protected fields, so `beforeMode`/`afterMode` are not part
- * of this surface.
+ * ImportEndpoint does not declare hook-mode protected fields, so
+ * `beforeMode`/`afterMode` are not part of this surface.
  */
 interface ImportHooks<M extends MetaInput> {
   before?: (
-    rows: ModelObject<M['model']>[],
+    row: Partial<ModelObject<M['model']>>,
+    rowNumber: number,
+    mode: ImportMode,
     tx?: unknown,
-  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+  ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
   after?: (
-    rows: ModelObject<M['model']>[],
-    tx?: unknown,
-  ) => Promise<ModelObject<M['model']>[]> | ModelObject<M['model']>[];
+    result: ImportRowResult<ModelObject<M['model']>>,
+    rowNumber: number,
+    mode: ImportMode,
+  ) => Promise<ImportRowResult<ModelObject<M['model']>>> | ImportRowResult<ModelObject<M['model']>>;
 }
 
 /**
  * Import endpoint configuration.
  */
-export interface ImportEndpointConfig<M extends MetaInput> {
+export interface ImportEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   hooks?: ImportHooks<M>;
   /** Maximum rows accepted per request (maps to ImportEndpoint.maxBatchSize). */
   maxRows?: number;
 }
 
 /**
- * Upsert endpoint hooks.
+ * Upsert endpoint hooks. The boolean second argument reports whether the
+ * operation is (`before`) / was (`after`) a create rather than an update.
  */
 interface UpsertHooks<M extends MetaInput> extends HookConfig {
   before?: (
-    data: ModelObject<M['model']>,
-    tx?: unknown,
-  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+    data: Partial<ModelObject<M['model']>>,
+    isCreate: boolean,
+  ) => Promise<Partial<ModelObject<M['model']>>> | Partial<ModelObject<M['model']>>;
   after?: (
     data: ModelObject<M['model']>,
-    tx?: unknown,
+    created: boolean,
   ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
 }
 
 /**
  * Upsert endpoint configuration.
  */
-export interface UpsertEndpointConfig<M extends MetaInput> {
+export interface UpsertEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   hooks?: UpsertHooks<M>;
   bodySchema?: ZodObject<ZodRawShape>;
   /** Conflict-target column(s) for the upsert. String is normalized to single-element array. */
@@ -554,65 +593,144 @@ export interface UpsertEndpointConfig<M extends MetaInput> {
 }
 
 /**
- * Clone endpoint hooks.
+ * Clone endpoint hooks. `before` receives (and may replace) the prepared
+ * clone payload — the source row minus primary keys and excluded fields,
+ * with body overrides applied; `after` receives the inserted clone.
  */
 interface CloneHooks<M extends MetaInput> {
-  before?: (sourceId: string, tx?: unknown) => Promise<void> | void;
-  after?: (cloned: ModelObject<M['model']>, tx?: unknown) => Promise<void> | void;
+  before?: (
+    data: ModelObject<M['model']>,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
+  after?: (
+    cloned: ModelObject<M['model']>,
+  ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
 }
 
 /**
  * Clone endpoint configuration.
  */
-export interface CloneEndpointConfig<M extends MetaInput> {
+export interface CloneEndpointConfig<M extends MetaInput, E extends Env = Env> {
   openapi?: OpenAPIConfig;
   /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler[];
+  middlewares?: MiddlewareHandler<E>[];
   hooks?: CloneHooks<M>;
   /** Field names to strip from the cloned record (maps to CloneEndpoint.excludeFromClone). */
   fieldsToReset?: string[];
 }
 
 /**
- * Complete endpoints configuration object.
+ * Bulk-patch endpoint configuration (`PATCH /resource/bulk` — patch every
+ * record matching a filter).
  */
-export interface EndpointsConfig<M extends MetaInput> {
+export interface BulkPatchEndpointConfig<_M extends MetaInput, E extends Env = Env> {
+  openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler<E>[];
+  /** Fields the client may filter the target set by (maps to BulkPatchEndpoint.filterFields). */
+  fields?: string[];
+  /** Maximum records patchable per request (maps to maxBulkSize, default 1000). */
+  maxBulkSize?: number;
+  /** Matched-count threshold requiring the `X-Confirm-Bulk: true` header (maps to confirmThreshold, default 100). */
+  confirmThreshold?: number;
+  /** Include the patched records in the response (maps to returnRecords, default false). */
+  returnRecords?: boolean;
+}
+
+/**
+ * Version-history endpoint configuration (`GET /:id/versions`).
+ * Requires `meta.model.versioning` to be configured.
+ */
+export interface VersionHistoryEndpointConfig<_M extends MetaInput, E extends Env = Env> {
+  openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler<E>[];
+  /** Default page size for the version list (maps to defaultLimit, default 20). */
+  defaultLimit?: number;
+  /** Maximum page size for the version list (maps to maxLimit, default 100). */
+  maxLimit?: number;
+}
+
+/**
+ * Single-version read endpoint configuration (`GET /:id/versions/:version`).
+ * Requires `meta.model.versioning` to be configured.
+ */
+export interface VersionReadEndpointConfig<_M extends MetaInput, E extends Env = Env> {
+  openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler<E>[];
+}
+
+/**
+ * Version-compare endpoint configuration (`GET /:id/versions/compare`).
+ * Requires `meta.model.versioning` to be configured.
+ */
+export interface VersionCompareEndpointConfig<_M extends MetaInput, E extends Env = Env> {
+  openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler<E>[];
+}
+
+/**
+ * Version-rollback endpoint configuration (`POST /:id/versions/:version/rollback`).
+ * Requires `meta.model.versioning` to be configured.
+ */
+export interface VersionRollbackEndpointConfig<_M extends MetaInput, E extends Env = Env> {
+  openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler<E>[];
+}
+
+/**
+ * Complete endpoints configuration object — one optional slot per
+ * `registerCrud` verb (all 22), plus the shared `meta`.
+ */
+export interface EndpointsConfig<M extends MetaInput, E extends Env = Env> {
   /** Meta configuration for the model */
   meta: M;
   /** Create endpoint configuration */
-  create?: CreateEndpointConfig<M>;
+  create?: CreateEndpointConfig<M, E>;
   /** List endpoint configuration */
-  list?: ListEndpointConfig<M>;
+  list?: ListEndpointConfig<M, E>;
   /** Read endpoint configuration */
-  read?: ReadEndpointConfig<M>;
+  read?: ReadEndpointConfig<M, E>;
   /** Update endpoint configuration */
-  update?: UpdateEndpointConfig<M>;
+  update?: UpdateEndpointConfig<M, E>;
   /** Delete endpoint configuration */
-  delete?: DeleteEndpointConfig<M>;
+  delete?: DeleteEndpointConfig<M, E>;
   /** Search endpoint configuration */
-  search?: SearchEndpointConfig<M>;
+  search?: SearchEndpointConfig<M, E>;
   /** Aggregate endpoint configuration */
-  aggregate?: AggregateEndpointConfig<M>;
+  aggregate?: AggregateEndpointConfig<M, E>;
   /** Restore endpoint configuration (un-delete soft-deleted records) */
-  restore?: RestoreEndpointConfig<M>;
+  restore?: RestoreEndpointConfig<M, E>;
   /** Batch-create endpoint configuration */
-  batchCreate?: BatchCreateEndpointConfig<M>;
+  batchCreate?: BatchCreateEndpointConfig<M, E>;
   /** Batch-update endpoint configuration */
-  batchUpdate?: BatchUpdateEndpointConfig<M>;
+  batchUpdate?: BatchUpdateEndpointConfig<M, E>;
   /** Batch-delete endpoint configuration */
-  batchDelete?: BatchDeleteEndpointConfig<M>;
+  batchDelete?: BatchDeleteEndpointConfig<M, E>;
   /** Batch-restore endpoint configuration */
-  batchRestore?: BatchRestoreEndpointConfig<M>;
+  batchRestore?: BatchRestoreEndpointConfig<M, E>;
   /** Batch-upsert endpoint configuration */
-  batchUpsert?: BatchUpsertEndpointConfig<M>;
+  batchUpsert?: BatchUpsertEndpointConfig<M, E>;
   /** Export endpoint configuration */
-  export?: ExportEndpointConfig<M>;
+  export?: ExportEndpointConfig<M, E>;
   /** Import endpoint configuration */
-  import?: ImportEndpointConfig<M>;
+  import?: ImportEndpointConfig<M, E>;
   /** Upsert endpoint configuration */
-  upsert?: UpsertEndpointConfig<M>;
+  upsert?: UpsertEndpointConfig<M, E>;
   /** Clone endpoint configuration */
-  clone?: CloneEndpointConfig<M>;
+  clone?: CloneEndpointConfig<M, E>;
+  /** Bulk-patch endpoint configuration (PATCH a filtered set at the collection level) */
+  bulkPatch?: BulkPatchEndpointConfig<M, E>;
+  /** Version-history list endpoint configuration (`GET /:id/versions`) */
+  versionHistory?: VersionHistoryEndpointConfig<M, E>;
+  /** Single-version read endpoint configuration (`GET /:id/versions/:version`) */
+  versionRead?: VersionReadEndpointConfig<M, E>;
+  /** Version-compare endpoint configuration (`GET /:id/versions/compare`) */
+  versionCompare?: VersionCompareEndpointConfig<M, E>;
+  /** Version-rollback endpoint configuration (`POST /:id/versions/:version/rollback`) */
+  versionRollback?: VersionRollbackEndpointConfig<M, E>;
 }
 
 /**
@@ -624,8 +742,10 @@ export interface AdapterBundle<E extends Env = Env> {
   ReadEndpoint: abstract new () => OpenAPIRoute<E>;
   UpdateEndpoint: abstract new () => OpenAPIRoute<E>;
   DeleteEndpoint: abstract new () => OpenAPIRoute<E>;
-  // Optional extended-verb slots — adapters populate what they implement;
-  // dispatch arms gate on both `config.<verb>` and adapter presence.
+  // Optional extended-verb slots — adapters populate what they implement.
+  // Slot presence IS the capability signal: configuring a verb whose slot is
+  // absent makes `defineEndpoints` throw at definition time (loud failure
+  // instead of a silently missing route).
   SearchEndpoint?: abstract new () => OpenAPIRoute<E>;
   AggregateEndpoint?: abstract new () => OpenAPIRoute<E>;
   RestoreEndpoint?: abstract new () => OpenAPIRoute<E>;
@@ -638,46 +758,82 @@ export interface AdapterBundle<E extends Env = Env> {
   ImportEndpoint?: abstract new () => OpenAPIRoute<E>;
   UpsertEndpoint?: abstract new () => OpenAPIRoute<E>;
   CloneEndpoint?: abstract new () => OpenAPIRoute<E>;
+  BulkPatchEndpoint?: abstract new () => OpenAPIRoute<E>;
+  VersionHistoryEndpoint?: abstract new () => OpenAPIRoute<E>;
+  VersionReadEndpoint?: abstract new () => OpenAPIRoute<E>;
+  VersionCompareEndpoint?: abstract new () => OpenAPIRoute<E>;
+  VersionRollbackEndpoint?: abstract new () => OpenAPIRoute<E>;
 }
 
 /**
  * Generated endpoints object compatible with registerCrud.
+ *
+ * Derived as a `Pick` over `CrudEndpoints` keyed by the config slots, so it
+ * is structurally guaranteed to stay a subset of what `registerCrud` accepts
+ * — the two can never drift again.
  */
-export interface GeneratedEndpoints<E extends Env = Env> {
-  create?: EndpointClass<E>;
-  list?: EndpointClass<E>;
-  read?: EndpointClass<E>;
-  update?: EndpointClass<E>;
-  delete?: EndpointClass<E>;
-  search?: EndpointClass<E>;
-  aggregate?: EndpointClass<E>;
-  restore?: EndpointClass<E>;
-  batchCreate?: EndpointClass<E>;
-  batchUpdate?: EndpointClass<E>;
-  batchDelete?: EndpointClass<E>;
-  batchRestore?: EndpointClass<E>;
-  batchUpsert?: EndpointClass<E>;
-  export?: EndpointClass<E>;
-  import?: EndpointClass<E>;
-  upsert?: EndpointClass<E>;
-  clone?: EndpointClass<E>;
-}
+export type GeneratedEndpoints<E extends Env = Env> = Pick<
+  CrudEndpoints<E>,
+  Exclude<keyof EndpointsConfig<MetaInput>, 'meta'>
+>;
 
 // ============================================================================
-// Memory Adapters Bundle
+// Adapter slot lookup
 // ============================================================================
 
 /**
- * Memory adapter bundle for use with defineEndpoints.
- *
- * @example
- * ```ts
- * const userEndpoints = defineEndpoints({ meta: userMeta, ... }, MemoryAdapters);
- * ```
+ * Extended verb → adapter-bundle slot lookup map. The 5 basic verbs are
+ * required on every bundle and need no gate.
  */
+const EXTENDED_VERB_SLOTS = {
+  search: 'SearchEndpoint',
+  aggregate: 'AggregateEndpoint',
+  restore: 'RestoreEndpoint',
+  batchCreate: 'BatchCreateEndpoint',
+  batchUpdate: 'BatchUpdateEndpoint',
+  batchDelete: 'BatchDeleteEndpoint',
+  batchRestore: 'BatchRestoreEndpoint',
+  batchUpsert: 'BatchUpsertEndpoint',
+  export: 'ExportEndpoint',
+  import: 'ImportEndpoint',
+  upsert: 'UpsertEndpoint',
+  clone: 'CloneEndpoint',
+  bulkPatch: 'BulkPatchEndpoint',
+  versionHistory: 'VersionHistoryEndpoint',
+  versionRead: 'VersionReadEndpoint',
+  versionCompare: 'VersionCompareEndpoint',
+  versionRollback: 'VersionRollbackEndpoint',
+} as const satisfies Record<string, keyof AdapterBundle>;
+
+type ExtendedVerb = keyof typeof EXTENDED_VERB_SLOTS;
+
+/**
+ * Resolves the adapter base class for a configured extended verb, throwing a
+ * plain setup-time `Error` (fail-fast at boot, per the error-split doctrine)
+ * when the bundle does not ship the matching class. Explicit configuration
+ * deserves explicit failure — the previous behavior silently skipped the
+ * verb, surfacing only as production 404s.
+ */
+function requireAdapter<E extends Env>(
+  adapters: AdapterBundle<E>,
+  verb: ExtendedVerb,
+): abstract new () => OpenAPIRoute<E> {
+  const slot = EXTENDED_VERB_SLOTS[verb];
+  const BaseClass = adapters[slot];
+  if (!BaseClass) {
+    throw new Error(
+      `defineEndpoints: "${verb}" is configured but the adapter bundle has no ${slot}. ` +
+        `Use an adapter bundle that ships ${slot}, or remove the "${verb}" config.`,
+    );
+  }
+  return BaseClass;
+}
+
 // ============================================================================
 // defineEndpoints Function
 // ============================================================================
+
+type AnyHook = ((...args: unknown[]) => unknown) | undefined;
 
 /**
  * Creates endpoint classes from a declarative configuration object.
@@ -713,7 +869,7 @@ export interface GeneratedEndpoints<E extends Env = Env> {
  * ```
  */
 export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
-  config: EndpointsConfig<M>,
+  config: EndpointsConfig<M, E>,
   adapters: AdapterBundle<E>,
 ): GeneratedEndpoints<E> {
   const result: GeneratedEndpoints<E> = {};
@@ -724,13 +880,13 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.create = generateEndpointClass(adapters.CreateEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       bodySchema: cfg.bodySchema,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
       allowNestedCreate: cfg.nestedCreate,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
     });
   }
 
@@ -740,11 +896,11 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.list = generateEndpointClass(adapters.ListEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       filterFields: cfg.filtering?.fields,
       filterConfig: cfg.filtering?.config,
       searchFields: cfg.search?.fields,
-      searchFieldName: cfg.search?.paramName,
+      searchParamName: cfg.search?.paramName,
       sortFields: cfg.sorting?.fields,
       defaultSort: cfg.sorting?.default
         ? {
@@ -760,8 +916,8 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       blockedSelectFields: cfg.fieldSelection?.blocked,
       alwaysIncludeFields: cfg.fieldSelection?.alwaysInclude,
       defaultSelectFields: cfg.fieldSelection?.defaults,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      transform: cfg.hooks?.transform as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as AnyHook,
+      transform: cfg.hooks?.transform as AnyHook,
     });
   }
 
@@ -771,7 +927,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.read = generateEndpointClass(adapters.ReadEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       lookupField: cfg.lookupField,
       additionalFilters: cfg.additionalFilters,
       allowedIncludes: cfg.includes,
@@ -780,8 +936,8 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       blockedSelectFields: cfg.fieldSelection?.blocked,
       alwaysIncludeFields: cfg.fieldSelection?.alwaysInclude,
       defaultSelectFields: cfg.fieldSelection?.defaults,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      transform: cfg.hooks?.transform as ((...args: unknown[]) => unknown) | undefined,
+      after: cfg.hooks?.after as AnyHook,
+      transform: cfg.hooks?.transform as AnyHook,
     });
   }
 
@@ -791,7 +947,7 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.update = generateEndpointClass(adapters.UpdateEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       bodySchema: cfg.bodySchema,
       lookupField: cfg.lookupField,
       additionalFilters: cfg.additionalFilters,
@@ -800,9 +956,9 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       allowNestedWrites: cfg.nestedWrites,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
-      transform: cfg.hooks?.transform as ((...args: unknown[]) => unknown) | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
+      transform: cfg.hooks?.transform as AnyHook,
     });
   }
 
@@ -812,216 +968,282 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
     result.delete = generateEndpointClass(adapters.DeleteEndpoint, {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       lookupField: cfg.lookupField,
       additionalFilters: cfg.additionalFilters,
       includeCascadeResults: cfg.includeCascadeResults,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
     });
   }
 
   // ----- Extended-verb dispatch arms -----
-  // Each arm fires only when both the config slot is present AND the adapter
-  // bundle ships the matching endpoint base class.
+  // Each arm fires when the config slot is present; a missing adapter slot is
+  // a loud setup-time error (see `requireAdapter`), never a silent skip.
 
   // Generate Search endpoint
-  if (config.search !== undefined && adapters.SearchEndpoint) {
+  if (config.search !== undefined) {
     const cfg = config.search;
     const extras: SearchExtras = {};
     if (cfg.fields !== undefined) extras.searchFields = cfg.fields;
     if (cfg.mode !== undefined) extras.defaultMode = cfg.mode;
     if (cfg.paramName !== undefined) extras.searchParamName = cfg.paramName;
-    result.search = generateEndpointClass(adapters.SearchEndpoint, {
+    // SearchEndpoint's lifecycle hook is `afterSearch` (not `after`), so the
+    // hook is wired through extras — the previous `after` pass-through never
+    // fired.
+    if (cfg.hooks?.after !== undefined) extras.afterSearch = cfg.hooks.after;
+    result.search = generateEndpointClass(requireAdapter(adapters, 'search'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       extras,
     });
   }
 
   // Generate Aggregate endpoint
-  if (config.aggregate !== undefined && adapters.AggregateEndpoint) {
+  if (config.aggregate !== undefined) {
     const cfg = config.aggregate;
     const extras: AggregateExtras = {};
     if (cfg.fields !== undefined) extras.filterFields = cfg.fields;
-    result.aggregate = generateEndpointClass(adapters.AggregateEndpoint, {
+    result.aggregate = generateEndpointClass(requireAdapter(adapters, 'aggregate'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
+      after: cfg.hooks?.after as AnyHook,
       extras,
     });
   }
 
   // Generate Restore endpoint
-  if (config.restore !== undefined && adapters.RestoreEndpoint) {
+  if (config.restore !== undefined) {
     const cfg = config.restore;
-    result.restore = generateEndpointClass(adapters.RestoreEndpoint, {
+    result.restore = generateEndpointClass(requireAdapter(adapters, 'restore'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
     });
   }
 
   // Generate BatchCreate endpoint
-  if (config.batchCreate !== undefined && adapters.BatchCreateEndpoint) {
+  if (config.batchCreate !== undefined) {
     const cfg = config.batchCreate;
     const extras: BatchExtras = {};
     if (cfg.maxBatchSize !== undefined) extras.maxBatchSize = cfg.maxBatchSize;
-    result.batchCreate = generateEndpointClass(adapters.BatchCreateEndpoint, {
+    result.batchCreate = generateEndpointClass(requireAdapter(adapters, 'batchCreate'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       bodySchema: cfg.bodySchema,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
       extras,
     });
   }
 
   // Generate BatchUpdate endpoint
-  if (config.batchUpdate !== undefined && adapters.BatchUpdateEndpoint) {
+  if (config.batchUpdate !== undefined) {
     const cfg = config.batchUpdate;
     const extras: BatchExtras = {};
     if (cfg.maxBatchSize !== undefined) extras.maxBatchSize = cfg.maxBatchSize;
-    result.batchUpdate = generateEndpointClass(adapters.BatchUpdateEndpoint, {
+    result.batchUpdate = generateEndpointClass(requireAdapter(adapters, 'batchUpdate'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
       extras,
     });
   }
 
   // Generate BatchDelete endpoint
-  if (config.batchDelete !== undefined && adapters.BatchDeleteEndpoint) {
+  if (config.batchDelete !== undefined) {
     const cfg = config.batchDelete;
     const extras: BatchExtras = {};
     if (cfg.maxBatchSize !== undefined) extras.maxBatchSize = cfg.maxBatchSize;
-    result.batchDelete = generateEndpointClass(adapters.BatchDeleteEndpoint, {
+    result.batchDelete = generateEndpointClass(requireAdapter(adapters, 'batchDelete'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
       extras,
     });
   }
 
   // Generate BatchRestore endpoint
-  if (config.batchRestore !== undefined && adapters.BatchRestoreEndpoint) {
+  if (config.batchRestore !== undefined) {
     const cfg = config.batchRestore;
     const extras: BatchExtras = {};
     if (cfg.maxBatchSize !== undefined) extras.maxBatchSize = cfg.maxBatchSize;
-    result.batchRestore = generateEndpointClass(adapters.BatchRestoreEndpoint, {
+    result.batchRestore = generateEndpointClass(requireAdapter(adapters, 'batchRestore'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
       extras,
     });
   }
 
   // Generate BatchUpsert endpoint
-  if (config.batchUpsert !== undefined && adapters.BatchUpsertEndpoint) {
+  if (config.batchUpsert !== undefined) {
     const cfg = config.batchUpsert;
     const upsertKeys =
       typeof cfg.conflictTarget === 'string' ? [cfg.conflictTarget] : cfg.conflictTarget;
     const extras: BatchUpsertExtras = {};
     if (cfg.maxBatchSize !== undefined) extras.maxBatchSize = cfg.maxBatchSize;
     if (upsertKeys !== undefined) extras.upsertKeys = upsertKeys;
-    result.batchUpsert = generateEndpointClass(adapters.BatchUpsertEndpoint, {
+    // BatchUpsertEndpoint's lifecycle hooks are `beforeBatch`/`afterBatch`
+    // (not `before`/`after`), so the hooks are wired through extras — the
+    // previous `before`/`after` pass-through never fired.
+    if (cfg.hooks?.before !== undefined) extras.beforeBatch = cfg.hooks.before;
+    if (cfg.hooks?.after !== undefined) extras.afterBatch = cfg.hooks.after;
+    result.batchUpsert = generateEndpointClass(requireAdapter(adapters, 'batchUpsert'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       bodySchema: cfg.bodySchema,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
       extras,
     });
   }
 
   // Generate Export endpoint
-  if (config.export !== undefined && adapters.ExportEndpoint) {
+  if (config.export !== undefined) {
     const cfg = config.export;
     const extras: ExportExtras = {};
     if (cfg.maxRows !== undefined) extras.maxExportRecords = cfg.maxRows;
     if (cfg.formats !== undefined && cfg.formats.length > 0) extras.defaultFormat = cfg.formats[0];
-    result.export = generateEndpointClass(adapters.ExportEndpoint, {
+    result.export = generateEndpointClass(requireAdapter(adapters, 'export'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       extras,
     });
   }
 
   // Generate Import endpoint
-  if (config.import !== undefined && adapters.ImportEndpoint) {
+  if (config.import !== undefined) {
     const cfg = config.import;
     const extras: ImportExtras = {};
     if (cfg.maxRows !== undefined) extras.maxBatchSize = cfg.maxRows;
-    result.import = generateEndpointClass(adapters.ImportEndpoint, {
+    result.import = generateEndpointClass(requireAdapter(adapters, 'import'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
       extras,
     });
   }
 
   // Generate Upsert endpoint
-  if (config.upsert !== undefined && adapters.UpsertEndpoint) {
+  if (config.upsert !== undefined) {
     const cfg = config.upsert;
     const upsertKeys =
       typeof cfg.conflictTarget === 'string' ? [cfg.conflictTarget] : cfg.conflictTarget;
     const extras: UpsertExtras = {};
     if (upsertKeys !== undefined) extras.upsertKeys = upsertKeys;
-    result.upsert = generateEndpointClass(adapters.UpsertEndpoint, {
+    result.upsert = generateEndpointClass(requireAdapter(adapters, 'upsert'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
       bodySchema: cfg.bodySchema,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
       extras,
     });
   }
 
   // Generate Clone endpoint
-  if (config.clone !== undefined && adapters.CloneEndpoint) {
+  if (config.clone !== undefined) {
     const cfg = config.clone;
     const extras: CloneExtras = {};
     if (cfg.fieldsToReset !== undefined) extras.excludeFromClone = cfg.fieldsToReset;
-    result.clone = generateEndpointClass(adapters.CloneEndpoint, {
+    result.clone = generateEndpointClass(requireAdapter(adapters, 'clone'), {
       meta: config.meta,
       schema: cfg.openapi,
-      middlewares: cfg.middlewares,
-      before: cfg.hooks?.before as ((...args: unknown[]) => unknown) | undefined,
-      after: cfg.hooks?.after as ((...args: unknown[]) => unknown) | undefined,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
+      before: cfg.hooks?.before as AnyHook,
+      after: cfg.hooks?.after as AnyHook,
       extras,
+    });
+  }
+
+  // Generate BulkPatch endpoint
+  if (config.bulkPatch !== undefined) {
+    const cfg = config.bulkPatch;
+    const extras: BulkPatchExtras = {};
+    if (cfg.fields !== undefined) extras.filterFields = cfg.fields;
+    if (cfg.maxBulkSize !== undefined) extras.maxBulkSize = cfg.maxBulkSize;
+    if (cfg.confirmThreshold !== undefined) extras.confirmThreshold = cfg.confirmThreshold;
+    if (cfg.returnRecords !== undefined) extras.returnRecords = cfg.returnRecords;
+    result.bulkPatch = generateEndpointClass(requireAdapter(adapters, 'bulkPatch'), {
+      meta: config.meta,
+      schema: cfg.openapi,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
+      extras,
+    });
+  }
+
+  // Generate VersionHistory endpoint
+  if (config.versionHistory !== undefined) {
+    const cfg = config.versionHistory;
+    const extras: VersionHistoryExtras = {};
+    if (cfg.defaultLimit !== undefined) extras.defaultLimit = cfg.defaultLimit;
+    if (cfg.maxLimit !== undefined) extras.maxLimit = cfg.maxLimit;
+    result.versionHistory = generateEndpointClass(requireAdapter(adapters, 'versionHistory'), {
+      meta: config.meta,
+      schema: cfg.openapi,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
+      extras,
+    });
+  }
+
+  // Generate VersionRead endpoint
+  if (config.versionRead !== undefined) {
+    const cfg = config.versionRead;
+    result.versionRead = generateEndpointClass(requireAdapter(adapters, 'versionRead'), {
+      meta: config.meta,
+      schema: cfg.openapi,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
+    });
+  }
+
+  // Generate VersionCompare endpoint
+  if (config.versionCompare !== undefined) {
+    const cfg = config.versionCompare;
+    result.versionCompare = generateEndpointClass(requireAdapter(adapters, 'versionCompare'), {
+      meta: config.meta,
+      schema: cfg.openapi,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
+    });
+  }
+
+  // Generate VersionRollback endpoint
+  if (config.versionRollback !== undefined) {
+    const cfg = config.versionRollback;
+    result.versionRollback = generateEndpointClass(requireAdapter(adapters, 'versionRollback'), {
+      meta: config.meta,
+      schema: cfg.openapi,
+      middlewares: cfg.middlewares as MiddlewareHandler[] | undefined,
     });
   }
 

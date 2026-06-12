@@ -16,6 +16,39 @@
  */
 
 import { type ZodObject, type ZodRawShape, type ZodType, z } from 'zod';
+import type { OpenAPIRouteSchema } from '../core/types';
+
+/**
+ * Merge a user-supplied route-schema fragment OVER the endpoint-generated
+ * schema. The single seam every endpoint `getSchema()` goes through, so a
+ * consumer-supplied `schema` genuinely overrides the generated blocks on all
+ * four definition surfaces (class / functional / builder / config):
+ *
+ * - Top-level fields (`tags`, `summary`, `description`, `security`,
+ *   `operationId`, ...) — user value wins when present.
+ * - `request` — merged per slot (`body`/`query`/`params`/...); a user slot
+ *   replaces the generated slot, untouched generated slots survive.
+ * - `responses` — merged per status code; a user status replaces the
+ *   generated response for that status, other generated statuses survive.
+ *
+ * Previously every endpoint spread `...this.schema` FIRST and then assigned
+ * generated `request`/`responses`, silently discarding user overrides for
+ * those two blocks.
+ */
+export function mergeRouteSchema(
+  generated: OpenAPIRouteSchema,
+  override: OpenAPIRouteSchema | undefined,
+): OpenAPIRouteSchema {
+  const user = override ?? {};
+  const merged: OpenAPIRouteSchema = { ...generated, ...user };
+  if (generated.request || user.request) {
+    merged.request = { ...generated.request, ...user.request };
+  }
+  if (generated.responses || user.responses) {
+    merged.responses = { ...generated.responses, ...user.responses };
+  }
+  return merged;
+}
 
 /** The error-envelope Zod object: `{ success: false, error: {...} }`. */
 export function errorResponseZodSchema(): ZodObject<{

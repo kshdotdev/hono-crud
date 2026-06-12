@@ -10,7 +10,7 @@ import type {
 } from '../core/types';
 import { SORT_DIRECTIONS } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import {
   type ListFilterParseOptions,
   type ListFilters,
@@ -37,8 +37,15 @@ export abstract class ListEndpoint<
   protected filterConfig?: FilterConfig;
 
   // Search configuration
+  /** Model fields the inline `?search=` matches against. */
   protected searchFields: string[] = [];
-  protected searchFieldName = 'search';
+  /**
+   * Query parameter name carrying the inline-search string. Defaults to
+   * `'search'`. Deliberately diverges from the dedicated `/search` route
+   * (`SearchEndpoint.searchParamName`, default `'q'`) — both are idiomatic
+   * for their respective endpoints.
+   */
+  protected searchParamName = 'search';
 
   // Sorting configuration
   /** Fields that can be used for sorting. Use with ?sort=fieldName */
@@ -156,7 +163,7 @@ export abstract class ListEndpoint<
     }
 
     if (this.searchFields.length > 0) {
-      shape[this.searchFieldName] = z.string().optional();
+      shape[this.searchParamName] = z.string().optional();
     }
 
     // Add filter fields
@@ -264,27 +271,29 @@ export abstract class ListEndpoint<
       resultInfoShape.next_cursor = z.string().optional();
     }
 
-    return {
-      ...this.schema,
-      request: {
-        query: this.getQuerySchema(),
-      },
-      responses: {
-        200: {
-          description: 'List of resources',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.array(this.getModelSchema()),
-                result_info: z.object(resultInfoShape),
-              }),
+    return mergeRouteSchema(
+      {
+        request: {
+          query: this.getQuerySchema(),
+        },
+        responses: {
+          200: {
+            description: 'List of resources',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: z.array(this.getModelSchema()),
+                  result_info: z.object(resultInfoShape),
+                }),
+              },
             },
           },
+          400: errorResponseSchema('Validation error'),
         },
-        400: errorResponseSchema('Validation error'),
       },
-    };
+      this.schema,
+    );
   }
 
   /**
@@ -298,7 +307,7 @@ export abstract class ListEndpoint<
       filterFields: this.filterFields,
       filterConfig: this.filterConfig,
       searchFields: this.searchFields,
-      searchFieldName: this.searchFieldName,
+      searchParamName: this.searchParamName,
       sortFields: this.sortFields,
       defaultSort: this.defaultSort,
       defaultPerPage: this.defaultPerPage,

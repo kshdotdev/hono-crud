@@ -13,7 +13,7 @@ import type {
   RelationConfig,
 } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { errorResponseSchema, mergeRouteSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -294,46 +294,48 @@ export abstract class UpsertEndpoint<
    * Generates OpenAPI schema from meta configuration.
    */
   getSchema(): OpenAPIRouteSchema {
-    return {
-      ...this.schema,
-      request: {
-        body: {
-          content: {
-            'application/json': {
-              schema: this.getBodySchema(),
+    return mergeRouteSchema(
+      {
+        request: {
+          body: {
+            content: {
+              'application/json': {
+                schema: this.getBodySchema(),
+              },
+            },
+            required: true,
+          },
+        },
+        responses: {
+          200: {
+            description: 'Resource updated (upsert)',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: this.getModelSchema(),
+                  created: z.literal(false),
+                }),
+              },
             },
           },
-          required: true,
+          201: {
+            description: 'Resource created (upsert)',
+            content: {
+              'application/json': {
+                schema: z.object({
+                  success: z.literal(true),
+                  result: this.getModelSchema(),
+                  created: z.literal(true),
+                }),
+              },
+            },
+          },
+          400: errorResponseSchema('Validation error'),
         },
       },
-      responses: {
-        200: {
-          description: 'Resource updated (upsert)',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: this.getModelSchema(),
-                created: z.literal(false),
-              }),
-            },
-          },
-        },
-        201: {
-          description: 'Resource created (upsert)',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: this.getModelSchema(),
-                created: z.literal(true),
-              }),
-            },
-          },
-        },
-        400: errorResponseSchema('Validation error'),
-      },
-    };
+      this.schema,
+    );
   }
 
   /**

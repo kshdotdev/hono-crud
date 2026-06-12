@@ -17,6 +17,7 @@ import {
   DrizzleBatchCreateEndpoint,
   DrizzleBatchDeleteEndpoint,
   DrizzleBatchUpsertEndpoint,
+  DrizzleBulkPatchEndpoint,
   DrizzleCreateEndpoint,
   type DrizzleDatabaseConstraint,
   DrizzleDeleteEndpoint,
@@ -161,6 +162,11 @@ class ItemBatchUpsert extends DrizzleBatchUpsertEndpoint {
   db = DB;
   protected override upsertKeys = ['email'];
 }
+class ItemBulkPatch extends DrizzleBulkPatchEndpoint {
+  _meta = baseMeta;
+  db = DB;
+  protected override filterFields = ['role'];
+}
 class CursorItemList extends DrizzleListEndpoint {
   _meta = baseMeta;
   db = DB;
@@ -286,6 +292,7 @@ async function setup(): Promise<AdapterContext> {
     upsert: ItemUpsert,
     batchCreate: ItemBatchCreate,
     batchUpsert: ItemBatchUpsert,
+    bulkPatch: ItemBulkPatch,
   });
   registerCrud(app, '/tenant-items', {
     create: TenantCreate,
