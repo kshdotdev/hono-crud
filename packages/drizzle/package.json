@@ -48,19 +48,18 @@
   "publishConfig": {
     "access": "public"
   },
-  "dependencies": {
-    "hono-crud": "workspace:*"
-  },
   "peerDependencies": {
     "drizzle-orm": ">=0.30.0",
     "drizzle-zod": ">=0.8.0",
     "hono": ">=4.11.7 <5",
+    "hono-crud": "workspace:^",
     "zod": ">=4.0.0"
   },
   "devDependencies": {
     "drizzle-orm": "^0.45.1",
     "drizzle-zod": "^0.8.3",
-    "hono": "^4.11.4",
+    "hono": "^4.11.7",
+    "hono-crud": "workspace:*",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",
     "zod": "^4.3.5"

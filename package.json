@@ -66,7 +66,7 @@
     "@types/pluralize": "^0.0.33",
     "drizzle-orm": "^0.45.1",
     "drizzle-zod": "^0.8.3",
-    "hono": "^4.11.4",
+    "hono": "^4.11.7",
     "hono-crud": "workspace:*",
     "pg": "^8.17.2",
     "prisma": "^7.2.0",

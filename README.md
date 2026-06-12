@@ -40,7 +40,7 @@ Install the core package plus the adapter you need (and Swagger UI, if you want 
 npm install hono-crud @hono-crud/memory @hono-crud/swagger hono zod
 ```
 
-Peer dependencies: `hono >= 4.0.0` and `zod >= 4.0.0` are required.
+Peer dependencies: `hono >= 4.11.7 <5` and `zod >= 4.0.0` are required.
 
 ## Packages
 
@@ -497,7 +497,7 @@ See the [examples/](./examples) directory for complete working applications:
 
 ## Requirements
 
-- Node.js >= 20
+- Node.js >= 20.19
 - TypeScript >= 5.0
 
 ## License

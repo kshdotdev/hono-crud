@@ -49,14 +49,13 @@
   "publishConfig": {
     "access": "public"
   },
-  "dependencies": {
-    "hono-crud": "workspace:*"
-  },
   "peerDependencies": {
-    "hono": ">=4.11.7 <5"
+    "hono": ">=4.11.7 <5",
+    "hono-crud": "workspace:^"
   },
   "devDependencies": {
-    "hono": "^4.11.4",
+    "hono": "^4.11.7",
+    "hono-crud": "workspace:*",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3"
   }
