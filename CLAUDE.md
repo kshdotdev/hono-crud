@@ -20,6 +20,23 @@ The Drizzle adapter uses a two-tier type system (packages/drizzle/src/helpers.ts
    unknown database instance to `Database<Row>` for internal method calls.
 This pattern avoids coupling to specific Drizzle versions while maintaining internal type safety.
 
+## Adapter Behavior Rules
+
+1. **Post-response async work always goes through `runAfterResponse`/`getWaitUntil`** — never
+   bare fire-and-forget. On Cloudflare Workers the runtime kills pending promises when the
+   response returns; a `.then`/`.catch` chain alone silently drops the work.
+2. **Any change to adapter-visible behavior must add or modify a `tests/conformance/` cell in
+   the same PR.** Cells assert exact behavior (status codes, error envelopes) or a loud
+   unsupported-capability rejection — never a silent skip. The conformance suite is the ratchet
+   that keeps memory/drizzle/prisma from drifting apart.
+3. **Upsert family (upsert / import / batchUpsert) is match-and-restore**: `findExisting`
+   matches soft-deleted rows; the core orchestrator clears the soft-delete field on update via
+   `applyUpsertRestore`. Adapters share one `findByUpsertKeys` helper each. Native SQL upsert
+   paths (Drizzle ON CONFLICT) document their divergence instead of pretending to comply.
+4. **like/ilike contract** (defined on `FILTER_OPERATORS`): user value is a literal needle —
+   `%` stripped, `_` inert, never live SQL wildcards. `like` follows database collation case
+   behavior (strict in memory); `ilike` is always case-insensitive.
+
 ## Naming Doctrine
 
 1. `create<Feature>Middleware()` — app.use-style cross-cutting middleware factories.

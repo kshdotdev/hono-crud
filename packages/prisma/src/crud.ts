@@ -13,6 +13,7 @@ import {
   buildPaginatedResult,
   executePrismaQuery,
   getPrismaModel,
+  getPrismaTransaction,
   loadPrismaRelations,
 } from './helpers';
 import { getPrismaClient } from './connection';
@@ -29,6 +30,27 @@ export abstract class PrismaCreateEndpoint<
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
     return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+  }
+
+  /**
+   * Override handle to wrap in transaction when useTransaction is true.
+   * `this._tx` is resolved first by getPrismaClient, so every model access
+   * inside the verb runs on the transaction client.
+   */
+  override async handle(): Promise<Response> {
+    if (!this.useTransaction) {
+      return super.handle();
+    }
+
+    // Execute the entire operation within a transaction
+    return getPrismaTransaction(getPrismaClient(this))(async (tx) => {
+      this._tx = tx;
+      try {
+        return await super.handle();
+      } finally {
+        this._tx = undefined;
+      }
+    });
   }
 
   override async create(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
@@ -106,6 +128,27 @@ export abstract class PrismaUpdateEndpoint<
   }
 
   /**
+   * Override handle to wrap in transaction when useTransaction is true.
+   * `this._tx` is resolved first by getPrismaClient, so every model access
+   * inside the verb runs on the transaction client.
+   */
+  override async handle(): Promise<Response> {
+    if (!this.useTransaction) {
+      return super.handle();
+    }
+
+    // Execute the entire operation within a transaction
+    return getPrismaTransaction(getPrismaClient(this))(async (tx) => {
+      this._tx = tx;
+      try {
+        return await super.handle();
+      } finally {
+        this._tx = undefined;
+      }
+    });
+  }
+
+  /**
    * Finds an existing record for audit logging (before update).
    */
   protected override async findExisting(
@@ -165,6 +208,27 @@ export abstract class PrismaDeleteEndpoint<
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
     return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+  }
+
+  /**
+   * Override handle to wrap in transaction when useTransaction is true.
+   * `this._tx` is resolved first by getPrismaClient, so every model access
+   * inside the verb runs on the transaction client.
+   */
+  override async handle(): Promise<Response> {
+    if (!this.useTransaction) {
+      return super.handle();
+    }
+
+    // Execute the entire operation within a transaction
+    return getPrismaTransaction(getPrismaClient(this))(async (tx) => {
+      this._tx = tx;
+      try {
+        return await super.handle();
+      } finally {
+        this._tx = undefined;
+      }
+    });
   }
 
   /**

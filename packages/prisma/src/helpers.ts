@@ -143,10 +143,10 @@ function filterToPrismaValue(filter: FilterCondition): unknown {
       return { notIn: arr.map(coerceValue) };
     }
     case 'like':
-      return { contains: String(filter.value).replace(/%/g, '') };
+      return { contains: escapeLikeWildcards(String(filter.value).replace(/%/g, '')) };
     case 'ilike':
       return {
-        contains: String(filter.value).replace(/%/g, ''),
+        contains: escapeLikeWildcards(String(filter.value).replace(/%/g, '')),
         mode: 'insensitive',
       };
     case 'null':
@@ -595,4 +595,18 @@ export async function findByUpsertKeys<Row>(
 
   const result = await model.findFirst({ where });
   return result ?? null;
+}
+
+/**
+ * Escape LIKE wildcard characters so a user-supplied needle reaches
+ * Prisma's `contains` as literal text.
+ *
+ * Despite docs suggesting `contains` is a literal substring match, it
+ * compiles to SQL LIKE without escaping user input — `_` (and `%`) act as
+ * live single/multi-char wildcards (verified against Postgres 16 via
+ * @prisma/adapter-pg). Backslash is escaped first so pre-existing
+ * backslashes can't un-escape the wildcard escapes.
+ */
+export function escapeLikeWildcards(needle: string): string {
+  return needle.replace(/\\/g, '\\\\').replace(/[%_]/g, (match) => `\\${match}`);
 }

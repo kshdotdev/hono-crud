@@ -28,9 +28,9 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hono_crud?schema=public
-
+    # DATABASE_URL is scoped to the Postgres-backed step (not job-wide) so the
+    # unit-test step's conformance run skips the prisma leg instead of hitting
+    # a database that prisma:push hasn't prepared yet.
     steps:
       - uses: actions/checkout@v6
 
@@ -60,8 +60,10 @@ jobs:
       - name: Unit tests
         run: pnpm run test:unit
 
-      - name: Example tests (Postgres)
+      - name: Example + conformance tests (Postgres)
         run: pnpm run test:examples
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hono_crud?schema=public
 
       - name: Workers tests (miniflare)
         run: pnpm run test:workers

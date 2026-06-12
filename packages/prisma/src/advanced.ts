@@ -33,6 +33,7 @@ import {
   buildPaginatedResult,
   buildPrismaWhere,
   executePrismaQuery,
+  escapeLikeWildcards,
   findByUpsertKeys,
   getPrismaModel,
 } from './helpers';
@@ -75,9 +76,10 @@ export abstract class PrismaSearchEndpoint<
 
     // Build search conditions.
     //
-    // SECURITY: Prisma's `contains` is a literal substring match — it does
-    // NOT interpret SQL LIKE wildcards (`%`, `_`) from user input, so no
-    // additional escaping is required at this layer.
+    // SECURITY: Prisma's `contains` compiles to SQL LIKE WITHOUT escaping
+    // user input — `%`/`_` act as live wildcards (verified against Postgres
+    // via @prisma/adapter-pg), so needles are escaped via
+    // escapeLikeWildcards to stay literal, matching memory/drizzle search.
     //
     // mode='all' uses token-AND across fields: each query token must appear
     // in AT LEAST ONE configured field. The prior implementation required
@@ -88,7 +90,7 @@ export abstract class PrismaSearchEndpoint<
 
     const fieldContains = (field: string, needle: string) => ({
       [field]: {
-        contains: needle,
+        contains: escapeLikeWildcards(needle),
         mode: 'insensitive',
       },
     });
