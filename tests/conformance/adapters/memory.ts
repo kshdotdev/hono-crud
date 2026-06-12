@@ -113,6 +113,12 @@ class ItemBatchUpsert extends MemoryBatchUpsertEndpoint {
   _meta = baseMeta;
   protected override upsertKeys = ['email'];
 }
+class CursorItemList extends MemoryListEndpoint {
+  _meta = baseMeta;
+  protected override cursorPaginationEnabled = true;
+  protected override cursorField = 'id';
+  protected override sortFields = ['email'];
+}
 
 class TenantCreate extends MemoryCreateEndpoint {
   _meta = tenantMeta;
@@ -221,6 +227,7 @@ async function setup(): Promise<AdapterContext> {
     batchCreate: FinalizeBatchCreate,
     batchDelete: FinalizeBatchDelete,
   });
+  registerCrud(app, '/cursor-items', { create: ItemCreate, list: CursorItemList });
   registerCrud(app, '/hook-items', { create: HookItemCreate });
 
   return {

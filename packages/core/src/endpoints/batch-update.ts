@@ -3,7 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getManagedInputExclusions } from '../core/managed-fields';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { batchResultResponses, errorResponseSchema } from './responses';
 import { type ModelObject, getSchemaFields } from './types';
 
 /**
@@ -127,44 +127,7 @@ export abstract class BatchUpdateEndpoint<
         },
       },
       responses: {
-        200: {
-          description: 'Resources updated successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  updated: z.array(this.getModelSchema()),
-                  count: z.number(),
-                  notFound: z.array(z.string()).optional(),
-                }),
-              }),
-            },
-          },
-        },
-        207: {
-          description: 'Partial success (some items failed or not found)',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  updated: z.array(this.getModelSchema()),
-                  count: z.number(),
-                  notFound: z.array(z.string()).optional(),
-                  errors: z
-                    .array(
-                      z.object({
-                        id: z.string(),
-                        error: z.string(),
-                      }),
-                    )
-                    .optional(),
-                }),
-              }),
-            },
-          },
-        },
+        ...batchResultResponses('updated', this.getModelSchema(), 'Resources updated successfully'),
         400: errorResponseSchema('Validation error'),
       },
     };

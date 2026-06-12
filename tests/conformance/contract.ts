@@ -134,6 +134,26 @@ export interface ListEnvelope<T> {
   result_info: ResultInfo;
 }
 
+/**
+ * Cursor-mode pagination metadata (keyset walks, next-only / Stripe-style).
+ * Exact shape pinned by the cursor-pagination cell: `page` is always 0, no
+ * `total_pages`, no `prev_cursor` — `next_cursor` only while more rows exist.
+ */
+export interface CursorResultInfo {
+  page: 0;
+  per_page: number;
+  total_count: number;
+  has_next_page: boolean;
+  has_prev_page: boolean;
+  next_cursor?: string;
+}
+
+export interface CursorListEnvelope<T> {
+  success: true;
+  result: T[];
+  result_info: CursorResultInfo;
+}
+
 /** Single upsert: `{ success, result, created }`, 201 created / 200 updated. */
 export interface UpsertEnvelope<T> {
   success: true;

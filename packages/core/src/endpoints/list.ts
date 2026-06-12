@@ -1,5 +1,6 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { ConfigurationException } from '../core/exceptions';
 import type {
   FilterConfig,
   MetaInput,
@@ -52,15 +53,42 @@ export abstract class ListEndpoint<
   /**
    * Enable cursor-based pagination.
    * When enabled, clients can use `?cursor=xxx&limit=N` alongside standard page/per_page.
-   * The cursor is an opaque base64-encoded string representing the last item's sort key.
+   * The cursor is an opaque base64-encoded string encoding the boundary item's
+   * cursor field; walks are next-only (Stripe-style, no prev_cursor).
+   *
+   * During a cursor walk, results are always ordered by {@link cursorField}
+   * ascending — user `sort`/`order` parameters are ignored.
+   *
+   * Requires an adapter whose `list` implements the keyset window
+   * ({@link supportsCursorPagination}); enabling it on an adapter without
+   * support throws a loud `ConfigurationException` at request time instead of
+   * silently falling back to offset pagination.
    */
   protected cursorPaginationEnabled = false;
 
   /**
+   * Whether the adapter's `list` implementation supports keyset cursor
+   * pagination. Declared by adapter List endpoints (memory/drizzle/prisma all
+   * set it to `true`); stays `false` on the abstract core class so an adapter
+   * that never implemented the cursor window cannot silently degrade to
+   * offset pagination.
+   */
+  protected supportsCursorPagination = false;
+
+  /**
    * The field used as the cursor key. Must be unique and sortable (e.g., primary key or timestamp).
-   * @default 'id' (first primary key)
+   * @default 'id'
    */
   protected cursorField?: string;
+
+  /**
+   * Cursor pagination is only advertised (query params + `next_cursor` doc
+   * schema) and parsed when the endpoint enables it AND the adapter
+   * implements it.
+   */
+  protected isCursorPaginationActive(): boolean {
+    return this.cursorPaginationEnabled && this.supportsCursorPagination;
+  }
 
   // Relations configuration
   /** Allowed relation names that can be included via ?include=relation1,relation2 */
@@ -175,10 +203,12 @@ export abstract class ListEndpoint<
         });
     }
 
-    // Add cursor-based pagination parameters
-    if (this.cursorPaginationEnabled) {
+    // Add cursor-based pagination parameters (only when the adapter actually
+    // implements the keyset window — never advertise a no-op).
+    if (this.isCursorPaginationActive()) {
       shape.cursor = z.string().optional().meta({
-        description: 'Opaque cursor for fetching the next page',
+        description:
+          'Opaque cursor for fetching the next page. During a cursor walk, results are ordered by the cursor field ascending and sort/order are ignored.',
       });
       shape.limit = z.string().optional().meta({
         description: 'Number of items to return (cursor pagination)',
@@ -219,6 +249,21 @@ export abstract class ListEndpoint<
    * Generates OpenAPI schema from meta configuration.
    */
   getSchema(): OpenAPIRouteSchema {
+    // `next_cursor` is only documented when cursor pagination is genuinely
+    // available (enabled AND implemented by the adapter); cursor walks are
+    // next-only, so no prev_cursor exists anywhere.
+    const resultInfoShape: Record<string, z.ZodTypeAny> = {
+      page: z.number(),
+      per_page: z.number(),
+      total_count: z.number().optional(),
+      total_pages: z.number().optional(),
+      has_next_page: z.boolean(),
+      has_prev_page: z.boolean(),
+    };
+    if (this.isCursorPaginationActive()) {
+      resultInfoShape.next_cursor = z.string().optional();
+    }
+
     return {
       ...this.schema,
       request: {
@@ -232,16 +277,7 @@ export abstract class ListEndpoint<
               schema: z.object({
                 success: z.literal(true),
                 result: z.array(this.getModelSchema()),
-                result_info: z.object({
-                  page: z.number(),
-                  per_page: z.number(),
-                  total_count: z.number().optional(),
-                  total_pages: z.number().optional(),
-                  has_next_page: z.boolean(),
-                  has_prev_page: z.boolean(),
-                  next_cursor: z.string().optional(),
-                  prev_cursor: z.string().optional(),
-                }),
+                result_info: z.object(resultInfoShape),
               }),
             },
           },
@@ -267,7 +303,7 @@ export abstract class ListEndpoint<
       defaultSort: this.defaultSort,
       defaultPerPage: this.defaultPerPage,
       maxPerPage: this.maxPerPage,
-      cursorPaginationEnabled: this.cursorPaginationEnabled,
+      cursorPaginationEnabled: this.isCursorPaginationActive(),
       cursorField: this.cursorField,
       softDeleteQueryParam: softDeleteConfig.queryParam,
       allowedIncludes: this.allowedIncludes,
@@ -319,6 +355,16 @@ export abstract class ListEndpoint<
    * Main handler for the list operation.
    */
   async handle(): Promise<Response> {
+    // Loud misconfiguration: cursor pagination was enabled on an adapter
+    // whose `list` does not implement the keyset window. Silently falling
+    // back to offset pagination is the one unacceptable state — clients would
+    // get documented-looking cursor params that are validated then ignored.
+    if (this.cursorPaginationEnabled && !this.supportsCursorPagination) {
+      throw new ConfigurationException(
+        "cursorPaginationEnabled is true but this adapter's List endpoint does not implement cursor pagination (supportsCursorPagination is false). Use an adapter List endpoint that supports it, or disable cursorPaginationEnabled.",
+      );
+    }
+
     // Validate tenant ID if multi-tenancy is enabled
     const tenantId = this.validateTenantId();
 

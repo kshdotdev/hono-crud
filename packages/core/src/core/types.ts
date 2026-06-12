@@ -166,10 +166,11 @@ export interface PaginatedResult<T> {
     has_next_page: boolean;
     /** Whether there is a previous page available */
     has_prev_page: boolean;
-    /** Cursor for fetching the next page (cursor-based pagination) */
+    /**
+     * Cursor for fetching the next page (cursor-based pagination).
+     * Cursor walks are next-only (Stripe-style); there is no prev_cursor.
+     */
     next_cursor?: string;
-    /** Cursor for fetching the previous page (cursor-based pagination) */
-    prev_cursor?: string;
   };
 }
 

@@ -1,4 +1,4 @@
-import { asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { eq, isNull, sql } from 'drizzle-orm';
 import type { Env } from 'hono';
 import { UpsertEndpoint } from 'hono-crud/internal';
 import { BatchUpsertEndpoint } from 'hono-crud/internal';
@@ -34,8 +34,10 @@ import {
   type DrizzleTable,
   and,
   batchLoadDrizzleRelations,
+  buildPaginatedResult,
   buildWhereCondition,
   cast,
+  executeDrizzleListQuery,
   findByUpsertKeys,
   getColumn,
   getTable,
@@ -689,25 +691,11 @@ export abstract class DrizzleSearchEndpoint<
     filters: ListFilters,
   ): Promise<SearchResult<ModelObject<M['model']>>> {
     const table = this.getTable();
+
+    // Search-specific SQL — plugged into the shared list-query executor as
+    // extra conditions (soft-delete + filters + count + order + pagination
+    // all run through `executeDrizzleListQuery`, identical to List/Export).
     const conditions: DrizzleSql[] = [];
-
-    // Apply soft delete filter
-    const softDeleteConfig = this.getSoftDeleteConfig();
-    if (softDeleteConfig.enabled) {
-      if (filters.options.onlyDeleted) {
-        conditions.push(isNotNull(this.getColumn(softDeleteConfig.field)));
-      } else if (!filters.options.withDeleted) {
-        conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-      }
-    }
-
-    // Apply filters
-    for (const filter of filters.filters) {
-      const condition = buildWhereCondition(table, filter, this.dialect);
-      if (condition) {
-        conditions.push(condition);
-      }
-    }
 
     // Build search conditions
     const searchableFields = this.getSearchableFields();
@@ -777,32 +765,20 @@ export abstract class DrizzleSearchEndpoint<
       }
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    // Execute the common query block (soft-delete + filters + count +
+    // sorting + offset pagination) with the search SQL as extra conditions.
+    const queryResult = await executeDrizzleListQuery<ModelObject<M['model']>>({
+      db: this.getDb(),
+      table,
+      filters,
+      dialect: this.dialect,
+      softDeleteConfig: this.getSoftDeleteConfig(),
+      defaultPerPage: this.defaultPerPage,
+      extraConditions: conditions,
+    });
 
-    // Get total count
-    const countResult = await cast<ModelObject<M['model']>>(this.getDb())
-      .select({ count: sql<number>`count(*)` })
-      .from(table)
-      .where(whereClause);
-
-    const totalCount = readCount(countResult);
-
-    // Build main query
-    let query = cast<ModelObject<M['model']>>(this.getDb()).select().from(table).where(whereClause);
-
-    // Apply sorting
-    if (filters.options.order_by) {
-      const orderColumn = this.getColumn(filters.options.order_by);
-      const orderFn = filters.options.order_by_direction === 'desc' ? desc : asc;
-      query = query.orderBy(orderFn(orderColumn));
-    }
-
-    // Apply pagination
-    const page = filters.options.page || 1;
-    const perPage = filters.options.per_page || this.defaultPerPage;
-    query = query.limit(perPage).offset((page - 1) * perPage);
-
-    const records = await query;
+    const records = queryResult.records;
+    const totalCount = queryResult.totalCount;
 
     // Score results in memory and generate highlights.
     //
@@ -871,88 +847,27 @@ export abstract class DrizzleExportEndpoint<
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
-    const table = this.getTable();
-    const conditions: DrizzleSql[] = [];
-    const softDeleteConfig = this.getSoftDeleteConfig();
-
-    // Apply soft delete filter
-    if (softDeleteConfig.enabled) {
-      const deletedAtColumn = this.getColumn(softDeleteConfig.field);
-
-      if (filters.options.onlyDeleted) {
-        conditions.push(isNotNull(deletedAtColumn));
-      } else if (!filters.options.withDeleted) {
-        conditions.push(isNull(deletedAtColumn));
-      }
-    }
-
-    // Apply filters
-    for (const filter of filters.filters) {
-      const condition = buildWhereCondition(table, filter, this.dialect);
-      if (condition) {
-        conditions.push(condition);
-      }
-    }
-
-    // Apply search
-    if (filters.options.search && this.searchFields.length > 0) {
-      const needle = filters.options.search;
-      const searchConditions = this.searchFields.map((field) => {
-        const column = this.getColumn(field);
-        return substringMatch(column, needle, this.dialect);
-      });
-      conditions.push(or(...searchConditions)!);
-    }
-
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-    // Get total count
-    const countResult = await cast<ModelObject<M['model']>>(this.getDb())
-      .select({ count: sql<number>`count(*)` })
-      .from(table)
-      .where(whereClause);
-
-    const totalCount = readCount(countResult);
-
-    // Build main query
-    let query = cast<ModelObject<M['model']>>(this.getDb()).select().from(table).where(whereClause);
-
-    // Apply sorting
-    if (filters.options.order_by) {
-      const orderColumn = this.getColumn(filters.options.order_by);
-      const orderFn = filters.options.order_by_direction === 'desc' ? desc : asc;
-      query = query.orderBy(orderFn(orderColumn));
-    }
-
-    // Apply pagination
-    const page = filters.options.page || 1;
-    const perPage = filters.options.per_page || this.defaultPerPage;
-    query = query.limit(perPage).offset((page - 1) * perPage);
-
-    const result = await query;
+    // Execute common query logic (filters, search, sorting, pagination)
+    const queryResult = await executeDrizzleListQuery<ModelObject<M['model']>>({
+      db: this.getDb(),
+      table: this.getTable(),
+      filters,
+      dialect: this.dialect,
+      searchFields: this.searchFields,
+      softDeleteConfig: this.getSoftDeleteConfig(),
+      defaultPerPage: this.defaultPerPage,
+    });
 
     // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const itemsWithRelations = await batchLoadDrizzleRelations(
       this.getDb(),
-      result,
+      queryResult.records,
       this._meta,
       includeOptions,
     );
 
-    const totalPages = Math.ceil(totalCount / perPage);
-
-    return {
-      result: itemsWithRelations,
-      result_info: {
-        page,
-        per_page: perPage,
-        total_count: totalCount,
-        total_pages: totalPages,
-        has_next_page: page < totalPages,
-        has_prev_page: page > 1,
-      },
-    };
+    return buildPaginatedResult(itemsWithRelations, queryResult);
   }
 }
 

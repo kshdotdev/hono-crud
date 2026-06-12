@@ -73,6 +73,15 @@ class UserClone extends MemoryCloneEndpoint<any, UserMeta> {
   _meta = userMeta;
 }
 
+// Simulates an adapter List endpoint that never implemented the keyset
+// window: enabling cursorPaginationEnabled on it must throw loudly instead
+// of silently falling back to offset pagination.
+class UnsupportedCursorUserList extends MemoryListEndpoint<any, UserMeta> {
+  _meta = userMeta;
+  cursorPaginationEnabled = true;
+  protected override supportsCursorPagination = false;
+}
+
 // ============================================================================
 // Cursor Pagination Tests
 // ============================================================================
@@ -112,8 +121,11 @@ describe('Cursor-Based Pagination', () => {
     const data = (await res.json()) as any;
     expect(data.success).toBe(true);
     expect(data.result.length).toBe(2);
+    expect(data.result_info.page).toBe(0);
     expect(data.result_info.has_next_page).toBe(true);
     expect(data.result_info.next_cursor).toBeDefined();
+    // Cursor walks are next-only (Stripe-style): prev_cursor never exists.
+    expect('prev_cursor' in data.result_info).toBe(false);
   });
 
   it('should paginate through results with cursor', async () => {
@@ -150,6 +162,30 @@ describe('Cursor-Based Pagination', () => {
     expect(data.result.length).toBe(2);
     expect(data.result_info.page).toBe(1);
     expect(data.result_info.total_count).toBe(4);
+  });
+
+  it('should ignore user sort during a cursor walk (ORDER BY forced to cursor field)', async () => {
+    // ?sort=name&order=desc would reverse the name order; cursor mode must
+    // come back ordered by the cursor field (id) ascending instead.
+    const res = await app.request('/users?limit=4&sort=name&order=desc');
+    const data = (await res.json()) as any;
+    const ids = data.result.map((r: any) => r.id);
+    expect(ids).toEqual([...ids].sort());
+  });
+
+  it('should throw a loud CONFIGURATION_ERROR when cursorPaginationEnabled is set without adapter support', async () => {
+    const unsupportedApp = fromHono(new Hono());
+    registerCrud(unsupportedApp, '/unsupported-users', {
+      create: UserCreate as any,
+      list: UnsupportedCursorUserList as any,
+    });
+
+    const res = await unsupportedApp.request('/unsupported-users');
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as any;
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('CONFIGURATION_ERROR');
+    expect(body.error.message).toContain('supportsCursorPagination');
   });
 });
 
