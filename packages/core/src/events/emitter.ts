@@ -166,18 +166,6 @@ export class CrudEventEmitter {
   }
 
   /**
-   * Emit without awaiting — fire and forget.
-   * Use this when you don't need to wait for listeners to complete.
-   */
-  emitAsync(event: CrudEventPayload): void {
-    this.emit(event).catch((err) => {
-      getLogger().error('Event emission error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
-  }
-
-  /**
    * Get the count of registered listeners.
    */
   listenerCount(): number {

@@ -1,3 +1,4 @@
+import type { WaitUntil } from '../utils/wait-until';
 import { type CrudEventEmitter, resolveEventEmitter } from './emitter';
 import type { CrudEventListener, CrudEventPayload, CrudEventType } from './types';
 
@@ -35,13 +36,15 @@ export interface WebhookConfig {
    *
    * @example
    * ```ts
+   * import { getWaitUntil } from 'hono-crud/cloudflare';
+   *
    * registerWebhooks({
    *   endpoints: [...],
-   *   waitUntil: c.executionCtx.waitUntil.bind(c.executionCtx),
+   *   waitUntil: getWaitUntil(c),
    * });
    * ```
    */
-  waitUntil?: (promise: Promise<unknown>) => void;
+  waitUntil?: WaitUntil;
 }
 
 /**

@@ -2,6 +2,7 @@ import type { Context, Env, ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { ZodError } from 'zod';
 import { getRequestId } from '../logging/middleware';
+import { getWaitUntil } from '../utils/wait-until';
 import { ApiException, InputValidationException } from './exceptions';
 import { getLogger } from './logger';
 import { jsonResponse } from './route';
@@ -167,16 +168,20 @@ export function createErrorHandler<E extends Env = Env>(
       }
     }
 
-    // Step 4: Run hooks (fire-and-forget)
+    // Step 4: Run hooks without blocking the response. On Workers async hooks
+    // (e.g. error reporting via fetch) must be registered via waitUntil or
+    // they are cancelled when the response returns.
+    const waitUntil = getWaitUntil(ctx);
     for (const hook of hooks) {
       try {
         const result = hook(err, ctx, apiException!);
         if (result instanceof Promise) {
-          result.catch((hookErr) => {
+          const settled = result.catch((hookErr) => {
             if (onHookError) {
               onHookError(hookErr, err, ctx);
             }
           });
+          waitUntil?.(settled);
         }
       } catch (hookErr) {
         if (onHookError) {

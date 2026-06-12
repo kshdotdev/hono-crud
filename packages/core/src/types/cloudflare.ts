@@ -6,7 +6,7 @@
  *
  * @example
  * ```ts
- * import type { CloudflareEnv, WaitUntilFn } from 'hono-crud/cloudflare';
+ * import type { CloudflareEnv, WaitUntil } from 'hono-crud/cloudflare';
  * import { getWaitUntil } from 'hono-crud/cloudflare';
  * import { registerWebhooks } from 'hono-crud';
  *
@@ -56,10 +56,11 @@ export type { KVNamespace };
 export { getWaitUntil } from '../utils/wait-until';
 
 /**
- * Type for the `waitUntil` function available on Workers execution context.
- * Extends the lifetime of the event past the response.
+ * Type of the `waitUntil` function available on Workers execution context.
+ * Extends the lifetime of the event past the response. Re-exported from
+ * `utils/wait-until`, the single source of truth.
  */
-export type WaitUntilFn = (promise: Promise<unknown>) => void;
+export type { WaitUntil } from '../utils/wait-until';
 
 /**
  * Hono environment type for Cloudflare Workers.

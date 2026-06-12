@@ -2,6 +2,7 @@ import type { Context, MiddlewareHandler } from 'hono';
 import { CONTEXT_KEYS } from '../../core/context-keys';
 import { ConfigurationException, UnauthorizedException } from '../../core/exceptions';
 import { resolveAPIKeyStorage } from '../../storage/helpers';
+import { getWaitUntil } from '../../utils/wait-until';
 import { hashAPIKey } from '../hash';
 import type { APIKeyConfig, APIKeyEntry, APIKeyLookupResult, AuthEnv, AuthUser } from '../types';
 import { validateAPIKeyEntry } from '../validators/api-key';
@@ -115,15 +116,20 @@ export function createAPIKeyMiddleware<E extends AuthEnv = AuthEnv>(
     ctx.set(CONTEXT_KEYS.permissions, user.permissions || []);
     ctx.set(CONTEXT_KEYS.authType, 'api-key');
 
-    // Fire-and-forget update last used timestamp
+    // Update last-used timestamp without blocking the request. On Workers the
+    // write must be registered via waitUntil or it is cancelled when the
+    // response returns; elsewhere it stays fire-and-forget.
+    const waitUntil = getWaitUntil(ctx);
     if (config.updateLastUsed) {
-      Promise.resolve(config.updateLastUsed(entry.id)).catch(() => {
+      const updated = Promise.resolve(config.updateLastUsed(entry.id)).catch(() => {
         // Silently ignore errors updating last used
       });
+      waitUntil?.(updated);
     } else if (storage) {
-      Promise.resolve(storage.updateLastUsed(entry.id)).catch(() => {
+      const updated = Promise.resolve(storage.updateLastUsed(entry.id)).catch(() => {
         // Silently ignore errors updating last used
       });
+      waitUntil?.(updated);
     }
 
     await next();
