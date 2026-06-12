@@ -14,10 +14,12 @@ import {
   PrismaUpdateEndpoint,
   PrismaUpsertEndpoint,
   PrismaVersionRollbackEndpoint,
-  clearPrismaModelMappings,
-  registerPrismaModelMapping,
-  registerPrismaModelMappings,
 } from '@hono-crud/prisma';
+import {
+  type PrismaClient as PrismaClientShape,
+  getModelName,
+  resolvePrismaDelegateName,
+} from '@hono-crud/prisma/helpers';
 import { Hono } from 'hono';
 import { type AggregateOptions, defineModel, fromHono, registerCrud } from 'hono-crud';
 import {
@@ -1293,126 +1295,102 @@ describe('Prisma Adapter', () => {
 });
 
 // ============================================================================
-// Model Name Conversion Tests
+// Delegate Name Resolution Tests
 // ============================================================================
+// There is no mapping registry: module-global mutable state silently diverges
+// across Workers isolates. Irregular names are static wiring on the model
+// meta — an explicit string `Model.table` (or `RelationConfig.table` for
+// relations) names the client delegate; everything else uses the pure
+// camelCase+singularize derivation.
 
-describe('Prisma Model Name Utilities', () => {
-  beforeEach(() => {
-    clearPrismaModelMappings();
+describe('Prisma Delegate Name Resolution', () => {
+  describe('resolvePrismaDelegateName', () => {
+    it('uses an explicit string Model.table as the delegate name (override wins)', async () => {
+      await expect(
+        resolvePrismaDelegateName({ tableName: 'people', table: 'humanBeing' }),
+      ).resolves.toBe('humanBeing');
+    });
+
+    it('ignores a non-string table (e.g. a Drizzle table object) and derives from tableName', async () => {
+      await expect(
+        resolvePrismaDelegateName({ tableName: 'users', table: { columns: {} } }),
+      ).resolves.toBe('user');
+    });
+
+    it('ignores an empty-string table and derives from tableName', async () => {
+      await expect(resolvePrismaDelegateName({ tableName: 'users', table: '' })).resolves.toBe(
+        'user',
+      );
+    });
+
+    it('derives camelCase + singular when no override is set', async () => {
+      await expect(resolvePrismaDelegateName({ tableName: 'user_profiles' })).resolves.toBe(
+        'userProfile',
+      );
+    });
   });
 
-  describe('registerPrismaModelMapping', () => {
-    it('should allow registering custom mappings', () => {
-      // Create a mock Prisma client with a "person" model
-      const mockPrisma = {
-        person: {
-          create: vi.fn(),
-          findMany: vi.fn().mockResolvedValue([]),
-          count: vi.fn().mockResolvedValue(0),
-        },
+  describe('getModelName derivation', () => {
+    it('singularizes regular plurals', async () => {
+      await expect(getModelName('users')).resolves.toBe('user');
+    });
+
+    it('handles irregular plurals via the pluralize library', async () => {
+      await expect(getModelName('people')).resolves.toBe('person');
+      await expect(getModelName('children')).resolves.toBe('child');
+    });
+
+    it('converts snake_case to camelCase', async () => {
+      await expect(getModelName('user_profiles')).resolves.toBe('userProfile');
+    });
+
+    it('converts kebab-case to camelCase', async () => {
+      await expect(getModelName('order-items')).resolves.toBe('orderItem');
+    });
+  });
+
+  describe('Model.table override end-to-end', () => {
+    it('routes the endpoint to the explicitly named delegate', async () => {
+      const findMany = vi.fn().mockResolvedValue([]);
+      const count = vi.fn().mockResolvedValue(0);
+      // The derivation for 'people' is 'person', which does NOT exist on this
+      // client — only the explicit `table: 'humanBeing'` override can succeed.
+      // (`create` is present because the delegate-shape guard requires it.)
+      const mockClient = {
+        humanBeing: { create: vi.fn(), findMany, count },
       };
 
-      // Register mapping from "people" to "person"
-      registerPrismaModelMapping('people', 'person');
-
-      // Define a model using "people" table name
       const peopleModel = defineModel({
         tableName: 'people',
+        table: 'humanBeing',
         schema: z.object({
           id: z.string().uuid(),
           name: z.string(),
         }),
       });
 
-      const peopleMeta = { model: peopleModel };
-
-      // Create an endpoint using the mapping
       class PeopleList extends PrismaListEndpoint {
-        _meta = peopleMeta;
-        prisma = mockPrisma as unknown as Parameters<
-          typeof PrismaListEndpoint.prototype.list
-        >[0] extends { prisma: infer P }
-          ? P
-          : never;
+        _meta = { model: peopleModel };
+        prisma = mockClient as unknown as PrismaClientShape;
         schema = { tags: ['People'], summary: 'List people' };
       }
 
-      // The endpoint should be created without error
-      const endpoint = new PeopleList();
-      expect(endpoint).toBeDefined();
-    });
-
-    it('should be case-insensitive for table names', () => {
-      registerPrismaModelMapping('PEOPLE', 'person');
-      registerPrismaModelMapping('Users', 'user');
-
-      // Both should be stored as lowercase keys
-      const mockPrisma = {
-        person: { create: vi.fn() },
-        user: { create: vi.fn() },
-      };
-
-      // Both uppercase and lowercase should work
-      registerPrismaModelMapping('people', 'person');
-    });
-  });
-
-  describe('registerPrismaModelMappings', () => {
-    it('should allow registering multiple mappings at once', () => {
-      registerPrismaModelMappings({
-        people: 'person',
-        children: 'child',
-        user_addresses: 'userAddress',
+      const app = new Hono();
+      app.get('/people', async (c) => {
+        const endpoint = new PeopleList();
+        endpoint.setContext(c);
+        return endpoint.handle();
       });
 
-      // Mappings should be registered
-      // (We can't directly access the cache, but we can verify via endpoint creation)
-    });
-  });
-
-  describe('clearPrismaModelMappings', () => {
-    it('should clear all custom mappings', () => {
-      registerPrismaModelMapping('people', 'person');
-      clearPrismaModelMappings();
-
-      // After clearing, the default conversion should be used
-      // "people" would no longer map to "person" (would use default pluralization)
-    });
-  });
-
-  describe('Model name conversion edge cases', () => {
-    it('should handle irregular plurals via custom mappings', () => {
-      // These irregular plurals need custom mappings
-      registerPrismaModelMappings({
-        people: 'person',
-        children: 'child',
-        men: 'man',
-        women: 'woman',
-        teeth: 'tooth',
-        feet: 'foot',
-        mice: 'mouse',
-        geese: 'goose',
-      });
-
-      // After registration, these should work correctly
-    });
-
-    it('should handle snake_case table names', () => {
-      // snake_case should be converted to camelCase
-      // e.g., "user_profiles" -> "userProfile"
-      registerPrismaModelMapping('user_profiles', 'userProfile');
-    });
-
-    it('should handle kebab-case table names', () => {
-      // kebab-case should be converted to camelCase
-      // e.g., "user-profiles" -> "userProfile"
-      registerPrismaModelMapping('user-profiles', 'userProfile');
+      const response = await app.request('/people');
+      expect(response.status).toBe(200);
+      expect(findMany).toHaveBeenCalled();
     });
   });
 
   describe('Error messages', () => {
-    it('should provide helpful error when model not found', async () => {
-      const mockPrisma = {
+    it('suggests the Model.table override (not the deleted registry) when a model is missing', async () => {
+      const mockClient = {
         user: { create: vi.fn() },
         post: { create: vi.fn() },
         comment: { create: vi.fn() },
@@ -1428,11 +1406,7 @@ describe('Prisma Model Name Utilities', () => {
 
       class BadEndpoint extends PrismaListEndpoint {
         _meta = badMeta;
-        prisma = mockPrisma as unknown as Parameters<
-          typeof PrismaListEndpoint.prototype.list
-        >[0] extends { prisma: infer P }
-          ? P
-          : never;
+        prisma = mockClient as unknown as PrismaClientShape;
         schema = { tags: ['Bad'], summary: 'Bad endpoint' };
       }
 
@@ -1445,10 +1419,13 @@ describe('Prisma Model Name Utilities', () => {
           await endpoint.list({ filters: [], options: {} });
           return c.json({ success: true });
         } catch (error) {
-          // The error message should include suggestions
+          // The error message should point at the static `table` wiring on the
+          // model meta — the registry it used to suggest no longer exists.
           const message = (error as Error).message;
           expect(message).toContain('not found');
-          expect(message).toContain('registerPrismaModelMapping');
+          expect(message).toContain('defineModel');
+          expect(message).toContain("table: '<prismaDelegateName>'");
+          expect(message).not.toContain('registerPrismaModelMapping');
           return c.json({ error: message }, 500);
         }
       });

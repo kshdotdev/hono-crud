@@ -31,9 +31,18 @@ export interface IdempotencyConfig {
   enforcedMethods?: string[];
 
   /**
-   * Whether to require the idempotency key header.
-   * If true, requests without the header will receive a 400 error.
-   * If false, requests without the header are passed through normally.
+   * Whether the idempotency guarantee is mandatory for enforced methods.
+   *
+   * If true:
+   * - requests without the header throw `IdempotencyKeyRequiredException`
+   *   (400 IDEMPOTENCY_KEY_REQUIRED), and
+   * - a missing/unresolvable storage throws `ConfigurationException` instead
+   *   of silently passing through (a mis-wired storage must not silently void
+   *   replay protection).
+   *
+   * If false (the default), requests without the header pass through
+   * normally, and a missing storage logs a once-per-isolate warning and
+   * passes through.
    * @default false
    */
   required?: boolean;

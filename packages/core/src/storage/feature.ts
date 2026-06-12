@@ -16,7 +16,8 @@ export interface StorageFeature<T> {
   /**
    * Get the explicitly-configured global storage, or null. Never throws.
    * When the feature was created with `lazyDefaultOnGet: true`, this may
-   * lazy-create the default (legacy never-null path; cache only).
+   * lazy-create the default (legacy never-null path; see
+   * {@link StorageFeatureOptions.lazyDefaultOnGet} for who opts in).
    */
   get(): T | null;
   /**
@@ -43,7 +44,10 @@ export interface StorageFeatureOptions<T> {
    * When true (and a defaultFactory exists), `get()` ALSO lazy-creates the
    * default, preserving a legacy never-null getter. When false/omitted, `get()`
    * returns only explicitly-configured storage (honest `T | null`). Default: false.
-   * Only cache sets this true; audit/versioning leave it false.
+   *
+   * Intentional exceptions only — currently the event-emitter feature is the
+   * sole opt-in; every other storage feature leaves it false. Each opt-in must
+   * document its justification at the call site (see `core/src/events/emitter.ts`).
    */
   lazyDefaultOnGet?: boolean;
 }

@@ -1,6 +1,7 @@
-import type { Context } from 'hono';
+import type { Context, Env } from 'hono';
 import { calculateChanges } from '../audit/config';
 import { CONTEXT_KEYS } from '../core/context-keys';
+import { ConfigurationException } from '../core/exceptions';
 import type {
   AuditFieldChange,
   NormalizedVersioningConfig,
@@ -200,6 +201,21 @@ export const getVersioningStorage = versioningStorageFeature.get;
 export const getVersioningStorageRequired = versioningStorageFeature.getRequired;
 
 /**
+ * Resolves versioning storage with priority: explicit param > context > global.
+ * Never creates a default — returns null when nothing is configured.
+ *
+ * @param ctx - Optional Hono context
+ * @param explicitStorage - Optional explicit storage instance
+ * @returns The resolved storage, or null when no storage was configured
+ */
+export function resolveVersioningStorage<E extends Env>(
+  ctx?: Context<E>,
+  explicitStorage?: VersioningStorage,
+): VersioningStorage | null {
+  return versioningStorageFeature.resolve(ctx, explicitStorage);
+}
+
+/**
  * Version manager class for handling versioning operations.
  */
 export class VersionManager {
@@ -220,7 +236,9 @@ export class VersionManager {
 
   private getStorage(): VersioningStorage {
     if (!this.storage) {
-      throw new Error(
+      // Request-time misconfiguration: the feature is enabled but no storage
+      // was wired — surface as 500 CONFIGURATION_ERROR, not generic INTERNAL.
+      throw new ConfigurationException(
         'Versioning storage not configured. Pass storage explicitly or inject versioningStorage with createStorageMiddleware().',
       );
     }

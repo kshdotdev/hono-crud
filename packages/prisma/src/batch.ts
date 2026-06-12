@@ -12,10 +12,10 @@ import {
   type PrismaClient,
   type PrismaModelOperations,
   findByUpsertKeys,
-  getModelName,
   getPrismaModel,
   getPrismaModelByName,
   getPrismaTransaction,
+  resolvePrismaDelegateName,
 } from './helpers';
 
 /**
@@ -32,10 +32,7 @@ export abstract class PrismaRestoreEndpoint<
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   override async restore(
@@ -81,10 +78,7 @@ export abstract class PrismaBatchCreateEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   override async batchCreate(
@@ -102,7 +96,7 @@ export abstract class PrismaBatchCreateEndpoint<
     await getPrismaTransaction(getPrismaClient(this))(async (tx) => {
       const txModel = getPrismaModelByName<ModelObject<M['model']>>(
         tx,
-        await getModelName(this._meta.model.tableName),
+        await resolvePrismaDelegateName(this._meta.model),
       );
       if (!txModel) {
         throw new Error(
@@ -132,10 +126,7 @@ export abstract class PrismaBatchUpdateEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   override async batchUpdate(
@@ -204,10 +195,7 @@ export abstract class PrismaBatchDeleteEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   override async batchDelete(
@@ -285,10 +273,7 @@ export abstract class PrismaBatchRestoreEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   override async batchRestore(
@@ -353,10 +338,7 @@ export abstract class PrismaBatchUpsertEndpoint<
   protected useTransaction = true;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(
-      getPrismaClient(this),
-      this._meta.model.tableName,
-    );
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model);
   }
 
   /**
@@ -432,7 +414,7 @@ export abstract class PrismaBatchUpsertEndpoint<
     const executeUpserts = async (prismaClient: PrismaClient) => {
       const model = getPrismaModelByName<ModelObject<M['model']>>(
         prismaClient,
-        await getModelName(this._meta.model.tableName),
+        await resolvePrismaDelegateName(this._meta.model),
       );
       if (!model) {
         throw new Error(`Model '${this._meta.model.tableName}' not found in Prisma client`);

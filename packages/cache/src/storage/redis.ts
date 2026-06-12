@@ -36,7 +36,14 @@ export interface RedisClient {
 export interface RedisCacheStorageOptions {
   /** Redis client instance. */
   client: RedisClient;
-  /** Key prefix for all cache entries. @default 'cache:' */
+  /**
+   * Key prefix for all cache entries. The storage owns this namespace —
+   * unlike rate-limit (whose middleware owns the `'rl'` prefix) — because
+   * `clear()`, `deletePattern()`, and the tag indices are scoped by it and
+   * the physical store may be shared (with prefix `''`, `clear()` would wipe
+   * every key in the Redis DB).
+   * @default 'cache:'
+   */
   prefix?: string;
   /** Default TTL in milliseconds. @default 300_000 */
   defaultTtlMs?: number;

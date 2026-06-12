@@ -225,7 +225,12 @@ export interface RelationConfig<TTable = unknown> {
   localKey?: string;
   /** Related model's schema for response typing */
   schema?: ZodObject<ZodRawShape>;
-  /** ORM table reference for the related model (required for Drizzle) */
+  /**
+   * ORM table reference for the related model (required for Drizzle).
+   * For Prisma, a string naming the related model's client delegate
+   * (e.g. `'person'`) — overrides the camelCase+singularize derivation
+   * from `model` for irregular names.
+   */
   table?: TTable;
   /**
    * Configuration for nested write operations.
@@ -868,7 +873,13 @@ export interface Model<
   primaryKeys: Array<SchemaKeys<T> & string>;
   /** Optional serializer to transform objects before response */
   serializer?: (obj: z.infer<T>) => unknown;
-  /** ORM table reference (Drizzle Table, etc.) */
+  /**
+   * ORM table reference (Drizzle Table, etc.).
+   * For Prisma, a string naming the client delegate explicitly
+   * (e.g. `defineModel({ tableName: 'people', table: 'person', ... })`) —
+   * overrides the camelCase+singularize derivation from `tableName` for
+   * irregular names.
+   */
   table?: TTable;
   /**
    * Enable soft delete for this model.

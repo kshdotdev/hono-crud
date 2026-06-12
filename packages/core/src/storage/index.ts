@@ -22,6 +22,7 @@ export {
   createAuditStorageMiddleware,
   createVersioningStorageMiddleware,
   createAPIKeyStorageMiddleware,
+  createApprovalStorageMiddleware,
   createCacheStorageMiddleware,
   createRateLimitStorageMiddleware,
   createIdempotencyStorageMiddleware,
@@ -45,6 +46,7 @@ export {
   getLoggingStorageRequired,
   getAuditStorageRequired,
   getVersioningStorageRequired,
+  getAPIKeyStorageRequired,
 } from './helpers';
 
 // Registry

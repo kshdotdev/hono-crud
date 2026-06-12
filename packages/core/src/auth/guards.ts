@@ -2,14 +2,12 @@ import type { MiddlewareHandler } from 'hono';
 import { z } from 'zod';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import { ForbiddenException, UnauthorizedException } from '../core/exceptions';
-import { getLogger } from '../core/logger';
 import type { ModelPolicies } from '../core/types';
 import { getContextVar, setContextVar } from '../utils/context';
-import { MemoryApprovalStorage } from './storage/approval-memory';
+import { getApprovalStorageRequired, resolveApprovalStorage } from './storage/approval-memory';
 import type {
   ActionSource,
   ApprovalConfig,
-  ApprovalStorage,
   AuthEnv,
   AuthorizationCheck,
   Guard,
@@ -24,30 +22,6 @@ import { parseIso8601Duration } from './utils/duration';
  */
 function isObjectRecord(x: unknown): x is Record<string, unknown> {
   return x !== null && typeof x === 'object' && !Array.isArray(x);
-}
-
-/**
- * Process-local fallback storage used when `requireApproval(...)` is
- * called without an explicit `approvalStorage`. Lazy-instantiated so
- * apps that always pass storage never construct it.
- */
-let _defaultApprovalStorage: MemoryApprovalStorage | undefined;
-let _warnedAboutDefaultApprovalStorage = false;
-
-function getDefaultApprovalStorage(): MemoryApprovalStorage {
-  if (!_defaultApprovalStorage) {
-    _defaultApprovalStorage = new MemoryApprovalStorage();
-  }
-  if (!_warnedAboutDefaultApprovalStorage) {
-    _warnedAboutDefaultApprovalStorage = true;
-    getLogger().warn(
-      'requireApproval: no approvalStorage configured — using process-local in-memory storage. ' +
-        'NOT safe for multi-instance / serverless / edge-isolate deployments where phase 1 and ' +
-        'phase 2 may hit different processes. Pass an explicit approvalStorage (e.g. ' +
-        'PostgresApprovalStorage) for production. This warning is logged once per process.',
-    );
-  }
-  return _defaultApprovalStorage;
 }
 
 /**
@@ -464,7 +438,6 @@ export function requirePolicy<T = unknown, E extends AuthEnv = AuthEnv>(
 export function requireApproval<E extends AuthEnv = AuthEnv>(
   config: ApprovalConfig,
 ): MiddlewareHandler<E> {
-  const storage: ApprovalStorage = config.approvalStorage ?? getDefaultApprovalStorage();
   const resumeMarker = config.resumeMarker ?? '_resume_';
   const expireMs = parseIso8601Duration(config.expiresAfter ?? 'P1D');
 
@@ -475,6 +448,12 @@ export function requireApproval<E extends AuthEnv = AuthEnv>(
   const ResumeBodySchema = z.object({ [resumeMarker]: z.string() }).loose();
 
   return async (ctx, next) => {
+    // Resolve storage INSIDE the handler (explicit > context > global) so
+    // per-request backends injected via createStorageMiddleware (KV / D1 /
+    // Durable Object bindings only reachable at request time on Workers) are
+    // honored. Only when nothing resolves does the warned process-local
+    // in-memory default materialize (zero-config POC path).
+    const storage = resolveApprovalStorage(ctx, config.storage) ?? getApprovalStorageRequired();
     let body: Record<string, unknown> = {};
     try {
       const parsed: unknown = await ctx.req.json();

@@ -37,6 +37,34 @@ This pattern avoids coupling to specific Drizzle versions while maintaining inte
    `%` stripped, `_` inert, never live SQL wildcards. `like` follows database collation case
    behavior (strict in memory); `ilike` is always case-insensitive.
 
+## Error-Split Doctrine
+
+**Request-time misconfiguration → `ConfigurationException`** (500 `CONFIGURATION_ERROR`,
+flows through createErrorHandler); **setup-time factory validation → plain `Error`**
+(fail-fast at boot, e.g. `multiTenant`'s custom-source-without-extractor check). A throw
+site picks by WHEN it fires, not what it complains about.
+
+## Confirmed-Intentional Asymmetries
+
+Adjudicated differences between sibling packages — never "fix" these for symmetry:
+
+1. **No Cloudflare KV idempotency backend** (cache and rate-limit ship `cloudflare-kv.ts`;
+   idempotency ships only memory + redis). The in-flight lock MUST be atomic
+   compare-and-set (`SET NX PX`); KV has no CAS, so a KV lock would be advisory only — a
+   correctness footgun for the one feature whose failure mode is duplicate side effects.
+   Workers users go through Upstash Redis; Durable Objects (not KV) is the primitive for a
+   possible future first-party backend.
+2. **Key-prefix ownership differs between cache and rate-limit.** Cache storage adapters own
+   a non-empty default prefix (`'cache:'`) because `clear()`, `deletePattern()`, and tag
+   indices are keyspace-scoped operations on a possibly shared physical store (with `''`,
+   `RedisCacheStorage.clear()` would wipe the whole DB). Rate-limit's middleware owns the
+   `'rl'` prefix and its adapters default to `''`. Rule: a storage adapter owns a non-empty
+   default prefix iff it performs keyspace-scoped operations on a shareable physical store.
+3. **`MemoryRateLimitStorage` has no `maxEntries` knob** (its memory/cache/idempotency
+   siblings are capacity-bounded). Capacity eviction of a live window would silently reset
+   its counter, weakening limits exactly under key-flood pressure; memory stays bounded via
+   the `cleanupInterval` sweep of expired windows.
+
 ## Naming Doctrine
 
 1. `create<Feature>Middleware()` — app.use-style cross-cutting middleware factories.

@@ -16,7 +16,13 @@ async function runBatched<T>(items: T[], fn: (item: T) => Promise<unknown>): Pro
 export interface KVCacheStorageOptions {
   /** KV namespace binding. */
   kv: KVNamespace;
-  /** Key prefix for all cache entries. @default 'cache:' */
+  /**
+   * Key prefix for all cache entries. The storage owns this namespace —
+   * unlike rate-limit (whose middleware owns the `'rl'` prefix) — because
+   * `clear()`, `deletePattern()`, and the tag indices are scoped by it and
+   * the physical store may be shared with other data.
+   * @default 'cache:'
+   */
   prefix?: string;
   /** Default TTL in milliseconds. @default 300_000 */
   defaultTtlMs?: number;

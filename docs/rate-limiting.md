@@ -8,24 +8,27 @@ Install: `npm install @hono-crud/rate-limit`.
 
 ## Setup
 
-```typescript
-import {
-  createRateLimitMiddleware,
-  setRateLimitStorage,
-  MemoryRateLimitStorage,
-} from '@hono-crud/rate-limit';
+Inject the storage through `createStorageMiddleware` — the recommended path,
+especially on edge/serverless runtimes where backends are built from
+per-request bindings. It writes the `rateLimitStorage` context var that the
+rate-limit middleware resolves from:
 
-// Set storage (required before middleware runs)
-setRateLimitStorage(new MemoryRateLimitStorage());
+```typescript
+import { createStorageMiddleware } from 'hono-crud/storage';
+import { createRateLimitMiddleware, MemoryRateLimitStorage } from '@hono-crud/rate-limit';
+
+app.use('*', createStorageMiddleware({
+  rateLimitStorage: new MemoryRateLimitStorage(),
+}));
 ```
 
 ### Redis Storage
 
 ```typescript
-import { RedisRateLimitStorage, setRateLimitStorage } from '@hono-crud/rate-limit';
+import { RedisRateLimitStorage } from '@hono-crud/rate-limit';
 
-setRateLimitStorage(new RedisRateLimitStorage({
-  client: redisClient,
+app.use('*', createStorageMiddleware({
+  rateLimitStorage: new RedisRateLimitStorage({ client: redisClient }),
 }));
 ```
 
@@ -33,20 +36,16 @@ The optional `prefix` adds extra namespacing on top of the keys the middleware
 produces; it defaults to `''` because keys are already namespaced by the
 middleware's `keyPrefix` (default `'rl'`).
 
-### Context-scoped Storage
+### Global Storage (long-lived servers)
 
-For multi-tenant or per-request storage, inject the storage through
-`createStorageMiddleware`. It writes the `rateLimitStorage` context var that the
-rate-limit middleware resolves from (context storage takes priority over the
-global one):
+On a long-lived Node/Bun server you can set a module-global storage once
+instead. Resolution priority is explicit `config.storage` > context > global,
+so the setter is a compatibility option, never a requirement:
 
 ```typescript
-import { createStorageMiddleware } from 'hono-crud/storage';
-import { MemoryRateLimitStorage } from '@hono-crud/rate-limit';
+import { setRateLimitStorage, MemoryRateLimitStorage } from '@hono-crud/rate-limit';
 
-app.use('*', createStorageMiddleware({
-  rateLimitStorage: new MemoryRateLimitStorage(),
-}));
+setRateLimitStorage(new MemoryRateLimitStorage());
 ```
 
 ---

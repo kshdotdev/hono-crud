@@ -11,14 +11,17 @@ npm install @hono-crud/rate-limit hono-crud hono
 ## Usage
 
 ```ts
+import { createStorageMiddleware } from 'hono-crud/storage';
 import {
   createRateLimitMiddleware,
-  setRateLimitStorage,
   MemoryRateLimitStorage,
   type RateLimitEnv,
 } from '@hono-crud/rate-limit';
 
-setRateLimitStorage(new MemoryRateLimitStorage());
+// Wire storage (recommended: per-request injection, edge-safe)
+app.use('*', createStorageMiddleware({
+  rateLimitStorage: new MemoryRateLimitStorage(),
+}));
 
 app.use('/api/*', createRateLimitMiddleware<RateLimitEnv>({
   limit: 100,
@@ -26,4 +29,6 @@ app.use('/api/*', createRateLimitMiddleware<RateLimitEnv>({
 }));
 ```
 
-Exports `createRateLimitMiddleware`, `setRateLimitStorage`, `MemoryRateLimitStorage`, `RateLimitExceededException`, and the `RateLimitEnv` type.
+On a long-lived server, `setRateLimitStorage(new MemoryRateLimitStorage())` once at boot is the module-global alternative (resolution priority: explicit `config.storage` > context > global).
+
+Exports `createRateLimitMiddleware`, the storage quartet (`setRateLimitStorage` / `getRateLimitStorage` / `getRateLimitStorageRequired` / `resolveRateLimitStorage`), `MemoryRateLimitStorage` / `RedisRateLimitStorage` / `KVRateLimitStorage`, `RateLimitExceededException`, and the `RateLimitEnv` type.

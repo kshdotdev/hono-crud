@@ -58,6 +58,7 @@ export const CONTEXT_KEYS = {
   auditStorage: 'auditStorage',
   versioningStorage: 'versioningStorage',
   apiKeyStorage: 'apiKeyStorage',
+  approvalStorage: 'approvalStorage',
   cacheStorage: 'cacheStorage',
   rateLimitStorage: 'rateLimitStorage',
   idempotencyStorage: 'idempotencyStorage',

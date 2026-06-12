@@ -2,16 +2,42 @@ import { MemoryTtlStore } from 'hono-crud/internal';
 import type { IdempotencyEntry, IdempotencyStorage } from '../types';
 
 /**
+ * Options for MemoryIdempotencyStorage.
+ */
+export interface MemoryIdempotencyStorageOptions {
+  /**
+   * Minimum interval between lazy cleanup runs (ms). Cleanup happens on
+   * access, not via background timers (edge-safe). Set 0 to disable.
+   * @default 60_000 (1 minute)
+   */
+  cleanupInterval?: number;
+  /** Maximum response entries before oldest-first eviction (0 = unlimited). @default 10_000 */
+  maxEntries?: number;
+}
+
+/**
  * In-memory idempotency storage.
  * Ideal for development, testing, and single-instance deployments.
  *
  * Uses lazy cleanup-on-access (edge-safe: no background timers).
  *
+ * **Caveats — not safe for multi-isolate production:**
+ * - State is per process / per isolate. On Cloudflare Workers (and any
+ *   multi-instance deployment) a retry may hit a DIFFERENT isolate with an
+ *   empty store, so replay protection is NOT guaranteed exactly where it
+ *   matters (duplicate charges). Use `RedisIdempotencyStorage` (Upstash is
+ *   edge-compatible) for production.
+ * - There is deliberately no Cloudflare KV backend: KV lacks compare-and-swap,
+ *   so an atomic `lock()` cannot be implemented (see the package README).
+ *
  * @example
  * ```ts
- * import { MemoryIdempotencyStorage, setIdempotencyStorage } from '@hono-crud/idempotency';
+ * import { MemoryIdempotencyStorage } from '@hono-crud/idempotency';
+ * import { createStorageMiddleware } from 'hono-crud/storage';
  *
- * setIdempotencyStorage(new MemoryIdempotencyStorage());
+ * app.use('*', createStorageMiddleware({
+ *   idempotencyStorage: new MemoryIdempotencyStorage(),
+ * }));
  * ```
  */
 export class MemoryIdempotencyStorage implements IdempotencyStorage {
@@ -25,7 +51,7 @@ export class MemoryIdempotencyStorage implements IdempotencyStorage {
   /** Timestamp of last cleanup run */
   private lastCleanup = 0;
 
-  constructor(options?: { cleanupInterval?: number; maxEntries?: number }) {
+  constructor(options?: MemoryIdempotencyStorageOptions) {
     this.cleanupInterval = options?.cleanupInterval ?? 60000;
     const maxEntries = options?.maxEntries ?? 10_000;
     // Both inner stores keep `cleanupInterval: 0` so their built-in

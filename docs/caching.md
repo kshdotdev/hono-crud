@@ -8,29 +8,13 @@ Install: `npm install @hono-crud/cache`.
 
 ## Setup
 
-```typescript
-import { setCacheStorage, MemoryCacheStorage } from '@hono-crud/cache';
+Caching requires a storage backend — there is **no implicit default**. When no
+storage is configured, the mixins degrade to a no-op (every lookup is a miss)
+and log a once-per-isolate warning.
 
-// Use in-memory cache (default if not set)
-setCacheStorage(new MemoryCacheStorage());
-```
-
-### Redis Storage
-
-```typescript
-import { RedisCacheStorage, setCacheStorage } from '@hono-crud/cache';
-
-setCacheStorage(new RedisCacheStorage({
-  client: redisClient,     // Any Redis client with get/set/del/keys
-  prefix: 'cache:',        // Key prefix (default: 'cache:')
-}));
-```
-
-### Context-scoped Storage
-
-For multi-tenant or per-request storage, inject the storage through
-`createStorageMiddleware`. It writes the `cacheStorage` context var that the
-cache mixin resolves from (context storage takes priority over the global one):
+Inject the storage through `createStorageMiddleware` — the recommended path,
+especially on edge/serverless runtimes. It writes the `cacheStorage` context
+var that the cache mixin resolves from:
 
 ```typescript
 import { createStorageMiddleware } from 'hono-crud/storage';
@@ -39,6 +23,31 @@ import { MemoryCacheStorage } from '@hono-crud/cache';
 app.use('*', createStorageMiddleware({
   cacheStorage: new MemoryCacheStorage(),
 }));
+```
+
+### Redis Storage
+
+```typescript
+import { RedisCacheStorage } from '@hono-crud/cache';
+
+app.use('*', createStorageMiddleware({
+  cacheStorage: new RedisCacheStorage({
+    client: redisClient,   // Any Redis client with get/set/del/keys
+    prefix: 'cache:',      // Key prefix (default: 'cache:')
+  }),
+}));
+```
+
+### Global Storage (long-lived servers)
+
+On a long-lived Node/Bun server you can set a module-global storage once
+instead. Resolution priority is context > global, so the setter is a
+compatibility option, never a requirement:
+
+```typescript
+import { setCacheStorage, MemoryCacheStorage } from '@hono-crud/cache';
+
+setCacheStorage(new MemoryCacheStorage());
 ```
 
 ---

@@ -368,15 +368,26 @@ registerCrud(app, '/users', {
 
 ### Model Name Mapping
 
-Prisma uses the model name to determine the table. If your model name differs from the `tableName`, register a mapping:
+The Prisma adapter derives the client delegate name from `tableName` (camelCase
++ singularize: `'users'` → `user`, `'blog_posts'` → `blogPost`). When the
+derivation doesn't match your Prisma model — irregular names, custom client
+naming — set the delegate name explicitly with the model meta's `table` field
+(a string for Prisma):
 
 ```typescript
-import { registerPrismaModelMapping } from '@hono-crud/prisma';
-
-// Map table name to Prisma model name
-registerPrismaModelMapping('users', 'User');
-registerPrismaModelMapping('blog_posts', 'BlogPost');
+// 'people' would derive to 'person'; this client's delegate is 'humanBeing'.
+const peopleModel = defineModel({
+  tableName: 'people',
+  table: 'humanBeing', // explicit Prisma delegate name
+  schema: PersonSchema,
+  primaryKeys: ['id'],
+});
 ```
+
+For relations, the same override lives on `RelationConfig.table` — a string
+delegate name beats the derivation from `relation.model`. The mapping is
+static wiring on the model meta (not a runtime registry), so it cannot
+silently diverge across edge isolates.
 
 ### Batch Operations
 

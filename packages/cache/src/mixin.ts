@@ -16,7 +16,6 @@ import {
   createRelatedPatterns,
   generateCacheKey,
 } from './key-generator';
-import { MemoryCacheStorage } from './storage/memory';
 import type {
   CacheConfig,
   CacheInvalidationConfig,
@@ -46,17 +45,12 @@ function getTableName(self: unknown): string {
 
 /**
  * Cache storage feature.
- *
- * `lazyDefaultOnGet: true` preserves the legacy never-null runtime behavior of
- * `getCacheStorage()` (it lazy-creates a `MemoryCacheStorage` default) while the
- * declared return type is honest `CacheStorage | null`. The request path uses
- * `resolveCacheStorage`, which never materializes a default (edge-safe no-op
- * when no storage is configured).
+ * Nullable — no default storage is created unless explicitly set. The request
+ * path uses `resolveCacheStorage` and emits a once-per-isolate warning when no
+ * storage resolves (caching silently disabled is a mis-wiring worth surfacing).
  */
 const cacheStorageFeature = createStorageFeature<CacheStorage>({
   contextKey: CONTEXT_KEYS.cacheStorage,
-  defaultFactory: () => new MemoryCacheStorage(),
-  lazyDefaultOnGet: true,
 });
 
 /**
@@ -80,17 +74,14 @@ export const cacheStorageRegistry = cacheStorageFeature.registry;
 export const setCacheStorage = cacheStorageFeature.set;
 
 /**
- * Get the global cache storage instance, or `null` when none is configured.
- *
- * The declared type is honest-nullable, but at runtime this never returns null:
- * the feature lazy-creates a `MemoryCacheStorage` default on first access. Use
- * {@link getCacheStorageRequired} when a non-null type is needed.
+ * Get the explicitly-configured global cache storage, or `null` when none is
+ * configured. Never throws and never creates a hidden default. Use
+ * {@link getCacheStorageRequired} when a non-null storage is required.
  */
 export const getCacheStorage = cacheStorageFeature.get;
 
 /**
- * Get the global cache storage instance, throwing if unset (or lazy-creating
- * the configured `MemoryCacheStorage` default).
+ * Get the global cache storage instance, throwing if not configured.
  */
 export const getCacheStorageRequired = cacheStorageFeature.getRequired;
 
@@ -102,6 +93,28 @@ export const getCacheStorageRequired = cacheStorageFeature.getRequired;
  * @returns The resolved storage, or null when no storage was configured
  */
 export const resolveCacheStorage = cacheStorageFeature.resolve;
+
+/** Once-per-isolate guard for the missing-storage warning (dedup, not request state). */
+let warnedMissingCacheStorage = false;
+
+/**
+ * Resolve cache storage for the request path, emitting a once-per-isolate
+ * warning when nothing resolves. Caching then degrades to a no-op — correct
+ * for an optimization-only feature, but loud enough that a mis-wired app
+ * (forgotten `createStorageMiddleware` / `setCacheStorage`) is observable.
+ */
+function resolveCacheStorageOrWarn(ctx?: Context<Env>): CacheStorage | null {
+  const storage = cacheStorageFeature.resolve(ctx);
+  if (!storage && !warnedMissingCacheStorage) {
+    warnedMissingCacheStorage = true;
+    getLogger().warn(
+      'Cache storage not configured — caching is disabled. Inject cacheStorage with ' +
+        'createStorageMiddleware() (recommended) or call setCacheStorage(). ' +
+        'This warning is logged once per isolate.',
+    );
+  }
+  return storage;
+}
 
 // ============================================================================
 // Type Helpers
@@ -258,7 +271,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
 
       const key = await this.generateCacheKey();
       const ctx = this.getContext();
-      const storage = resolveCacheStorage(ctx);
+      const storage = resolveCacheStorageOrWarn(ctx);
       if (!storage) {
         this._cacheHit = false;
         return null;
@@ -324,7 +337,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
 
       const key = await this.generateCacheKey();
       const ctx = this.getContext();
-      const storage = resolveCacheStorage(ctx);
+      const storage = resolveCacheStorageOrWarn(ctx);
       if (!storage) {
         return;
       }
@@ -349,7 +362,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
      */
     async invalidateCache(options?: { pattern?: string; tags?: string[] }): Promise<void> {
       const ctx = this.getContext();
-      const storage = resolveCacheStorage(ctx);
+      const storage = resolveCacheStorageOrWarn(ctx);
       if (!storage) {
         return;
       }
@@ -420,7 +433,7 @@ export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
     async performCacheInvalidation(recordId?: string | number): Promise<void> {
       const config = this.getCacheInvalidationConfig();
       const ctx = this.getContext();
-      const storage = resolveCacheStorage(ctx);
+      const storage = resolveCacheStorageOrWarn(ctx);
       if (!storage) {
         return;
       }

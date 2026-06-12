@@ -292,12 +292,28 @@ See [docs/authentication.md](./docs/authentication.md) for JWT, API Key, guards,
 ### Caching
 
 ```typescript
-import { withCache, withCacheInvalidation, setCacheStorage, MemoryCacheStorage } from '@hono-crud/cache';
+import { withCache, MemoryCacheStorage } from '@hono-crud/cache';
 import { MemoryReadEndpoint } from '@hono-crud/memory';
+import { createStorageMiddleware } from 'hono-crud/storage';
+
+// Wire storage (recommended: per-request injection, edge-safe)
+app.use('*', createStorageMiddleware({ cacheStorage: new MemoryCacheStorage() }));
 
 class UserRead extends withCache(MemoryReadEndpoint) {
   _meta = userMeta;
   cacheConfig = { ttl: 300, perUser: false };
+
+  async handle(ctx) {
+    this.setContext(ctx);
+    const cached = await this.getCachedResponse();
+    if (cached) return this.successWithCache(cached);
+
+    const response = await super.handle(ctx);
+    if (response.status === 200) {
+      await this.setCachedResponse((await response.clone().json()).result);
+    }
+    return response;
+  }
 }
 ```
 
@@ -306,9 +322,10 @@ See [docs/caching.md](./docs/caching.md).
 ### Rate Limiting
 
 ```typescript
-import { createRateLimitMiddleware, setRateLimitStorage, MemoryRateLimitStorage } from '@hono-crud/rate-limit';
+import { createRateLimitMiddleware, MemoryRateLimitStorage } from '@hono-crud/rate-limit';
+import { createStorageMiddleware } from 'hono-crud/storage';
 
-setRateLimitStorage(new MemoryRateLimitStorage());
+app.use('*', createStorageMiddleware({ rateLimitStorage: new MemoryRateLimitStorage() }));
 
 app.use('/api/*', createRateLimitMiddleware({
   limit: 100,
@@ -322,9 +339,10 @@ See [docs/rate-limiting.md](./docs/rate-limiting.md).
 ### Logging
 
 ```typescript
-import { createLoggingMiddleware, setLoggingStorage, MemoryLoggingStorage } from 'hono-crud/logging';
+import { createLoggingMiddleware, MemoryLoggingStorage } from 'hono-crud/logging';
+import { createStorageMiddleware } from 'hono-crud/storage';
 
-setLoggingStorage(new MemoryLoggingStorage());
+app.use('*', createStorageMiddleware({ loggingStorage: new MemoryLoggingStorage() }));
 
 app.use('*', createLoggingMiddleware({
   redactHeaders: ['authorization', 'cookie'],

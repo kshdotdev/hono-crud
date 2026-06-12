@@ -1,4 +1,10 @@
-export { CrudEventEmitter, getEventEmitter, setEventEmitter, resolveEventEmitter } from './emitter';
+export {
+  CrudEventEmitter,
+  eventEmitterRegistry,
+  getEventEmitter,
+  setEventEmitter,
+  resolveEventEmitter,
+} from './emitter';
 export { registerWebhooks } from './webhook';
 export { CRUD_EVENT_TYPES } from './types';
 export type {

@@ -61,6 +61,10 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
     this.store = new MemoryTtlStore<RateLimitWrapper>({
       isExpired: (wrapper, now) => now > wrapper.expiresAt,
       cleanupInterval: options?.cleanupInterval ?? 60000,
+      // maxEntries: 0 (unbounded) is required for correctness, not an
+      // oversight: capacity eviction of a live window would silently reset
+      // its counter, weakening limits under key-flood pressure. Memory stays
+      // bounded via the cleanupInterval sweep of expired windows.
       maxEntries: 0,
     });
   }

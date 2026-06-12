@@ -1,9 +1,9 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { CONTEXT_KEYS } from '../../core/context-keys';
 import { ConfigurationException, UnauthorizedException } from '../../core/exceptions';
-import { resolveAPIKeyStorage } from '../../storage/helpers';
 import { getWaitUntil } from '../../utils/wait-until';
 import { hashAPIKey } from '../hash';
+import { resolveAPIKeyStorage } from '../storage/memory';
 import type { APIKeyConfig, APIKeyEntry, APIKeyLookupResult, AuthEnv, AuthUser } from '../types';
 import { validateAPIKeyEntry } from '../validators/api-key';
 
