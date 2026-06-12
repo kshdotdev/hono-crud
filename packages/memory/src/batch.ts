@@ -6,7 +6,7 @@ import { BatchRestoreEndpoint } from 'hono-crud/internal';
 import { BatchUpsertEndpoint } from 'hono-crud/internal';
 import type { MetaInput } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
-import { getStore } from './helpers';
+import { findByUpsertKeys, getStore } from './helpers';
 import { isVisible } from './visibility';
 
 /**
@@ -198,27 +198,7 @@ export abstract class MemoryBatchUpsertEndpoint<
     data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
-    const upsertKeys = this.getUpsertKeys();
-
-    // Search for matching record
-    for (const existing of store.values()) {
-      // Check if all upsert keys match
-      let allMatch = true;
-      for (const key of upsertKeys) {
-        const dataValue = (data as Record<string, unknown>)[key];
-        const existingValue = (existing as Record<string, unknown>)[key];
-        if (dataValue !== existingValue) {
-          allMatch = false;
-          break;
-        }
-      }
-
-      if (allMatch) {
-        return existing;
-      }
-    }
-
-    return null;
+    return findByUpsertKeys(store, data as Record<string, unknown>, this.getUpsertKeys());
   }
 
   /**

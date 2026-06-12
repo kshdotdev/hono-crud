@@ -2,6 +2,7 @@ import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
+import { applyUpsertRestore } from '../core/soft-delete';
 import { extractNestedData, isDirectNestedData } from '../core/nested-writes';
 import type {
   HookMode,
@@ -392,6 +393,13 @@ export abstract class UpsertEndpoint<
    * Finds an existing record by upsert keys.
    * Returns null if no record exists.
    * Must be implemented by ORM-specific subclasses.
+   *
+   * Contract: MUST match soft-deleted rows too. The core orchestrator
+   * restores a soft-deleted match by clearing the soft-delete field on
+   * update ("match-and-restore") — treating deleted rows as absent would
+   * hit the unique constraint backing the upsert keys on SQL adapters.
+   * Native upsert paths (e.g. Drizzle ON CONFLICT) may diverge; see the
+   * adapter docs.
    */
   abstract findExisting(
     data: Partial<ModelObject<M['model']>>,
@@ -459,6 +467,13 @@ export abstract class UpsertEndpoint<
       }
 
       updateData = await this.beforeUpdate(updateData, existing, tx);
+      // Match-and-restore: clear the soft-delete field when updating a
+      // soft-deleted match (see applyUpsertRestore for the rationale).
+      updateData = applyUpsertRestore(
+        updateData as Record<string, unknown>,
+        existing as Record<string, unknown>,
+        this.getSoftDeleteConfig(),
+      ) as Partial<ModelObject<M['model']>>;
       const updated = await this.update(existing, updateData, tx);
       return { data: updated, created: false };
     } else {

@@ -568,3 +568,31 @@ export function buildPaginatedResult<T>(
     },
   };
 }
+
+/**
+ * Finds an existing record matching `data` on every upsert key.
+ *
+ * Soft-deleted rows are matched too: upsert-family endpoints restore them on
+ * update ("match-and-restore", see core's `applyUpsertRestore`). Shared by
+ * Upsert, Import, and BatchUpsert so the matching semantics cannot drift.
+ */
+export async function findByUpsertKeys<Row>(
+  model: PrismaModelOperations<Row>,
+  data: Record<string, unknown>,
+  upsertKeys: string[],
+): Promise<Row | null> {
+  const where: Record<string, unknown> = {};
+  for (const key of upsertKeys) {
+    const value = data[key];
+    if (value !== undefined) {
+      where[key] = value;
+    }
+  }
+
+  if (Object.keys(where).length === 0) {
+    return null;
+  }
+
+  const result = await model.findFirst({ where });
+  return result ?? null;
+}

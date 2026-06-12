@@ -3,6 +3,7 @@ import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { applyComputedFields } from '../core/computed-fields';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
+import { applyUpsertRestore } from '../core/soft-delete';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema } from './responses';
@@ -311,6 +312,13 @@ export abstract class BatchUpsertEndpoint<
    * Finds an existing record by upsert keys.
    * Returns null if no record exists.
    * Must be implemented by ORM-specific subclasses.
+   *
+   * Contract: MUST match soft-deleted rows too. The core orchestrator
+   * restores a soft-deleted match by clearing the soft-delete field on
+   * update ("match-and-restore") — treating deleted rows as absent would
+   * hit the unique constraint backing the upsert keys on SQL adapters.
+   * Native upsert paths (e.g. Drizzle ON CONFLICT) may diverge; see the
+   * adapter docs.
    */
   abstract findExisting(
     data: Partial<ModelObject<M['model']>>,
@@ -359,7 +367,14 @@ export abstract class BatchUpsertEndpoint<
           delete processedData[field as keyof typeof processedData];
         }
       }
-      result = await this.update(existing, processedData, tx);
+      // Match-and-restore: clear the soft-delete field when updating a
+      // soft-deleted match (see applyUpsertRestore for the rationale).
+      const restoredData = applyUpsertRestore(
+        processedData as Record<string, unknown>,
+        existing as Record<string, unknown>,
+        this.getSoftDeleteConfig(),
+      ) as Partial<ModelObject<M['model']>>;
+      result = await this.update(existing, restoredData, tx);
     } else {
       // Filter out update-only fields for create
       if (this.updateOnlyFields) {

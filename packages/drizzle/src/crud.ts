@@ -810,7 +810,7 @@ export abstract class DrizzleListEndpoint<
 
     // Apply filters
     for (const filter of filters.filters) {
-      const condition = buildWhereCondition(table, filter);
+      const condition = buildWhereCondition(table, filter, this.dialect);
       if (condition) {
         conditions.push(condition);
       }

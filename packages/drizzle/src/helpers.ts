@@ -6,15 +6,14 @@ import {
   getTableColumns,
   gt,
   gte,
-  ilike,
   inArray,
   isNotNull,
   isNull,
-  like,
   lt,
   lte,
   ne,
   notInArray,
+  sql,
 } from 'drizzle-orm';
 import type {
   FilterCondition,
@@ -320,10 +319,14 @@ type RealColumn = ReturnType<typeof getTableColumns>[string];
 
 /**
  * Builds a where condition from filter conditions.
+ *
+ * `dialect` drives the `like`/`ilike` substring matching (see
+ * {@link substringMatch}); all other operators are dialect-agnostic.
  */
 export function buildWhereCondition(
   table: DrizzleTable,
   filter: FilterCondition,
+  dialect: DrizzleDialect = 'sqlite',
 ): DrizzleSql | undefined {
   const column = getColumn(table, filter.field) as unknown as RealColumn;
 
@@ -345,9 +348,16 @@ export function buildWhereCondition(
     case 'nin':
       return notInArray(column, filter.value as unknown[]);
     case 'like':
-      return like(column, filter.value as string);
+      // Literal substring match; case behavior follows the database
+      // collation. User-supplied `%` is stripped (memory/prisma parity)
+      // and `_` is inert — substringMatch has no wildcard surface.
+      return substringMatch(column, String(filter.value).replace(/%/g, ''), dialect, {
+        caseSensitive: true,
+      });
     case 'ilike':
-      return ilike(column, filter.value as string);
+      // Always case-insensitive literal substring match (cross-adapter
+      // contract; drizzle-orm's ilike() is PostgreSQL-only SQL).
+      return substringMatch(column, String(filter.value).replace(/%/g, ''), dialect);
     case 'null':
       return filter.value ? isNull(column) : isNotNull(column);
     case 'between': {
@@ -379,4 +389,91 @@ export interface CountRow {
  */
 export function readCount(result: unknown): number {
   return Number((result as CountRow[])[0]?.count) || 0;
+}
+
+/**
+ * Finds an existing record matching `data` on every upsert key.
+ *
+ * Soft-deleted rows are matched too: upsert-family endpoints restore them on
+ * update ("match-and-restore", see core's `applyUpsertRestore`). Shared by
+ * Upsert, Import, and BatchUpsert so the matching semantics cannot drift.
+ * Native ON CONFLICT paths cannot go through this helper and may diverge —
+ * see the `nativeUpsert` / `nativeBatchUpsert` docs.
+ */
+export async function findByUpsertKeys<Row>(
+  db: unknown,
+  table: DrizzleTable,
+  getColumnFor: (field: string) => DrizzleColumn,
+  data: Record<string, unknown>,
+  upsertKeys: string[],
+): Promise<Row | null> {
+  const conditions: DrizzleSql[] = [];
+  for (const key of upsertKeys) {
+    const value = data[key];
+    if (value !== undefined) {
+      conditions.push(eq(getColumnFor(key), value));
+    }
+  }
+
+  if (conditions.length === 0) {
+    return null;
+  }
+
+  const result = await cast<Row>(db)
+    .select()
+    .from(table)
+    .where(and(...conditions))
+    .limit(1);
+
+  return result[0] || null;
+}
+
+/**
+ * Emit a dialect-correct substring-match SQL expression.
+ *
+ * By using the native substring-position function for each dialect, the
+ * needle is never injected into a LIKE pattern, so LIKE wildcards (`%`,
+ * `_`) and the LIKE escape character lose their special meaning entirely —
+ * no wildcard surface means no escape needed.
+ *
+ * Case-insensitive (default) dialect mapping:
+ *   - `'sqlite'` → `INSTR(LOWER(col), LOWER(needle)) > 0`
+ *   - `'pg'`     → `POSITION(LOWER(needle) IN LOWER(col)) > 0`
+ *   - `'mysql'`  → `LOCATE(LOWER(needle), LOWER(col)) > 0`
+ *
+ * With `caseSensitive: true` the LOWER() wrapping is dropped, so case
+ * behavior follows the database collation (binary on sqlite/pg, the
+ * column collation on mysql) — matching the cross-adapter `like`
+ * contract on FilterOperator.
+ *
+ * All three functions return a 1-based position (or 0 for "not found"),
+ * so `> 0` is the dialect-agnostic predicate that means "needle is a
+ * substring of col".
+ */
+export function substringMatch(
+  col: DrizzleColumn | DrizzleSql,
+  needle: string,
+  dialect: DrizzleDialect,
+  options?: { caseSensitive?: boolean },
+): DrizzleSql {
+  if (options?.caseSensitive) {
+    switch (dialect) {
+      case 'pg':
+        return sql`POSITION(${needle} IN ${col}) > 0`;
+      case 'mysql':
+        return sql`LOCATE(${needle}, ${col}) > 0`;
+      default:
+        // 'sqlite' (default)
+        return sql`INSTR(${col}, ${needle}) > 0`;
+    }
+  }
+  switch (dialect) {
+    case 'pg':
+      return sql`POSITION(LOWER(${needle}) IN LOWER(${col})) > 0`;
+    case 'mysql':
+      return sql`LOCATE(LOWER(${needle}), LOWER(${col})) > 0`;
+    default:
+      // 'sqlite' (default)
+      return sql`INSTR(LOWER(${col}), LOWER(${needle})) > 0`;
+  }
 }

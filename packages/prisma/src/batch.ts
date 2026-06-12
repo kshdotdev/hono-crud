@@ -10,6 +10,7 @@ import type { ModelObject } from 'hono-crud/internal';
 import {
   type PrismaClient,
   type PrismaModelOperations,
+  findByUpsertKeys,
   getModelName,
   getPrismaModel,
   getPrismaModelByName,
@@ -346,24 +347,11 @@ export abstract class PrismaBatchUpsertEndpoint<
   override async findExisting(
     data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
-    const model = await this.getModel();
-    const upsertKeys = this.getUpsertKeys();
-
-    // Build where clause from upsert keys
-    const where: Record<string, unknown> = {};
-    for (const key of upsertKeys) {
-      const value = (data as Record<string, unknown>)[key];
-      if (value !== undefined) {
-        where[key] = value;
-      }
-    }
-
-    if (Object.keys(where).length === 0) {
-      return null;
-    }
-
-    const result = await model.findFirst({ where });
-    return result || null;
+    return findByUpsertKeys(
+      await this.getModel(),
+      data as Record<string, unknown>,
+      this.getUpsertKeys(),
+    );
   }
 
   /**

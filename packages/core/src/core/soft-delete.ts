@@ -36,3 +36,23 @@ export function getSoftDeleteConfig(
     queryParam: softDelete.queryParam ?? 'withDeleted',
   };
 }
+
+/**
+ * Inject the soft-delete restore into upsert-family update data.
+ *
+ * Upsert-family endpoints (upsert / import / batchUpsert) MATCH soft-deleted
+ * rows in `findExisting` and restore them on update ("match-and-restore").
+ * Treating deleted rows as absent would attempt a fresh insert, which hits
+ * the unique constraint backing the upsert keys on SQL adapters (or silently
+ * creates a duplicate logical row in memory).
+ */
+export function applyUpsertRestore(
+  data: Record<string, unknown>,
+  existing: Record<string, unknown>,
+  softDeleteConfig: NormalizedSoftDeleteConfig,
+): Record<string, unknown> {
+  if (softDeleteConfig.enabled && existing[softDeleteConfig.field] != null) {
+    return { ...data, [softDeleteConfig.field]: null };
+  }
+  return data;
+}
