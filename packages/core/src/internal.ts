@@ -111,8 +111,11 @@ export {
 // Orchestration helpers adapters call back into
 // ============================================================================
 
-// Cursor codecs shared by every list/pagination implementation.
-export { encodeCursor, decodeCursor } from './core/cursor';
+// Cursor codecs shared by every list/pagination implementation, plus the
+// cursor-mode result_info builder that keeps the three adapters' cursor
+// envelopes byte-identical.
+export { encodeCursor, decodeCursor, buildCursorPage } from './core/cursor';
+export type { CursorPage, CursorPageInput } from './core/cursor';
 
 // Upsert-family soft-delete restore ("match-and-restore" contract).
 export { applyUpsertRestore } from './core/soft-delete';

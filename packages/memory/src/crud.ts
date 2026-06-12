@@ -5,7 +5,7 @@ import { UpdateEndpoint } from 'hono-crud/internal';
 import { DeleteEndpoint } from 'hono-crud/internal';
 import { ListEndpoint } from 'hono-crud/internal';
 import { RestoreEndpoint } from 'hono-crud/internal';
-import { decodeCursor, encodeCursor } from 'hono-crud/internal';
+import { buildCursorPage, decodeCursor } from 'hono-crud/internal';
 import type {
   IncludeOptions,
   ListFilters,
@@ -16,8 +16,7 @@ import type {
   RelationConfig,
 } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
-import { matchesFilter } from './filter';
-import { getStore, loadRelations } from './helpers';
+import { getStore, loadRelations, queryMemoryStore } from './helpers';
 import { isVisible } from './visibility';
 
 /**
@@ -455,124 +454,50 @@ export abstract class MemoryListEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends ListEndpoint<E, M> {
+  protected override supportsCursorPagination = true;
+
   async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
-    let items = Array.from(store.values());
-    const softDeleteConfig = this.getSoftDeleteConfig();
-
-    // Apply soft delete filter
-    if (softDeleteConfig.enabled) {
-      if (filters.options.onlyDeleted) {
-        // Show only deleted records
-        items = items.filter((item) => {
-          const deletedAt = (item as Record<string, unknown>)[softDeleteConfig.field];
-          return deletedAt !== null && deletedAt !== undefined;
-        });
-      } else if (!filters.options.withDeleted) {
-        // Default: exclude deleted records
-        items = items.filter((item) => {
-          const deletedAt = (item as Record<string, unknown>)[softDeleteConfig.field];
-          return deletedAt === null || deletedAt === undefined;
-        });
-      }
-      // If withDeleted=true, don't filter (show all)
-    }
-
-    // Apply filters
-    for (const filter of filters.filters) {
-      items = items.filter((item) => {
-        const value = (item as Record<string, unknown>)[filter.field];
-        return matchesFilter(value, filter);
-      });
-    }
-
-    // Apply search
-    if (filters.options.search && this.searchFields.length > 0) {
-      const searchTerm = filters.options.search.toLowerCase();
-      items = items.filter((item) =>
-        this.searchFields.some((field) => {
-          const value = (item as Record<string, unknown>)[field];
-          return String(value).toLowerCase().includes(searchTerm);
-        }),
-      );
-    }
-
+    const items = queryMemoryStore(store, filters, this.searchFields, this.getSoftDeleteConfig());
     const totalCount = items.length;
+    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
 
-    // Apply sorting
-    if (filters.options.order_by) {
-      const orderBy = filters.options.order_by;
-      const direction = filters.options.order_by_direction === 'desc' ? -1 : 1;
+    const loadItemRelations = (item: ModelObject<M['model']>) =>
+      loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<
+        M['model']
+      >;
 
-      items.sort((a, b) => {
-        const aVal = (a as Record<string, unknown>)[orderBy] as string | number;
-        const bVal = (b as Record<string, unknown>)[orderBy] as string | number;
-
-        if (aVal < bVal) return -1 * direction;
-        if (aVal > bVal) return 1 * direction;
-        return 0;
-      });
-    }
-
-    // Cursor-based pagination
-    if (this.cursorPaginationEnabled && (filters.options.cursor || filters.options.limit)) {
+    // Keyset cursor pagination (next-only). `cursor`/`limit` options only
+    // exist when cursor pagination is enabled AND supported; rows are already
+    // ordered by the cursor field ascending — core forces `order_by` during a
+    // cursor walk.
+    if (filters.options.cursor !== undefined || filters.options.limit !== undefined) {
       const cursorField = this.cursorField || 'id';
       const limit = filters.options.limit || filters.options.per_page || this.defaultPerPage;
+      const decoded = filters.options.cursor ? decodeCursor(filters.options.cursor) : null;
 
-      // If cursor is provided, find the starting position
-      let startIndex = 0;
-      if (filters.options.cursor) {
-        const cursorValue = decodeCursor(filters.options.cursor);
-        if (cursorValue !== null) {
-          const cursorIdx = items.findIndex(
-            (item) => String((item as Record<string, unknown>)[cursorField]) === cursorValue,
-          );
-          if (cursorIdx !== -1) {
-            startIndex = cursorIdx + 1; // Start after the cursor item
-          }
-        }
-      }
+      // Strictly-after-the-boundary keyset window (the memory equivalent of
+      // `WHERE cursorField > decoded`, tolerant of a deleted boundary row).
+      // An invalid cursor starts from the beginning, matching the SQL
+      // adapters. Numeric cursor fields compare numerically; everything else
+      // compares as strings.
+      const windowItems =
+        decoded === null
+          ? items
+          : items.filter((item) => {
+              const value = (item as Record<string, unknown>)[cursorField];
+              return typeof value === 'number' ? value > Number(decoded) : String(value) > decoded;
+            });
 
-      const paginatedItems = items.slice(startIndex, startIndex + limit);
+      const { items: pageItems, result_info } = buildCursorPage({
+        rows: windowItems.slice(0, limit + 1),
+        limit,
+        totalCount,
+        cursorField,
+        cursorApplied: decoded !== null,
+      });
 
-      // Load relations if requested
-      const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
-      const itemsWithRelations = paginatedItems.map(
-        (item) =>
-          loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<
-            M['model']
-          >,
-      );
-
-      const hasNextPage = startIndex + limit < items.length;
-      const hasPrevPage = startIndex > 0;
-
-      // Build cursors from last/first items
-      let nextCursor: string | undefined;
-      let prevCursor: string | undefined;
-
-      if (hasNextPage && paginatedItems.length > 0) {
-        const lastItem = paginatedItems[paginatedItems.length - 1] as Record<string, unknown>;
-        nextCursor = encodeCursor(lastItem[cursorField] as string | number);
-      }
-
-      if (hasPrevPage && startIndex > 0) {
-        const prevItem = items[startIndex - 1] as Record<string, unknown>;
-        prevCursor = encodeCursor(prevItem[cursorField] as string | number);
-      }
-
-      return {
-        result: itemsWithRelations,
-        result_info: {
-          page: 0,
-          per_page: limit,
-          total_count: totalCount,
-          has_next_page: hasNextPage,
-          has_prev_page: hasPrevPage,
-          next_cursor: nextCursor,
-          prev_cursor: prevCursor,
-        },
-      };
+      return { result: pageItems.map(loadItemRelations), result_info };
     }
 
     // Offset-based pagination (default)
@@ -581,19 +506,10 @@ export abstract class MemoryListEndpoint<
     const start = (page - 1) * perPage;
     const paginatedItems = items.slice(start, start + perPage);
 
-    // Load relations if requested
-    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
-    const itemsWithRelations = paginatedItems.map(
-      (item) =>
-        loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<
-          M['model']
-        >,
-    );
-
     const totalPages = Math.ceil(totalCount / perPage);
 
     return {
-      result: itemsWithRelations,
+      result: paginatedItems.map(loadItemRelations),
       result_info: {
         page,
         per_page: perPage,

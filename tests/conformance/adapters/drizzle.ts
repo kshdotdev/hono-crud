@@ -161,6 +161,13 @@ class ItemBatchUpsert extends DrizzleBatchUpsertEndpoint {
   db = DB;
   protected override upsertKeys = ['email'];
 }
+class CursorItemList extends DrizzleListEndpoint {
+  _meta = baseMeta;
+  db = DB;
+  protected override cursorPaginationEnabled = true;
+  protected override cursorField = 'id';
+  protected override sortFields = ['email'];
+}
 
 class TenantCreate extends DrizzleCreateEndpoint {
   _meta = tenantMeta;
@@ -294,6 +301,7 @@ async function setup(): Promise<AdapterContext> {
     batchCreate: FinalizeBatchCreate,
     batchDelete: FinalizeBatchDelete,
   });
+  registerCrud(app, '/cursor-items', { create: ItemCreate, list: CursorItemList });
   registerCrud(app, '/hook-items', { create: HookItemCreate });
 
   return {

@@ -1,10 +1,12 @@
 import {
   type IncludeOptions,
+  type ListFilters,
   type MetaInput,
   type RelatedRecord,
   type SyncRelationLoaderAdapter,
   loadRelationsForItemSync,
 } from 'hono-crud/internal';
+import { matchesFilter } from './filter';
 
 /**
  * Module-level in-memory storage.
@@ -65,6 +67,79 @@ export function loadRelations<T extends Record<string, unknown>, M extends MetaI
  */
 export function clearStorage(): void {
   storage.clear();
+}
+
+/**
+ * Runs the shared list-query block against a per-table store: soft-delete
+ * visibility (`withDeleted`/`onlyDeleted`), the `matchesFilter` filter loop,
+ * the generic `?search=` substring needle, and `order_by` sorting. Shared by
+ * the List and Export endpoints so the query semantics cannot drift;
+ * pagination (offset slice or keyset cursor window) stays with the caller.
+ *
+ * The returned array's length is the query's total count.
+ */
+export function queryMemoryStore<T>(
+  store: Map<string, T>,
+  filters: ListFilters,
+  searchFields: string[],
+  softDeleteConfig: { enabled: boolean; field: string },
+): T[] {
+  let items = Array.from(store.values());
+
+  // Apply soft delete filter
+  if (softDeleteConfig.enabled) {
+    if (filters.options.onlyDeleted) {
+      // Show only deleted records
+      items = items.filter((item) => {
+        const deletedAt = (item as Record<string, unknown>)[softDeleteConfig.field];
+        return deletedAt !== null && deletedAt !== undefined;
+      });
+    } else if (!filters.options.withDeleted) {
+      // Default: exclude deleted records
+      items = items.filter((item) => {
+        const deletedAt = (item as Record<string, unknown>)[softDeleteConfig.field];
+        return deletedAt === null || deletedAt === undefined;
+      });
+    }
+    // If withDeleted=true, don't filter (show all)
+  }
+
+  // Apply filters
+  for (const filter of filters.filters) {
+    items = items.filter((item) => {
+      const value = (item as Record<string, unknown>)[filter.field];
+      return matchesFilter(value, filter);
+    });
+  }
+
+  // Apply search (literal substring, case-insensitive — see the like/ilike
+  // contract: user `%`/`_` are inert characters, never wildcards)
+  if (filters.options.search && searchFields.length > 0) {
+    const searchTerm = filters.options.search.toLowerCase();
+    items = items.filter((item) =>
+      searchFields.some((field) => {
+        const value = (item as Record<string, unknown>)[field];
+        return String(value).toLowerCase().includes(searchTerm);
+      }),
+    );
+  }
+
+  // Apply sorting
+  if (filters.options.order_by) {
+    const orderBy = filters.options.order_by;
+    const direction = filters.options.order_by_direction === 'desc' ? -1 : 1;
+
+    items.sort((a, b) => {
+      const aVal = (a as Record<string, unknown>)[orderBy] as string | number;
+      const bVal = (b as Record<string, unknown>)[orderBy] as string | number;
+
+      if (aVal < bVal) return -1 * direction;
+      if (aVal > bVal) return 1 * direction;
+      return 0;
+    });
+  }
+
+  return items;
 }
 
 /**

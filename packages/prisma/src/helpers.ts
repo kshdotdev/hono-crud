@@ -14,7 +14,12 @@ import type {
   PaginatedResult,
   RelationLoaderAdapter,
 } from 'hono-crud/internal';
-import { assertNever, batchLoadRelations, loadRelationsForItem } from 'hono-crud/internal';
+import {
+  assertNever,
+  batchLoadRelations,
+  decodeCursor,
+  loadRelationsForItem,
+} from 'hono-crud/internal';
 import { inlineSingular, levenshteinDistance } from './pluralize';
 
 /**
@@ -34,6 +39,7 @@ export interface PrismaModelOperations<Row = Record<string, unknown>> {
     orderBy?: unknown;
     skip?: number;
     take?: number;
+    cursor?: Record<string, unknown>;
   }) => Promise<Row[]>;
   update: (args: { where: unknown; data: unknown }) => Promise<Row>;
   updateMany: (args: { where: unknown; data: unknown }) => Promise<{ count: number }>;
@@ -445,17 +451,24 @@ export interface PrismaQueryOptions<Row = Record<string, unknown>> {
   defaultPerPage?: number;
   /** Additional WHERE conditions to merge (optional) */
   additionalWhere?: Record<string, unknown>;
+  /**
+   * Keyset (cursor) pagination field. When set, a request carrying
+   * `cursor`/`limit` options runs Prisma's native cursor window
+   * (`cursor: { [field]: decoded }` + `skip: 1` + `take: n+1`) instead of
+   * offset pagination. Only the List endpoint passes this.
+   */
+  cursorField?: string;
 }
 
 /**
  * Result of a Prisma list query.
  */
 export interface PrismaQueryResult<Row = Record<string, unknown>> {
-  /** The fetched records */
+  /** The fetched records (in cursor mode: up to `limit + 1` rows) */
   records: Row[];
   /** The WHERE clause used */
   where: Record<string, unknown>;
-  /** Total count of matching records */
+  /** Total count of matching records (never includes the cursor window) */
   totalCount: number;
   /** Current page number */
   page: number;
@@ -463,11 +476,31 @@ export interface PrismaQueryResult<Row = Record<string, unknown>> {
   perPage: number;
   /** Total number of pages */
   totalPages: number;
+  /**
+   * Present when the native cursor window ran instead of offset pagination.
+   * The offset fields above are then not meaningful — build the envelope
+   * with core's `buildCursorPage`.
+   */
+  cursor?: { limit: number; applied: boolean };
 }
 
 /**
  * Executes a common Prisma list query with filtering, sorting, and pagination.
- * This helper reduces code duplication across List, Search, and Export endpoints.
+ * This helper reduces code duplication across the List and Export endpoints
+ * (Search assembles its own search-specific WHERE and stays separate).
+ *
+ * Cursor mode (when `cursorField` is set and the request carries
+ * `cursor`/`limit` options) uses Prisma's NATIVE cursor: `cursor: { [field]:
+ * decoded }` + `skip: 1` + `take: limit + 1` (the surplus row is the
+ * has-more sentinel). The ordering is already forced to the cursor field
+ * ascending by core's `parseListFilters`. An invalid cursor starts from the
+ * beginning.
+ *
+ * Native-cursor divergence from the drizzle/memory keyset predicates
+ * (`WHERE cursorField > decoded`): Prisma requires the boundary row to still
+ * EXIST — a cursor pointing at a since-deleted row yields an empty page
+ * (documented Prisma behavior). This is a native-API limitation, documented
+ * rather than papered over.
  *
  * @param options - Query configuration options
  * @returns Query result with records and pagination info
@@ -482,6 +515,7 @@ export async function executePrismaQuery<Row = Record<string, unknown>>(
     softDeleteConfig,
     defaultPerPage = 20,
     additionalWhere = {},
+    cursorField,
   } = options;
 
   // Build base WHERE clause from filters
@@ -517,11 +551,40 @@ export async function executePrismaQuery<Row = Record<string, unknown>>(
   // Get total count
   const totalCount = await model.count({ where });
 
-  // Build orderBy
+  // Build orderBy (cursor mode arrives here already forced to cursorField asc)
   let orderBy: Record<string, string> | undefined;
   if (filters.options.order_by) {
     orderBy = {
       [filters.options.order_by]: filters.options.order_by_direction || 'asc',
+    };
+  }
+
+  // Native cursor (keyset) window
+  const cursorMode =
+    cursorField !== undefined &&
+    (filters.options.cursor !== undefined || filters.options.limit !== undefined);
+
+  if (cursorMode) {
+    const limit = filters.options.limit || filters.options.per_page || defaultPerPage;
+    const decoded = filters.options.cursor ? decodeCursor(filters.options.cursor) : null;
+
+    const records = await model.findMany({
+      where,
+      orderBy,
+      take: limit + 1,
+      // `skip: 1` skips the boundary row itself; `coerceValue` restores the
+      // field's native type (cursors round-trip through strings).
+      ...(decoded !== null ? { cursor: { [cursorField]: coerceValue(decoded) }, skip: 1 } : {}),
+    });
+
+    return {
+      records,
+      where,
+      totalCount,
+      page: 0,
+      perPage: limit,
+      totalPages: 0,
+      cursor: { limit, applied: decoded !== null },
     };
   }
 
@@ -550,7 +613,8 @@ export async function executePrismaQuery<Row = Record<string, unknown>>(
 }
 
 /**
- * Builds a PaginatedResult from query results.
+ * Builds a PaginatedResult from offset-mode query results. Cursor-mode
+ * results go through core's `buildCursorPage` instead.
  */
 export function buildPaginatedResult<T>(
   items: T[],

@@ -1,8 +1,8 @@
 import type { Env } from 'hono';
-import { type ZodObject, type ZodRawShape, z } from 'zod';
+import type { ZodObject, ZodRawShape } from 'zod';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
-import { errorResponseSchema } from './responses';
+import { batchResultResponses, errorResponseSchema, idsBodySchema } from './responses';
 import type { ModelObject } from './types';
 
 /**
@@ -77,9 +77,7 @@ export abstract class BatchDeleteEndpoint<
    * Returns the request body schema for batch deletion.
    */
   protected getBodySchema(): ZodObject<ZodRawShape> {
-    return z.object({
-      ids: z.array(z.string()).min(1).max(this.maxBatchSize),
-    }) as unknown as ZodObject<ZodRawShape>;
+    return idsBodySchema(this.maxBatchSize);
   }
 
   /**
@@ -99,46 +97,11 @@ export abstract class BatchDeleteEndpoint<
         },
       },
       responses: {
-        200: {
-          description: softDelete
-            ? 'Resources soft-deleted successfully'
-            : 'Resources deleted successfully',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  deleted: z.array(this.getModelSchema()),
-                  count: z.number(),
-                  notFound: z.array(z.string()).optional(),
-                }),
-              }),
-            },
-          },
-        },
-        207: {
-          description: 'Partial success (some items failed or not found)',
-          content: {
-            'application/json': {
-              schema: z.object({
-                success: z.literal(true),
-                result: z.object({
-                  deleted: z.array(this.getModelSchema()),
-                  count: z.number(),
-                  notFound: z.array(z.string()).optional(),
-                  errors: z
-                    .array(
-                      z.object({
-                        id: z.string(),
-                        error: z.string(),
-                      }),
-                    )
-                    .optional(),
-                }),
-              }),
-            },
-          },
-        },
+        ...batchResultResponses(
+          'deleted',
+          this.getModelSchema(),
+          softDelete ? 'Resources soft-deleted successfully' : 'Resources deleted successfully',
+        ),
         400: errorResponseSchema('Validation error'),
       },
     };

@@ -1,6 +1,6 @@
-import { asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { Env } from 'hono';
-import { getLogger } from 'hono-crud/internal';
+import { buildCursorPage, getLogger } from 'hono-crud/internal';
 import { CreateEndpoint } from 'hono-crud/internal';
 import { ReadEndpoint } from 'hono-crud/internal';
 import { UpdateEndpoint } from 'hono-crud/internal';
@@ -17,7 +17,6 @@ import type {
   RelationConfig,
 } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
-import { substringMatch } from './advanced';
 import { getDrizzleDb } from './connection';
 import {
   type DrizzleColumn,
@@ -27,12 +26,12 @@ import {
   type DrizzleTable,
   and,
   batchLoadDrizzleRelations,
-  buildWhereCondition,
+  buildPaginatedResult,
   cast,
+  executeDrizzleListQuery,
   getColumn,
   getTable,
   loadDrizzleRelations,
-  or,
   readCount,
 } from './helpers';
 
@@ -776,6 +775,9 @@ export abstract class DrizzleListEndpoint<
    */
   protected dialect: DrizzleDialect = 'sqlite';
 
+  /** Keyset cursor pagination is implemented (`WHERE cursorField > decoded`). */
+  protected override supportsCursorPagination = true;
+
   /** Gets the database instance from property or context */
   protected getDb(): DB {
     return getDrizzleDb(this) as DB;
@@ -790,99 +792,48 @@ export abstract class DrizzleListEndpoint<
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
-    const table = this.getTable();
-    const conditions: DrizzleSql[] = [];
-    const softDeleteConfig = this.getSoftDeleteConfig();
+    // Execute common query logic (filters, search, sorting, pagination)
+    const queryResult = await executeDrizzleListQuery<ModelObject<M['model']>>({
+      db: this.getDb(),
+      table: this.getTable(),
+      filters,
+      dialect: this.dialect,
+      searchFields: this.searchFields,
+      softDeleteConfig: this.getSoftDeleteConfig(),
+      defaultPerPage: this.defaultPerPage,
+      cursorField: this.isCursorPaginationActive() ? this.cursorField || 'id' : undefined,
+    });
 
-    // Apply soft delete filter
-    if (softDeleteConfig.enabled) {
-      const deletedAtColumn = this.getColumn(softDeleteConfig.field);
+    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
 
-      if (filters.options.onlyDeleted) {
-        // Show only deleted records
-        conditions.push(isNotNull(deletedAtColumn));
-      } else if (!filters.options.withDeleted) {
-        // Default: exclude deleted records
-        conditions.push(isNull(deletedAtColumn));
-      }
-      // If withDeleted=true, don't add any condition (show all)
-    }
-
-    // Apply filters
-    for (const filter of filters.filters) {
-      const condition = buildWhereCondition(table, filter, this.dialect);
-      if (condition) {
-        conditions.push(condition);
-      }
-    }
-
-    // Apply search
-    if (filters.options.search && this.searchFields.length > 0) {
-      const needle = filters.options.search;
-      const searchConditions = this.searchFields.map((field) => {
-        const column = this.getColumn(field);
-        // Dialect-native substring match (INSTR/POSITION/LOCATE). The needle
-        // is never injected into a LIKE pattern, so user-supplied `%` and `_`
-        // are inert literal characters — no wildcard surface, no escape
-        // sequence needed. Mirrors the dedicated search endpoint
-        // (`DrizzleSearchEndpoint`) and the export endpoint, and aligns
-        // with memory/Prisma which already use literal substring matching.
-        return substringMatch(column, needle, this.dialect);
+    // Keyset cursor page: trim the has-more sentinel row before loading
+    // relations, then return the canonical cursor-mode envelope.
+    if (queryResult.cursor) {
+      const { items, result_info } = buildCursorPage({
+        rows: queryResult.records,
+        limit: queryResult.cursor.limit,
+        totalCount: queryResult.totalCount,
+        cursorField: this.cursorField || 'id',
+        cursorApplied: queryResult.cursor.applied,
       });
-      conditions.push(or(...searchConditions)!);
+      const itemsWithRelations = await batchLoadDrizzleRelations(
+        this.getDb(),
+        items,
+        this._meta,
+        includeOptions,
+      );
+      return { result: itemsWithRelations, result_info };
     }
-
-    // Build where clause
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-    // Get total count using COUNT(*)
-    const db = this.getDb();
-    const countResult = await cast(db)
-      .select({ count: sql<number>`count(*)` })
-      .from(table)
-      .where(whereClause);
-
-    const totalCount = readCount(countResult);
-
-    // Build main query
-    let query = cast<ModelObject<M['model']>>(db).select().from(table).where(whereClause);
-
-    // Apply sorting
-    if (filters.options.order_by) {
-      const orderColumn = this.getColumn(filters.options.order_by);
-      const orderFn = filters.options.order_by_direction === 'desc' ? desc : asc;
-      query = query.orderBy(orderFn(orderColumn));
-    }
-
-    // Apply pagination
-    const page = filters.options.page || 1;
-    const perPage = filters.options.per_page || this.defaultPerPage;
-    query = query.limit(perPage).offset((page - 1) * perPage);
-
-    const result = await query;
 
     // Load relations if requested using batch loading to avoid N+1 queries
-    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const itemsWithRelations = await batchLoadDrizzleRelations(
       this.getDb(),
-      result,
+      queryResult.records,
       this._meta,
       includeOptions,
     );
 
-    const totalPages = Math.ceil(totalCount / perPage);
-
-    return {
-      result: itemsWithRelations,
-      result_info: {
-        page,
-        per_page: perPage,
-        total_count: totalCount,
-        total_pages: totalPages,
-        has_next_page: page < totalPages,
-        has_prev_page: page > 1,
-      },
-    };
+    return buildPaginatedResult(itemsWithRelations, queryResult);
   }
 }
 

@@ -182,6 +182,13 @@ async function setup(): Promise<AdapterContext> {
     prisma = crudClient;
     protected override upsertKeys = ['email'];
   }
+  class CursorItemList extends PrismaListEndpoint {
+    _meta = baseMeta;
+    prisma = crudClient;
+    protected override cursorPaginationEnabled = true;
+    protected override cursorField = 'id';
+    protected override sortFields = ['email'];
+  }
 
   class TenantCreate extends PrismaCreateEndpoint {
     _meta = tenantMeta;
@@ -293,6 +300,7 @@ async function setup(): Promise<AdapterContext> {
     batchCreate: FinalizeBatchCreate,
     batchDelete: FinalizeBatchDelete,
   });
+  registerCrud(app, '/cursor-items', { create: ItemCreate, list: CursorItemList });
   registerCrud(app, '/hook-items', { create: HookItemCreate });
 
   return {

@@ -28,7 +28,7 @@ import type {
 import type { ModelObject } from 'hono-crud/internal';
 import { applyUpsertRestore, isFilterOperator } from 'hono-crud/internal';
 import { matchesFilter } from './filter';
-import { findByUpsertKeys, getStore, loadRelations } from './helpers';
+import { findByUpsertKeys, getStore, loadRelations, queryMemoryStore } from './helpers';
 import { isVisible } from './visibility';
 
 /**
@@ -579,59 +579,8 @@ export abstract class MemoryExportEndpoint<
 > extends ExportEndpoint<E, M> {
   async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
-    let items = Array.from(store.values());
-    const softDeleteConfig = this.getSoftDeleteConfig();
-
-    // Apply soft delete filter
-    if (softDeleteConfig.enabled) {
-      if (filters.options.onlyDeleted) {
-        items = items.filter((item) => {
-          const deletedAt = (item as Record<string, unknown>)[softDeleteConfig.field];
-          return deletedAt !== null && deletedAt !== undefined;
-        });
-      } else if (!filters.options.withDeleted) {
-        items = items.filter((item) => {
-          const deletedAt = (item as Record<string, unknown>)[softDeleteConfig.field];
-          return deletedAt === null || deletedAt === undefined;
-        });
-      }
-    }
-
-    // Apply filters
-    for (const filter of filters.filters) {
-      items = items.filter((item) => {
-        const value = (item as Record<string, unknown>)[filter.field];
-        return matchesFilter(value, filter);
-      });
-    }
-
-    // Apply search
-    if (filters.options.search && this.searchFields.length > 0) {
-      const searchTerm = filters.options.search.toLowerCase();
-      items = items.filter((item) =>
-        this.searchFields.some((field) => {
-          const value = (item as Record<string, unknown>)[field];
-          return String(value).toLowerCase().includes(searchTerm);
-        }),
-      );
-    }
-
+    const items = queryMemoryStore(store, filters, this.searchFields, this.getSoftDeleteConfig());
     const totalCount = items.length;
-
-    // Apply sorting
-    if (filters.options.order_by) {
-      const orderBy = filters.options.order_by;
-      const direction = filters.options.order_by_direction === 'desc' ? -1 : 1;
-
-      items.sort((a, b) => {
-        const aVal = (a as Record<string, unknown>)[orderBy] as string | number;
-        const bVal = (b as Record<string, unknown>)[orderBy] as string | number;
-
-        if (aVal < bVal) return -1 * direction;
-        if (aVal > bVal) return 1 * direction;
-        return 0;
-      });
-    }
 
     // Apply pagination
     const page = filters.options.page || 1;

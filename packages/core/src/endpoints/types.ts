@@ -133,6 +133,7 @@ export function parseListFilters(
     defaultPerPage = 20,
     maxPerPage = 100,
     cursorPaginationEnabled = false,
+    cursorField,
     softDeleteQueryParam = 'withDeleted',
     allowedIncludes = [],
     fieldSelectionEnabled = false,
@@ -275,6 +276,17 @@ export function parseListFilters(
   if (!options.per_page) options.per_page = defaultPerPage;
   if (!options.order_by && defaultSort?.field) options.order_by = defaultSort.field;
   if (!options.order_by_direction) options.order_by_direction = defaultSort?.order ?? 'asc';
+
+  // Cursor-mode ordering contract (defined ONCE, for every adapter): when a
+  // cursor walk is in play (`cursor` and/or `limit` supplied with cursor
+  // pagination enabled), ORDER BY is forced to the cursor field ascending —
+  // user `sort`/`order` are ignored. Keyset pagination is only correct when
+  // rows are ordered by the cursor key, so adapters must never see a
+  // conflicting order_by alongside cursor options.
+  if (cursorPaginationEnabled && (options.cursor !== undefined || options.limit !== undefined)) {
+    options.order_by = cursorField ?? 'id';
+    options.order_by_direction = 'asc';
+  }
 
   // Apply default fields if field selection is enabled but no fields were specified
   if (fieldSelectionEnabled && !options.fields && defaultSelectFields.length > 0) {

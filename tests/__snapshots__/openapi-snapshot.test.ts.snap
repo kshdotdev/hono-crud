@@ -112,17 +112,11 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
                       "has_prev_page": {
                         "type": "boolean",
                       },
-                      "next_cursor": {
-                        "type": "string",
-                      },
                       "page": {
                         "type": "number",
                       },
                       "per_page": {
                         "type": "number",
-                      },
-                      "prev_cursor": {
-                        "type": "string",
                       },
                       "total_count": {
                         "type": "number",

@@ -1,7 +1,9 @@
 import {
   and as _and,
   or as _or,
+  asc,
   between,
+  desc,
   eq,
   getTableColumns,
   gt,
@@ -18,7 +20,9 @@ import {
 import type {
   FilterCondition,
   IncludeOptions,
+  ListFilters,
   MetaInput,
+  PaginatedResult,
   RelatedRecord,
   RelationConfig,
   RelationLoaderAdapter,
@@ -26,6 +30,7 @@ import type {
 import {
   assertNever,
   batchLoadRelations,
+  decodeCursor,
   loadRelationsForItem,
   resolveRelationValueAsync,
 } from 'hono-crud/internal';
@@ -389,6 +394,216 @@ export interface CountRow {
  */
 export function readCount(result: unknown): number {
   return Number((result as CountRow[])[0]?.count) || 0;
+}
+
+/**
+ * Options for executing a Drizzle list query.
+ */
+export interface DrizzleListQueryOptions {
+  /** Database (or transaction) handle. */
+  db: unknown;
+  /** The Drizzle table to query. */
+  table: DrizzleTable;
+  /** List filters from the request. */
+  filters: ListFilters;
+  /** SQL dialect (drives the substring-match SQL on the `?search=` path). */
+  dialect: DrizzleDialect;
+  /** Search fields for the generic `?search=` needle (optional). */
+  searchFields?: string[];
+  /** Soft delete configuration (optional). */
+  softDeleteConfig?: { enabled: boolean; field: string };
+  /** Default items per page. */
+  defaultPerPage?: number;
+  /**
+   * Pre-built conditions ANDed into the WHERE clause — the search endpoint's
+   * custom search SQL (tsvector or substring-position) plugs in here.
+   */
+  extraConditions?: DrizzleSql[];
+  /**
+   * Keyset (cursor) pagination field. When set, a request carrying
+   * `cursor`/`limit` options runs the keyset window (`WHERE cursorField >
+   * decoded` + `LIMIT n+1`) instead of offset pagination. Only the List
+   * endpoint passes this.
+   */
+  cursorField?: string;
+}
+
+/**
+ * Result of a Drizzle list query.
+ */
+export interface DrizzleListQueryResult<Row = Record<string, unknown>> {
+  /** The fetched records (in cursor mode: up to `limit + 1` rows). */
+  records: Row[];
+  /** Total count of matching records (never includes the cursor window condition). */
+  totalCount: number;
+  /** Current page number. */
+  page: number;
+  /** Items per page. */
+  perPage: number;
+  /** Total number of pages. */
+  totalPages: number;
+  /**
+   * Present when the keyset (cursor) window ran instead of offset
+   * pagination. The offset fields above are then not meaningful — build the
+   * envelope with core's `buildCursorPage`.
+   */
+  cursor?: { limit: number; applied: boolean };
+}
+
+/**
+ * Executes the common Drizzle list query with filtering, search, sorting, and
+ * pagination — the drizzle mirror of the prisma adapter's
+ * `executePrismaQuery`. Shared by the List, Search, and Export endpoints so
+ * the query semantics cannot drift.
+ *
+ * Cursor mode (when `cursorField` is set and the request carries
+ * `cursor`/`limit` options) applies a strictly-greater keyset predicate on
+ * the cursor column and overfetches one row as the has-more sentinel. The
+ * ordering is already forced to the cursor field ascending by core's
+ * `parseListFilters`, so the regular `order_by` block emits the correct
+ * ORDER BY. An invalid cursor starts from the beginning. Unlike Prisma's
+ * native cursor, the keyset predicate tolerates a deleted boundary row.
+ */
+export async function executeDrizzleListQuery<Row = Record<string, unknown>>(
+  options: DrizzleListQueryOptions,
+): Promise<DrizzleListQueryResult<Row>> {
+  const {
+    db,
+    table,
+    filters,
+    dialect,
+    searchFields = [],
+    softDeleteConfig,
+    defaultPerPage = 20,
+    extraConditions = [],
+    cursorField,
+  } = options;
+
+  const conditions: DrizzleSql[] = [];
+
+  // Apply soft delete filter
+  if (softDeleteConfig?.enabled) {
+    const deletedAtColumn = getColumn(table, softDeleteConfig.field);
+
+    if (filters.options.onlyDeleted) {
+      // Show only deleted records
+      conditions.push(isNotNull(deletedAtColumn));
+    } else if (!filters.options.withDeleted) {
+      // Default: exclude deleted records
+      conditions.push(isNull(deletedAtColumn));
+    }
+    // If withDeleted=true, don't add any condition (show all)
+  }
+
+  // Apply filters
+  for (const filter of filters.filters) {
+    const condition = buildWhereCondition(table, filter, dialect);
+    if (condition) {
+      conditions.push(condition);
+    }
+  }
+
+  // Apply search. Dialect-native substring match (INSTR/POSITION/LOCATE) —
+  // the needle is never injected into a LIKE pattern, so user-supplied `%`
+  // and `_` are inert literal characters, aligning with memory/Prisma which
+  // use literal substring matching.
+  if (filters.options.search && searchFields.length > 0) {
+    const needle = filters.options.search;
+    const searchConditions = searchFields.map((field) =>
+      substringMatch(getColumn(table, field), needle, dialect),
+    );
+    conditions.push(or(...searchConditions)!);
+  }
+
+  conditions.push(...extraConditions);
+
+  // Build where clause
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  // Get total count using COUNT(*). The keyset window condition is
+  // intentionally NOT part of the count — total_count always reflects the
+  // full filtered set.
+  const countResult = await cast(db)
+    .select({ count: sql<number>`count(*)` })
+    .from(table)
+    .where(whereClause);
+
+  const totalCount = readCount(countResult);
+
+  // Keyset (cursor) window: strictly after the boundary value.
+  const cursorMode =
+    cursorField !== undefined &&
+    (filters.options.cursor !== undefined || filters.options.limit !== undefined);
+
+  let fetchWhere = whereClause;
+  let cursorApplied = false;
+  if (cursorMode && filters.options.cursor) {
+    const decoded = decodeCursor(filters.options.cursor);
+    if (decoded !== null) {
+      fetchWhere = and(whereClause, gt(getColumn(table, cursorField), decoded));
+      cursorApplied = true;
+    }
+  }
+
+  // Build main query
+  let query = cast<Row>(db).select().from(table).where(fetchWhere);
+
+  // Apply sorting (cursor mode arrives here already forced to cursorField asc)
+  if (filters.options.order_by) {
+    const orderColumn = getColumn(table, filters.options.order_by);
+    const orderFn = filters.options.order_by_direction === 'desc' ? desc : asc;
+    query = query.orderBy(orderFn(orderColumn));
+  }
+
+  if (cursorMode) {
+    const limit = filters.options.limit || filters.options.per_page || defaultPerPage;
+    const records = await query.limit(limit + 1);
+    return {
+      records,
+      totalCount,
+      page: 0,
+      perPage: limit,
+      totalPages: 0,
+      cursor: { limit, applied: cursorApplied },
+    };
+  }
+
+  // Apply offset pagination
+  const page = filters.options.page || 1;
+  const perPage = filters.options.per_page || defaultPerPage;
+  const records = await query.limit(perPage).offset((page - 1) * perPage);
+
+  const totalPages = Math.ceil(totalCount / perPage);
+
+  return {
+    records,
+    totalCount,
+    page,
+    perPage,
+    totalPages,
+  };
+}
+
+/**
+ * Builds a PaginatedResult from offset-mode query results (mirrors the
+ * prisma adapter's `buildPaginatedResult`). Cursor-mode results go through
+ * core's `buildCursorPage` instead.
+ */
+export function buildPaginatedResult<T>(
+  items: T[],
+  queryResult: DrizzleListQueryResult<unknown>,
+): PaginatedResult<T> {
+  return {
+    result: items,
+    result_info: {
+      page: queryResult.page,
+      per_page: queryResult.perPage,
+      total_count: queryResult.totalCount,
+      total_pages: queryResult.totalPages,
+      has_next_page: queryResult.page < queryResult.totalPages,
+      has_prev_page: queryResult.page > 1,
+    },
+  };
 }
 
 /**

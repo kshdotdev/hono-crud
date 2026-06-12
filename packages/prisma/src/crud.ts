@@ -4,6 +4,7 @@ import { ReadEndpoint } from 'hono-crud/internal';
 import { UpdateEndpoint } from 'hono-crud/internal';
 import { DeleteEndpoint } from 'hono-crud/internal';
 import { ListEndpoint } from 'hono-crud/internal';
+import { buildCursorPage } from 'hono-crud/internal';
 import type { IncludeOptions, ListFilters, MetaInput, PaginatedResult } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
 import { getPrismaClient } from './connection';
@@ -319,6 +320,9 @@ export abstract class PrismaListEndpoint<
 > extends ListEndpoint<E, M> {
   declare prisma?: PrismaClient;
 
+  /** Cursor pagination is implemented via Prisma's native `cursor` window. */
+  protected override supportsCursorPagination = true;
+
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
     return getPrismaModel<ModelObject<M['model']>>(
       getPrismaClient(this),
@@ -334,10 +338,31 @@ export abstract class PrismaListEndpoint<
       searchFields: this.searchFields,
       softDeleteConfig: this.getSoftDeleteConfig(),
       defaultPerPage: this.defaultPerPage,
+      cursorField: this.isCursorPaginationActive() ? this.cursorField || 'id' : undefined,
     });
 
-    // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
+
+    // Keyset cursor page: trim the has-more sentinel row before loading
+    // relations, then return the canonical cursor-mode envelope.
+    if (queryResult.cursor) {
+      const { items, result_info } = buildCursorPage({
+        rows: queryResult.records,
+        limit: queryResult.cursor.limit,
+        totalCount: queryResult.totalCount,
+        cursorField: this.cursorField || 'id',
+        cursorApplied: queryResult.cursor.applied,
+      });
+      const itemsWithRelations = await batchLoadPrismaRelations(
+        getPrismaClient(this),
+        items,
+        this._meta,
+        includeOptions,
+      );
+      return { result: itemsWithRelations, result_info };
+    }
+
+    // Load relations if requested using batch loading to avoid N+1 queries
     const itemsWithRelations = await batchLoadPrismaRelations(
       getPrismaClient(this),
       queryResult.records,
