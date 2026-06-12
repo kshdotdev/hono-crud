@@ -51,17 +51,18 @@
     "access": "public"
   },
   "dependencies": {
-    "hono-crud": "workspace:*",
     "@hono/mcp": "^0.3.0"
   },
   "peerDependencies": {
-    "hono": ">=4.11.7 <5",
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "zod": ">=4"
+    "hono": ">=4.11.7 <5",
+    "hono-crud": "workspace:^",
+    "zod": ">=4.0.0"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "hono": "^4.11.4",
+    "hono": "^4.11.7",
+    "hono-crud": "workspace:*",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",
     "zod": "^4.3.5"

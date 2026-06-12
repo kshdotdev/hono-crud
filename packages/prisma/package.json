@@ -47,14 +47,12 @@
   "publishConfig": {
     "access": "public"
   },
-  "dependencies": {
-    "hono-crud": "workspace:*"
-  },
   "peerDependencies": {
     "@prisma/adapter-pg": ">=5.0.0",
     "@prisma/client": ">=5.0.0",
     "fastest-levenshtein": ">=1.0.0",
     "hono": ">=4.11.7 <5",
+    "hono-crud": "workspace:^",
     "pluralize": ">=8.0.0",
     "zod": ">=4.0.0"
   },
@@ -76,7 +74,8 @@
     "@prisma/client": "^7.2.0",
     "@types/pluralize": "^0.0.33",
     "fastest-levenshtein": "^1.0.16",
-    "hono": "^4.11.4",
+    "hono": "^4.11.7",
+    "hono-crud": "workspace:*",
     "pluralize": "^8.0.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.3",

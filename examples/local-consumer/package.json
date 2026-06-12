@@ -15,7 +15,7 @@
     "@hono-crud/memory": "workspace:*",
     "@hono-crud/rate-limit": "workspace:*",
     "@hono-crud/swagger": "workspace:*",
-    "hono": "^4.11.4",
+    "hono": "^4.11.7",
     "hono-crud": "workspace:*",
     "zod": "^4.3.5"
   },
