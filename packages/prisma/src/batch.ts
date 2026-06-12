@@ -7,6 +7,7 @@ import { BatchUpsertEndpoint } from 'hono-crud/internal';
 import { RestoreEndpoint } from 'hono-crud/internal';
 import type { MetaInput } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
+import { getPrismaClient } from './connection';
 import {
   type PrismaClient,
   type PrismaModelOperations,
@@ -16,7 +17,6 @@ import {
   getPrismaModelByName,
   getPrismaTransaction,
 } from './helpers';
-import { getPrismaClient } from './connection';
 
 /**
  * Prisma Restore endpoint for un-deleting soft-deleted records.
@@ -32,7 +32,10 @@ export abstract class PrismaRestoreEndpoint<
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   override async restore(
@@ -78,7 +81,10 @@ export abstract class PrismaBatchCreateEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   override async batchCreate(
@@ -126,7 +132,10 @@ export abstract class PrismaBatchUpdateEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   override async batchUpdate(
@@ -195,7 +204,10 @@ export abstract class PrismaBatchDeleteEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   override async batchDelete(
@@ -273,7 +285,10 @@ export abstract class PrismaBatchRestoreEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   override async batchRestore(
@@ -338,7 +353,10 @@ export abstract class PrismaBatchUpsertEndpoint<
   protected useTransaction = true;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   /**

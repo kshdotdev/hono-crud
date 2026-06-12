@@ -2,8 +2,8 @@ import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
-import { applyUpsertRestore } from '../core/soft-delete';
 import { extractNestedData, isDirectNestedData } from '../core/nested-writes';
+import { applyUpsertRestore } from '../core/soft-delete';
 import type {
   HookMode,
   MetaInput,

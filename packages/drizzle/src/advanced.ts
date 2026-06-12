@@ -27,7 +27,6 @@ import type {
 import type { ModelObject } from 'hono-crud/internal';
 import { getDrizzleDb } from './connection';
 import {
-  substringMatch,
   type DrizzleColumn,
   type DrizzleDatabaseConstraint,
   type DrizzleDialect,
@@ -42,6 +41,7 @@ import {
   getTable,
   or,
   readCount,
+  substringMatch,
 } from './helpers';
 
 export { substringMatch } from './helpers';

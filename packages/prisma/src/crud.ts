@@ -6,6 +6,7 @@ import { DeleteEndpoint } from 'hono-crud/internal';
 import { ListEndpoint } from 'hono-crud/internal';
 import type { IncludeOptions, ListFilters, MetaInput, PaginatedResult } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
+import { getPrismaClient } from './connection';
 import {
   type PrismaClient,
   type PrismaModelOperations,
@@ -16,7 +17,6 @@ import {
   getPrismaTransaction,
   loadPrismaRelations,
 } from './helpers';
-import { getPrismaClient } from './connection';
 
 /**
  * Prisma Create endpoint.
@@ -29,7 +29,10 @@ export abstract class PrismaCreateEndpoint<
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   /**
@@ -74,7 +77,10 @@ export abstract class PrismaReadEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   override async read(
@@ -124,7 +130,10 @@ export abstract class PrismaUpdateEndpoint<
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   /**
@@ -207,7 +216,10 @@ export abstract class PrismaDeleteEndpoint<
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   /**
@@ -308,7 +320,10 @@ export abstract class PrismaListEndpoint<
   declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(
+      getPrismaClient(this),
+      this._meta.model.tableName,
+    );
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
