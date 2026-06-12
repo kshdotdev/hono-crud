@@ -1,5 +1,5 @@
 import type { Context, Env } from 'hono';
-import type { RateLimitStorage } from 'hono-crud/internal';
+import type { PathPattern, RateLimitStorage } from 'hono-crud/internal';
 
 // ============================================================================
 // Storage Entry Types + Interface
@@ -101,8 +101,12 @@ export type OnRateLimitExceeded<E extends Env = Env> = (
 /**
  * Path pattern for skip configuration.
  * Supports exact paths, wildcards, and regex.
+ *
+ * Canonical definition is core's `utils/path-match.ts` (via
+ * `hono-crud/internal`); re-exported here so plugin consumers keep
+ * importing it from this module.
  */
-export type PathPattern = string | RegExp;
+export type { PathPattern };
 
 /**
  * Configuration for the rate limit middleware.
@@ -183,9 +187,11 @@ export interface RateLimitConfig<E extends Env = Env> {
   ipHeader?: string;
 
   /**
-   * Whether to trust the proxy header for IP extraction.
-   * Set to true if behind a trusted proxy.
-   * @default false
+   * Whether to trust proxy headers for IP extraction. Defaults to `true`
+   * because edge runtimes (Cloudflare/Vercel/Fastly) virtually always sit
+   * behind a trusted proxy — the client IP only exists in proxy headers
+   * there. Set `false` to suppress proxy-header lookup.
+   * @default true
    */
   trustProxy?: boolean;
 

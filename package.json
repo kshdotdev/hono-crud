@@ -47,7 +47,6 @@
     "@cloudflare/workers-types": "^4.20260426.1",
     "@hono-crud/cache": "workspace:*",
     "@hono-crud/drizzle": "workspace:*",
-    "@hono-crud/health": "workspace:*",
     "@hono-crud/idempotency": "workspace:*",
     "@hono-crud/mcp": "workspace:*",
     "@hono-crud/memory": "workspace:*",

@@ -6,6 +6,7 @@
  */
 
 import type { Context, Env } from 'hono';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import { getContextVar } from './context';
 
 export interface ClientIpOptions {
@@ -56,5 +57,5 @@ export function getClientIp<E extends Env>(
 
 /** Reads `userId` from context (set by auth middleware). */
 export function getUserId<E extends Env>(ctx: Context<E>): string | undefined {
-  return getContextVar<string>(ctx, 'userId');
+  return getContextVar<string>(ctx, CONTEXT_KEYS.userId);
 }

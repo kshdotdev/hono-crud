@@ -57,8 +57,9 @@ Peer dependencies: `hono >= 4.11.7 <5` and `zod >= 4.0.0` are required.
 | `@hono-crud/cache` | Caching mixins and storage backends |
 | `@hono-crud/rate-limit` | Rate limiting middleware and storage backends |
 | `@hono-crud/idempotency` | Idempotency middleware and storage backends |
-| `@hono-crud/health` | Health check routes (`createHealthRoutes`) |
 | `@hono-crud/mcp` | Expose your CRUD resources as Model Context Protocol (MCP) tools for AI agents |
+
+Health check routes (`createHealthRoutes`) live in core, importable from the `hono-crud/health` subpath.
 
 ## Quick Start
 
@@ -453,18 +454,17 @@ import { CrudEventEmitter, registerWebhooks } from 'hono-crud/events';
 import { encryptFields, decryptFields, StaticKeyProvider } from 'hono-crud/encryption';
 import { applyProfile, type SerializationProfile } from 'hono-crud/serialization';
 import { apiVersion, getApiVersion } from 'hono-crud/api-version';
+import { createHealthRoutes } from 'hono-crud/health';
 ```
 
-These symbols also remain available from the `'hono-crud'` barrel for convenience.
+These symbols also remain available from the `'hono-crud'` barrel for convenience (health is subpath-only).
 
-Idempotency and health checks ship as their own packages:
+Idempotency ships as its own package:
 
 ```typescript
 import { createIdempotencyMiddleware, MemoryIdempotencyStorage } from '@hono-crud/idempotency';
-import { createHealthRoutes } from '@hono-crud/health';
 
 app.use('/api/*', createIdempotencyMiddleware());
-app.route('/', createHealthRoutes());
 ```
 
 ## API Documentation

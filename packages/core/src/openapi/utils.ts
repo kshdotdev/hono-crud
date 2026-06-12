@@ -4,6 +4,18 @@ import type { z } from 'zod';
 import { InputValidationException } from '../core/exceptions';
 
 /**
+ * Convert Express-style `:param` segments to OpenAPI `{param}` form.
+ *
+ * Single canonical implementation shared by the live router
+ * (`HonoOpenAPIHandler`), per-tenant emission (`openapi/lazy.ts`) and pure
+ * paths emission (`openapi/paths.ts`), so emitted OpenAPI path keys always
+ * match the routes Hono actually serves.
+ */
+export function toOpenApiPath(path: string): string {
+  return path.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, '{$1}');
+}
+
+/**
  * Creates a JSON content type definition for OpenAPI responses.
  * Simplifies defining response schemas with descriptions.
  *

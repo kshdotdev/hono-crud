@@ -689,7 +689,7 @@ const UserModel = defineModel({
 Liveness and readiness endpoints.
 
 ```typescript
-import { createHealthRoutes } from '@hono-crud/health';
+import { createHealthRoutes } from 'hono-crud/health';
 
 app.route('/', createHealthRoutes({
   version: '1.0.0',

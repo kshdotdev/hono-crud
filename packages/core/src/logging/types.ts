@@ -1,4 +1,5 @@
 import type { Context, Env } from 'hono';
+import type { PathPattern } from '../utils/path-match';
 
 // ============================================================================
 // Log Level
@@ -182,8 +183,11 @@ export interface LoggingStorage {
 /**
  * Path pattern for include/exclude configuration.
  * Supports exact paths, wildcards, and regex.
+ *
+ * Canonical definition lives in `utils/path-match.ts`; re-exported here so
+ * logging consumers keep importing it from this module.
  */
-export type PathPattern = string | RegExp;
+export type { PathPattern };
 
 // ============================================================================
 // Redaction Configuration
@@ -262,7 +266,7 @@ export interface LoggingConfig<E extends Env = Env> {
   /**
    * Paths to exclude from logging.
    * Takes precedence over includePaths.
-   * @default ['/health', '/healthz', '/ready', '/metrics', '/favicon.ico']
+   * @default ['/health', '/healthz', '/ready', '/readyz', '/live', '/livez', '/metrics', '/favicon.ico']
    */
   excludePaths?: PathPattern[];
 
@@ -318,8 +322,11 @@ export interface LoggingConfig<E extends Env = Env> {
   ipHeader?: string;
 
   /**
-   * Whether to trust the proxy header for IP extraction.
-   * @default false
+   * Whether to trust proxy headers for IP extraction. Defaults to `true`
+   * because edge runtimes (Cloudflare/Vercel/Fastly) virtually always sit
+   * behind a trusted proxy — the client IP only exists in proxy headers
+   * there. Set `false` to suppress proxy-header lookup.
+   * @default true
    */
   trustProxy?: boolean;
 

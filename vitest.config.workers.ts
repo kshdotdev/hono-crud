@@ -55,7 +55,6 @@ export default defineWorkersConfig({
       { find: /^@hono-crud\/rate-limit$/, replacement: r('./packages/rate-limit/src/index.ts') },
       { find: /^@hono-crud\/idempotency\/(.*)$/, replacement: r('./packages/idempotency/src/$1') },
       { find: /^@hono-crud\/idempotency$/, replacement: r('./packages/idempotency/src/index.ts') },
-      { find: /^@hono-crud\/health$/, replacement: r('./packages/health/src/index.ts') },
     ],
   },
 });

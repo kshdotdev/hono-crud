@@ -1,69 +1,33 @@
+/**
+ * Logging-owned helpers. Shared concerns (path matching, redaction,
+ * client-IP / user-id extraction, request-id generation) live in the
+ * canonical `utils/` modules and are re-exported through `./index`.
+ */
+
 import type { Context, Env } from 'hono';
-import { generateRequestId as sharedGenerateRequestId } from '../utils/context';
-import { matchPath as sharedMatchPath } from '../utils/path-match';
-import {
-  redactHeaders as sharedRedactHeaders,
-  redactObject as sharedRedactObject,
-  shouldRedact as sharedShouldRedact,
-} from '../utils/redact';
-import { getClientIp, getUserId as getUserIdShared } from '../utils/request-info';
-import type { PathPattern, RedactField } from './types';
-
-// ============================================================================
-// Redaction Utilities
-// ============================================================================
-
-export function shouldRedact(fieldName: string, patterns: RedactField[]): boolean {
-  return sharedShouldRedact(fieldName, patterns);
-}
-
-export function redactObject(obj: unknown, patterns: RedactField[]): unknown {
-  return sharedRedactObject(obj, patterns);
-}
-
-export function redactHeaders(
-  headers: Record<string, string>,
-  patterns: RedactField[],
-): Record<string, string> {
-  return sharedRedactHeaders(headers, patterns);
-}
+import { isPathIncluded } from '../utils/path-match';
+import type { PathPattern } from './types';
 
 // ============================================================================
 // Path Matching
 // ============================================================================
 
-export function matchPath(path: string, pattern: PathPattern): boolean {
-  return sharedMatchPath(path, pattern);
-}
-
+/**
+ * True when a path should NOT be logged. Thin negation of the canonical
+ * include/exclude evaluation (`isPathIncluded`): excludes always win; an
+ * empty include list means "log everything not excluded".
+ */
 export function shouldExcludePath(
   path: string,
   includePaths: PathPattern[],
   excludePaths: PathPattern[],
 ): boolean {
-  for (const pattern of excludePaths) {
-    if (sharedMatchPath(path, pattern)) return true;
-  }
-  if (includePaths.length === 0) return false;
-  for (const pattern of includePaths) {
-    if (sharedMatchPath(path, pattern)) return false;
-  }
-  return true;
+  return !isPathIncluded(path, includePaths, excludePaths);
 }
 
 // ============================================================================
 // Request Utilities
 // ============================================================================
-
-export function extractClientIp<E extends Env>(
-  ctx: Context<E>,
-  ipHeader = 'X-Forwarded-For',
-  trustProxy = false,
-): string | undefined {
-  // The logging extractor historically tried proxy headers regardless of
-  // `trustProxy`, so preserve that behaviour by forcing `trustProxy` true here.
-  return getClientIp(ctx, { ipHeader, trustProxy: trustProxy || true });
-}
 
 export function extractHeaders(headers: Headers): Record<string, string> {
   const result: Record<string, string> = {};
@@ -111,20 +75,4 @@ export function isAllowedContentType(
     if (lower.includes(allowed.toLowerCase())) return true;
   }
   return false;
-}
-
-// ============================================================================
-// User ID Extraction
-// ============================================================================
-
-export function extractUserId<E extends Env>(ctx: Context<E>): string | undefined {
-  return getUserIdShared(ctx);
-}
-
-// ============================================================================
-// UUID Generation
-// ============================================================================
-
-export function generateRequestId(): string {
-  return sharedGenerateRequestId();
 }

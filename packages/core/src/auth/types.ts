@@ -1,5 +1,6 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
 import { z } from 'zod';
+import type { PathPattern } from '../utils/path-match';
 
 // ============================================================================
 // User Types
@@ -357,8 +358,11 @@ export interface APIKeyConfig {
  * - Exact paths: '/health'
  * - Wildcards: '/docs/*', '/public/**'
  * - Regex: /^\/api\/v[0-9]+\//
+ *
+ * Canonical definition lives in `utils/path-match.ts`; re-exported here so
+ * auth consumers keep importing it from this module.
  */
-export type PathPattern = string | RegExp;
+export type { PathPattern };
 
 /**
  * Configuration for combined authentication middleware.

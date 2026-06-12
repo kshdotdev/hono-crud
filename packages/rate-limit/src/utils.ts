@@ -14,11 +14,15 @@ import type { PathPattern } from './types';
  * Extract client IP address from request.
  * Returns `'unknown'` if no IP can be determined (rate-limit module historically
  * uses a sentinel string for the bucket key; the shared helper returns undefined).
+ *
+ * `trustProxy` defaults to `true` (library-wide default — on edge runtimes
+ * the client IP only exists in proxy headers); pass `false` to suppress
+ * proxy-header lookup.
  */
 export function extractIP<E extends Env>(
   ctx: Context<E>,
   ipHeader = 'X-Forwarded-For',
-  trustProxy = false,
+  trustProxy = true,
 ): string {
   return getClientIp(ctx, { ipHeader, trustProxy }) ?? 'unknown';
 }

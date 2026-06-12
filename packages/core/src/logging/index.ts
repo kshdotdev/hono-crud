@@ -14,21 +14,25 @@ export type {
   LoggingEnv,
 } from './types';
 
-// Utilities
+// Utilities (logging-owned)
 export {
-  shouldRedact,
-  redactObject,
-  redactHeaders,
-  matchPath,
-  shouldExcludePath,
-  extractClientIp,
   extractHeaders,
   extractQuery,
-  extractUserId,
-  truncateBody,
   isAllowedContentType,
-  generateRequestId,
+  shouldExcludePath,
+  truncateBody,
 } from './utils';
+
+// Shared canonical helpers, re-exported so every name this barrel has
+// always offered keeps resolving. `extractClientIp`/`extractUserId` are
+// aliases of the canonical `getClientIp`/`getUserId` accessors.
+export { generateRequestId } from '../utils/context';
+export { matchPath } from '../utils/path-match';
+export { redactHeaders, redactObject, shouldRedact } from '../utils/redact';
+export {
+  getClientIp as extractClientIp,
+  getUserId as extractUserId,
+} from '../utils/request-info';
 
 // Middleware
 export {

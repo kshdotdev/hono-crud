@@ -1,5 +1,5 @@
 import type { Context, Env } from 'hono';
-import { getContextVar } from '../core/context-helpers';
+import { getContextVar } from '../utils/context';
 
 /**
  * Generic storage registry that manages global storage instances.
@@ -179,43 +179,4 @@ export class StorageRegistry<T> {
   isConfigured(): boolean {
     return this.globalStorage !== null;
   }
-}
-
-/**
- * Creates a storage registry for nullable storage (no default).
- * The get() method returns T | null.
- *
- * @param contextKey - The key used to store/retrieve from Hono context
- * @returns A new StorageRegistry instance
- *
- * @example
- * ```ts
- * const rateLimitRegistry = createNullableRegistry<RateLimitStorage>(CONTEXT_KEYS.rateLimitStorage);
- * ```
- */
-export function createNullableRegistry<T>(contextKey: string): StorageRegistry<T> {
-  return new StorageRegistry<T>(contextKey);
-}
-
-/**
- * Creates a storage registry with a default storage instance.
- * The get() method always returns T (never null after initialization).
- *
- * @param contextKey - The key used to store/retrieve from Hono context
- * @param defaultFactory - Factory function to create default storage
- * @returns A new StorageRegistry instance with default storage
- *
- * @example
- * ```ts
- * const cacheRegistry = createRegistryWithDefault<CacheStorage>(
- *   CONTEXT_KEYS.cacheStorage,
- *   () => new MemoryCacheStorage()
- * );
- * ```
- */
-export function createRegistryWithDefault<T>(
-  contextKey: string,
-  defaultFactory: () => T,
-): StorageRegistry<T> {
-  return new StorageRegistry<T>(contextKey, defaultFactory);
 }

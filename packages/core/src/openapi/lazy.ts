@@ -13,7 +13,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 
-import type { HonoOpenAPIApp } from '../core/openapi';
+import type { HonoOpenAPIApp, OpenAPIConfig } from '../core/openapi';
 import { getHandlerForApp } from '../core/openapi';
 import type { SchemaResolveContext } from '../core/types';
 
@@ -27,35 +27,23 @@ export interface PerTenantOpenApiCache {
   set(key: string, value: unknown, ttlMs?: number): void | Promise<void>;
 }
 
-/**
- * Minimum config needed to render an OpenAPI document. If omitted,
- * `buildPerTenantOpenApi` falls back to a generic `{ title: 'API',
- * version: '1.0.0' }`.
- */
-export interface PerTenantOpenApiConfig {
-  openapi?: string;
-  info: {
-    title: string;
-    version: string;
-    description?: string;
-  };
-  servers?: Array<{ url: string; description?: string }>;
-  security?: Array<Record<string, string[]>>;
-}
-
 export interface PerTenantOpenApiOptions {
   /** Pluggable cache. Cache key is `openapi:{tenantId|'global'}:{info.version}`. */
   cache?: PerTenantOpenApiCache;
   /** TTL in milliseconds for cached entries. @default 60_000 */
   cacheTtlMs?: number;
-  /** OpenAPI document metadata. Defaults to a generic placeholder. */
-  config?: PerTenantOpenApiConfig;
+  /**
+   * OpenAPI document metadata — the same `OpenAPIConfig` shape `app.doc(...)`
+   * accepts. If omitted, falls back to a generic
+   * `{ title: 'API', version: '1.0.0' }` placeholder.
+   */
+  config?: OpenAPIConfig;
   /** Choose 3.0 or 3.1 emission. @default '3.1' */
   spec?: '3.0' | '3.1';
 }
 
 const DEFAULT_TTL_MS = 60_000;
-const DEFAULT_CONFIG: PerTenantOpenApiConfig = {
+const DEFAULT_CONFIG: OpenAPIConfig = {
   openapi: '3.1.0',
   info: { title: 'API', version: '1.0.0' },
 };

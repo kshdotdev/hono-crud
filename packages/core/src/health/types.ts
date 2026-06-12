@@ -17,8 +17,9 @@ export interface HealthCheckResult {
 /**
  * A health check function.
  * Returns true/message for healthy, throws/returns false for unhealthy.
+ * Checks that resolve with nothing (`Promise<void>`) count as healthy.
  */
-export type HealthCheckFn = () => Promise<boolean | string | void>;
+export type HealthCheckFn = () => Promise<boolean | string> | Promise<void>;
 
 /**
  * Named health check registration.

@@ -1,5 +1,5 @@
+import { matchPath } from '../../utils/path-match';
 import type { LogEntry, LogQueryOptions, LoggingStorage, PathPattern } from '../types';
-import { matchPath } from '../utils';
 
 /**
  * Options for MemoryLoggingStorage.

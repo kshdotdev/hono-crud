@@ -68,7 +68,7 @@ async function runAllChecks(
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import { createHealthRoutes } from '@hono-crud/health';
+ * import { createHealthRoutes } from 'hono-crud/health';
  *
  * const app = new Hono();
  *
