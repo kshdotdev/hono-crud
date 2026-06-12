@@ -1,5 +1,4 @@
 import { MemoryCacheStorage } from '@hono-crud/cache';
-import { createHealthRoutes } from '@hono-crud/health';
 import { MemoryIdempotencyStorage, createIdempotencyMiddleware } from '@hono-crud/idempotency';
 import {
   MemoryAggregateEndpoint,
@@ -54,6 +53,7 @@ import {
   registerCrud,
   requireRoles,
 } from 'hono-crud';
+import { createHealthRoutes } from 'hono-crud/health';
 import { z } from 'zod';
 
 type AppEnv = AuthEnv & {

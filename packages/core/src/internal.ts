@@ -20,6 +20,10 @@ export type { ModelObject } from './endpoints/types';
 // The contract adapter bundles implement, plus the generated-endpoints map.
 export type { AdapterBundle, GeneratedEndpoints } from './config/index';
 
+// Canonical CRUD route table: [endpoint name, HTTP verb, sub-path] rows in
+// registration order — the single source of truth registerCrud iterates.
+export { CRUD_ROUTES } from './core/crud-routes';
+
 // App-scoped CRUD resource registry — lets addons enumerate registerCrud(...) calls.
 export { getRegisteredCrudResources } from './core/resource-registry';
 export type { RegisteredCrudResource } from './core/resource-registry';
@@ -34,7 +38,7 @@ export {
 
 // Primitives for first-party middleware packages (cache, rate-limit, …).
 export { ApiException, ConfigurationException } from './core/exceptions';
-export { getContextVar, setContextVar } from './core/context-helpers';
+export { getContextVar, setContextVar } from './utils/context';
 export { CONTEXT_KEYS } from './core/context-keys';
 export type { ContextKey } from './core/context-keys';
 export { createStorageFeature } from './storage/feature';
@@ -52,7 +56,7 @@ export type {
   IdempotencyEntry,
 } from './storage/contracts';
 export type { Constructor } from './core/types';
-export type { KVNamespace } from './shared/cloudflare-kv-types';
+export type { KVNamespace } from './cloudflare/index';
 export { matchPath, matchAny, isPathIncluded } from './utils/path-match';
 export type { PathPattern } from './utils/path-match';
 export { getClientIp } from './utils/request-info';

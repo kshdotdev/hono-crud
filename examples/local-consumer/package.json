@@ -10,7 +10,6 @@
   "dependencies": {
     "@hono/node-server": "^1.19.9",
     "@hono-crud/cache": "workspace:*",
-    "@hono-crud/health": "workspace:*",
     "@hono-crud/idempotency": "workspace:*",
     "@hono-crud/memory": "workspace:*",
     "@hono-crud/rate-limit": "workspace:*",

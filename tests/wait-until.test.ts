@@ -1,8 +1,8 @@
 import type { Context } from 'hono';
 import { OpenAPIRoute } from 'hono-crud';
 // Published as the `hono-crud/cloudflare` subpath export
-// (package.json maps it to dist/types/cloudflare).
-import { getWaitUntil as getWaitUntilCloudflare } from 'hono-crud/types/cloudflare';
+// (package.json maps it to dist/cloudflare/index).
+import { getWaitUntil as getWaitUntilCloudflare } from 'hono-crud/cloudflare';
 import { getWaitUntil } from 'hono-crud/utils/wait-until';
 import { describe, expect, it, vi } from 'vitest';
 

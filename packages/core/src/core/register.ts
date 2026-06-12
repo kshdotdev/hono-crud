@@ -1,6 +1,7 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import type { Env, MiddlewareHandler } from 'hono';
 import { setContextVar } from '../utils/context';
+import { CRUD_ROUTES, type CrudEndpointName } from './crud-routes';
 import type { HonoOpenAPIApp } from './openapi';
 import { recordCrudResource } from './resource-registry';
 import type { OpenAPIRoute } from './route';
@@ -19,30 +20,10 @@ export interface EndpointClass<E extends Env = Env> {
 
 /**
  * All CRUD endpoint names supported by registerCrud.
+ * Owned by `./crud-routes` (derived from the canonical route table);
+ * re-exported here so existing imports keep working.
  */
-export type CrudEndpointName =
-  | 'create'
-  | 'list'
-  | 'read'
-  | 'update'
-  | 'delete'
-  | 'restore'
-  | 'batchCreate'
-  | 'batchUpdate'
-  | 'batchDelete'
-  | 'batchRestore'
-  | 'batchUpsert'
-  | 'search'
-  | 'aggregate'
-  | 'export'
-  | 'import'
-  | 'upsert'
-  | 'clone'
-  | 'bulkPatch'
-  | 'versionHistory'
-  | 'versionRead'
-  | 'versionCompare'
-  | 'versionRollback';
+export type { CrudEndpointName };
 
 /**
  * Per-endpoint middleware configuration.
@@ -254,130 +235,14 @@ export function registerCrud<E extends Env = Env>(
     }
   };
 
-  // Collection-level routes (no :id parameter)
-  if (endpoints.create) {
-    registerRoute('post', normalizedPath, 'create', endpoints.create);
-  }
-
-  if (endpoints.list) {
-    registerRoute('get', normalizedPath, 'list', endpoints.list);
-  }
-
-  // IMPORTANT: Batch routes must be registered BEFORE :id routes
-  // to prevent /batch from being matched as an id parameter
-  if (endpoints.batchCreate) {
-    registerRoute('post', `${normalizedPath}/batch`, 'batchCreate', endpoints.batchCreate);
-  }
-
-  if (endpoints.batchUpdate) {
-    registerRoute('patch', `${normalizedPath}/batch`, 'batchUpdate', endpoints.batchUpdate);
-  }
-
-  if (endpoints.batchDelete) {
-    registerRoute('delete', `${normalizedPath}/batch`, 'batchDelete', endpoints.batchDelete);
-  }
-
-  if (endpoints.batchRestore) {
-    registerRoute(
-      'post',
-      `${normalizedPath}/batch/restore`,
-      'batchRestore',
-      endpoints.batchRestore,
-    );
-  }
-
-  if (endpoints.batchUpsert) {
-    registerRoute('post', `${normalizedPath}/batch/upsert`, 'batchUpsert', endpoints.batchUpsert);
-  }
-
-  // Search endpoint - must be registered BEFORE :id routes
-  if (endpoints.search) {
-    registerRoute('get', `${normalizedPath}/search`, 'search', endpoints.search);
-  }
-
-  // Aggregate endpoint - must be registered BEFORE :id routes
-  if (endpoints.aggregate) {
-    registerRoute('get', `${normalizedPath}/aggregate`, 'aggregate', endpoints.aggregate);
-  }
-
-  // Export endpoint - must be registered BEFORE :id routes
-  if (endpoints.export) {
-    registerRoute('get', `${normalizedPath}/export`, 'export', endpoints.export);
-  }
-
-  // Import endpoint - must be registered BEFORE :id routes
-  if (endpoints.import) {
-    registerRoute('post', `${normalizedPath}/import`, 'import', endpoints.import);
-  }
-
-  // Upsert endpoint - must be registered BEFORE :id routes
-  if (endpoints.upsert) {
-    registerRoute('post', `${normalizedPath}/upsert`, 'upsert', endpoints.upsert);
-  }
-
-  // Bulk-patch endpoint (collection-level) - must be registered BEFORE :id
-  // routes so `/bulk` is not matched as an id parameter.
-  if (endpoints.bulkPatch) {
-    registerRoute('patch', `${normalizedPath}/bulk`, 'bulkPatch', endpoints.bulkPatch);
-  }
-
-  // Item-level routes (with :id parameter) - must be registered AFTER /batch, /search, /export, /import, /upsert routes
-  if (endpoints.read) {
-    registerRoute('get', `${normalizedPath}/:id`, 'read', endpoints.read);
-  }
-
-  if (endpoints.update) {
-    registerRoute('patch', `${normalizedPath}/:id`, 'update', endpoints.update);
-  }
-
-  if (endpoints.delete) {
-    registerRoute('delete', `${normalizedPath}/:id`, 'delete', endpoints.delete);
-  }
-
-  if (endpoints.restore) {
-    registerRoute('post', `${normalizedPath}/:id/restore`, 'restore', endpoints.restore);
-  }
-
-  if (endpoints.clone) {
-    registerRoute('post', `${normalizedPath}/:id/clone`, 'clone', endpoints.clone);
-  }
-
-  // Version sub-resource routes. `/versions/compare` must be registered
-  // BEFORE `/versions/:version` so "compare" isn't matched as a version id.
-  if (endpoints.versionHistory) {
-    registerRoute(
-      'get',
-      `${normalizedPath}/:id/versions`,
-      'versionHistory',
-      endpoints.versionHistory,
-    );
-  }
-
-  if (endpoints.versionCompare) {
-    registerRoute(
-      'get',
-      `${normalizedPath}/:id/versions/compare`,
-      'versionCompare',
-      endpoints.versionCompare,
-    );
-  }
-
-  if (endpoints.versionRead) {
-    registerRoute(
-      'get',
-      `${normalizedPath}/:id/versions/:version`,
-      'versionRead',
-      endpoints.versionRead,
-    );
-  }
-
-  if (endpoints.versionRollback) {
-    registerRoute(
-      'post',
-      `${normalizedPath}/:id/versions/:version/rollback`,
-      'versionRollback',
-      endpoints.versionRollback,
-    );
+  // Register every provided endpoint slot in canonical order. CRUD_ROUTES
+  // encodes the registration-order invariants (collection routes before
+  // parameterized ones, batch/named routes before `:id`, `/versions/compare`
+  // before `/versions/:version`) — see `./crud-routes`.
+  for (const [name, method, subPath] of CRUD_ROUTES) {
+    const endpoint = endpoints[name];
+    if (!endpoint) continue;
+    registerRoute(method, `${normalizedPath}${subPath}`, name, endpoint);
   }
 
   // Record this registration on the app so addons (e.g. @hono-crud/mcp) can

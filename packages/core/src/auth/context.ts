@@ -1,31 +1,18 @@
 /**
- * Context-variable accessors for Hono.
+ * Auth-flavored Hono context accessors: user identity, roles, permissions
+ * and auth type, as written by the auth middleware family.
  *
  * Generic helpers (`getContextVar`, `setContextVar`, `getRequestId`,
- * `getTenantId`) live in `src/utils/context.ts` and are re-exported here
- * for backwards compatibility. Auth-specific helpers (user id / roles /
- * permissions / auth type) remain in this module until Phase E moves
- * them under `src/auth/context.ts`.
+ * `getTenantId`) live in `src/utils/context.ts`.
  */
 
 import type { Context, Env } from 'hono';
+import { CONTEXT_KEYS } from '../core/context-keys';
 import { getContextVar } from '../utils/context';
-import { CONTEXT_KEYS } from './context-keys';
-
-export {
-  getContextVar,
-  setContextVar,
-  getRequestId,
-  getTenantId,
-} from '../utils/context';
-
-// ============================================================================
-// Auth-specific helpers (move to src/auth/context.ts in Phase E)
-// ============================================================================
 
 // `getUserId` is the lower-level shared accessor in `utils/request-info.ts`
 // (also consumed by logging/audit). Re-exported here as part of the auth
-// helper family so there is a single definition.
+// accessor family so there is a single definition.
 export { getUserId } from '../utils/request-info';
 
 export function getUser<E extends Env>(

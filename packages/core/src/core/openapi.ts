@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { Context, Env, Hono, MiddlewareHandler } from 'hono';
-import { openApiValidationHook } from '../openapi/utils';
+import { openApiValidationHook, toOpenApiPath } from '../openapi/utils';
 import { ApiException } from './exceptions';
 import type { OpenAPIRoute } from './route';
 import { isRouteClass, jsonResponse } from './route';
@@ -174,7 +174,7 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
     // Create the zod-openapi route config
     const routeConfig = createRoute({
       method,
-      path: this.convertPath(path),
+      path: toOpenApiPath(path),
       ...schema,
       responses: schema.responses || {
         200: {
@@ -190,7 +190,7 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
 
     // Apply middleware for this specific path+method before route handler.
     // NOTE: `app.use(...)` uses Hono's `:id` route-syntax, NOT the OpenAPI
-    // `{id}` form produced by `convertPath`. Passing the converted form
+    // `{id}` form produced by `toOpenApiPath`. Passing the converted form
     // here results in middleware that never matches dynamic-segment routes
     // (e.g. `/widgets/:id`) — the literal `{id}` segment never appears in
     // an actual request. Use the raw path so `:id` matches at runtime.
@@ -237,13 +237,6 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
   }
 
   /**
-   * Converts Express-style paths (:id) to OpenAPI-style paths ({id}).
-   */
-  private convertPath(path: string): string {
-    return path.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, '{$1}');
-  }
-
-  /**
    * Sets up the OpenAPI documentation endpoints.
    * Falls back to `options.openapi_url` when no path is provided.
    * @param path - The path to serve the OpenAPI JSON at
@@ -274,11 +267,13 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
   }
 
   /**
-   * Internal helper used by `convertPath`. Exposed as protected so
-   * `buildPerTenantOpenApi` can produce identical OpenAPI paths.
+   * Converts Express-style paths (`:id`) to OpenAPI-style paths (`{id}`).
+   * Delegates to the canonical `toOpenApiPath` free function in
+   * `openapi/utils.ts`; kept as a method so `buildPerTenantOpenApi` can
+   * produce identical OpenAPI paths from a handler reference.
    */
   toOpenApiPath(path: string): string {
-    return this.convertPath(path);
+    return toOpenApiPath(path);
   }
 }
 

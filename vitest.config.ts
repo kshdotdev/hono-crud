@@ -48,7 +48,6 @@ export default defineConfig({
       { find: /^@hono-crud\/idempotency$/, replacement: r('./packages/idempotency/src/index.ts') },
       { find: /^@hono-crud\/mcp\/(.*)$/, replacement: r('./packages/mcp/src/$1') },
       { find: /^@hono-crud\/mcp$/, replacement: r('./packages/mcp/src/index.ts') },
-      { find: /^@hono-crud\/health$/, replacement: r('./packages/health/src/index.ts') },
       { find: /^@hono\/zod-openapi$/, replacement: honoZodOpenApi },
     ],
   },

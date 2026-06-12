@@ -73,9 +73,13 @@
       "types": "./dist/functional/index.d.ts",
       "import": "./dist/functional/index.js"
     },
+    "./health": {
+      "types": "./dist/health/index.d.ts",
+      "import": "./dist/health/index.js"
+    },
     "./cloudflare": {
-      "types": "./dist/types/cloudflare.d.ts",
-      "import": "./dist/types/cloudflare.js"
+      "types": "./dist/cloudflare/index.d.ts",
+      "import": "./dist/cloudflare/index.js"
     }
   },
   "scripts": {

@@ -13,7 +13,6 @@ export type { OpenAPIConfig, RouterOptions, RegisteredRoute } from './core/opena
 export { buildPerTenantOpenApi, wrapCacheStorageForOpenApi } from './openapi/lazy';
 export type {
   PerTenantOpenApiCache,
-  PerTenantOpenApiConfig,
   PerTenantOpenApiOptions,
 } from './openapi/lazy';
 export { toOpenApiPaths } from './openapi/paths';
@@ -296,23 +295,26 @@ export {
   getErrorMessage,
 } from './utils/error-coerce';
 
-// Context helper exports
+// Context helper exports — generic accessors from utils/context, the
+// auth-flavored accessor family from auth/context.
 export {
   getContextVar,
   setContextVar,
+  getTenantId,
+  getRequestId as getContextRequestId,
+} from './utils/context';
+export {
   getUserId,
   getUser,
   getUserRoles,
   getUserPermissions,
   getAuthType,
-  getTenantId,
-  getRequestId as getContextRequestId,
   hasRole,
   hasPermission,
   hasAllRoles,
   hasAnyRole,
   hasAllPermissions,
-} from './core/context-helpers';
+} from './auth/context';
 
 // OpenAPI utilities
 export {
@@ -470,8 +472,6 @@ export {
   createStorageFeature,
   // Registry
   StorageRegistry,
-  createNullableRegistry,
-  createRegistryWithDefault,
 } from './storage/index';
 export type {
   StorageEnv,

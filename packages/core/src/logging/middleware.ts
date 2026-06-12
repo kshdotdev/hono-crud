@@ -1,10 +1,16 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
-import { getContextVar, setContextVar } from '../core/context-helpers';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import { getLogger } from '../core/logger';
 import { createStorageFeature } from '../storage/feature';
 import { resolveLoggingStorage } from '../storage/helpers';
+import {
+  generateRequestId as defaultGenerateRequestId,
+  getContextVar,
+  setContextVar,
+} from '../utils/context';
 import { toError } from '../utils/error-coerce';
+import { redactHeaders, redactObject } from '../utils/redact';
+import { getClientIp, getUserId } from '../utils/request-info';
 import { getWaitUntil } from '../utils/wait-until';
 import type {
   LogEntry,
@@ -15,14 +21,9 @@ import type {
   RedactField,
 } from './types';
 import {
-  generateRequestId as defaultGenerateRequestId,
-  extractClientIp,
   extractHeaders,
   extractQuery,
-  extractUserId,
   isAllowedContentType,
-  redactHeaders,
-  redactObject,
   shouldExcludePath,
   truncateBody,
 } from './utils';
@@ -203,7 +204,7 @@ export function createLoggingMiddleware<E extends Env = Env>(
   const includeQuery = config.includeQuery ?? true;
   const includeClientIp = config.includeClientIp ?? true;
   const ipHeader = config.ipHeader ?? 'X-Forwarded-For';
-  const trustProxy = config.trustProxy ?? false;
+  const trustProxy = config.trustProxy ?? true;
   const minResponseTimeMs = config.minResponseTimeMs ?? 0;
   const generateRequestId = config.generateRequestId ?? defaultGenerateRequestId;
 
@@ -250,11 +251,11 @@ export function createLoggingMiddleware<E extends Env = Env>(
     // Extract client IP if enabled
     let clientIp: string | undefined;
     if (includeClientIp) {
-      clientIp = extractClientIp(ctx, ipHeader, trustProxy);
+      clientIp = getClientIp(ctx, { ipHeader, trustProxy });
     }
 
     // Extract user ID (may be set by auth middleware)
-    const userId = extractUserId(ctx);
+    const userId = getUserId(ctx);
 
     // Capture request body if enabled
     let requestBody: unknown | undefined;

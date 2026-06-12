@@ -29,7 +29,9 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 
 import type { GeneratedEndpoints } from '../config/index';
+import { CRUD_ROUTES, type CrudEndpointName } from '../core/crud-routes';
 import type { OpenAPIRouteSchema } from '../core/types';
+import { toOpenApiPath } from './utils';
 
 /**
  * A single OpenAPI 3.1 Path Item: a map of lowercase HTTP verbs to
@@ -60,48 +62,16 @@ export interface ToOpenApiPathsOptions {
   tag?: string;
 }
 
-type RouteMethod = 'get' | 'post' | 'patch' | 'delete';
-
 /**
- * Canonical (verb, sub-path) mapping for every CRUD endpoint slot. This is
- * the single source of truth shared in spirit with `registerCrud(...)` in
- * `src/utils.ts` — the relative sub-paths and HTTP verbs are kept
- * byte-identical so the emitted document matches the routes that
- * `registerCrud` would actually register. Sub-paths are relative to the
- * resource root; `''` means the collection root.
- *
- * Ordering mirrors `registerCrud` (collection routes, then batch/named
- * sub-routes, then `:id` item routes, then `:id`-scoped sub-routes) so a
- * caller iterating the result sees a stable, sensible order.
+ * The endpoint slots a `defineEndpoints(...)` result can carry, widened to
+ * the full `CrudEndpointName` key space so the iteration below can index by
+ * any row of `CRUD_ROUTES`. Rows for slots `defineEndpoints` never generates
+ * (e.g. `bulkPatch`, `version*`) simply resolve to `undefined` and are
+ * skipped.
  */
-const ENDPOINT_ROUTES: ReadonlyArray<readonly [keyof GeneratedEndpoints, RouteMethod, string]> = [
-  ['create', 'post', ''],
-  ['list', 'get', ''],
-  ['batchCreate', 'post', '/batch'],
-  ['batchUpdate', 'patch', '/batch'],
-  ['batchDelete', 'delete', '/batch'],
-  ['batchRestore', 'post', '/batch/restore'],
-  ['batchUpsert', 'post', '/batch/upsert'],
-  ['search', 'get', '/search'],
-  ['aggregate', 'get', '/aggregate'],
-  ['export', 'get', '/export'],
-  ['import', 'post', '/import'],
-  ['upsert', 'post', '/upsert'],
-  ['read', 'get', '/:id'],
-  ['update', 'patch', '/:id'],
-  ['delete', 'delete', '/:id'],
-  ['restore', 'post', '/:id/restore'],
-  ['clone', 'post', '/:id/clone'],
-];
-
-/**
- * Convert Express-style `:param` segments to OpenAPI `{param}` form. Mirrors
- * `HonoOpenAPIHandler.convertPath` so emitted path keys match what the live
- * router documents.
- */
-function toOpenApiPath(path: string): string {
-  return path.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, '{$1}');
-}
+type EndpointSlots = Partial<
+  Record<CrudEndpointName, GeneratedEndpoints[keyof GeneratedEndpoints]>
+>;
 
 /**
  * Join + normalize a base path and a relative sub-path into a single
@@ -148,9 +118,10 @@ export function toOpenApiPaths(
   // would emit for the same endpoints.
   const app = new OpenAPIHono();
   let registered = 0;
+  const endpointSlots: EndpointSlots = endpoints;
 
-  for (const [name, method, subPath] of ENDPOINT_ROUTES) {
-    const EndpointClass = endpoints[name];
+  for (const [name, method, subPath] of CRUD_ROUTES) {
+    const EndpointClass = endpointSlots[name];
     if (!EndpointClass) continue;
 
     // Instantiate purely to read the authoritative schema. No

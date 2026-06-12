@@ -7,6 +7,7 @@
  */
 
 import type { Context, Env } from 'hono';
+import { CONTEXT_KEYS } from '../core/context-keys';
 
 export function getContextVar<T>(ctx: unknown, key: string): T | undefined {
   const obj = ctx as { var?: Record<string, unknown> };
@@ -18,10 +19,13 @@ export function setContextVar<E extends Env>(ctx: Context<E>, key: string, value
 }
 
 export function getRequestId<E extends Env>(ctx: Context<E>): string | undefined {
-  return getContextVar<string>(ctx, 'requestId');
+  return getContextVar<string>(ctx, CONTEXT_KEYS.requestId);
 }
 
-export function getTenantId<E extends Env>(ctx: Context<E>, key = 'tenantId'): string | undefined {
+export function getTenantId<E extends Env>(
+  ctx: Context<E>,
+  key: string = CONTEXT_KEYS.tenantId,
+): string | undefined {
   return getContextVar<string>(ctx, key);
 }
 

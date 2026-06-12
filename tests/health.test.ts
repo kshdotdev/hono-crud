@@ -1,4 +1,4 @@
-import { createHealthRoutes } from '@hono-crud/health';
+import { createHealthRoutes } from 'hono-crud/health';
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
 

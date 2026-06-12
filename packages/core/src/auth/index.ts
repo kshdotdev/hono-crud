@@ -103,6 +103,23 @@ export type {
 } from './types';
 
 // ============================================================================
+// Context Accessor Exports
+// ============================================================================
+
+export {
+  getAuthType,
+  getUser,
+  getUserId,
+  getUserPermissions,
+  getUserRoles,
+  hasAllPermissions,
+  hasAllRoles,
+  hasAnyRole,
+  hasPermission,
+  hasRole,
+} from './context';
+
+// ============================================================================
 // Endpoint Exports
 // ============================================================================
 

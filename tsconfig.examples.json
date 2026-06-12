@@ -18,8 +18,7 @@
       "@hono-crud/cache": ["packages/cache/src/index.ts"],
       "@hono-crud/rate-limit": ["packages/rate-limit/src/index.ts"],
       "@hono-crud/idempotency": ["packages/idempotency/src/index.ts"],
-      "@hono-crud/mcp": ["packages/mcp/src/index.ts"],
-      "@hono-crud/health": ["packages/health/src/index.ts"]
+      "@hono-crud/mcp": ["packages/mcp/src/index.ts"]
     }
   },
   "include": ["examples/**/*.ts"],

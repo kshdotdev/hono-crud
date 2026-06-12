@@ -48,8 +48,4 @@ export {
 } from './helpers';
 
 // Registry
-export {
-  StorageRegistry,
-  createNullableRegistry,
-  createRegistryWithDefault,
-} from './registry';
+export { StorageRegistry } from './registry';
