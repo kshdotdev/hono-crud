@@ -73,3 +73,33 @@ export function clearStorage(): void {
 export function getStorage<T>(tableName: string): Map<string, T> {
   return getStore<T>(tableName);
 }
+
+/**
+ * Finds a record in the store whose values match `data` on every upsert key.
+ *
+ * Soft-deleted rows are matched too: upsert-family endpoints restore them on
+ * update ("match-and-restore", see core's `applyUpsertRestore`). Shared by
+ * Upsert, Import, and BatchUpsert so the matching semantics cannot drift.
+ */
+export function findByUpsertKeys<T>(
+  store: Map<string, T>,
+  data: Record<string, unknown>,
+  upsertKeys: string[],
+): T | null {
+  if (upsertKeys.length === 0) {
+    return null;
+  }
+  for (const existing of store.values()) {
+    let allMatch = true;
+    for (const key of upsertKeys) {
+      if (data[key] !== (existing as Record<string, unknown>)[key]) {
+        allMatch = false;
+        break;
+      }
+    }
+    if (allMatch) {
+      return existing;
+    }
+  }
+  return null;
+}

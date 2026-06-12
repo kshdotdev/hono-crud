@@ -5,6 +5,7 @@ import { getLogger } from '../core/logger';
 import { createStorageFeature } from '../storage/feature';
 import { resolveLoggingStorage } from '../storage/helpers';
 import { toError } from '../utils/error-coerce';
+import { getWaitUntil } from '../utils/wait-until';
 import type {
   LogEntry,
   LogLevel,
@@ -434,9 +435,8 @@ export function createLoggingMiddleware<E extends Env = Env>(
         }
       };
 
-      // Fire and forget - don't block the response
-      // But ensure errors are reported via onError callback or console
-      handleEntry().catch((err) => {
+      // Flush without blocking the response, reporting errors via onError or logger
+      const flushed = handleEntry().catch((err) => {
         const error = toError(err);
         if (config.onError) {
           config.onError(error, entry);
@@ -444,6 +444,9 @@ export function createLoggingMiddleware<E extends Env = Env>(
           getLogger().error('Failed to process log entry', { error: error.message });
         }
       });
+      // On Workers the flush must be registered via waitUntil or it is
+      // cancelled when the response returns; elsewhere it stays fire-and-forget.
+      getWaitUntil(ctx)?.(flushed);
     }
   };
 }

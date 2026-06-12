@@ -49,8 +49,9 @@ export const CONTEXT_KEYS = {
   apiVersion: 'apiVersion',
   apiVersionConfig: 'apiVersionConfig',
 
-  // --- Database (read by drizzle getDrizzleDb) ---
+  // --- Database (db read by drizzle getDrizzleDb; prismaClient read by prisma getPrismaClient) ---
   db: 'db',
+  prismaClient: 'prismaClient',
 
   // --- Storage registries (written by createStorageMiddleware) ---
   loggingStorage: 'loggingStorage',

@@ -26,9 +26,9 @@ import type {
   SearchResult,
 } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
-import { isFilterOperator } from 'hono-crud/internal';
+import { applyUpsertRestore, isFilterOperator } from 'hono-crud/internal';
 import { matchesFilter } from './filter';
-import { getStore, loadRelations } from './helpers';
+import { findByUpsertKeys, getStore, loadRelations } from './helpers';
 import { isVisible } from './visibility';
 
 /**
@@ -102,36 +102,7 @@ export abstract class MemoryUpsertEndpoint<
     data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
-    const upsertKeys = this.getUpsertKeys();
-    const softDeleteConfig = this.getSoftDeleteConfig();
-
-    // Search for matching record
-    for (const existing of store.values()) {
-      // Check soft delete
-      if (softDeleteConfig.enabled) {
-        const deletedValue = (existing as Record<string, unknown>)[softDeleteConfig.field];
-        if (deletedValue !== null && deletedValue !== undefined) {
-          continue; // Skip soft-deleted records
-        }
-      }
-
-      // Check if all upsert keys match
-      let allMatch = true;
-      for (const key of upsertKeys) {
-        const dataValue = (data as Record<string, unknown>)[key];
-        const existingValue = (existing as Record<string, unknown>)[key];
-        if (dataValue !== existingValue) {
-          allMatch = false;
-          break;
-        }
-      }
-
-      if (allMatch) {
-        return existing;
-      }
-    }
-
-    return null;
+    return findByUpsertKeys(store, data as Record<string, unknown>, this.getUpsertKeys());
   }
 
   /**
@@ -185,37 +156,15 @@ export abstract class MemoryUpsertEndpoint<
     _tx?: unknown,
   ): Promise<{ data: ModelObject<M['model']>; created: boolean }> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
-    const upsertKeys = this.getUpsertKeys();
     const primaryKey = this._meta.model.primaryKeys[0];
-    const softDeleteConfig = this.getSoftDeleteConfig();
 
-    // Search for matching record
-    let existingRecord: ModelObject<M['model']> | null = null;
-    for (const existing of store.values()) {
-      // Check soft delete
-      if (softDeleteConfig.enabled) {
-        const deletedValue = (existing as Record<string, unknown>)[softDeleteConfig.field];
-        if (deletedValue !== null && deletedValue !== undefined) {
-          continue;
-        }
-      }
-
-      // Check if all upsert keys match
-      let allMatch = true;
-      for (const key of upsertKeys) {
-        const dataValue = (data as Record<string, unknown>)[key];
-        const existingValue = (existing as Record<string, unknown>)[key];
-        if (dataValue !== existingValue) {
-          allMatch = false;
-          break;
-        }
-      }
-
-      if (allMatch) {
-        existingRecord = existing;
-        break;
-      }
-    }
+    // Match-and-restore: soft-deleted matches are updated and un-deleted
+    // (see core's applyUpsertRestore), same as the standard upsert path.
+    const existingRecord = findByUpsertKeys(
+      store,
+      data as Record<string, unknown>,
+      this.getUpsertKeys(),
+    );
 
     if (existingRecord) {
       // Update existing record - filter out create-only fields
@@ -229,7 +178,11 @@ export abstract class MemoryUpsertEndpoint<
       const id = String((existingRecord as Record<string, unknown>)[primaryKey]);
       const updated = {
         ...existingRecord,
-        ...this.applyManagedUpdateFields(updateData as Record<string, unknown>),
+        ...applyUpsertRestore(
+          this.applyManagedUpdateFields(updateData as Record<string, unknown>),
+          existingRecord as Record<string, unknown>,
+          this.getSoftDeleteConfig(),
+        ),
       } as ModelObject<M['model']>;
 
       store.set(id, updated);
@@ -733,36 +686,7 @@ export abstract class MemoryImportEndpoint<
     data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
-    const upsertKeys = this.getUpsertKeys();
-    const softDeleteConfig = this.getSoftDeleteConfig();
-
-    // Search for matching record
-    for (const existing of store.values()) {
-      // Check soft delete
-      if (softDeleteConfig.enabled) {
-        const deletedValue = (existing as Record<string, unknown>)[softDeleteConfig.field];
-        if (deletedValue !== null && deletedValue !== undefined) {
-          continue; // Skip soft-deleted records
-        }
-      }
-
-      // Check if all upsert keys match
-      let allMatch = true;
-      for (const key of upsertKeys) {
-        const dataValue = (data as Record<string, unknown>)[key];
-        const existingValue = (existing as Record<string, unknown>)[key];
-        if (dataValue !== existingValue) {
-          allMatch = false;
-          break;
-        }
-      }
-
-      if (allMatch) {
-        return existing;
-      }
-    }
-
-    return null;
+    return findByUpsertKeys(store, data as Record<string, unknown>, this.getUpsertKeys());
   }
 
   /**

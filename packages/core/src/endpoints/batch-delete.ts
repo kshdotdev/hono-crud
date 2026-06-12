@@ -253,10 +253,8 @@ export abstract class BatchDeleteEndpoint<
       }
     }
 
-    // Apply serializer if defined
-    const serialized = this._meta.model.serializer
-      ? results.map((item) => this._meta.model.serializer!(item) as ModelObject<M['model']>)
-      : results;
+    // computed fields → serializer → profile → transform
+    const serialized = await this.finalizeArray(results);
 
     const response = {
       success: true as const,

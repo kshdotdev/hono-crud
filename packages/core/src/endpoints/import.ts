@@ -2,6 +2,7 @@ import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { ConfigurationException, InputValidationException } from '../core/exceptions';
 import { getManagedInputExclusions, mapUniqueViolation } from '../core/managed-fields';
+import { applyUpsertRestore } from '../core/soft-delete';
 import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { type CsvParseOptions, parseCsv, validateCsvHeaders } from '../utils/csv';
 import { CrudEndpoint } from './base';
@@ -576,6 +577,11 @@ export abstract class ImportEndpoint<
   /**
    * Finds an existing record for upsert mode.
    * Must be implemented by ORM-specific subclasses.
+   *
+   * Contract: MUST match soft-deleted rows too. In upsert mode the core
+   * orchestrator restores a soft-deleted match by clearing the soft-delete
+   * field on update ("match-and-restore"); in create mode a soft-deleted
+   * match counts as an existing record (duplicate).
    */
   abstract findExisting(
     data: Partial<ModelObject<M['model']>>,
@@ -638,8 +644,13 @@ export abstract class ImportEndpoint<
         const existing = await this.findExisting(processedData, tx);
 
         if (existing) {
-          // Update existing record
-          const updateData = this.removeImmutableFields(processedData);
+          // Update existing record. Match-and-restore: clear the soft-delete
+          // field when updating a soft-deleted match (see applyUpsertRestore).
+          const updateData = applyUpsertRestore(
+            this.removeImmutableFields(processedData) as Record<string, unknown>,
+            existing as Record<string, unknown>,
+            this.getSoftDeleteConfig(),
+          ) as Partial<ModelObject<M['model']>>;
           const updated = await this.update(existing, updateData, tx);
           return {
             rowNumber,

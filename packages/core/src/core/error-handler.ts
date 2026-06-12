@@ -2,6 +2,7 @@ import type { Context, Env, ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { ZodError } from 'zod';
 import { getRequestId } from '../logging/middleware';
+import { getWaitUntil } from '../utils/wait-until';
 import { ApiException, InputValidationException } from './exceptions';
 import { getLogger } from './logger';
 import { jsonResponse } from './route';
@@ -129,26 +130,22 @@ export function createErrorHandler<E extends Env = Env>(
   const allMappers: ErrorMapper<E>[] = [...mappers, zodErrorMapper as unknown as ErrorMapper<E>];
 
   return async (err: Error, ctx: Context<E>): Promise<Response> => {
-    let apiException: ApiException;
-    let wasMapped = false;
+    let resolved: ApiException | undefined;
 
     // Step 1: Check if error is already ApiException (extends HTTPException)
     if (err instanceof ApiException) {
-      apiException = err;
-      wasMapped = true;
+      resolved = err;
     }
     // Step 1b: Handle plain HTTPException (from Hono's built-in handlers)
     else if (err instanceof HTTPException) {
-      apiException = new ApiException(err.message, err.status, 'HTTP_ERROR');
-      wasMapped = true;
+      resolved = new ApiException(err.message, err.status, 'HTTP_ERROR');
     } else {
       // Step 2: Try custom mappers in order
       for (const mapper of allMappers) {
         try {
           const mapped = await mapper(err, ctx);
           if (mapped) {
-            apiException = mapped;
-            wasMapped = true;
+            resolved = mapped;
             break;
           }
         } catch {
@@ -156,27 +153,30 @@ export function createErrorHandler<E extends Env = Env>(
         }
       }
 
-      // Step 3: Fall back to generic 500 error
-      if (!wasMapped) {
-        if (logUnmappedErrors) {
-          getLogger().error('Unmapped error', {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-        apiException = new ApiException(defaultErrorMessage, 500, defaultErrorCode);
+      if (!resolved && logUnmappedErrors) {
+        getLogger().error('Unmapped error', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
-    // Step 4: Run hooks (fire-and-forget)
+    // Step 3: Fall back to generic 500 error
+    const apiException = resolved ?? new ApiException(defaultErrorMessage, 500, defaultErrorCode);
+
+    // Step 4: Run hooks without blocking the response. On Workers async hooks
+    // (e.g. error reporting via fetch) must be registered via waitUntil or
+    // they are cancelled when the response returns.
+    const waitUntil = getWaitUntil(ctx);
     for (const hook of hooks) {
       try {
-        const result = hook(err, ctx, apiException!);
+        const result = hook(err, ctx, apiException);
         if (result instanceof Promise) {
-          result.catch((hookErr) => {
+          const settled = result.catch((hookErr) => {
             if (onHookError) {
               onHookError(hookErr, err, ctx);
             }
           });
+          waitUntil?.(settled);
         }
       } catch (hookErr) {
         if (onHookError) {
@@ -186,7 +186,7 @@ export function createErrorHandler<E extends Env = Env>(
     }
 
     // Step 5: Build the structured error object (mapper output).
-    const responseBody = apiException!.toJSON();
+    const responseBody = apiException.toJSON();
 
     // Add requestId if logging middleware is active
     if (includeRequestId) {
@@ -215,7 +215,7 @@ export function createErrorHandler<E extends Env = Env>(
       ? envelope.error(responseBody.error as StructuredError)
       : responseBody;
 
-    return jsonResponse(ctx, finalBody, apiException!.status);
+    return jsonResponse(ctx, finalBody, apiException.status);
   };
 }
 

@@ -45,9 +45,6 @@ pnpm test
 `pnpm test` runs the full suite and expects Postgres to be reachable. The
 Workers/D1 examples run through `vitest.config.workers.ts`.
 
-The old `scripts/test-api.ts` entrypoint now delegates to `pnpm run
-test:examples`; it no longer writes JSON response snapshots.
-
 ## Running Demos
 
 ```bash

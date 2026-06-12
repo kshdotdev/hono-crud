@@ -21,6 +21,7 @@ import {
   clearStorage,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
+import type { ExecutionContext } from 'hono';
 import { fromHono, registerCrud } from 'hono-crud';
 import type { MetaInput, Model, ResponseEnvelope } from 'hono-crud';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -873,6 +874,48 @@ describe('withCacheInvalidation Mixin', () => {
     // Verify updated data
     const data = await res2.json();
     expect(data.result.name).toBe('John Updated');
+  });
+
+  it('registers invalidation through executionCtx.waitUntil when present', async () => {
+    // Create user
+    const createRes = await app.request('/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'John', email: 'john@example.com' }),
+    });
+    const { result: user } = await createRes.json();
+
+    // Read to populate cache
+    await app.request(`/users/${user.id}`);
+    const res1 = await app.request(`/users/${user.id}`);
+    expect(res1.headers.get('X-Cache')).toBe('HIT');
+
+    const waitUntil = vi.fn();
+    const executionCtx = {
+      waitUntil,
+      passThroughOnException: () => {},
+    } as unknown as ExecutionContext;
+
+    // Update user with an execution context present (Workers-style)
+    await app.request(
+      `/users/${user.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'John Updated' }),
+      },
+      {},
+      executionCtx,
+    );
+
+    expect(waitUntil).toHaveBeenCalled();
+
+    // Awaiting the registered promises must complete the invalidation
+    // without any timing sleep.
+    await Promise.all(waitUntil.mock.calls.map(([promise]) => promise));
+
+    const res2 = await app.request(`/users/${user.id}`);
+    expect(res2.headers.get('X-Cache')).toBe('MISS');
   });
 
   it('should invalidate cache on delete', async () => {

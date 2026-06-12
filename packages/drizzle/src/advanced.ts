@@ -36,46 +36,15 @@ import {
   batchLoadDrizzleRelations,
   buildWhereCondition,
   cast,
+  findByUpsertKeys,
   getColumn,
   getTable,
   or,
   readCount,
+  substringMatch,
 } from './helpers';
 
-/**
- * Emit a dialect-correct case-insensitive substring-match SQL expression.
- *
- * Replaces the previous `LOWER(col) LIKE LOWER('%needle%') ESCAPE '\\'`
- * approach: by using the native substring-position function for each
- * dialect, the needle is never injected into a pattern, so LIKE
- * wildcards (`%`, `_`) and the LIKE escape character lose their
- * special meaning entirely — no wildcard surface means no escape
- * needed.
- *
- * Dialect mapping:
- *   - `'sqlite'` → `INSTR(LOWER(col), LOWER(needle)) > 0`
- *   - `'pg'`     → `POSITION(LOWER(needle) IN LOWER(col)) > 0`
- *   - `'mysql'`  → `LOCATE(LOWER(needle), LOWER(col)) > 0`
- *
- * All three return a 1-based position (or 0 for "not found"), so
- * `> 0` is the dialect-agnostic predicate that means "needle is a
- * substring of col".
- */
-export function substringMatch(
-  col: DrizzleColumn | DrizzleSql,
-  needle: string,
-  dialect: DrizzleDialect,
-): DrizzleSql {
-  switch (dialect) {
-    case 'pg':
-      return sql`POSITION(LOWER(${needle}) IN LOWER(${col})) > 0`;
-    case 'mysql':
-      return sql`LOCATE(LOWER(${needle}), LOWER(${col})) > 0`;
-    default:
-      // 'sqlite' (default)
-      return sql`INSTR(LOWER(${col}), LOWER(${needle})) > 0`;
-  }
-}
+export { substringMatch } from './helpers';
 
 /**
  * Split a search query into whitespace-delimited tokens for the
@@ -130,35 +99,13 @@ export abstract class DrizzleUpsertEndpoint<
   override async findExisting(
     data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
-    const table = this.getTable();
-    const upsertKeys = this.getUpsertKeys();
-    const softDeleteConfig = this.getSoftDeleteConfig();
-    const conditions: DrizzleSql[] = [];
-
-    // Build conditions from upsert keys
-    for (const key of upsertKeys) {
-      const value = (data as Record<string, unknown>)[key];
-      if (value !== undefined) {
-        conditions.push(eq(this.getColumn(key), value));
-      }
-    }
-
-    // Soft delete filter
-    if (softDeleteConfig.enabled) {
-      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-    }
-
-    if (conditions.length === 0) {
-      return null;
-    }
-
-    const result = await cast<ModelObject<M['model']>>(this.getDb())
-      .select()
-      .from(table)
-      .where(and(...conditions))
-      .limit(1);
-
-    return result[0] || null;
+    return findByUpsertKeys(
+      this.getDb(),
+      this.getTable(),
+      (field) => this.getColumn(field),
+      data as Record<string, unknown>,
+      this.getUpsertKeys(),
+    );
   }
 
   override async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
@@ -199,6 +146,13 @@ export abstract class DrizzleUpsertEndpoint<
    * Note: This method cannot accurately determine if the record was created or updated.
    * The `created` flag is set to `false` by default. If you need accurate create/update
    * tracking, use the standard upsert pattern (useNativeUpsert = false).
+   *
+   * Soft-delete divergence from the standard path: the standard upsert
+   * matches a soft-deleted row and restores it ("match-and-restore"),
+   * whereas this native path guards DO UPDATE with `WHERE deletedAt IS
+   * NULL` — a conflict with a soft-deleted row neither inserts nor
+   * updates and returns no row. This is a raw-SQL limitation, documented
+   * rather than unified.
    */
   protected override async nativeUpsert(
     data: Partial<ModelObject<M['model']>>,
@@ -306,28 +260,13 @@ export abstract class DrizzleBatchUpsertEndpoint<
   override async findExisting(
     data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
-    const table = this.getTable();
-    const upsertKeys = this.getUpsertKeys();
-    const conditions: DrizzleSql[] = [];
-
-    for (const key of upsertKeys) {
-      const value = (data as Record<string, unknown>)[key];
-      if (value !== undefined) {
-        conditions.push(eq(this.getColumn(key), value));
-      }
-    }
-
-    if (conditions.length === 0) {
-      return null;
-    }
-
-    const result = await cast<ModelObject<M['model']>>(this.getDb())
-      .select()
-      .from(table)
-      .where(and(...conditions))
-      .limit(1);
-
-    return result[0] || null;
+    return findByUpsertKeys(
+      this.getDb(),
+      this.getTable(),
+      (field) => this.getColumn(field),
+      data as Record<string, unknown>,
+      this.getUpsertKeys(),
+    );
   }
 
   override async create(data: Partial<ModelObject<M['model']>>): Promise<ModelObject<M['model']>> {
@@ -368,6 +307,13 @@ export abstract class DrizzleBatchUpsertEndpoint<
    * Note: This method cannot accurately determine which records were created vs updated.
    * All records are marked as `created: false`. If you need accurate tracking,
    * use the standard batch upsert pattern (useNativeUpsert = false).
+   *
+   * Soft-delete divergence from the standard path: the standard batch
+   * upsert matches soft-deleted rows and restores them
+   * ("match-and-restore"), whereas this native path's DO UPDATE has no
+   * soft-delete guard — a conflict with a soft-deleted row overwrites its
+   * data WITHOUT clearing the soft-delete field. This is a raw-SQL
+   * limitation, documented rather than unified.
    */
   protected override async nativeBatchUpsert(
     items: Partial<ModelObject<M['model']>>[],
@@ -572,6 +518,12 @@ export abstract class DrizzleAggregateEndpoint<
   /** Drizzle database instance. Can be undefined if using context injection. */
   db?: DB;
 
+  /**
+   * SQL dialect of the underlying Drizzle database. Drives the
+   * `like`/`ilike` substring matching in filter conditions.
+   */
+  protected dialect: DrizzleDialect = 'sqlite';
+
   /** Gets the database instance from property or context. */
   protected getDb(): DB {
     return getDrizzleDb(this) as DB;
@@ -614,11 +566,15 @@ export abstract class DrizzleAggregateEndpoint<
               conditions.push(sql`1 = 0`);
               continue;
             }
-            const condition = buildWhereCondition(table, {
-              field,
-              operator: op,
-              value: opValue,
-            });
+            const condition = buildWhereCondition(
+              table,
+              {
+                field,
+                operator: op,
+                value: opValue,
+              },
+              this.dialect,
+            );
             if (condition) {
               conditions.push(condition);
             }
@@ -747,7 +703,7 @@ export abstract class DrizzleSearchEndpoint<
 
     // Apply filters
     for (const filter of filters.filters) {
-      const condition = buildWhereCondition(table, filter);
+      const condition = buildWhereCondition(table, filter, this.dialect);
       if (condition) {
         conditions.push(condition);
       }
@@ -932,7 +888,7 @@ export abstract class DrizzleExportEndpoint<
 
     // Apply filters
     for (const filter of filters.filters) {
-      const condition = buildWhereCondition(table, filter);
+      const condition = buildWhereCondition(table, filter, this.dialect);
       if (condition) {
         conditions.push(condition);
       }
@@ -1031,35 +987,13 @@ export abstract class DrizzleImportEndpoint<
   override async findExisting(
     data: Partial<ModelObject<M['model']>>,
   ): Promise<ModelObject<M['model']> | null> {
-    const table = this.getTable();
-    const upsertKeys = this.getUpsertKeys();
-    const softDeleteConfig = this.getSoftDeleteConfig();
-    const conditions: DrizzleSql[] = [];
-
-    // Build conditions from upsert keys
-    for (const key of upsertKeys) {
-      const value = (data as Record<string, unknown>)[key];
-      if (value !== undefined) {
-        conditions.push(eq(this.getColumn(key), value));
-      }
-    }
-
-    // Soft delete filter
-    if (softDeleteConfig.enabled) {
-      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-    }
-
-    if (conditions.length === 0) {
-      return null;
-    }
-
-    const result = await cast<ModelObject<M['model']>>(this.getDb())
-      .select()
-      .from(table)
-      .where(and(...conditions))
-      .limit(1);
-
-    return result[0] || null;
+    return findByUpsertKeys(
+      this.getDb(),
+      this.getTable(),
+      (field) => this.getColumn(field),
+      data as Record<string, unknown>,
+      this.getUpsertKeys(),
+    );
   }
 
   /**

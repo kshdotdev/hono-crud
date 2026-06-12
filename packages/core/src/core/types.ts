@@ -38,8 +38,13 @@ export const FILTER_OPERATORS = [
   'lte', // less than or equal
   'in', // in array
   'nin', // not in array
-  'like', // SQL LIKE
-  'ilike', // case-insensitive LIKE
+  // Cross-adapter substring-match contract (memory/drizzle/prisma must not
+  // diverge): the user value is a LITERAL needle — `%` is stripped, `_` is
+  // inert, never live SQL wildcards. `like` = substring match whose case
+  // behavior follows the database collation in SQL adapters (strict in
+  // memory); `ilike` = always case-insensitive substring match.
+  'like', // substring match (collation case behavior)
+  'ilike', // case-insensitive substring match
   'null', // is null
   'between', // between two values
 ] as const;

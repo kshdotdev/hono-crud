@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { ExecutionContext } from 'hono';
 import {
   // Types
   type LogEntry,
@@ -1367,6 +1368,32 @@ describe('Logging Middleware', () => {
 
       expect(onError).toHaveBeenCalled();
       expect(onError.mock.calls[0][0].message).toBe('Handler error');
+    });
+  });
+
+  describe('waitUntil registration', () => {
+    it('registers the log flush through executionCtx.waitUntil when present', async () => {
+      const app = new Hono();
+      app.use('*', createLoggingMiddleware());
+      app.get('/api/test', (c) => c.json({ ok: true }));
+
+      const waitUntil = vi.fn();
+      const executionCtx = {
+        waitUntil,
+        passThroughOnException: () => {},
+      } as unknown as ExecutionContext;
+
+      await app.request('/api/test', {}, {}, executionCtx);
+
+      expect(waitUntil).toHaveBeenCalledTimes(1);
+
+      // The registered promise is the flush itself: awaiting it must leave
+      // the entry persisted without any timing sleep.
+      await Promise.all(waitUntil.mock.calls.map(([promise]) => promise));
+
+      const logs = await storage.query({});
+      expect(logs).toHaveLength(1);
+      expect(logs[0].request.path).toBe('/api/test');
     });
   });
 });

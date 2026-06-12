@@ -143,10 +143,10 @@ function filterToPrismaValue(filter: FilterCondition): unknown {
       return { notIn: arr.map(coerceValue) };
     }
     case 'like':
-      return { contains: String(filter.value).replace(/%/g, '') };
+      return { contains: escapeLikeWildcards(String(filter.value).replace(/%/g, '')) };
     case 'ilike':
       return {
-        contains: String(filter.value).replace(/%/g, ''),
+        contains: escapeLikeWildcards(String(filter.value).replace(/%/g, '')),
         mode: 'insensitive',
       };
     case 'null':
@@ -567,4 +567,46 @@ export function buildPaginatedResult<T>(
       has_prev_page: queryResult.page > 1,
     },
   };
+}
+
+/**
+ * Finds an existing record matching `data` on every upsert key.
+ *
+ * Soft-deleted rows are matched too: upsert-family endpoints restore them on
+ * update ("match-and-restore", see core's `applyUpsertRestore`). Shared by
+ * Upsert, Import, and BatchUpsert so the matching semantics cannot drift.
+ */
+export async function findByUpsertKeys<Row>(
+  model: PrismaModelOperations<Row>,
+  data: Record<string, unknown>,
+  upsertKeys: string[],
+): Promise<Row | null> {
+  const where: Record<string, unknown> = {};
+  for (const key of upsertKeys) {
+    const value = data[key];
+    if (value !== undefined) {
+      where[key] = value;
+    }
+  }
+
+  if (Object.keys(where).length === 0) {
+    return null;
+  }
+
+  const result = await model.findFirst({ where });
+  return result ?? null;
+}
+
+/**
+ * Escape LIKE wildcard characters so a user-supplied needle reaches
+ * Prisma's `contains` as literal text.
+ *
+ * Despite docs suggesting `contains` is a literal substring match, it
+ * compiles to SQL LIKE without escaping user input — `_` (and `%`) act as
+ * live single/multi-char wildcards (verified against Postgres 16 via
+ * @prisma/adapter-pg). Backslash is escaped first so pre-existing
+ * backslashes can't un-escape the wildcard escapes.
+ */
+export function escapeLikeWildcards(needle: string): string {
+  return needle.replace(/\\/g, '\\\\').replace(/[%_]/g, (match) => `\\${match}`);
 }

@@ -491,16 +491,19 @@ export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
           // Ignore parse errors
         }
 
-        // Fire and forget invalidation with context
+        // Invalidate without blocking the response, keeping contextual error logging
         const tableName = getTableName(this);
 
-        this.performCacheInvalidation(recordId).catch((err) => {
+        const invalidation = this.performCacheInvalidation(recordId).catch((err) => {
           getLogger().error('Cache invalidation failed', {
             error: err instanceof Error ? err.message : String(err),
             tableName,
             recordId,
           });
         });
+        // On Workers the invalidation must be registered via waitUntil or it is
+        // cancelled when the response returns, leaving stale cache entries.
+        this.runAfterResponse(invalidation);
       }
 
       return response;

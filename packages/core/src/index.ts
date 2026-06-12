@@ -89,7 +89,7 @@ export { encodeCursor, decodeCursor } from './core/cursor';
 export { applyComputedFields, applyComputedFieldsToArray } from './core/computed-fields';
 export { extractNestedData, isDirectNestedData } from './core/nested-writes';
 export { parseAggregateField, parseAggregateQuery } from './core/aggregate';
-export { getSoftDeleteConfig } from './core/soft-delete';
+export { applyUpsertRestore, getSoftDeleteConfig } from './core/soft-delete';
 export { getAuditConfig, calculateChanges } from './audit/config';
 export { getVersioningConfig } from './versioning/config';
 export { getMultiTenantConfig, extractTenantId } from './multi-tenant/config';
