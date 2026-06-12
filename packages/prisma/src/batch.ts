@@ -15,6 +15,7 @@ import {
   getPrismaModelByName,
   getPrismaTransaction,
 } from './helpers';
+import { getPrismaClient } from './connection';
 
 /**
  * Prisma Restore endpoint for un-deleting soft-deleted records.
@@ -26,11 +27,11 @@ export abstract class PrismaRestoreEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends RestoreEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   override async restore(
@@ -73,10 +74,10 @@ export abstract class PrismaBatchCreateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends BatchCreateEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   override async batchCreate(
@@ -91,7 +92,7 @@ export abstract class PrismaBatchCreateEndpoint<
     // individual creates or a transaction with creates
     const created: ModelObject<M['model']>[] = [];
 
-    await getPrismaTransaction(this.prisma)(async (tx) => {
+    await getPrismaTransaction(getPrismaClient(this))(async (tx) => {
       const txModel = getPrismaModelByName<ModelObject<M['model']>>(
         tx,
         await getModelName(this._meta.model.tableName),
@@ -121,10 +122,10 @@ export abstract class PrismaBatchUpdateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends BatchUpdateEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   override async batchUpdate(
@@ -190,10 +191,10 @@ export abstract class PrismaBatchDeleteEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends BatchDeleteEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   override async batchDelete(
@@ -268,10 +269,10 @@ export abstract class PrismaBatchRestoreEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends BatchRestoreEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   override async batchRestore(
@@ -332,11 +333,11 @@ export abstract class PrismaBatchUpsertEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends BatchUpsertEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
   protected useTransaction = true;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   /**
@@ -502,9 +503,9 @@ export abstract class PrismaBatchUpsertEndpoint<
     };
 
     if (this.useTransaction) {
-      outcome = await getPrismaTransaction(this.prisma)(executeUpserts);
+      outcome = await getPrismaTransaction(getPrismaClient(this))(executeUpserts);
     } else {
-      outcome = await executeUpserts(this.prisma);
+      outcome = await executeUpserts(getPrismaClient(this));
     }
 
     const result: {

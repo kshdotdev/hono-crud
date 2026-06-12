@@ -15,6 +15,7 @@ import {
   getPrismaModel,
   loadPrismaRelations,
 } from './helpers';
+import { getPrismaClient } from './connection';
 
 /**
  * Prisma Create endpoint.
@@ -23,11 +24,11 @@ export abstract class PrismaCreateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CreateEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   override async create(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
@@ -48,10 +49,10 @@ export abstract class PrismaReadEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends ReadEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   override async read(
@@ -60,11 +61,17 @@ export abstract class PrismaReadEndpoint<
     includeOptions?: IncludeOptions,
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
+    const softDeleteConfig = this.getSoftDeleteConfig();
 
     const where: Record<string, unknown> = {
       [this.lookupField]: lookupValue,
       ...additionalFilters,
     };
+
+    // Exclude soft-deleted records
+    if (softDeleteConfig.enabled) {
+      where[softDeleteConfig.field] = null;
+    }
 
     const result = await model.findFirst({ where });
 
@@ -74,7 +81,7 @@ export abstract class PrismaReadEndpoint<
 
     // Load relations if requested
     const itemWithRelations = await loadPrismaRelations(
-      this.prisma,
+      getPrismaClient(this),
       result,
       this._meta,
       includeOptions,
@@ -91,11 +98,35 @@ export abstract class PrismaUpdateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends UpdateEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
+  }
+
+  /**
+   * Finds an existing record for audit logging (before update).
+   */
+  protected override async findExisting(
+    lookupValue: string,
+    additionalFilters?: Record<string, string>,
+  ): Promise<ModelObject<M['model']> | null> {
+    const model = await this.getModel();
+    const softDeleteConfig = this.getSoftDeleteConfig();
+
+    const where: Record<string, unknown> = {
+      [this.lookupField]: lookupValue,
+      ...additionalFilters,
+    };
+
+    // Cannot update soft-deleted records
+    if (softDeleteConfig.enabled) {
+      where[softDeleteConfig.field] = null;
+    }
+
+    const result = await model.findFirst({ where });
+    return result ?? null;
   }
 
   override async update(
@@ -105,13 +136,8 @@ export abstract class PrismaUpdateEndpoint<
   ): Promise<ModelObject<M['model']> | null> {
     const model = await this.getModel();
 
-    // First find the record
-    const where: Record<string, unknown> = {
-      [this.lookupField]: lookupValue,
-      ...additionalFilters,
-    };
-
-    const existing = await model.findFirst({ where });
+    // First find the record (excluding soft-deleted)
+    const existing = await this.findExisting(lookupValue, additionalFilters);
     if (!existing) {
       return null;
     }
@@ -134,11 +160,11 @@ export abstract class PrismaDeleteEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends DeleteEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   /**
@@ -215,10 +241,10 @@ export abstract class PrismaListEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends ListEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
@@ -234,7 +260,7 @@ export abstract class PrismaListEndpoint<
     // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const itemsWithRelations = await batchLoadPrismaRelations(
-      this.prisma,
+      getPrismaClient(this),
       queryResult.records,
       this._meta,
       includeOptions,

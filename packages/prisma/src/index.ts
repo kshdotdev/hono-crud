@@ -3,6 +3,8 @@ export {
   registerPrismaModelMappings,
   clearPrismaModelMappings,
 } from './helpers';
+export { getPrismaClient } from './connection';
+export { createPrismaCrud, type PrismaCrudClasses } from './factory';
 export * from './crud';
 export * from './batch';
 export * from './advanced';

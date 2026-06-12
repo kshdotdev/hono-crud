@@ -35,6 +35,7 @@ import {
   executePrismaQuery,
   getPrismaModel,
 } from './helpers';
+import { getPrismaClient } from './connection';
 
 /**
  * Prisma Search endpoint.
@@ -44,10 +45,10 @@ export abstract class PrismaSearchEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends SearchEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   /**
@@ -160,7 +161,7 @@ export abstract class PrismaSearchEndpoint<
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const items = searchResults.map((r) => r.item);
     const itemsWithRelations = await batchLoadPrismaRelations(
-      this.prisma,
+      getPrismaClient(this),
       items,
       this._meta,
       includeOptions,
@@ -187,10 +188,10 @@ export abstract class PrismaExportEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends ExportEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   override async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
@@ -206,7 +207,7 @@ export abstract class PrismaExportEndpoint<
     // Load relations if requested using batch loading to avoid N+1 queries
     const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
     const itemsWithRelations = await batchLoadPrismaRelations(
-      this.prisma,
+      getPrismaClient(this),
       queryResult.records,
       this._meta,
       includeOptions,
@@ -224,10 +225,10 @@ export abstract class PrismaImportEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends ImportEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   /**
@@ -298,11 +299,11 @@ export abstract class PrismaUpsertEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends UpsertEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
   protected useTransaction = false;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   /**
@@ -423,10 +424,10 @@ export abstract class PrismaVersionHistoryEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends VersionHistoryEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   protected override async recordExists(lookupValue: string): Promise<boolean> {
@@ -466,10 +467,10 @@ export abstract class PrismaVersionRollbackEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends VersionRollbackEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   override async rollback(
@@ -511,7 +512,7 @@ export abstract class PrismaAggregateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends AggregateEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   /**
    * Whether to use native Prisma aggregations.
@@ -521,7 +522,7 @@ export abstract class PrismaAggregateEndpoint<
   protected useNativeAggregation = true;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   /**
@@ -893,10 +894,10 @@ export abstract class PrismaCloneEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CloneEndpoint<E, M> {
-  abstract prisma: PrismaClient;
+  declare prisma?: PrismaClient;
 
   protected async getModel(): Promise<PrismaModelOperations<ModelObject<M['model']>>> {
-    return getPrismaModel<ModelObject<M['model']>>(this.prisma, this._meta.model.tableName);
+    return getPrismaModel<ModelObject<M['model']>>(getPrismaClient(this), this._meta.model.tableName);
   }
 
   /** Generates the primary-key value for the cloned row. Defaults to UUIDv4. */
