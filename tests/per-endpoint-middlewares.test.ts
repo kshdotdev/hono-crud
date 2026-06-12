@@ -14,15 +14,8 @@
 
 import { MemoryAdapters, clearStorage } from '@hono-crud/memory';
 import { Hono } from 'hono';
-import {
-  MemoryApprovalStorage,
-  defineEndpoints,
-  defineMeta,
-  defineModel,
-  fromHono,
-  registerCrud,
-  requireApproval,
-} from 'hono-crud';
+import { defineEndpoints, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { MemoryApprovalStorage, requireApproval } from 'hono-crud/auth';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 

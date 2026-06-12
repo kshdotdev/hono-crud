@@ -51,7 +51,7 @@ export const loggingStorageRegistry = loggingStorageFeature.registry;
  *
  * @example
  * ```ts
- * import { setLoggingStorage, MemoryLoggingStorage } from 'hono-crud';
+ * import { setLoggingStorage, MemoryLoggingStorage } from 'hono-crud/logging';
  *
  * setLoggingStorage(new MemoryLoggingStorage());
  * ```
@@ -150,7 +150,7 @@ export function getRequestStartTime<E extends Env>(ctx: Context<E>): number | un
  *   createLoggingMiddleware,
  *   setLoggingStorage,
  *   MemoryLoggingStorage,
- * } from 'hono-crud';
+ * } from 'hono-crud/logging';
  *
  * // Setup storage (do this once at startup)
  * setLoggingStorage(new MemoryLoggingStorage());

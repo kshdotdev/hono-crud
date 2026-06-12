@@ -29,7 +29,7 @@ import {
   MemorySearchEndpoint,
   MemoryUpdateEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Hono } from 'hono';
@@ -40,12 +40,12 @@ import {
   defineMeta,
   defineModel,
   fromHono,
-  multiTenant,
   setContextVar,
   toOpenApiPaths,
   validationIssueSchema,
 } from 'hono-crud';
 import * as honoCrudBarrel from 'hono-crud';
+import { multiTenant } from 'hono-crud/multi-tenant';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -93,7 +93,7 @@ describe('error-shape unification', () => {
       const app = fromHono(honoApp);
       app.patch('/posts/:id', PostUpdate);
 
-      getStorage<Post>('errshapes_policy').set('p1', {
+      getStore<Post>('errshapes_policy').set('p1', {
         id: 'p1',
         authorId: 'alice',
         title: 'Alice',

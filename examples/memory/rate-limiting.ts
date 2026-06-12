@@ -29,7 +29,8 @@ import {
 import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { type AuthEnv, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import type { AuthEnv } from 'hono-crud/auth';
 import { z } from 'zod';
 
 // Clear storage on start

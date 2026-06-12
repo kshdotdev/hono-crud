@@ -5,10 +5,11 @@ import {
   MemoryReadEndpoint,
   MemoryUpdateEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { defineMeta, defineModel, fromHono, multiTenant } from 'hono-crud';
+import { defineMeta, defineModel, fromHono } from 'hono-crud';
+import { multiTenant } from 'hono-crud/multi-tenant';
 /**
  * Tests for Multi-Tenancy functionality.
  */
@@ -84,7 +85,7 @@ describe('Multi-Tenancy', () => {
 
   beforeEach(() => {
     clearStorage();
-    documentStore = getStorage<Document>('documents');
+    documentStore = getStore<Document>('documents');
 
     // Use OpenAPIHono directly for proper middleware support
     const honoApp = new OpenAPIHono();

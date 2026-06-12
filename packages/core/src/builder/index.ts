@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { crud } from 'hono-crud';
+ * import { crud } from 'hono-crud/builder';
  * import { MemoryListEndpoint, MemoryCreateEndpoint } from '@hono-crud/memory';
  *
  * const UserList = crud(userMeta).list()

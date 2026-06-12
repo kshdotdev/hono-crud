@@ -246,14 +246,16 @@ Track record version history with rollback support.
 
 ```typescript
 import {
-  createVersionManager,
-  setVersioningStorage,
-  MemoryVersioningStorage,
   VersionHistoryEndpoint,
   VersionReadEndpoint,
   VersionCompareEndpoint,
   VersionRollbackEndpoint,
 } from 'hono-crud';
+import {
+  createVersionManager,
+  setVersioningStorage,
+  MemoryVersioningStorage,
+} from 'hono-crud/versioning';
 
 // Setup storage
 setVersioningStorage(new MemoryVersioningStorage());
@@ -303,7 +305,7 @@ import {
   createAuditLogger,
   setAuditStorage,
   MemoryAuditLogStorage,
-} from 'hono-crud';
+} from 'hono-crud/audit';
 
 // Setup storage
 setAuditStorage(new MemoryAuditLogStorage());
@@ -481,7 +483,7 @@ Event emitter for CRUD operations with webhook delivery.
 ### Event Emitter
 
 ```typescript
-import { CrudEventEmitter, setEventEmitter, getEventEmitter } from 'hono-crud';
+import { CrudEventEmitter, setEventEmitter, getEventEmitter } from 'hono-crud/events';
 
 const events = new CrudEventEmitter();
 setEventEmitter(events);
@@ -505,7 +507,7 @@ events.onAny((event) => {
 ### Webhooks
 
 ```typescript
-import { registerWebhooks } from 'hono-crud';
+import { registerWebhooks } from 'hono-crud/events';
 
 registerWebhooks({
   endpoints: [
@@ -534,7 +536,7 @@ import {
   decryptFields,
   StaticKeyProvider,
   type FieldEncryptionConfig,
-} from 'hono-crud';
+} from 'hono-crud/encryption';
 
 const keyProvider = new StaticKeyProvider(process.env.ENCRYPTION_KEY!);
 
@@ -594,7 +596,7 @@ the idempotency middleware resolves from (context storage takes priority over
 the global one):
 
 ```typescript
-import { createStorageMiddleware } from 'hono-crud';
+import { createStorageMiddleware } from 'hono-crud/storage';
 import { MemoryIdempotencyStorage } from '@hono-crud/idempotency';
 
 app.use('*', createStorageMiddleware({
@@ -619,7 +621,7 @@ app.use('*', createStorageMiddleware({
 Isolate data by tenant using header, path, query, or JWT extraction.
 
 ```typescript
-import { multiTenant } from 'hono-crud';
+import { multiTenant } from 'hono-crud/multi-tenant';
 
 // Extract tenant from header (default)
 app.use('/api/*', multiTenant({
@@ -905,7 +907,7 @@ then your route handlers — `apiVersionedResponse()` wraps handlers via
 never runs.
 
 ```typescript
-import { apiVersion, apiVersionedResponse, getApiVersion, getApiVersionConfig } from 'hono-crud';
+import { apiVersion, apiVersionedResponse, getApiVersion, getApiVersionConfig } from 'hono-crud/api-version';
 
 app.use('/api/*', apiVersion({
   versions: [
@@ -942,7 +944,7 @@ Each entry in `versions` is an `ApiVersionConfig` (`version`, optional
 Transform response data based on context (e.g., public vs admin views).
 
 ```typescript
-import { applyProfile, type SerializationProfile } from 'hono-crud';
+import { applyProfile, type SerializationProfile } from 'hono-crud/serialization';
 
 const publicProfile: SerializationProfile = {
   include: ['id', 'name', 'avatar'],

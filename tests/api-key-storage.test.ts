@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import { ApiException, type AuthEnv, MemoryAPIKeyStorage, createAPIKeyMiddleware } from 'hono-crud';
+import { ApiException } from 'hono-crud';
+import { type AuthEnv, MemoryAPIKeyStorage, createAPIKeyMiddleware } from 'hono-crud/auth';
 import { apiKeyStorageRegistry, setAPIKeyStorage } from 'hono-crud/auth/storage/memory';
 import { createStorageMiddleware } from 'hono-crud/storage';
 import type { StorageEnv } from 'hono-crud/storage/types';

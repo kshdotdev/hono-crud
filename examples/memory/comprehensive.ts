@@ -27,7 +27,7 @@ import {
   MemoryUpdateEndpoint,
   MemoryUpsertEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { redocUI, swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
@@ -427,11 +427,11 @@ app.put('/categories', CategoryUpsert);
 app.get('/seed', async (c) => {
   clearStorage();
 
-  const userStore = getStorage<User>('users');
-  const profileStore = getStorage<Profile>('profiles');
-  const postStore = getStorage<Post>('posts');
-  const commentStore = getStorage<Comment>('comments');
-  const categoryStore = getStorage<Category>('categories');
+  const userStore = getStore<User>('users');
+  const profileStore = getStore<Profile>('profiles');
+  const postStore = getStore<Post>('posts');
+  const commentStore = getStore<Comment>('comments');
+  const categoryStore = getStore<Category>('categories');
 
   // Seed users
   const users: User[] = [

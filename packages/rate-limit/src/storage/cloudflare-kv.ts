@@ -50,7 +50,7 @@ export interface KVRateLimitStorageOptions {
  * @example
  * ```ts
  * import { KVRateLimitStorage } from '@hono-crud/rate-limit';
- * import { createStorageMiddleware } from 'hono-crud';
+ * import { createStorageMiddleware } from 'hono-crud/storage';
  *
  * app.use('*', async (c, next) => {
  *   const rateLimitStorage = new KVRateLimitStorage({ kv: c.env.RATE_LIMIT_KV });

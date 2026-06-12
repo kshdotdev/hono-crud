@@ -102,13 +102,13 @@ registerCrud(app, '/tasks', {
 ### Storage Helpers
 
 ```typescript
-import { clearStorage, getStorage } from '@hono-crud/memory';
+import { clearStorage, getStore } from '@hono-crud/memory';
 
 // Clear all in-memory data
 clearStorage();
 
 // Access raw storage for a table
-const store = getStorage<Task>('tasks');
+const store = getStore<Task>('tasks');
 store.set('some-id', { id: 'some-id', title: 'Test', done: false });
 ```
 

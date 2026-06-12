@@ -68,13 +68,6 @@ export function clearStorage(): void {
 }
 
 /**
- * Gets the storage for a specific table. Useful for testing.
- */
-export function getStorage<T>(tableName: string): Map<string, T> {
-  return getStore<T>(tableName);
-}
-
-/**
  * Finds a record in the store whose values match `data` on every upsert key.
  *
  * Soft-deleted rows are matched too: upsert-family endpoints restore them on

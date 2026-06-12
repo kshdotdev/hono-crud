@@ -5,8 +5,9 @@ import {
   clearStorage,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
+import { ApiException, fromHono, registerCrud } from 'hono-crud';
+import type { MetaInput, Model } from 'hono-crud';
 import {
-  ApiException,
   type AuthEnv,
   type JWTClaims,
   MemoryAPIKeyStorage,
@@ -16,12 +17,10 @@ import {
   createAuthMiddleware,
   createJWTMiddleware,
   defaultHashAPIKey,
-  fromHono,
   generateAPIKey,
   hashAPIKey,
   isValidAPIKeyFormat,
   optionalAuth,
-  registerCrud,
   requireAllRoles,
   requireAnyPermission,
   requireOwnership,
@@ -29,8 +28,7 @@ import {
   requirePermissions,
   requireRoles,
   withAuth,
-} from 'hono-crud';
-import type { MetaInput, Model } from 'hono-crud';
+} from 'hono-crud/auth';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 

@@ -91,7 +91,7 @@ export interface MultiTenantMiddlewareConfig
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import { multiTenant } from 'hono-crud';
+ * import { multiTenant } from 'hono-crud/multi-tenant';
  *
  * const app = new Hono();
  *
@@ -207,7 +207,7 @@ export function multiTenant<E extends Env = Env>(
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import type { TenantEnv } from 'hono-crud';
+ * import type { TenantEnv } from 'hono-crud/multi-tenant';
  *
  * const app = new Hono<TenantEnv>();
  * app.use('/*', multiTenant());
@@ -223,3 +223,7 @@ export type TenantEnv<TenantKey extends string = 'tenantId'> = {
     [K in TenantKey]: string;
   };
 };
+
+// Config normalization + tenant extraction — the multi-tenant barrel is the
+// complete canonical surface of the multi-tenant family.
+export { extractTenantId, getMultiTenantConfig } from './config';

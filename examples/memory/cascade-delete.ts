@@ -14,7 +14,7 @@ import {
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import { defineMeta, defineModel, fromHono } from 'hono-crud';
@@ -196,13 +196,13 @@ app.delete('/authors-restrict/:id', AuthorRestrictDelete);
 async function main() {
   console.log('=== Cascade Delete Demo ===\n');
 
-  const authorStore = getStorage<Author>('authors');
-  const bookStore = getStorage<Book>('books');
-  const reviewStore = getStorage<Review>('reviews');
-  const authorSetNullStore = getStorage<Author>('authors_setnull');
-  const bookSetNullStore = getStorage<Book>('books_setnull');
-  const authorRestrictStore = getStorage<Author>('authors_restrict');
-  const bookRestrictStore = getStorage<Book>('books_restrict');
+  const authorStore = getStore<Author>('authors');
+  const bookStore = getStore<Book>('books');
+  const reviewStore = getStore<Review>('reviews');
+  const authorSetNullStore = getStore<Author>('authors_setnull');
+  const bookSetNullStore = getStore<Book>('books_setnull');
+  const authorRestrictStore = getStore<Author>('authors_restrict');
+  const bookRestrictStore = getStore<Book>('books_restrict');
 
   // =========================================================================
   // Demo 1: Cascade Delete

@@ -10,16 +10,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { MemoryCreateEndpoint, clearStorage } from '@hono-crud/memory';
-import {
-  CrudEventEmitter,
-  type CrudEventPayload,
-  defineMeta,
-  defineModel,
-  fromHono,
-  multiTenant,
-  setContextVar,
-  setEventEmitter,
-} from 'hono-crud';
+import { defineMeta, defineModel, fromHono, setContextVar } from 'hono-crud';
+import { CrudEventEmitter, type CrudEventPayload, setEventEmitter } from 'hono-crud/events';
+import { multiTenant } from 'hono-crud/multi-tenant';
 
 const TENANT = 'tenant-payload-test';
 const ORG = 'org-payload-test';

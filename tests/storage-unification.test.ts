@@ -239,10 +239,14 @@ describe('§4.2 two-getter contract per feature', () => {
 
 describe('§4.5 deleted createCrudMiddleware / unified createStorageMiddleware', () => {
   it('createCrudMiddleware is no longer exported from hono-crud', async () => {
-    const mod = (await import('hono-crud')) as Record<string, unknown>;
-    expect(mod.createCrudMiddleware).toBeUndefined();
-    // The replacement is present.
-    expect(typeof mod.createStorageMiddleware).toBe('function');
+    const rootMod = (await import('hono-crud')) as Record<string, unknown>;
+    const storageMod = (await import('hono-crud/storage')) as Record<string, unknown>;
+    expect(rootMod.createCrudMiddleware).toBeUndefined();
+    expect(storageMod.createCrudMiddleware).toBeUndefined();
+    // The replacement is present on its canonical subpath (the storage family
+    // lives only on 'hono-crud/storage', not on the root barrel).
+    expect(rootMod.createStorageMiddleware).toBeUndefined();
+    expect(typeof storageMod.createStorageMiddleware).toBe('function');
   });
 
   it('createStorageMiddleware injects all eight slots, readable via getStorage()', async () => {

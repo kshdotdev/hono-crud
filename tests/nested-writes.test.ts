@@ -3,7 +3,7 @@ import {
   MemoryReadEndpoint,
   MemoryUpdateEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import { defineMeta, defineModel, fromHono } from 'hono-crud';
@@ -110,9 +110,9 @@ describe('Nested Writes', () => {
 
   beforeEach(() => {
     clearStorage();
-    userStore = getStorage<User>('users');
-    profileStore = getStorage<Profile>('profiles');
-    postStore = getStorage<Post>('posts');
+    userStore = getStore<User>('users');
+    profileStore = getStore<Profile>('profiles');
+    postStore = getStore<Post>('posts');
 
     app = fromHono(new Hono());
     app.post('/users', UserCreate);

@@ -1,4 +1,4 @@
-import type { OpenAPIRouteSchema } from 'hono-crud';
+import type { OpenAPIRouteSchema } from 'hono-crud/internal';
 import type { ZodType } from 'zod';
 
 /** A flat MCP input schema: a map of field name to Zod schema. */

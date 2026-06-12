@@ -1,13 +1,8 @@
 import { DRIZZLE_DIALECTS } from '@hono-crud/drizzle';
-import {
-  AGGREGATE_OPERATIONS,
-  CRUD_EVENT_TYPES,
-  encryptedValueSchema,
-  isEncryptedValue,
-  JWT_ALGORITHMS,
-  SEARCH_MODES,
-  SORT_DIRECTIONS,
-} from 'hono-crud';
+import { AGGREGATE_OPERATIONS, SEARCH_MODES, SORT_DIRECTIONS } from 'hono-crud';
+import { JWT_ALGORITHMS } from 'hono-crud/auth';
+import { encryptedValueSchema, isEncryptedValue } from 'hono-crud/encryption';
+import { CRUD_EVENT_TYPES } from 'hono-crud/events';
 import { describe, expect, it } from 'vitest';
 
 // These lock the `as const` single-source arrays from which the corresponding

@@ -33,7 +33,7 @@ import {
   MemoryReadEndpoint,
   MemoryUpdateEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import {
   ConflictException,
@@ -81,8 +81,8 @@ class Del extends MemoryDeleteEndpoint {
 
 beforeEach(() => {
   clearStorage();
-  getStorage<Row>('widgets_env').set('w1', { id: 'w1', name: 'one' });
-  getStorage<Row>('widgets_env').set('w2', { id: 'w2', name: 'two' });
+  getStore<Row>('widgets_env').set('w1', { id: 'w1', name: 'one' });
+  getStore<Row>('widgets_env').set('w2', { id: 'w2', name: 'two' });
 });
 
 // ============================================================================

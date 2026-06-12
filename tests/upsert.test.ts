@@ -3,7 +3,7 @@ import {
   MemoryReadEndpoint,
   MemoryUpsertEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import { defineMeta, defineModel, fromHono } from 'hono-crud';
@@ -108,8 +108,8 @@ describe('Upsert', () => {
 
   beforeEach(() => {
     clearStorage();
-    userStore = getStorage<User>('users');
-    subscriptionStore = getStorage<Subscription>('subscriptions');
+    userStore = getStore<User>('users');
+    subscriptionStore = getStore<Subscription>('subscriptions');
 
     app = fromHono(new Hono());
     app.put('/users', UserUpsert);

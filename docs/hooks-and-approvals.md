@@ -617,7 +617,7 @@ CREATE INDEX idx_pending_expiring  ON pending_actions(expires_at) WHERE status =
 ```
 
 ```ts
-import type { ApprovalStorage, PendingAction } from 'hono-crud';
+import type { ApprovalStorage, PendingAction } from 'hono-crud/auth';
 import type { PgClient } from 'pg';
 
 export class PostgresApprovalStorage implements ApprovalStorage {
@@ -990,7 +990,8 @@ notify the approver (Slack, email, push). Two patterns again.
 Wrap any `ApprovalStorage` implementation with a notifier:
 
 ```ts
-import type { ApprovalStorage, PendingAction, CrudEventEmitter } from 'hono-crud';
+import type { ApprovalStorage, PendingAction } from 'hono-crud/auth';
+import type { CrudEventEmitter } from 'hono-crud/events';
 
 export class NotifyingApprovalStorage implements ApprovalStorage {
   constructor(

@@ -5,14 +5,16 @@ import {
   type ErrorHook,
   type ErrorMapper,
   InputValidationException,
-  type LoggingStorage,
-  MemoryLoggingStorage,
   NotFoundException,
   createErrorHandler,
-  createLoggingMiddleware,
-  setLoggingStorage,
   zodErrorMapper,
 } from 'hono-crud';
+import {
+  type LoggingStorage,
+  MemoryLoggingStorage,
+  createLoggingMiddleware,
+  setLoggingStorage,
+} from 'hono-crud/logging';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ZodError, z } from 'zod';
 

@@ -2,7 +2,9 @@ import { MemoryCreateEndpoint, MemoryListEndpoint } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import type { MetaInput } from 'hono-crud';
-import { createCreate, createList, crud, fromHono, registerCrud } from 'hono-crud';
+import { fromHono, registerCrud } from 'hono-crud';
+import { crud } from 'hono-crud/builder';
+import { createCreate, createList } from 'hono-crud/functional';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 

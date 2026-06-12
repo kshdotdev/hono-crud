@@ -1,5 +1,5 @@
 import { type DrizzleDatabaseConstraint, DrizzleSearchEndpoint } from '@hono-crud/drizzle';
-import { MemorySearchEndpoint, clearStorage, getStorage } from '@hono-crud/memory';
+import { MemorySearchEndpoint, clearStorage, getStore } from '@hono-crud/memory';
 import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
@@ -304,7 +304,7 @@ describe('Memory search adapter — LIKE wildcard semantics (literal chars)', ()
 
   beforeEach(() => {
     clearStorage();
-    const store = getStorage<Record<string, unknown>>('memory_products');
+    const store = getStore<Record<string, unknown>>('memory_products');
     for (const row of ROWS) {
       store.set(row.id, row);
     }
@@ -339,7 +339,7 @@ describe("Memory search adapter — mode='all' token-AND semantics", () => {
 
   beforeEach(() => {
     clearStorage();
-    const store = getStorage<Record<string, unknown>>('memory_products');
+    const store = getStore<Record<string, unknown>>('memory_products');
     for (const row of ROWS) {
       store.set(row.id, row);
     }

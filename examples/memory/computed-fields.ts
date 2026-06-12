@@ -20,7 +20,7 @@ import {
   MemoryReadEndpoint,
   MemoryUpdateEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
@@ -250,7 +250,7 @@ app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
 // ============================================================================
 
 function addSampleData() {
-  const userStore = getStorage<User>('users');
+  const userStore = getStore<User>('users');
 
   const sampleUsers: User[] = [
     {

@@ -14,7 +14,7 @@ import {
   MemoryUpdateEndpoint,
   MemoryUpsertEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
@@ -152,7 +152,7 @@ describe('Model.id strategy', () => {
   it('function generator => used as PK on create + batchCreate + upsert + clone', async () => {
     counter = 0;
     const app = memoryApp({ id: seqId });
-    const store = getStorage<Item>('items');
+    const store = getStore<Item>('items');
 
     // create
     const c = await app.request('/items', {
@@ -446,7 +446,7 @@ describe('Model.timestamps', () => {
     const app = memoryApp({
       timestamps: { createdAt: 'created_ms', updatedAt: 'updated_ms' },
     });
-    const store = getStorage<Record<string, unknown>>('items');
+    const store = getStore<Record<string, unknown>>('items');
     const res = await app.request('/items', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

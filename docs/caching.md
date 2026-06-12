@@ -33,7 +33,7 @@ For multi-tenant or per-request storage, inject the storage through
 cache mixin resolves from (context storage takes priority over the global one):
 
 ```typescript
-import { createStorageMiddleware } from 'hono-crud';
+import { createStorageMiddleware } from 'hono-crud/storage';
 import { MemoryCacheStorage } from '@hono-crud/cache';
 
 app.use('*', createStorageMiddleware({

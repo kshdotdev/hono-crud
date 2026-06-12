@@ -16,6 +16,7 @@ export default defineConfig({
     'src/multi-tenant/index.ts',
     'src/config/index.ts',
     'src/functional/index.ts',
+    'src/builder/index.ts',
     'src/health/index.ts',
     'src/cloudflare/index.ts',
   ],

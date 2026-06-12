@@ -24,36 +24,29 @@ import {
   MemoryVersionReadEndpoint,
   MemoryVersionRollbackEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { MemoryRateLimitStorage, createRateLimitMiddleware } from '@hono-crud/rate-limit';
 import { swaggerUI } from '@hono-crud/swagger';
 import { type Context, Hono, type MiddlewareHandler } from 'hono';
 import {
-  type AuthEnv,
-  type AuthUser,
-  CrudEventEmitter,
-  type CrudEventPayload,
-  MemoryAuditLogStorage,
-  MemoryVersioningStorage,
   type ResponseEnvelope,
-  type SerializationProfile,
-  StaticKeyProvider,
-  apiVersion,
-  applyProfile,
   createErrorHandler,
-  createStorageMiddleware,
-  decryptValue,
   defineMeta,
   defineModel,
-  encryptValue,
   fromHono,
-  getApiVersion,
-  multiTenant,
   registerCrud,
-  requireRoles,
 } from 'hono-crud';
+import { apiVersion, getApiVersion } from 'hono-crud/api-version';
+import { MemoryAuditLogStorage } from 'hono-crud/audit';
+import { type AuthEnv, type AuthUser, requireRoles } from 'hono-crud/auth';
+import { StaticKeyProvider, decryptValue, encryptValue } from 'hono-crud/encryption';
+import { CrudEventEmitter, type CrudEventPayload } from 'hono-crud/events';
 import { createHealthRoutes } from 'hono-crud/health';
+import { multiTenant } from 'hono-crud/multi-tenant';
+import { type SerializationProfile, applyProfile } from 'hono-crud/serialization';
+import { createStorageMiddleware } from 'hono-crud/storage';
+import { MemoryVersioningStorage } from 'hono-crud/versioning';
 import { z } from 'zod';
 
 type AppEnv = AuthEnv & {
@@ -627,8 +620,8 @@ export function createApp() {
     return c.json(applyProfile(body, publicUserProfile));
   });
   app.post('/seed', (c) => {
-    const userStore = getStorage<User>('users');
-    const postStore = getStorage<Post>('posts');
+    const userStore = getStore<User>('users');
+    const postStore = getStore<Post>('posts');
     const userId = '00000000-0000-4000-8000-000000000001';
     const postId = '00000000-0000-4000-8000-000000000101';
     userStore.set(userId, {
@@ -662,7 +655,7 @@ export function createApp() {
       readyPath: '/ready',
       version: 'local-consumer',
       checks: [
-        { name: 'memory-users', check: async () => `${getStorage<User>('users').size} users` },
+        { name: 'memory-users', check: async () => `${getStore<User>('users').size} users` },
         {
           name: 'memory-cache',
           check: async () => `${cacheStorage.getStats().size} cache entries`,

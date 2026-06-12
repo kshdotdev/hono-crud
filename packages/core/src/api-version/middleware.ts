@@ -36,7 +36,7 @@ function extractFromUrl(ctx: Context, pattern: string): string | undefined {
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import { apiVersion } from 'hono-crud';
+ * import { apiVersion } from 'hono-crud/api-version';
  *
  * const app = new Hono();
  *

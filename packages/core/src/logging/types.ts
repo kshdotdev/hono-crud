@@ -385,7 +385,7 @@ export interface LoggingConfig<E extends Env = Env> {
  *
  * @example
  * ```ts
- * import type { LoggingEnv } from 'hono-crud';
+ * import type { LoggingEnv } from 'hono-crud/logging';
  *
  * type AppEnv = LoggingEnv & {
  *   Variables: {

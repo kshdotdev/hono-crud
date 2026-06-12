@@ -24,7 +24,7 @@ import {
   MemoryDeleteEndpoint,
   MemoryUpdateEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { type HookContext, defineMeta, defineModel } from 'hono-crud';
 
@@ -143,7 +143,7 @@ describe('Transactional hooks — memory adapter', () => {
     // the after-hook threw, so the store retains it. (We assert presence
     // by size rather than a specific id because the memory adapter
     // auto-generates the primary key.)
-    const store = getStorage<z.infer<typeof Schema>>('memo_items');
+    const store = getStore<z.infer<typeof Schema>>('memo_items');
     expect(store.size).toBeGreaterThan(0);
   });
 });

@@ -294,7 +294,8 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
  * @example
  * ```ts
  * import { OpenAPIHono } from '@hono/zod-openapi';
- * import { fromHono, multiTenant } from 'hono-crud';
+ * import { fromHono } from 'hono-crud';
+ * import { multiTenant } from 'hono-crud/multi-tenant';
  *
  * const app = fromHono(new OpenAPIHono());
  *

@@ -93,7 +93,7 @@ export type JWTAlgorithm = (typeof JWT_ALGORITHMS)[number];
  *
  * @example
  * ```ts
- * import { JWTClaimsSchema } from 'hono-crud';
+ * import { JWTClaimsSchema } from 'hono-crud/auth';
  *
  * // Parse and validate claims
  * const result = JWTClaimsSchema.safeParse(decodedPayload);

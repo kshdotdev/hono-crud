@@ -8,7 +8,7 @@
  * ```ts
  * import type { CloudflareEnv, WaitUntil } from 'hono-crud/cloudflare';
  * import { getWaitUntil } from 'hono-crud/cloudflare';
- * import { registerWebhooks } from 'hono-crud';
+ * import { registerWebhooks } from 'hono-crud/events';
  *
  * type Env = CloudflareEnv<{
  *   DB: D1Database;
@@ -57,7 +57,7 @@ export interface KVNamespace {
  * @example
  * ```ts
  * import { getWaitUntil } from 'hono-crud/cloudflare';
- * import { registerWebhooks } from 'hono-crud';
+ * import { registerWebhooks } from 'hono-crud/events';
  *
  * app.use('*', async (c, next) => {
  *   registerWebhooks({

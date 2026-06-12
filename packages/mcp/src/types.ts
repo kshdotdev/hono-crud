@@ -1,6 +1,12 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
-import type { CrudEndpointName, CrudEndpoints, OpenAPIRoute, OpenAPIRouteSchema } from 'hono-crud';
-import type { MetaInput, PathPattern } from 'hono-crud/internal';
+import type {
+  CrudEndpointName,
+  CrudEndpoints,
+  MetaInput,
+  OpenAPIRoute,
+  OpenAPIRouteSchema,
+  PathPattern,
+} from 'hono-crud/internal';
 
 /**
  * The five standard CRUD operations exposed as MCP tools. Pinned to core's

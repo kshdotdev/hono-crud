@@ -28,7 +28,8 @@ const STORAGE_SLOTS: Record<keyof StorageMiddlewareConfig, ContextKey> = {
  * @example
  * ```ts
  * import { Hono } from 'hono';
- * import { createStorageMiddleware, MemoryCacheStorage } from 'hono-crud';
+ * import { MemoryCacheStorage } from '@hono-crud/cache';
+ * import { createStorageMiddleware } from 'hono-crud/storage';
  * import { MemoryRateLimitStorage } from '@hono-crud/rate-limit';
  *
  * const app = new Hono();

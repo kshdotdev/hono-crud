@@ -2,7 +2,7 @@ import {
   MemoryBatchUpsertEndpoint,
   MemoryListEndpoint,
   clearStorage,
-  getStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import { defineMeta, defineModel, fromHono } from 'hono-crud';
@@ -96,8 +96,8 @@ describe('Batch Upsert', () => {
 
   beforeEach(() => {
     clearStorage();
-    productStore = getStorage<Product>('products');
-    settingsStore = getStorage<Settings>('settings');
+    productStore = getStore<Product>('products');
+    settingsStore = getStore<Settings>('settings');
 
     app = fromHono(new Hono());
     app.put('/products/batch', ProductBatchUpsert);

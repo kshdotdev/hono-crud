@@ -165,7 +165,9 @@ hono-crud supports four ways to define endpoints. All produce classes compatible
 | **Config-based** | Declarative, all-in-one | `defineEndpoints({ meta, list: { ... } }, MemoryAdapters)` |
 
 ```typescript
-import { createList, crud, defineEndpoints } from 'hono-crud';
+import { defineEndpoints } from 'hono-crud';
+import { crud } from 'hono-crud/builder';
+import { createList } from 'hono-crud/functional';
 import { MemoryAdapters } from '@hono-crud/memory';
 
 // Functional
@@ -260,7 +262,7 @@ See [docs/database-adapters.md](./docs/database-adapters.md) for complete setup 
 Built-in JWT and API Key middleware with composable guards:
 
 ```typescript
-import { createJWTMiddleware, requireRoles, requireAuthenticated, anyOf } from 'hono-crud';
+import { createJWTMiddleware, requireRoles, requireAuthenticated, anyOf } from 'hono-crud/auth';
 
 // JWT middleware
 app.use('/api/*', createJWTMiddleware({
@@ -320,7 +322,7 @@ See [docs/rate-limiting.md](./docs/rate-limiting.md).
 ### Logging
 
 ```typescript
-import { createLoggingMiddleware, setLoggingStorage, MemoryLoggingStorage } from 'hono-crud';
+import { createLoggingMiddleware, setLoggingStorage, MemoryLoggingStorage } from 'hono-crud/logging';
 
 setLoggingStorage(new MemoryLoggingStorage());
 
@@ -444,9 +446,12 @@ See [docs/advanced-features.md](./docs/advanced-features.md) for examples of eve
 
 ### Subpath Imports
 
-Several core features are also exposed as tree-shakeable subpaths, so apps that only need one feature can import it directly without pulling in the rest of the library:
+The `'hono-crud'` root barrel owns the CRUD core (models, endpoints, registrar, exceptions, OpenAPI utilities). Every feature family lives only on its tree-shakeable subpath:
 
 ```typescript
+import { createJWTMiddleware, requireRoles } from 'hono-crud/auth';
+import { createLoggingMiddleware, MemoryLoggingStorage } from 'hono-crud/logging';
+import { createStorageMiddleware, type StorageEnv } from 'hono-crud/storage';
 import { multiTenant } from 'hono-crud/multi-tenant';
 import { createAuditLogger, MemoryAuditLogStorage } from 'hono-crud/audit';
 import { VersionManager, MemoryVersioningStorage } from 'hono-crud/versioning';
@@ -454,10 +459,11 @@ import { CrudEventEmitter, registerWebhooks } from 'hono-crud/events';
 import { encryptFields, decryptFields, StaticKeyProvider } from 'hono-crud/encryption';
 import { applyProfile, type SerializationProfile } from 'hono-crud/serialization';
 import { apiVersion, getApiVersion } from 'hono-crud/api-version';
+import { createCreate, createList } from 'hono-crud/functional';
+import { crud } from 'hono-crud/builder';
 import { createHealthRoutes } from 'hono-crud/health';
+import { getWaitUntil } from 'hono-crud/cloudflare';
 ```
-
-These symbols also remain available from the `'hono-crud'` barrel for convenience (health is subpath-only).
 
 Idempotency ships as its own package:
 

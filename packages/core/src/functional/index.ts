@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { createCreate, createList } from 'hono-crud';
+ * import { createCreate, createList } from 'hono-crud/functional';
  * import { MemoryCreateEndpoint, MemoryListEndpoint } from '@hono-crud/memory';
  *
  * const UserCreate = createCreate({

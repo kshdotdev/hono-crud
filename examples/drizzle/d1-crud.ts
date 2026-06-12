@@ -35,14 +35,8 @@ import { swaggerUI } from '@hono-crud/swagger';
 import { drizzle } from 'drizzle-orm/d1';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { Hono } from 'hono';
-import {
-  type StorageEnv,
-  createStorageMiddleware,
-  defineMeta,
-  defineModel,
-  fromHono,
-  registerCrud,
-} from 'hono-crud';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { type StorageEnv, createStorageMiddleware } from 'hono-crud/storage';
 import { z } from 'zod';
 
 // ============================================================================

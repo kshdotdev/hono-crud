@@ -24,22 +24,17 @@ import {
 import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { defineEndpoints, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+// Builder/Fluent API
+import { crud } from 'hono-crud/builder';
+// Function-based API
 import {
-  // Function-based API
   createCreate,
   createDelete,
   createList,
   createRead,
   createUpdate,
-  // Builder/Fluent API
-  crud,
-  // Config-based API
-  defineEndpoints,
-  defineMeta,
-  defineModel,
-  fromHono,
-  registerCrud,
-} from 'hono-crud';
+} from 'hono-crud/functional';
 import { z } from 'zod';
 
 // Clear storage on start

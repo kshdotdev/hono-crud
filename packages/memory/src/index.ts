@@ -1,4 +1,4 @@
-export { clearStorage, getStorage, getStore, storage } from './helpers';
+export { clearStorage, getStore, storage } from './helpers';
 export * from './crud';
 export * from './batch';
 export * from './advanced';
@@ -34,7 +34,7 @@ import {
  *
  * @example
  * ```ts
- * import { defineEndpoints } from 'hono-crud';
+ * import { defineEndpoints } from 'hono-crud/config';
  * import { MemoryAdapters } from '@hono-crud/memory';
  *
  * const userEndpoints = defineEndpoints({ meta: userMeta, list: {}, create: {} }, MemoryAdapters);

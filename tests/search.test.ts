@@ -1,4 +1,4 @@
-import { MemorySearchEndpoint, clearStorage, getStorage } from '@hono-crud/memory';
+import { MemorySearchEndpoint, clearStorage, getStore } from '@hono-crud/memory';
 import { Hono } from 'hono';
 import {
   buildSearchConfig,
@@ -253,7 +253,7 @@ describe('MemorySearchEndpoint', () => {
     clearStorage();
 
     // Seed test data
-    const store = getStorage<Record<string, unknown>>('articles');
+    const store = getStore<Record<string, unknown>>('articles');
 
     const articles = [
       {
