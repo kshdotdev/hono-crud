@@ -1,3 +1,4 @@
+export { DEFAULT_FORWARD_HEADERS } from './dispatch';
 export { CrudMcpServer, createCrudMcp } from './server';
 export type {
   AutoOptions,

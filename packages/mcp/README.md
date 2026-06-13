@@ -3,10 +3,16 @@
 Auto-generate [Model Context Protocol](https://modelcontextprotocol.io) (MCP) tools from your
 [hono-crud](https://github.com/kshdotdev/hono-crud) resources.
 
-It introspects the CRUD endpoints you already register and exposes each operation
-(`list`, `read`, `create`, `update`, `delete`) as an MCP tool over HTTP streaming transport. Tool
-calls are **re-dispatched through the same Hono app**, so they run the exact same pipeline as your
-REST API — auth, Zod validation, hooks, audit, soft-delete, serialization and pagination all apply.
+It introspects the CRUD endpoints you already register and exposes every operation present in the
+endpoints map — all `registerCrud` verbs, from `list`/`read`/`create`/`update`/`delete` through
+`search`, `aggregate`, `export`, the batch operations and the version sub-resources — as MCP tools
+over HTTP streaming transport. Tool calls are **re-dispatched through the same Hono app**, so they
+run the exact same pipeline as your REST API — auth, Zod validation, hooks, audit, soft-delete,
+serialization and pagination all apply.
+
+The only excluded verb is `import`: its schema intentionally declares no request body (validation
+is manual, to support JSON, CSV and multipart payloads), so an auto-generated tool would advertise
+an input schema lacking the items payload. Register a hand-written tool if you need imports over MCP.
 
 ## Install
 
@@ -39,8 +45,22 @@ mcp.resource('/users', userEndpoints);
 app.all('/mcp', mcp.handler());
 ```
 
-This generates the tools `users_list`, `users_read`, `users_create`, `users_update`,
-`users_delete`, each with an input schema derived from the endpoint's own Zod schema.
+This generates one tool per operation in the endpoints map (`users_list`, `users_read`,
+`users_create`, `users_update`, `users_delete`, and so on for any extended verbs you register),
+each with an input schema derived from the endpoint's own Zod schema. Where the endpoint's 2xx
+response is a plain JSON object schema, the tool also advertises a matching MCP `outputSchema` and
+returns the parsed response as `structuredContent` alongside the text content.
+
+## Operations and annotations
+
+Every operation ships an MCP annotation profile an LLM client can act on:
+
+| Operations | Annotations |
+|---|---|
+| `list`, `read`, `search`, `aggregate`, `export`, `versionHistory`, `versionRead`, `versionCompare` | `readOnlyHint: true` |
+| `create`, `clone`, `batchCreate`, `batchUpdate`, `batchRestore`, `batchUpsert`, `bulkPatch`, `versionRollback` | `destructiveHint: false` |
+| `update`, `upsert`, `restore` | `destructiveHint: false`, `idempotentHint: true` |
+| `delete`, `batchDelete` | `destructiveHint: true` |
 
 ## Configuration
 
@@ -48,7 +68,7 @@ This generates the tools `users_list`, `users_read`, `users_create`, `users_upda
 mcp.resource('/users', userEndpoints, {
   name: 'people',                              // resource label used in tool names
   description: 'User accounts.',               // base description for the resource's tools
-  operations: ['list', 'read', 'create'],      // allow-list (default: all present)
+  operations: ['list', 'read', 'create'],      // allow-list (default: all present, minus import)
   tools: {
     list: { name: 'find_people', description: 'Search people by name or role.' },
     create: { description: 'Create a person. Admin only.' },
@@ -57,9 +77,28 @@ mcp.resource('/users', userEndpoints, {
 });
 ```
 
-Customize tool naming globally via `createCrudMcp(app, { naming: ({ resource, operation }) => ... })`.
-MCP annotations (`readOnlyHint`, `destructiveHint`, …) default sensibly per operation and can be
-overridden per tool.
+By default every operation present in the endpoints map (except `import`) becomes a tool;
+`operations` narrows that set. Customize tool naming globally via
+`createCrudMcp(app, { naming: ({ resource, operation }) => ... })`. MCP annotations
+(`readOnlyHint`, `destructiveHint`, …) default per the table above and can be overridden per tool.
+
+## Header forwarding
+
+On re-dispatch, an allow-list of inbound `/mcp` headers (matched case-insensitively) is forwarded
+to the CRUD routes so the call runs as the caller. The default —
+`authorization`, `cookie`, `x-api-key`, `x-tenant-id` — covers bearer/session auth plus core's own
+API-key middleware and header-based multi-tenancy. Override it when your pipeline reads custom
+headers (a function form for full control may come later):
+
+```ts
+import { DEFAULT_FORWARD_HEADERS, createCrudMcp } from '@hono-crud/mcp';
+
+createCrudMcp(app, {
+  name: 'my-api',
+  version: '1.0.0',
+  forwardHeaders: [...DEFAULT_FORWARD_HEADERS, 'x-org-id'],
+});
+```
 
 ## Authentication
 
@@ -73,10 +112,12 @@ createCrudMcp(app, {
 });
 ```
 
-**Middleware.** Gate `/mcp` with existing Hono middleware (e.g. `@hono-crud/core/auth`):
+**Middleware.** Gate `/mcp` with existing Hono middleware (e.g. from `hono-crud/auth`):
 
 ```ts
-auth: { strategy: 'middleware', middleware: jwtAuth(...) }
+import { createJWTMiddleware } from 'hono-crud/auth';
+
+auth: { strategy: 'middleware', middleware: createJWTMiddleware({ secret }) }
 ```
 
 **OAuth 2.1 (opt-in).** Bring your own metadata router + bearer middleware (e.g. from

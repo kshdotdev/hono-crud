@@ -1,24 +1,33 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
-import type {
-  CrudEndpointName,
-  CrudEndpoints,
-  MetaInput,
-  OpenAPIRoute,
-  OpenAPIRouteSchema,
-  PathPattern,
+import {
+  CRUD_ROUTES,
+  type CrudEndpointName,
+  type CrudEndpoints,
+  type MetaInput,
+  type OpenAPIRoute,
+  type OpenAPIRouteSchema,
+  type PathPattern,
 } from 'hono-crud/internal';
 
 /**
- * The five standard CRUD operations exposed as MCP tools. Pinned to core's
- * `CrudEndpointName` via `Extract` so a rename in core surfaces as a compile
- * error here rather than silent drift.
+ * Every CRUD operation exposable as an MCP tool — all `registerCrud` slots
+ * except `import`. Derived from core's `CrudEndpointName` via `Exclude` so a
+ * change in core surfaces as a compile error here rather than silent drift.
+ *
+ * `import` is excluded by design: its schema intentionally declares no request
+ * body (validation is manual, to support JSON, CSV and multipart payloads), so
+ * an auto-generated tool would advertise an input schema lacking the items
+ * payload. Register a hand-written tool if you need imports over MCP.
  */
-export type OperationName = Extract<
-  CrudEndpointName,
-  'list' | 'read' | 'create' | 'update' | 'delete'
->;
+export type OperationName = Exclude<CrudEndpointName, 'import'>;
 
-export const OPERATIONS: readonly OperationName[] = ['list', 'read', 'create', 'update', 'delete'];
+/**
+ * All exposable operations, in core's canonical route-table order
+ * (`CRUD_ROUTES`), minus the excluded `import` slot.
+ */
+export const OPERATIONS: readonly OperationName[] = CRUD_ROUTES.map(([name]) => name).filter(
+  (name): name is OperationName => name !== 'import',
+);
 
 export type Awaitable<T> = T | Promise<T>;
 
@@ -53,7 +62,10 @@ export interface ResourceOptions {
   name?: string;
   /** Base description applied to every tool generated for this resource. */
   description?: string;
-  /** Allow-list of operations to expose. Defaults to every operation present in the endpoints map. */
+  /**
+   * Allow-list of operations to expose. Defaults to every operation present in
+   * the endpoints map except `import` (see {@link OperationName}).
+   */
   operations?: OperationName[];
   /** Per-operation overrides. */
   tools?: Partial<Record<OperationName, ToolOptions>>;
@@ -94,7 +106,10 @@ export interface VerifierAuthOptions {
   verifyToken: (token: string, c: Context) => Awaitable<Identity | null>;
 }
 
-/** Gate `/mcp` with existing Hono middleware (e.g. `@hono-crud/core/auth`). */
+/**
+ * Gate `/mcp` with existing Hono middleware (e.g. `createJWTMiddleware({ secret })`
+ * from `hono-crud/auth`).
+ */
 export interface MiddlewareAuthOptions {
   strategy: 'middleware';
   middleware: MiddlewareHandler | MiddlewareHandler[];
@@ -130,6 +145,16 @@ export interface CrudMcpConfig {
   naming?: (ctx: NamingContext) => string;
   /** Authentication for the `/mcp` endpoint. Defaults to none (open). */
   auth?: McpAuthOptions;
+  /**
+   * Allow-list of inbound `/mcp` request headers forwarded on tool re-dispatch,
+   * matched case-insensitively. Replaces the default list
+   * (`DEFAULT_FORWARD_HEADERS`: `authorization`, `cookie`, `x-api-key`,
+   * `x-tenant-id`) — spread the defaults in when extending. Configure this when
+   * your CRUD pipeline reads identity/tenant data from custom headers (e.g. a
+   * renamed `APIKeyConfig.headerName`). A function form (full control over the
+   * synthesized headers) may be added later.
+   */
+  forwardHeaders?: string[];
   /**
    * Auto-register every resource registered via `registerCrud(...)`. `true` uses
    * defaults; pass {@link AutoOptions} to scope/override. Manual `mcp.resource()`

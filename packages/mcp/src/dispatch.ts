@@ -1,24 +1,44 @@
 import type { Hono } from 'hono';
+import { CRUD_ROUTES } from 'hono-crud/internal';
 import type { RequestPlan } from './schema';
 import type { OperationName } from './types';
 
-// NOTE: METHOD and REQUEST_BUILDERS below mirror the HTTP method + URL shape that
-// `registerCrud` assigns to each operation (see CRUD_ROUTES in
-// packages/core/src/core/crud-routes.ts — create=POST /, list=GET /,
-// read=GET /:id, update=PATCH /:id, delete=DELETE /:id).
-// CRUD_ROUTES is the source of truth; keep these two in lockstep with it.
-const METHOD: Record<OperationName, 'GET' | 'POST' | 'PATCH' | 'DELETE'> = {
-  list: 'GET',
-  read: 'GET',
-  create: 'POST',
-  update: 'PATCH',
-  delete: 'DELETE',
-};
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+interface RouteSpec {
+  method: HttpMethod;
+  /** Sub-path template relative to the resource root, e.g. `/:id/versions/:version`. */
+  subPath: string;
+}
+
+/**
+ * Per-operation HTTP method + sub-path template, derived from core's canonical
+ * `CRUD_ROUTES` table so MCP dispatch can never drift from what `registerCrud`
+ * mounts. `import` is excluded from the MCP surface (see {@link OperationName}).
+ */
+const ROUTES = Object.fromEntries(
+  CRUD_ROUTES.filter(([name]) => name !== 'import').map(([name, method, subPath]) => [
+    name,
+    { method: method.toUpperCase() as HttpMethod, subPath },
+  ]),
+) as Record<OperationName, RouteSpec>;
 
 type Args = Record<string, unknown>;
 
 /** Inbound request headers, as exposed by the MCP SDK's `extra.requestInfo.headers`. */
 export type ForwardHeaders = Record<string, string | string[] | undefined>;
+
+/**
+ * Headers forwarded on re-dispatch when `CrudMcpConfig.forwardHeaders` is
+ * unset: bearer/session auth plus core's own API-key (`createAPIKeyMiddleware`)
+ * and multi-tenant (`multiTenant`) default headers.
+ */
+export const DEFAULT_FORWARD_HEADERS: readonly string[] = [
+  'authorization',
+  'cookie',
+  'x-api-key',
+  'x-tenant-id',
+];
 
 export interface DispatchTarget {
   operation: OperationName;
@@ -55,39 +75,48 @@ function omit(obj: Args, keys: string[]): Args {
   return out;
 }
 
-/** Forward identity-bearing headers so the re-dispatched request runs as the caller. */
-function forwardHeaders(headers: ForwardHeaders | undefined, target: Headers): void {
+/**
+ * Forward allow-listed identity-bearing headers (matched case-insensitively)
+ * so the re-dispatched request runs as the caller.
+ */
+function applyForwardHeaders(
+  headers: ForwardHeaders | undefined,
+  allowed: readonly string[],
+  target: Headers,
+): void {
   if (!headers) return;
-  for (const name of ['authorization', 'cookie']) {
-    const value = headers[name];
+  const allow = new Set(allowed.map((name) => name.toLowerCase()));
+  for (const [name, value] of Object.entries(headers)) {
+    if (!allow.has(name.toLowerCase())) continue;
     if (typeof value === 'string') target.set(name, value);
     else if (Array.isArray(value) && value.length > 0) target.set(name, value.join(', '));
   }
 }
 
-type RequestSpec = { url: string; body?: string };
-
-/** Per-operation request builders: map a tool input + plan to a URL and optional JSON body. */
-const REQUEST_BUILDERS: Record<
-  OperationName,
-  (basePath: string, id: string, args: Args, plan: RequestPlan) => RequestSpec
-> = {
-  list: (basePath, _id, args) => ({ url: basePath + encodeQuery(args) }),
-  read: (basePath, id, args, plan) => ({
-    url: `${basePath}/${id}${encodeQuery(pick(args, plan.queryKeys))}`,
-  }),
-  create: (basePath, _id, args) => ({ url: basePath, body: JSON.stringify(args) }),
-  update: (basePath, id, args, plan) => ({
-    url: `${basePath}/${id}`,
-    body: JSON.stringify(omit(args, plan.paramKeys)),
-  }),
-  delete: (basePath, id) => ({ url: `${basePath}/${id}` }),
-};
+/**
+ * Substitute every `:param` segment of a sub-path template from the tool args
+ * (e.g. `/:id/versions/:version` + `{ id, version }`). Returns the resolved
+ * path and the arg names consumed by the substitution.
+ */
+function buildPath(subPath: string, args: Args): { path: string; consumed: string[] } {
+  const consumed: string[] = [];
+  const path = subPath.replace(/:([^/]+)/g, (_match, name: string) => {
+    consumed.push(name);
+    return encodeURIComponent(String(args[name] ?? ''));
+  });
+  return { path, consumed };
+}
 
 /**
  * Translate a tool call into an internal HTTP request and re-dispatch it through
  * the mounted Hono app, so the full CRUD pipeline (auth, validation, hooks,
  * serialization, pagination) runs exactly as it does for REST.
+ *
+ * The split of the flat tool input is schema-driven: path params are
+ * substituted into the route template; when the endpoint declares a JSON body,
+ * the declared query keys go to the query string and the rest becomes the
+ * body (covers `bulkPatch`'s query+body mix and `batchDelete`'s DELETE-with-body);
+ * body-less endpoints send every remaining arg as query.
  */
 export async function dispatch(
   // biome-ignore lint/suspicious/noExplicitAny: re-dispatch targets any Hono app.
@@ -95,36 +124,61 @@ export async function dispatch(
   target: DispatchTarget,
   args: Args,
   headers?: ForwardHeaders,
+  allowHeaders: readonly string[] = DEFAULT_FORWARD_HEADERS,
 ): Promise<Response> {
   const { operation, basePath, plan } = target;
+  const { method, subPath } = ROUTES[operation];
+
   const requestHeaders = new Headers();
-  forwardHeaders(headers, requestHeaders);
+  applyForwardHeaders(headers, allowHeaders, requestHeaders);
 
-  const idKey = plan.paramKeys[0];
-  const id = idKey ? encodeURIComponent(String(args[idKey])) : '';
+  const { path, consumed } = buildPath(subPath, args);
+  const remaining = omit(args, [...consumed, ...plan.paramKeys]);
 
-  const { url, body } = REQUEST_BUILDERS[operation](basePath, id, args, plan);
+  let body: string | undefined;
+  let query: Args;
+  if (plan.hasBody) {
+    query = pick(remaining, plan.queryKeys);
+    body = JSON.stringify(omit(remaining, plan.queryKeys));
+  } else {
+    query = remaining;
+  }
+
   if (body !== undefined) requestHeaders.set('content-type', 'application/json');
-
-  return app.request(url, { method: METHOD[operation], headers: requestHeaders, body });
+  return app.request(basePath + path + encodeQuery(query), {
+    method,
+    headers: requestHeaders,
+    body,
+  });
 }
 
 export interface ToolCallResult {
   content: { type: 'text'; text: string }[];
+  /** Parsed JSON body of a 2xx response, per the MCP structured-output contract. */
+  structuredContent?: Record<string, unknown>;
   isError: boolean;
 }
 
-/** Format an HTTP Response into an MCP tool result (pretty JSON when possible). */
+/**
+ * Format an HTTP Response into an MCP tool result: pretty JSON when possible,
+ * plus `structuredContent` for 2xx JSON object responses.
+ */
 export async function toToolResult(res: Response): Promise<ToolCallResult> {
   const text = await res.text();
   let formatted = text;
+  let structured: Record<string, unknown> | undefined;
   try {
-    formatted = JSON.stringify(JSON.parse(text), null, 2);
+    const parsed: unknown = JSON.parse(text);
+    formatted = JSON.stringify(parsed, null, 2);
+    if (res.status < 400 && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      structured = parsed as Record<string, unknown>;
+    }
   } catch {
     // Non-JSON body — return verbatim.
   }
   return {
     content: [{ type: 'text', text: formatted }],
+    ...(structured !== undefined && { structuredContent: structured }),
     isError: res.status >= 400,
   };
 }
