@@ -448,9 +448,9 @@ describe('auto-discovery', () => {
     expect(names).toContain('posts_create');
   });
 
-  it('respects include/exclude path patterns', async () => {
+  it('respects includePaths/excludePaths patterns', async () => {
     const app = buildAppUsersPosts();
-    const mcp = createCrudMcp(app, { ...serverInfo, auto: { exclude: ['/posts'] } });
+    const mcp = createCrudMcp(app, { ...serverInfo, auto: { excludePaths: ['/posts'] } });
     app.all('/mcp', mcp.handler());
 
     const names = await toolNamesOverHttp(app);

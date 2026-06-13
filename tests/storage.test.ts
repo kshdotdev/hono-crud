@@ -378,7 +378,7 @@ describe('MemoryRateLimitStorage fixed window', () => {
     // Direct guard for the §B.10 MUST-FIX: within-window increments mutate the
     // live entry's count in place and must NOT re-set expiry. The entry must
     // expire at `windowStart + windowMs`, never at `lastIncrement + windowMs`.
-    const storage = new MemoryRateLimitStorage({ cleanupInterval: 0 });
+    const storage = new MemoryRateLimitStorage({ cleanupIntervalMs: 0 });
     const windowMs = 60_000;
 
     // Open the window at t=0 (windowStart=0, expiresAt=60_000).
@@ -402,7 +402,7 @@ describe('MemoryRateLimitStorage fixed window', () => {
   it('expires the fixed window via cleanup() at windowStart + windowMs', async () => {
     // Companion guard using cleanup() rather than get(): the swept count proves
     // the within-window increments did not extend the expiry past 60_000.
-    const storage = new MemoryRateLimitStorage({ cleanupInterval: 0 });
+    const storage = new MemoryRateLimitStorage({ cleanupIntervalMs: 0 });
     const windowMs = 60_000;
 
     await storage.increment('user:fixed', windowMs); // windowStart=0

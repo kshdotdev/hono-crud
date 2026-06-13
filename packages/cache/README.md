@@ -22,4 +22,4 @@ app.use('*', createStorageMiddleware({
 
 Exports cache storage backends (e.g. `MemoryCacheStorage`) and the caching mixins used by hono-crud endpoints.
 
-`cacheConfig.ttl` is in **seconds**; the `CacheStorage.set` boundary works in **milliseconds** (`ttlMs`). On Cloudflare KV, `expirationTtl` is floored to 60s.
+`cacheConfig.ttlSeconds` is in **seconds**; the `CacheStorage.set` boundary works in **milliseconds** (`ttlMs`). On Cloudflare KV, `expirationTtl` is floored to 60s.

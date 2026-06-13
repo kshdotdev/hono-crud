@@ -49,10 +49,8 @@ const UserModel = defineModel({
   tableName: 'users',
   schema: UserSchema,
   primaryKeys: ['id'],
+  // Presence enables audit logging (`audit: true` uses all defaults)
   audit: {
-    // Enable audit logging
-    enabled: true,
-
     // Actions to audit (default: all)
     actions: ['create', 'update', 'delete', 'restore'],
 

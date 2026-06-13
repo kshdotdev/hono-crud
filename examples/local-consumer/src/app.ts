@@ -148,7 +148,6 @@ const UserModel = defineModel({
     },
   },
   audit: {
-    enabled: true,
     actions: [
       'create',
       'update',
@@ -174,11 +173,8 @@ const DocumentModel = defineModel({
   tableName: 'documents',
   schema: DocumentSchema,
   primaryKeys: ['id'],
-  versioning: {
-    enabled: true,
-    field: 'version',
-    historyTable: 'documents_history',
-  },
+  // Boolean shorthand: defaults are field 'version' + historyTable '{tableName}_history'.
+  versioning: true,
 });
 
 const userMeta = defineMeta({ model: UserModel });

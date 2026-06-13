@@ -8,12 +8,18 @@
  */
 
 // Combined environment type
+import type { ApiVersionEnv } from './api-version/types';
 import type { AuthEnv } from './auth/types';
 import type { LoggingEnv } from './logging/types';
+import type { TenantEnv } from './multi-tenant/index';
 import type { StorageEnv } from './storage/types';
 
-/** Combined environment type with all hono-crud context variables */
-export type HonoCrudEnv = AuthEnv & LoggingEnv & StorageEnv;
+/**
+ * Combined environment type with all core hono-crud context variables
+ * (auth, logging, storage, multi-tenant, api-version). All variables are
+ * optional — each is only set after its middleware has run.
+ */
+export type HonoCrudEnv = AuthEnv & LoggingEnv & StorageEnv & TenantEnv & ApiVersionEnv;
 
 // Core exports
 export { OpenAPIRoute, isRouteClass } from './core/route';

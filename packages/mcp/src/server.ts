@@ -75,13 +75,13 @@ export class CrudMcpServer {
     if (!this.options.auto) return;
 
     const config: AutoOptions = this.options.auto === true ? {} : this.options.auto;
-    const include = config.include ?? [];
-    const exclude = config.exclude ?? [];
+    const includePaths = config.includePaths ?? [];
+    const excludePaths = config.excludePaths ?? [];
 
     for (const { path, endpoints } of getRegisteredCrudResources(this.app)) {
       const normalized = normalizePath(path);
       if (this.resourcePaths.has(normalized)) continue; // manual registration wins
-      if (!isPathIncluded(normalized, include, exclude)) continue;
+      if (!isPathIncluded(normalized, includePaths, excludePaths)) continue;
 
       const override = config.resources?.[path] ?? config.resources?.[normalized] ?? {};
       this.resource(normalized, endpoints, { operations: config.operations, ...override });

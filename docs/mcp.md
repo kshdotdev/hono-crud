@@ -99,8 +99,8 @@ createCrudMcp(app, {
   name: 'my-api',
   version: '1.0.0',
   auto: {
-    include: ['/users', '/posts/*'],          // globs/RegExp; default: all
-    exclude: ['/internal/*'],                  // excludes always win
+    includePaths: ['/users', '/posts/*'],     // globs/RegExp; default: all
+    excludePaths: ['/internal/*'],             // excludes always win
     operations: ['list', 'read'],              // default allow-list for every resource
     resources: {
       '/users': { operations: ['list', 'read', 'create'] }, // per-path override

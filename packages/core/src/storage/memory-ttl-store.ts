@@ -15,7 +15,7 @@ export interface MemoryTtlStoreOptions<V> {
 
   /** Minimum interval between lazy cleanup-on-access sweeps (ms). `<= 0`
    *  disables lazy sweeping (explicit `cleanup()` still works). @default 0 */
-  cleanupInterval?: number;
+  cleanupIntervalMs?: number;
 
   /** Maximum entries before evicting the oldest (insertion order). `<= 0`
    *  disables capacity eviction. @default 0 (unlimited) */
@@ -31,22 +31,22 @@ export interface MemoryTtlStoreOptions<V> {
 export class MemoryTtlStore<V> {
   private readonly map = new Map<string, V>();
   private readonly isExpired: (value: V, now: number) => boolean;
-  private readonly cleanupInterval: number;
+  private readonly cleanupIntervalMs: number;
   private readonly maxEntries: number;
   private readonly onEvict?: (key: string, value: V) => void;
   private lastCleanup = 0;
 
   constructor(options: MemoryTtlStoreOptions<V>) {
     this.isExpired = options.isExpired;
-    this.cleanupInterval = options.cleanupInterval ?? 0;
+    this.cleanupIntervalMs = options.cleanupIntervalMs ?? 0;
     this.maxEntries = options.maxEntries ?? 0;
     this.onEvict = options.onEvict;
   }
 
-  /** Lazy cleanup-on-access. No-op when `cleanupInterval <= 0`. */
+  /** Lazy cleanup-on-access. No-op when `cleanupIntervalMs <= 0`. */
   maybeCleanup(now: number = Date.now()): void {
-    if (this.cleanupInterval <= 0) return;
-    if (now - this.lastCleanup >= this.cleanupInterval) {
+    if (this.cleanupIntervalMs <= 0) return;
+    if (now - this.lastCleanup >= this.cleanupIntervalMs) {
       this.lastCleanup = now;
       this.cleanup(now);
     }

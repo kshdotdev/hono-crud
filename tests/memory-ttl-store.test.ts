@@ -222,9 +222,9 @@ describe('MemoryTtlStore', () => {
   });
 
   describe('maybeCleanup (lazy cleanup-on-access guard)', () => {
-    it('never sweeps when cleanupInterval <= 0', () => {
+    it('never sweeps when cleanupIntervalMs <= 0', () => {
       const onEvict = vi.fn();
-      const store = makeStore({ cleanupInterval: 0, onEvict });
+      const store = makeStore({ cleanupIntervalMs: 0, onEvict });
 
       store.set('a', wrap('a', 1000));
       // Even far past expiry, the lazy guard is disabled.
@@ -235,7 +235,7 @@ describe('MemoryTtlStore', () => {
     });
 
     it('sweeps at most once per interval window', () => {
-      const store = makeStore({ cleanupInterval: 1000 });
+      const store = makeStore({ cleanupIntervalMs: 1000 });
 
       store.set('a', wrap('a', 500));
       store.set('b', wrap('b', 5000));

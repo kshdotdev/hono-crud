@@ -37,7 +37,6 @@ const UserModel = defineModel({
   schema: UserSchema,
   primaryKeys: ['id'],
   audit: {
-    enabled: true,
     actions: ['create', 'update', 'delete'],
     trackChanges: true,
     storeRecord: true,

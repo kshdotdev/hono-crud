@@ -257,7 +257,7 @@ let warnedMissingRateLimitStorage = false;
  *   limit: 100,
  *   windowSeconds: 60,
  *   keyStrategy: 'ip',
- *   skipPaths: ['/health', '/docs/*'],
+ *   excludePaths: ['/health', '/docs/*'],
  * }));
  *
  * // Stricter limit for expensive endpoint
@@ -292,7 +292,7 @@ export function createRateLimitMiddleware<E extends Env = Env>(
   const algorithm = config.algorithm ?? 'sliding-window';
   const keyStrategy = config.keyStrategy ?? 'ip';
   const keyPrefix = config.keyPrefix ?? DEFAULT_RATE_LIMIT_KEY_PREFIX;
-  const skipPaths = config.skipPaths ?? [];
+  const excludePaths = config.excludePaths ?? [];
   const includeHeaders = config.includeHeaders ?? true;
   const errorMessage = config.errorMessage ?? 'Too many requests';
 
@@ -300,9 +300,9 @@ export function createRateLimitMiddleware<E extends Env = Env>(
   const extractKey = getKeyExtractor(keyStrategy, config);
 
   return async (ctx, next) => {
-    // Check if path should skip rate limiting
+    // Check if path is excluded from rate limiting
     const path = ctx.req.path;
-    if (skipPaths.length > 0 && shouldSkipPath(path, skipPaths)) {
+    if (excludePaths.length > 0 && shouldSkipPath(path, excludePaths)) {
       return next();
     }
 

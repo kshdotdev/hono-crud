@@ -301,7 +301,7 @@ app.use('*', createStorageMiddleware({ cacheStorage: new MemoryCacheStorage() })
 
 class UserRead extends withCache(MemoryReadEndpoint) {
   _meta = userMeta;
-  cacheConfig = { ttl: 300, perUser: false };
+  cacheConfig = { ttlSeconds: 300, perUser: false };
 
   async handle(ctx) {
     this.setContext(ctx);

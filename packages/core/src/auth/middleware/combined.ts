@@ -22,7 +22,7 @@ import { createJWTMiddleware } from './jwt';
  *   apiKey: {
  *     lookupKey: async (hash) => await db.apiKeys.findByHash(hash),
  *   },
- *   skipPaths: ['/health', '/docs/*'],
+ *   excludePaths: ['/health', '/docs/*'],
  * }));
  *
  * app.get('/me', (c) => {
@@ -37,8 +37,8 @@ export function createAuthMiddleware<E extends AuthEnv = AuthEnv>(
   config: AuthConfig,
 ): MiddlewareHandler<E> {
   const requireAuth = config.requireAuth ?? true;
-  const skipPaths = config.skipPaths || [];
-  const unauthorizedMessage = config.unauthorizedMessage || 'Unauthorized';
+  const excludePaths = config.excludePaths || [];
+  const errorMessage = config.errorMessage || 'Unauthorized';
   const authOrder = config.authOrder || ['jwt', 'api-key'];
 
   // Create individual middleware instances
@@ -46,9 +46,9 @@ export function createAuthMiddleware<E extends AuthEnv = AuthEnv>(
   const apiKeyMiddleware = config.apiKey ? createAPIKeyMiddleware<E>(config.apiKey) : null;
 
   return async (ctx, next) => {
-    // Check if path should skip auth
+    // Check if path is excluded from auth
     const path = ctx.req.path;
-    if (matchAny(path, skipPaths)) {
+    if (matchAny(path, excludePaths)) {
       ctx.set(CONTEXT_KEYS.authType, 'none');
       return next();
     }
@@ -93,7 +93,7 @@ export function createAuthMiddleware<E extends AuthEnv = AuthEnv>(
         if (lastError instanceof UnauthorizedException) {
           throw lastError;
         }
-        throw new UnauthorizedException(unauthorizedMessage);
+        throw new UnauthorizedException(errorMessage);
       }
       // Auth not required, set auth type to none
       ctx.set(CONTEXT_KEYS.authType, 'none');

@@ -65,7 +65,7 @@ class UserRead extends withCache(MemoryReadEndpoint) {
   schema = { tags: ['Users'], summary: 'Get user' };
 
   cacheConfig = {
-    ttl: 300,           // 5 minutes
+    ttlSeconds: 300,    // 5 minutes
     perUser: false,     // Shared cache (true = per-user cache keys)
     tags: ['users'],    // Cache tags for targeted invalidation
   };
@@ -98,21 +98,21 @@ class UserRead extends withCache(MemoryReadEndpoint) {
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enabled` | `boolean` | `true` | Enable/disable caching |
-| `ttl` | `number` | `300` | Time to live in seconds |
+| `ttlSeconds` | `number` | `300` | Time to live in seconds |
 | `perUser` | `boolean` | `false` | Include userId in cache key |
 | `tags` | `string[]` | `[]` | Cache tags for targeted invalidation |
 | `keyFields` | `string[]` | - | Additional fields in cache key |
 | `prefix` | `string` | - | Custom key prefix |
 
-> **TTL units.** `cacheConfig.ttl` is **seconds** — the ergonomic, user-facing
+> **TTL units.** `cacheConfig.ttlSeconds` is **seconds** — the ergonomic, user-facing
 > unit. The underlying storage contract works in **milliseconds**: the mixin
-> converts once (`ttl * 1000`) before calling `CacheStorage.set(key, data, { ttlMs })`.
+> converts once (`ttlSeconds * 1000`) before calling `CacheStorage.set(key, data, { ttlMs })`.
 > If you implement a custom `CacheStorage`, its `set` receives `ttlMs`
 > (milliseconds), not seconds.
 >
 > **Cloudflare KV floor.** KV's `expirationTtl` has a 60-second minimum, so
 > `KVCacheStorage` silently floors short TTLs:
-> `expirationTtl = Math.max(60, Math.ceil(ttlMs / 1000))`. A sub-minute `ttl`
+> `expirationTtl = Math.max(60, Math.ceil(ttlMs / 1000))`. A sub-minute `ttlSeconds`
 > therefore behaves as 60s on KV. This is a documented KV-platform constraint.
 
 ### Cache Methods

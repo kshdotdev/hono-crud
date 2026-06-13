@@ -456,13 +456,13 @@ describe('Combined Auth Middleware', () => {
     expect(data.authType).toBe('api-key');
   });
 
-  it('should skip configured paths', async () => {
+  it('should skip excluded paths', async () => {
     const app = createTestApp<AuthEnv>();
     app.use(
       '*',
       createAuthMiddleware({
         jwt: { secret },
-        skipPaths: ['/health', '/docs/*'],
+        excludePaths: ['/health', '/docs/*'],
       }),
     );
     app.get('/health', (c) => c.json({ ok: true }));

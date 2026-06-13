@@ -25,7 +25,6 @@ import { type AggregateOptions, defineModel, fromHono, registerCrud } from 'hono
 import {
   MemoryVersioningStorage,
   createVersionManager,
-  getVersioningConfig,
   setVersioningStorage,
 } from 'hono-crud/versioning';
 /**
@@ -356,7 +355,7 @@ const VersionedUserModel = defineModel({
   tableName: 'users',
   schema: UserSchema.extend({ version: z.number().default(1) }),
   primaryKeys: ['id'],
-  versioning: { enabled: true, field: 'version' },
+  versioning: { field: 'version' },
 });
 
 // ============================================================================
@@ -1271,7 +1270,7 @@ describe('Prisma Adapter', () => {
       // Seed a version so the base handler passes its version-existence check,
       // but leave the table empty so the adapter's rollback finds no record.
       const manager = createVersionManager(
-        getVersioningConfig(VersionedUserModel.versioning, VersionedUserModel.tableName),
+        VersionedUserModel.versioning,
         VersionedUserModel.tableName,
       );
       await manager.saveVersion(userId, {

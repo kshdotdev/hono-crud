@@ -63,7 +63,7 @@ Adjudicated differences between sibling packages — never "fix" these for symme
 3. **`MemoryRateLimitStorage` has no `maxEntries` knob** (its memory/cache/idempotency
    siblings are capacity-bounded). Capacity eviction of a live window would silently reset
    its counter, weakening limits exactly under key-flood pressure; memory stays bounded via
-   the `cleanupInterval` sweep of expired windows.
+   the `cleanupIntervalMs` sweep of expired windows.
 
 ## Naming Doctrine
 
@@ -87,6 +87,12 @@ Adjudicated differences between sibling packages — never "fix" these for symme
    genuinely owns multiple routes (health).
 5. `*Config` = top-level setup bag of a middleware/factory; `*Options` = per-operation/per-call
    leaf bag (and storage-adapter constructor bags).
+6. **Model feature toggles:** `boolean | Config` when every option is defaultable (softDelete,
+   multiTenant, audit, versioning); presence-enables when the config has required members
+   (fieldEncryption, relations, computedFields, policies); never a required `enabled` field.
+7. **Duration fields:** every public duration field carries a unit suffix naming its existing
+   unit (`*Seconds` or `*Ms`); renames only, never unit conversions. Exception: `retryAfter`
+   (mirrors HTTP Retry-After header semantics, seconds by RFC).
 
 ### Config vs Options naming
 - `*Config` — the top-level bag a middleware factory, route/router factory, or feature factory

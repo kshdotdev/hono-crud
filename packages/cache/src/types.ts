@@ -1,8 +1,8 @@
 /**
  * Cache storage contracts are owned by core (`storage/contracts.ts`) and
  * re-exported here so consumers can keep importing them from the cache plugin.
- * `CacheSetOptions.ttl` is now `ttlMs` (milliseconds) at the storage boundary;
- * the user-facing `CacheConfig.ttl` below stays in seconds for ergonomics.
+ * `CacheSetOptions.ttlMs` is milliseconds at the storage boundary; the
+ * user-facing `CacheConfig.ttlSeconds` below stays in seconds for ergonomics.
  */
 export type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from 'hono-crud/internal';
 
@@ -13,7 +13,7 @@ export interface CacheConfig {
   /** Whether caching is enabled. @default true */
   enabled?: boolean;
   /** Time-to-live in seconds. @default 300 (5 min) */
-  ttl?: number;
+  ttlSeconds?: number;
   /** Key prefix for cache entries. */
   prefix?: string;
   /** Query parameters to include in the cache key. */

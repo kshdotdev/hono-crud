@@ -269,7 +269,7 @@ const UserModel = defineModel({
   schema: UserSchema,
   primaryKeys: ['id'],
   versioning: true,
-  // Or: versioning: { maxVersions: 50, includeMetadata: true }
+  // Or: versioning: { maxVersions: 50, trackChangedBy: true }
 });
 ```
 
@@ -322,7 +322,7 @@ const UserModel = defineModel({
   schema: UserSchema,
   primaryKeys: ['id'],
   audit: true,
-  // Or: audit: { includeChanges: true, includePrevious: true }
+  // Or: audit: { trackChanges: true, excludeFields: ['password'] }
 });
 ```
 
@@ -594,7 +594,7 @@ app.use('*', createStorageMiddleware({
 // Apply to mutation endpoints
 app.use('/api/*', createIdempotencyMiddleware({
   headerName: 'Idempotency-Key',  // default
-  ttl: 86400,                      // 24 hours (default)
+  ttlSeconds: 86400,               // 24 hours (default)
 }));
 ```
 

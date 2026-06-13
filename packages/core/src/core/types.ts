@@ -430,12 +430,6 @@ export interface AuditLogEntry<T = Record<string, unknown>> {
  */
 export interface AuditConfig {
   /**
-   * Whether audit logging is enabled.
-   * @default false
-   */
-  enabled: boolean;
-
-  /**
    * Name of the audit log table/store.
    * @default 'audit_logs'
    */
@@ -527,8 +521,6 @@ export interface VersionHistoryEntry<T = Record<string, unknown>> {
  * (api-version).
  */
 export interface VersioningConfig {
-  /** Enable versioning for this model */
-  enabled: boolean;
   /** Field name for the version counter on the main table (default: 'version') */
   field?: string;
   /** Table name for storing version history (default: '{tableName}_history') */
@@ -969,35 +961,43 @@ export interface Model<
   /**
    * Configure audit logging for this model.
    * When enabled, all changes are automatically logged.
+   * `true` enables with defaults; pass a config object to customize.
    *
    * @example
    * ```ts
+   * // Simple: enable with defaults
+   * audit: true
+   *
+   * // Customized
    * const UserModel = defineModel({
    *   tableName: 'users',
    *   schema: UserSchema,
    *   primaryKeys: ['id'],
    *   audit: {
-   *     enabled: true,
    *     actions: ['create', 'update', 'delete'],
    *     excludeFields: ['password', 'refreshToken'],
    *   },
    * });
    * ```
    */
-  audit?: AuditConfig;
+  audit?: boolean | AuditConfig;
 
   /**
    * Configure versioning for this model.
    * When enabled, every update creates a history record.
+   * `true` enables with defaults; pass a config object to customize.
    *
    * @example
    * ```ts
+   * // Simple: enable with defaults
+   * versioning: true
+   *
+   * // Customized
    * const DocumentModel = defineModel({
    *   tableName: 'documents',
    *   schema: DocumentSchema,
    *   primaryKeys: ['id'],
    *   versioning: {
-   *     enabled: true,
    *     field: 'version',           // Version counter field
    *     historyTable: 'documents_history',
    *     maxVersions: 50,            // Keep last 50 versions
@@ -1006,7 +1006,7 @@ export interface Model<
    * });
    * ```
    */
-  versioning?: VersioningConfig;
+  versioning?: boolean | VersioningConfig;
 
   /**
    * Configure multi-tenancy for this model.

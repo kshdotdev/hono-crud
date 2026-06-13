@@ -58,7 +58,7 @@ app.use('/api/*', createRateLimitMiddleware({
   limit: 100,
   windowSeconds: 60,
   keyStrategy: 'ip',
-  skipPaths: ['/health', '/docs/*'],
+  excludePaths: ['/health', '/docs/*'],
 }));
 
 // Stricter limit for expensive operations
@@ -92,7 +92,7 @@ When rate limit is exceeded, the response is `429 Too Many Requests` with a `Ret
 | `algorithm` | `'fixed-window' \| 'sliding-window'` | `'sliding-window'` | Rate limit algorithm |
 | `keyStrategy` | `KeyStrategy \| function` | `'ip'` | How to identify clients |
 | `keyPrefix` | `string` | `'rl'` | Storage key prefix |
-| `skipPaths` | `string[]` | `[]` | Paths to skip (glob patterns) |
+| `excludePaths` | `string[]` | `[]` | Paths excluded from rate limiting (glob patterns) |
 | `includeHeaders` | `boolean` | `true` | Include rate limit headers |
 | `errorMessage` | `string` | `'Too many requests'` | Error message on 429 |
 | `storage` | `RateLimitStorage` | - | Per-middleware storage override |

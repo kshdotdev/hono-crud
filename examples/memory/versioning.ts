@@ -52,10 +52,8 @@ const DocumentModel = defineModel({
   tableName: 'documents',
   schema: DocumentSchema,
   primaryKeys: ['id'],
+  // Presence enables versioning (`versioning: true` uses all defaults)
   versioning: {
-    // Enable versioning
-    enabled: true,
-
     // Field that stores the version number (default: 'version')
     field: 'version',
 

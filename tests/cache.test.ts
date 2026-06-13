@@ -560,7 +560,7 @@ describe('withCache Mixin', () => {
   // Create cached endpoint classes
   class CachedUserRead extends withCache(MemoryReadEndpoint) {
     _meta = userMeta;
-    cacheConfig = { ttl: 300 };
+    cacheConfig = { ttlSeconds: 300 };
 
     async handle(): Promise<Response> {
       // Try cache first
@@ -588,7 +588,7 @@ describe('withCache Mixin', () => {
   class CachedUserList extends withCache(MemoryListEndpoint) {
     _meta = userMeta;
     cacheConfig = {
-      ttl: 60,
+      ttlSeconds: 60,
       keyFields: ['page', 'per_page', 'status'],
     };
 
@@ -757,7 +757,7 @@ describe('withCacheInvalidation Mixin', () => {
   // Cached read endpoint
   class CachedUserRead extends withCache(MemoryReadEndpoint) {
     _meta = userMeta;
-    cacheConfig = { ttl: 300 };
+    cacheConfig = { ttlSeconds: 300 };
 
     async handle(): Promise<Response> {
       const cached = await this.getCachedResponse<UserItem>();
@@ -781,7 +781,7 @@ describe('withCacheInvalidation Mixin', () => {
   // Cached list endpoint
   class CachedUserList extends withCache(MemoryListEndpoint) {
     _meta = userMeta;
-    cacheConfig = { ttl: 300 };
+    cacheConfig = { ttlSeconds: 300 };
 
     async handle(): Promise<Response> {
       const cached = await this.getCachedResponse<UserItem[]>();
@@ -1040,7 +1040,7 @@ describe('withCache + responseEnvelope', () => {
   // one shape. `setCachedResponse` stores the raw row, not a serialised body.
   class CachedUserRead extends withCache(MemoryReadEndpoint) {
     _meta = userMeta;
-    cacheConfig = { ttl: 300 };
+    cacheConfig = { ttlSeconds: 300 };
 
     async handle(): Promise<Response> {
       const cached = await this.getCachedResponse<UserItem>();
@@ -1064,7 +1064,7 @@ describe('withCache + responseEnvelope', () => {
   // so the configured envelope (with pagination `info`) is applied uniformly.
   class CachedUserList extends withCache(MemoryListEndpoint) {
     _meta = userMeta;
-    cacheConfig = { ttl: 300, keyFields: ['page', 'per_page'] };
+    cacheConfig = { ttlSeconds: 300, keyFields: ['page', 'per_page'] };
 
     async handle(): Promise<Response> {
       const cached = await this.getCachedResponse<UserItem[]>();

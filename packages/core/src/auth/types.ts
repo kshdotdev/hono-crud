@@ -221,7 +221,7 @@ export interface JWTConfig {
    * Clock tolerance in seconds for exp/nbf validation.
    * @default 0
    */
-  clockTolerance?: number;
+  clockToleranceSeconds?: number;
 
   /**
    * Custom function to extract user info from JWT claims.
@@ -389,17 +389,17 @@ export interface AuthConfig {
   requireAuth?: boolean;
 
   /**
-   * Paths that skip authentication entirely.
+   * Paths excluded from authentication entirely.
    * These paths won't have any auth processing.
    * @default []
    */
-  skipPaths?: PathPattern[];
+  excludePaths?: PathPattern[];
 
   /**
    * Custom error message for unauthorized requests.
    * @default 'Unauthorized'
    */
-  unauthorizedMessage?: string;
+  errorMessage?: string;
 
   /**
    * Try authentication methods in order.

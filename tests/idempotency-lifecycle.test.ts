@@ -54,7 +54,7 @@ describe('§4.7 idempotency storage lifecycle', () => {
     vi.useFakeTimers();
     try {
       // Disable the lazy maybeCleanup-on-access so cleanup() is the only sweep.
-      const storage = new MemoryIdempotencyStorage({ cleanupInterval: 0 });
+      const storage = new MemoryIdempotencyStorage({ cleanupIntervalMs: 0 });
 
       const entry = (key: string): IdempotencyEntry => ({
         key,
@@ -84,7 +84,7 @@ describe('§4.7 idempotency storage lifecycle', () => {
   it('cleanup() returns 0 when nothing is expired', async () => {
     vi.useFakeTimers();
     try {
-      const storage = new MemoryIdempotencyStorage({ cleanupInterval: 0 });
+      const storage = new MemoryIdempotencyStorage({ cleanupIntervalMs: 0 });
       await storage.set(
         'a',
         { key: 'a', statusCode: 200, body: '{}', headers: {}, createdAt: Date.now() },

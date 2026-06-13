@@ -11,7 +11,7 @@ import { z } from 'zod';
 
 // §4.4 — TTL milliseconds conversion across every cache layer.
 //
-//   * mixin:   CacheConfig.ttl (seconds) → CacheStorage.set({ ttlMs })  (×1000)
+//   * mixin:   CacheConfig.ttlSeconds (seconds) → CacheStorage.set({ ttlMs })  (×1000)
 //   * storage: MemoryCacheStorage.set({ ttlMs: 5000 }) → expiresAt = now + 5000
 //   * KV:      set({ ttlMs }) → expirationTtl = max(60, ceil(ttlMs/1000))
 //   * openapi: wrapCacheStorageForOpenApi.set(k, v, ttlMs) → { ttlMs } passthrough
@@ -32,13 +32,13 @@ type UserMeta = MetaInput<typeof UserSchema>;
 const userMeta: UserMeta = { model: UserModel };
 
 // ============================================================================
-// Mixin: CacheConfig.ttl (seconds) → storage ttlMs (×1000)
+// Mixin: CacheConfig.ttlSeconds (seconds) → storage ttlMs (×1000)
 // ============================================================================
 
-describe('§4.4 mixin: CacheConfig.ttl seconds → storage ttlMs', () => {
+describe('§4.4 mixin: CacheConfig.ttlSeconds (seconds) → storage ttlMs', () => {
   class CachedUserRead extends withCache(MemoryReadEndpoint) {
     _meta = userMeta;
-    cacheConfig = { ttl: 300 }; // 300 seconds
+    cacheConfig = { ttlSeconds: 300 }; // 300 seconds
 
     async handle(): Promise<Response> {
       const cached = await this.getCachedResponse<UserItem>();

@@ -224,7 +224,7 @@ export class VersionManager {
   private tableName: string;
 
   constructor(
-    config: VersioningConfig | undefined,
+    config: boolean | VersioningConfig | undefined,
     tableName: string,
     storage?: VersioningStorage,
     ctx?: Context,
@@ -433,7 +433,7 @@ export class VersionManager {
  * ```
  */
 export function createVersionManager(
-  config: VersioningConfig | undefined,
+  config: boolean | VersioningConfig | undefined,
   tableName: string,
   storage?: VersioningStorage,
   ctx?: Context,

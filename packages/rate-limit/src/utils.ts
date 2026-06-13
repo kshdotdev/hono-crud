@@ -12,8 +12,11 @@ import type { PathPattern } from './types';
 
 /**
  * Extract client IP address from request.
- * Returns `'unknown'` if no IP can be determined (rate-limit module historically
- * uses a sentinel string for the bucket key; the shared helper returns undefined).
+ * Returns `'unknown'` if no IP can be determined (the shared helper returns
+ * undefined). This sentinel is intentional fail-closed behavior, NOT a
+ * convention violation: a falsy key makes the middleware skip rate limiting
+ * entirely, so an underivable IP must still produce a usable bucket key —
+ * rate limiting must not fail open exactly when the client is unidentifiable.
  *
  * `trustProxy` defaults to `true` (library-wide default — on edge runtimes
  * the client IP only exists in proxy headers); pass `false` to suppress
@@ -31,8 +34,8 @@ export function extractIP<E extends Env>(
 // User ID Extraction
 // ============================================================================
 
-export function extractUserId<E extends Env>(ctx: Context<E>): string | null {
-  return getUserIdShared(ctx) ?? null;
+export function extractUserId<E extends Env>(ctx: Context<E>): string | undefined {
+  return getUserIdShared(ctx);
 }
 
 // ============================================================================
@@ -42,8 +45,8 @@ export function extractUserId<E extends Env>(ctx: Context<E>): string | null {
 export function extractAPIKey<E extends Env>(
   ctx: Context<E>,
   headerName = 'X-API-Key',
-): string | null {
-  return ctx.req.header(headerName) || null;
+): string | undefined {
+  return ctx.req.header(headerName) || undefined;
 }
 
 // ============================================================================

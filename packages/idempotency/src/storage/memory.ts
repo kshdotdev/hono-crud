@@ -10,7 +10,7 @@ export interface MemoryIdempotencyStorageOptions {
    * access, not via background timers (edge-safe). Set 0 to disable.
    * @default 60_000 (1 minute)
    */
-  cleanupInterval?: number;
+  cleanupIntervalMs?: number;
   /** Maximum response entries before oldest-first eviction (0 = unlimited). @default 10_000 */
   maxEntries?: number;
 }
@@ -47,32 +47,32 @@ export class MemoryIdempotencyStorage implements IdempotencyStorage {
   private lockStore: MemoryTtlStore<number>;
 
   /** Minimum interval between cleanup runs (ms) */
-  private cleanupInterval: number;
+  private cleanupIntervalMs: number;
   /** Timestamp of last cleanup run */
   private lastCleanup = 0;
 
   constructor(options?: MemoryIdempotencyStorageOptions) {
-    this.cleanupInterval = options?.cleanupInterval ?? 60000;
+    this.cleanupIntervalMs = options?.cleanupIntervalMs ?? 60000;
     const maxEntries = options?.maxEntries ?? 10_000;
-    // Both inner stores keep `cleanupInterval: 0` so their built-in
+    // Both inner stores keep `cleanupIntervalMs: 0` so their built-in
     // `maybeCleanup` is a no-op; the domain class owns the single guarded
     // lazy sweep over BOTH maps (see `maybeCleanup` below).
     this.entryStore = new MemoryTtlStore({
       isExpired: (wrapper, now) => now > wrapper.expiresAt,
-      cleanupInterval: 0,
+      cleanupIntervalMs: 0,
       maxEntries,
     });
     this.lockStore = new MemoryTtlStore<number>({
       isExpired: (expiresAt, now) => now > expiresAt,
-      cleanupInterval: 0,
+      cleanupIntervalMs: 0,
       maxEntries: 0,
     });
   }
 
   private maybeCleanup(): void {
-    if (this.cleanupInterval <= 0) return;
+    if (this.cleanupIntervalMs <= 0) return;
     const now = Date.now();
-    if (now - this.lastCleanup >= this.cleanupInterval) {
+    if (now - this.lastCleanup >= this.cleanupIntervalMs) {
       this.lastCleanup = now;
       this.entryStore.cleanup(now);
       this.lockStore.cleanup(now);
