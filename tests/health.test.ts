@@ -97,7 +97,7 @@ describe('Health Endpoints', () => {
 
     it('should timeout slow checks', async () => {
       const app = createHealthRoutes({
-        defaultTimeout: 50,
+        defaultTimeoutMs: 50,
         checks: [
           {
             name: 'slow',
@@ -128,14 +128,14 @@ describe('Health Endpoints', () => {
 
     it('should respect per-check timeout', async () => {
       const app = createHealthRoutes({
-        defaultTimeout: 5000,
+        defaultTimeoutMs: 5000,
         checks: [
           {
             name: 'slow',
             check: async () => {
               await new Promise((r) => setTimeout(r, 200));
             },
-            timeout: 50,
+            timeoutMs: 50,
           },
         ],
       });

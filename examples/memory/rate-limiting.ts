@@ -139,14 +139,14 @@ app.onError((err, c) => {
 // ============================================================================
 
 // Global rate limit: 100 requests per minute per IP
-// Skip health check and docs paths
+// Exclude health check and docs paths
 app.use(
   '*',
   createRateLimitMiddleware<AppEnv>({
     limit: 100,
     windowSeconds: 60,
     keyStrategy: 'ip',
-    skipPaths: ['/health', '/docs', '/docs/*', '/openapi.json'],
+    excludePaths: ['/health', '/docs', '/docs/*', '/openapi.json'],
     includeHeaders: true,
     onRateLimitExceeded: async (ctx, result, key) => {
       console.log(`Rate limit exceeded for key: ${key}`);

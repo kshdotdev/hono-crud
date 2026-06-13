@@ -22,7 +22,7 @@ export interface IdempotencyConfig {
    * TTL for stored responses in seconds.
    * @default 86400 (24 hours)
    */
-  ttl?: number;
+  ttlSeconds?: number;
 
   /**
    * HTTP methods that require idempotency keys.
@@ -51,7 +51,7 @@ export interface IdempotencyConfig {
    * Lock timeout in seconds for in-flight requests.
    * @default 60
    */
-  lockTimeout?: number;
+  lockTimeoutSeconds?: number;
 
   /**
    * Custom storage instance.

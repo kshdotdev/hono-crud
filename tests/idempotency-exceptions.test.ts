@@ -44,7 +44,7 @@ describe('idempotency exceptions flow through createErrorHandler', () => {
       createIdempotencyMiddleware({
         storage: new MemoryIdempotencyStorage(),
         required,
-        lockTimeout: 60,
+        lockTimeoutSeconds: 60,
       }),
     );
     app.post('/op', (c) => c.json({ ok: true }));

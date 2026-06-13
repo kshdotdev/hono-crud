@@ -17,7 +17,7 @@ export interface MemoryRateLimitStorageOptions {
    * Set to 0 to disable automatic cleanup.
    * @default 60000 (1 minute)
    */
-  cleanupInterval?: number;
+  cleanupIntervalMs?: number;
 }
 
 /**
@@ -60,11 +60,11 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
   constructor(options?: MemoryRateLimitStorageOptions) {
     this.store = new MemoryTtlStore<RateLimitWrapper>({
       isExpired: (wrapper, now) => now > wrapper.expiresAt,
-      cleanupInterval: options?.cleanupInterval ?? 60000,
+      cleanupIntervalMs: options?.cleanupIntervalMs ?? 60000,
       // maxEntries: 0 (unbounded) is required for correctness, not an
       // oversight: capacity eviction of a live window would silently reset
       // its counter, weakening limits under key-flood pressure. Memory stays
-      // bounded via the cleanupInterval sweep of expired windows.
+      // bounded via the cleanupIntervalMs sweep of expired windows.
       maxEntries: 0,
     });
   }

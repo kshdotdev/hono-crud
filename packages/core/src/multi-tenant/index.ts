@@ -204,6 +204,10 @@ export function multiTenant<E extends Env = Env>(
 /**
  * Type helper for defining tenant-aware Hono app types.
  *
+ * The variable is typed optional because it is only set after the multiTenant
+ * middleware has run (and `required: false` lets requests through without a
+ * tenant) — the same convention every other `*Env` type follows.
+ *
  * @example
  * ```ts
  * import { Hono } from 'hono';
@@ -213,14 +217,14 @@ export function multiTenant<E extends Env = Env>(
  * app.use('/*', multiTenant());
  *
  * app.get('/data', (c) => {
- *   const tenantId = c.get('tenantId'); // TypeScript knows this is string
+ *   const tenantId = c.get('tenantId'); // string | undefined
  *   return c.json({ tenantId });
  * });
  * ```
  */
 export type TenantEnv<TenantKey extends string = 'tenantId'> = {
   Variables: {
-    [K in TenantKey]: string;
+    [K in TenantKey]?: string;
   };
 };
 

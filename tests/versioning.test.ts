@@ -40,7 +40,6 @@ const DocumentModel = defineModel({
   schema: DocumentSchema,
   primaryKeys: ['id'],
   versioning: {
-    enabled: true,
     field: 'version',
     maxVersions: 10,
     trackChangedBy: true,
@@ -98,7 +97,7 @@ describe('Record Versioning', () => {
     });
 
     it('should normalize config with defaults', () => {
-      const config = getVersioningConfig({ enabled: true }, 'documents');
+      const config = getVersioningConfig(true, 'documents');
       expect(config.enabled).toBe(true);
       expect(config.field).toBe('version');
       expect(config.historyTable).toBe('documents_history');
@@ -110,7 +109,6 @@ describe('Record Versioning', () => {
     it('should use provided values', () => {
       const config = getVersioningConfig(
         {
-          enabled: true,
           field: 'rev',
           historyTable: 'doc_versions',
           maxVersions: 50,

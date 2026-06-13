@@ -18,7 +18,7 @@ export interface MemoryLoggingStorageOptions {
    * Set to 0 to disable age-based cleanup.
    * @default 86400000 (24 hours)
    */
-  maxAge?: number;
+  maxAgeMs?: number;
 
   /**
    * Minimum interval between automatic cleanup runs (ms).
@@ -27,7 +27,7 @@ export interface MemoryLoggingStorageOptions {
    * Set to 0 to disable automatic cleanup.
    * @default 300000 (5 minutes)
    */
-  cleanupInterval?: number;
+  cleanupIntervalMs?: number;
 }
 
 /**
@@ -51,7 +51,7 @@ export interface MemoryLoggingStorageOptions {
  *
  * const storage = new MemoryLoggingStorage({
  *   maxEntries: 5000,
- *   maxAge: 3600000, // 1 hour
+ *   maxAgeMs: 3600000, // 1 hour
  * });
  * setLoggingStorage(storage);
  * ```
@@ -67,18 +67,18 @@ export class MemoryLoggingStorage implements LoggingStorage {
   private maxEntries: number;
 
   /** Maximum age in milliseconds */
-  private maxAge: number;
+  private maxAgeMs: number;
 
   /** Minimum interval between cleanup runs (ms) */
-  private cleanupInterval: number;
+  private cleanupIntervalMs: number;
 
   /** Timestamp of last cleanup run */
   private lastCleanup = 0;
 
   constructor(options?: MemoryLoggingStorageOptions) {
     this.maxEntries = options?.maxEntries ?? 10000;
-    this.maxAge = options?.maxAge ?? 86400000; // 24 hours
-    this.cleanupInterval = options?.cleanupInterval ?? 300000; // 5 minutes
+    this.maxAgeMs = options?.maxAgeMs ?? 86400000; // 24 hours
+    this.cleanupIntervalMs = options?.cleanupIntervalMs ?? 300000; // 5 minutes
   }
 
   /**
@@ -86,11 +86,11 @@ export class MemoryLoggingStorage implements LoggingStorage {
    * Called lazily on access to avoid background timers.
    */
   private maybeCleanup(): void {
-    if (this.cleanupInterval <= 0 || this.maxAge <= 0) return;
+    if (this.cleanupIntervalMs <= 0 || this.maxAgeMs <= 0) return;
     const now = Date.now();
-    if (now - this.lastCleanup >= this.cleanupInterval) {
+    if (now - this.lastCleanup >= this.cleanupIntervalMs) {
       this.lastCleanup = now;
-      this.deleteOlderThanSync(this.maxAge);
+      this.deleteOlderThanSync(this.maxAgeMs);
     }
   }
 

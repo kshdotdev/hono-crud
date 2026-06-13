@@ -26,11 +26,11 @@ export interface SubscribeEndpointConfig {
   /** Filter function to control which events are sent to a specific client */
   filter?: (event: CrudEventPayload, ctx: Context) => boolean;
   /** Heartbeat interval in milliseconds. @default 30000 */
-  heartbeatInterval?: number;
+  heartbeatIntervalMs?: number;
   /** Maximum concurrent SSE connections per table. @default 1000 */
   maxConnections?: number;
   /** Connection timeout in milliseconds. @default 300000 (5 min) */
-  connectionTimeout?: number;
+  connectionTimeoutMs?: number;
   /** Fields to strip from event payloads before streaming. @default ['password', 'token', 'secret', 'apiKey', 'creditCard', 'ssn'] */
   excludeFields?: string[];
 }
@@ -94,9 +94,9 @@ export function createSubscribeHandler(config: SubscribeEndpointConfig) {
     events: eventFilter,
     emitter: customEmitter,
     filter,
-    heartbeatInterval = 30000,
+    heartbeatIntervalMs = 30000,
     maxConnections = 1000,
-    connectionTimeout = 300_000,
+    connectionTimeoutMs = 300_000,
     excludeFields = DEFAULT_EXCLUDE_FIELDS,
   } = config;
 
@@ -185,13 +185,13 @@ export function createSubscribeHandler(config: SubscribeEndpointConfig) {
         const now = Date.now();
 
         // Connection timeout
-        if (now - startTime >= connectionTimeout) {
+        if (now - startTime >= connectionTimeoutMs) {
           stream.abort();
           break;
         }
 
         // Heartbeat
-        if (now - lastHeartbeat >= heartbeatInterval) {
+        if (now - lastHeartbeat >= heartbeatIntervalMs) {
           lastHeartbeat = now;
           try {
             await stream.writeSSE({

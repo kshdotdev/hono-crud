@@ -32,7 +32,7 @@ export interface HealthCheck {
   /** Whether this check is critical (affects overall status). @default true */
   critical?: boolean;
   /** Timeout in milliseconds for this check. @default 5000 */
-  timeout?: number;
+  timeoutMs?: number;
 }
 
 /**
@@ -64,7 +64,7 @@ export interface HealthConfig {
   /** Path for the readiness endpoint. @default '/ready' */
   readyPath?: string;
   /** Default timeout per check in milliseconds. @default 5000 */
-  defaultTimeout?: number;
+  defaultTimeoutMs?: number;
   /** Whether to include detailed check info in response. @default true */
   verbose?: boolean;
 }

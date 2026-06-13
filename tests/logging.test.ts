@@ -287,7 +287,7 @@ describe('MemoryLoggingStorage', () => {
   });
 
   beforeEach(() => {
-    storage = new MemoryLoggingStorage({ maxEntries: 100, cleanupInterval: 0 });
+    storage = new MemoryLoggingStorage({ maxEntries: 100, cleanupIntervalMs: 0 });
   });
 
   afterEach(() => {
@@ -330,7 +330,7 @@ describe('MemoryLoggingStorage', () => {
 
   describe('max entries limit', () => {
     it('should enforce max entries limit', async () => {
-      const smallStorage = new MemoryLoggingStorage({ maxEntries: 5, cleanupInterval: 0 });
+      const smallStorage = new MemoryLoggingStorage({ maxEntries: 5, cleanupIntervalMs: 0 });
 
       for (let i = 0; i < 10; i++) {
         await smallStorage.store(createTestEntry());
@@ -341,7 +341,7 @@ describe('MemoryLoggingStorage', () => {
     });
 
     it('should remove oldest entries when limit exceeded', async () => {
-      const smallStorage = new MemoryLoggingStorage({ maxEntries: 3, cleanupInterval: 0 });
+      const smallStorage = new MemoryLoggingStorage({ maxEntries: 3, cleanupIntervalMs: 0 });
 
       const entry1 = createTestEntry({ id: 'entry-1' });
       const entry2 = createTestEntry({ id: 'entry-2' });
@@ -560,7 +560,7 @@ describe('MemoryLoggingStorage', () => {
       expect(recentLogs).toHaveLength(2);
     });
 
-    it('should delete entries older than maxAge', async () => {
+    it('should delete entries older than maxAgeMs', async () => {
       const now = Date.now();
 
       await storage.store(
@@ -618,7 +618,7 @@ describe('Logging Middleware', () => {
   let storage: MemoryLoggingStorage;
 
   beforeEach(() => {
-    storage = new MemoryLoggingStorage({ maxEntries: 100, cleanupInterval: 0 });
+    storage = new MemoryLoggingStorage({ maxEntries: 100, cleanupIntervalMs: 0 });
     setLoggingStorage(storage);
   });
 

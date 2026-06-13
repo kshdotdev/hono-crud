@@ -168,7 +168,7 @@ export class AuditLogger {
   private config: NormalizedAuditConfig;
   private storage: AuditLogStorage | null;
 
-  constructor(config: AuditConfig | undefined, storage?: AuditLogStorage, ctx?: Context) {
+  constructor(config: boolean | AuditConfig | undefined, storage?: AuditLogStorage, ctx?: Context) {
     this.config = getAuditConfig(config);
     this.storage = auditStorageFeature.resolve(ctx, storage);
   }
@@ -414,7 +414,7 @@ export class AuditLogger {
  * ```
  */
 export function createAuditLogger(
-  config: AuditConfig | undefined,
+  config: boolean | AuditConfig | undefined,
   storage?: AuditLogStorage,
   ctx?: Context,
 ): AuditLogger {

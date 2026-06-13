@@ -11,7 +11,7 @@ export interface JWTClaimsValidationOptions {
    * This option is kept for backwards compatibility and manual validation.
    * @default 0
    */
-  clockTolerance?: number;
+  clockToleranceSeconds?: number;
 
   /**
    * Expected issuer claim (iss).
@@ -57,7 +57,7 @@ export function validateJWTClaims(
   claims: JWTClaims,
   options: JWTClaimsValidationOptions = {},
 ): void {
-  const { clockTolerance = 0, issuer, audience, skipTimeValidation = false } = options;
+  const { clockToleranceSeconds = 0, issuer, audience, skipTimeValidation = false } = options;
 
   // Only check time-based claims if not skipped (for backwards compatibility)
   if (!skipTimeValidation) {
@@ -65,14 +65,14 @@ export function validateJWTClaims(
 
     // Check expiration
     if (claims.exp !== undefined) {
-      if (now > claims.exp + clockTolerance) {
+      if (now > claims.exp + clockToleranceSeconds) {
         throw new UnauthorizedException('Token has expired');
       }
     }
 
     // Check not before
     if (claims.nbf !== undefined) {
-      if (now < claims.nbf - clockTolerance) {
+      if (now < claims.nbf - clockToleranceSeconds) {
         throw new UnauthorizedException('Token not yet valid');
       }
     }

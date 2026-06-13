@@ -6,9 +6,11 @@ import type { AuditConfig, AuditFieldChange, NormalizedAuditConfig } from '../co
 
 /**
  * Get normalized audit configuration with defaults.
+ * Accepts the model-side union: `true` enables with defaults, a config
+ * object enables with overrides, `false`/`undefined` disables.
  */
-export function getAuditConfig(config?: AuditConfig): NormalizedAuditConfig {
-  if (!config || !config.enabled) {
+export function getAuditConfig(config?: boolean | AuditConfig): NormalizedAuditConfig {
+  if (!config) {
     return {
       enabled: false,
       tableName: 'audit_logs',
@@ -20,15 +22,17 @@ export function getAuditConfig(config?: AuditConfig): NormalizedAuditConfig {
     };
   }
 
+  const overrides: AuditConfig = config === true ? {} : config;
+
   return {
     enabled: true,
-    tableName: config.tableName || 'audit_logs',
-    actions: config.actions || ['create', 'update', 'delete'],
-    excludeFields: config.excludeFields || [],
-    storeRecord: config.storeRecord ?? true,
-    storePreviousRecord: config.storePreviousRecord ?? true,
-    trackChanges: config.trackChanges ?? true,
-    getUserId: config.getUserId,
+    tableName: overrides.tableName || 'audit_logs',
+    actions: overrides.actions || ['create', 'update', 'delete'],
+    excludeFields: overrides.excludeFields || [],
+    storeRecord: overrides.storeRecord ?? true,
+    storePreviousRecord: overrides.storePreviousRecord ?? true,
+    trackChanges: overrides.trackChanges ?? true,
+    getUserId: overrides.getUserId,
   };
 }
 

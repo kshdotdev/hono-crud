@@ -18,7 +18,7 @@ app.use('/api/*', createJWTMiddleware({
   algorithm: 'HS256',     // default
   issuer: 'my-app',       // optional: validate iss claim
   audience: 'my-api',     // optional: validate aud claim
-  clockTolerance: 30,     // optional: seconds of clock skew tolerance
+  clockToleranceSeconds: 30, // optional: seconds of clock skew tolerance
 }));
 
 // After middleware runs, context variables are available:

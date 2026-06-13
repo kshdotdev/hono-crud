@@ -91,7 +91,7 @@ let warnedMissingIdempotencyStorage = false;
  *
  * // Or with configuration:
  * app.use('/api/*', createIdempotencyMiddleware({
- *   ttl: 3600,              // 1 hour
+ *   ttlSeconds: 3600,       // 1 hour
  *   enforcedMethods: ['POST', 'PUT'],
  *   required: true,         // Require the header
  * }));
@@ -101,11 +101,11 @@ export function createIdempotencyMiddleware<E extends Env = Env>(
   config: IdempotencyConfig = {},
 ): MiddlewareHandler<E> {
   const headerName = config.headerName ?? 'Idempotency-Key';
-  const ttlSeconds = config.ttl ?? 86400;
+  const ttlSeconds = config.ttlSeconds ?? 86400;
   const ttlMs = ttlSeconds * 1000;
   const enforcedMethods = (config.enforcedMethods ?? ['POST']).map((m) => m.toUpperCase());
   const required = config.required ?? false;
-  const lockTimeoutMs = (config.lockTimeout ?? 60) * 1000;
+  const lockTimeoutMs = (config.lockTimeoutSeconds ?? 60) * 1000;
 
   return async (ctx, next) => {
     const method = ctx.req.method.toUpperCase();

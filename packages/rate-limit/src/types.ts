@@ -52,8 +52,10 @@ export type KeyStrategy = 'ip' | 'user' | 'api-key' | 'combined';
 
 /**
  * Custom key extraction function.
+ * Return `undefined` when no key can be derived — the middleware then skips
+ * rate limiting for that request.
  */
-export type KeyExtractor<E extends Env = Env> = (ctx: Context<E>) => string | null;
+export type KeyExtractor<E extends Env = Env> = (ctx: Context<E>) => string | undefined;
 
 // ============================================================================
 // Rate Limit Algorithm
@@ -99,7 +101,7 @@ export type OnRateLimitExceeded<E extends Env = Env> = (
 ) => void | Promise<void>;
 
 /**
- * Path pattern for skip configuration.
+ * Path pattern for exclude configuration.
  * Supports exact paths, wildcards, and regex.
  *
  * Canonical definition is core's `utils/path-match.ts` (via
@@ -154,11 +156,11 @@ export interface RateLimitConfig<E extends Env = Env> {
   keyPrefix?: string;
 
   /**
-   * Paths to skip rate limiting.
+   * Paths excluded from rate limiting.
    * Supports exact paths ('/health'), wildcards ('/public/*'), and regex.
    * @default []
    */
-  skipPaths?: PathPattern[];
+  excludePaths?: PathPattern[];
 
   /**
    * Whether to include rate limit headers in responses.

@@ -393,7 +393,7 @@ describe('createErrorHandler', () => {
     let storage: MemoryLoggingStorage;
 
     beforeEach(() => {
-      storage = new MemoryLoggingStorage({ maxEntries: 100, cleanupInterval: 0 });
+      storage = new MemoryLoggingStorage({ maxEntries: 100, cleanupIntervalMs: 0 });
       setLoggingStorage(storage);
     });
 

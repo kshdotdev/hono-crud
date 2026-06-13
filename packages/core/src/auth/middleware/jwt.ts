@@ -97,7 +97,7 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
   config: JWTConfig,
 ): MiddlewareHandler<E> {
   const algorithm = validateAlgorithm(config.algorithm || 'HS256');
-  const clockTolerance = config.clockTolerance || 0;
+  const clockToleranceSeconds = config.clockToleranceSeconds || 0;
   const extractToken = config.extractToken || defaultExtractToken;
   const extractUser = config.extractUser || defaultExtractUser;
 
@@ -152,7 +152,7 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
     // Validate additional claims (issuer, audience) using shared validator
     // Note: Hono's verify already validates exp, nbf, iat
     validateJWTClaims(claims, {
-      clockTolerance,
+      clockToleranceSeconds,
       issuer: config.issuer,
       audience: config.audience,
     });
@@ -182,7 +182,7 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
  */
 export async function verifyJWT(token: string, config: JWTConfig): Promise<JWTClaims> {
   const algorithm = validateAlgorithm(config.algorithm || 'HS256');
-  const clockTolerance = config.clockTolerance || 0;
+  const clockToleranceSeconds = config.clockToleranceSeconds || 0;
 
   // Decode header to verify algorithm
   const decoded = decode(token);
@@ -219,7 +219,7 @@ export async function verifyJWT(token: string, config: JWTConfig): Promise<JWTCl
 
   // Validate additional claims using shared validator
   validateJWTClaims(claims, {
-    clockTolerance,
+    clockToleranceSeconds,
     issuer: config.issuer,
     audience: config.audience,
   });

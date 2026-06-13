@@ -83,10 +83,10 @@ export interface NamingContext {
  * for defaults, or pass this object to scope and override.
  */
 export interface AutoOptions {
-  /** Only auto-register resources whose path matches one of these (glob or RegExp). Default: all. */
-  include?: PathPattern[];
-  /** Skip resources whose path matches one of these. Excludes always win. */
-  exclude?: PathPattern[];
+  /** Only auto-register resources whose mount path matches one of these (glob or RegExp). Default: all. */
+  includePaths?: PathPattern[];
+  /** Skip resources whose mount path matches one of these. Excludes always win. */
+  excludePaths?: PathPattern[];
   /** Default operation allow-list applied to every auto-registered resource. */
   operations?: OperationName[];
   /** Per-path overrides, keyed by the `registerCrud` path (e.g. `'/users'`). */

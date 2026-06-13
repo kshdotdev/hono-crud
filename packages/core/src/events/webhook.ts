@@ -15,7 +15,7 @@ export interface WebhookEndpoint {
   /** Custom headers to include with each request */
   headers?: Record<string, string>;
   /** Timeout in milliseconds. @default 10000 */
-  timeout?: number;
+  timeoutMs?: number;
   /** Number of retry attempts on failure. @default 2 */
   retries?: number;
 }
@@ -91,7 +91,7 @@ async function deliverToEndpoint(
   endpoint: WebhookEndpoint,
   event: CrudEventPayload,
 ): Promise<WebhookDeliveryResult> {
-  const timeout = endpoint.timeout ?? 10000;
+  const timeoutMs = endpoint.timeoutMs ?? 10000;
   const maxRetries = endpoint.retries ?? 2;
   const body = JSON.stringify(event);
 
@@ -112,7 +112,7 @@ async function deliverToEndpoint(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       const response = await fetch(endpoint.url, {
         method: 'POST',

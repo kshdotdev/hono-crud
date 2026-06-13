@@ -5,8 +5,8 @@ import type { HealthCheck, HealthCheckResult, HealthConfig, HealthResponse } fro
 /**
  * Run a single health check with timeout.
  */
-async function runCheck(check: HealthCheck, defaultTimeout: number): Promise<HealthCheckResult> {
-  const timeout = check.timeout ?? defaultTimeout;
+async function runCheck(check: HealthCheck, defaultTimeoutMs: number): Promise<HealthCheckResult> {
+  const timeoutMs = check.timeoutMs ?? defaultTimeoutMs;
   const start = Date.now();
 
   // Use a shared timer that we can clear once the check resolves, otherwise
@@ -14,7 +14,7 @@ async function runCheck(check: HealthCheck, defaultTimeout: number): Promise<Hea
   // Cloudflare Workers where every pending timer holds a tick).
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Health check timed out')), timeout);
+    timer = setTimeout(() => reject(new Error('Health check timed out')), timeoutMs);
   });
 
   try {
@@ -42,9 +42,9 @@ async function runCheck(check: HealthCheck, defaultTimeout: number): Promise<Hea
  */
 async function runAllChecks(
   checks: HealthCheck[],
-  defaultTimeout: number,
+  defaultTimeoutMs: number,
 ): Promise<{ results: HealthCheckResult[]; status: HealthResponse['status'] }> {
-  const results = await Promise.all(checks.map((c) => runCheck(c, defaultTimeout)));
+  const results = await Promise.all(checks.map((c) => runCheck(c, defaultTimeoutMs)));
 
   const criticalFailed = results.some((r, i) => !r.healthy && (checks[i].critical ?? true));
   const anyFailed = results.some((r) => !r.healthy);
@@ -94,7 +94,7 @@ export function createHealthRoutes<E extends Env = Env>(config: HealthConfig = {
     version,
     path = '/health',
     readyPath = '/ready',
-    defaultTimeout = 5000,
+    defaultTimeoutMs = 5000,
     verbose = true,
   } = config;
 
@@ -115,7 +115,7 @@ export function createHealthRoutes<E extends Env = Env>(config: HealthConfig = {
   // Readiness — runs all checks
   app.get(readyPath, async (c) => {
     const start = Date.now();
-    const { results, status } = await runAllChecks(checks, defaultTimeout);
+    const { results, status } = await runAllChecks(checks, defaultTimeoutMs);
     const totalLatency = Date.now() - start;
 
     const response: HealthResponse = {

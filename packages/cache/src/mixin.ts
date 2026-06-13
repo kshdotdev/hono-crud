@@ -169,7 +169,7 @@ export interface CacheInvalidationMethods {
  *   _meta = { model: UserModel };
  *
  *   cacheConfig = {
- *     ttl: 300,           // 5 minutes
+ *     ttlSeconds: 300,    // 5 minutes
  *     perUser: false,     // Shared cache
  *   };
  *
@@ -212,7 +212,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
     getCacheConfig(): CacheConfig {
       return {
         enabled: true,
-        ttl: 300,
+        ttlSeconds: 300,
         perUser: false,
         ...this.cacheConfig,
       };
@@ -352,7 +352,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
       }
 
       await storage.set(key, data, {
-        ttlMs: config.ttl != null ? config.ttl * 1000 : undefined,
+        ttlMs: config.ttlSeconds != null ? config.ttlSeconds * 1000 : undefined,
         tags: tags.length > 0 ? tags : undefined,
       });
     }
