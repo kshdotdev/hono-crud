@@ -2,7 +2,9 @@
 
 The `@hono-crud/mcp` package turns the CRUD resources you already register into [Model Context Protocol](https://modelcontextprotocol.io) tools, so an AI agent (Claude, Cursor, any MCP client) can call your API.
 
-It introspects each registered resource and exposes its operations — `list`, `read`, `create`, `update`, `delete` — as MCP tools over the HTTP streaming transport. **Tool calls are re-dispatched through the same Hono app**, so they run the exact same pipeline as your REST API: auth, Zod validation, hooks, audit, soft-delete, serialization, and pagination all apply. There is no second code path to keep in sync.
+It introspects each registered resource and exposes every operation present in its endpoints map — all `registerCrud` verbs, from `list`/`read`/`create`/`update`/`delete` through `search`, `aggregate`, `export`, `upsert`, `clone`, `bulkPatch`, the batch operations, and the version sub-resources — as MCP tools over the HTTP streaming transport. **Tool calls are re-dispatched through the same Hono app**, so they run the exact same pipeline as your REST API: auth, Zod validation, hooks, audit, soft-delete, serialization, and pagination all apply. There is no second code path to keep in sync.
+
+The single excluded verb is `import`: its schema intentionally declares no request body (validation is manual, to support JSON, CSV, and multipart payloads), so an auto-generated tool would advertise an input schema lacking the items payload. It is skipped even when present in the endpoints map — register a hand-written tool if you need imports over MCP.
 
 Install: `npm install @hono-crud/mcp @modelcontextprotocol/sdk`.
 
@@ -49,15 +51,33 @@ mcp.resource('/users', userEndpoints);
 app.all('/mcp', mcp.handler());
 ```
 
-This registers five tools — `users_list`, `users_read`, `users_create`, `users_update`, `users_delete` — each with an input schema derived from the endpoint's own Zod schema (path params, query filters, and request body).
+This registers one tool per operation in the endpoints map — here `users_list`, `users_read`, `users_create`, `users_update`, `users_delete` — each with an input schema derived from the endpoint's own Zod schema (path params, query filters, and request body). Registering extended verbs (`search`, `batchCreate`, `versionHistory`, …) yields matching tools the same way.
 
 ---
 
 ## How tool calls run
 
-When a client calls a tool, the package rebuilds the matching HTTP request (method, path, query, body) and **re-dispatches it into your Hono app** via `app.request(...)`. The call flows through the real route — the same middleware, auth, validation, hooks, and serialization your REST clients hit. The tool result is the route's JSON response.
+When a client calls a tool, the package rebuilds the matching HTTP request and **re-dispatches it into your Hono app** via `app.request(...)`. The call flows through the real route — the same middleware, auth, validation, hooks, and serialization your REST clients hit. The tool result is the route's JSON response.
 
-Incoming request headers on the MCP call are forwarded on re-dispatch, so a bearer token (or any header your CRUD pipeline reads) reaches the underlying route. This is what lets a single token gate both `/mcp` and the CRUD routes (see [Authentication](#authentication)).
+The HTTP method and URL template come from core's canonical route table (`CRUD_ROUTES`), so MCP dispatch can never drift from what `registerCrud` mounts. Every `:param` segment of the route template is substituted from the tool input (e.g. `versionRead` fills both `:id` and `:version` in `/:id/versions/:version`); for endpoints that declare a JSON body, the declared query keys go to the query string and the remaining input becomes the body (this covers `bulkPatch`'s query + body mix and `batchDelete`'s DELETE-with-body), while body-less endpoints send every remaining input field as query parameters.
+
+### Header forwarding
+
+An allow-list of inbound `/mcp` headers (matched case-insensitively) is forwarded on re-dispatch, so the call runs as the caller. The default — `authorization`, `cookie`, `x-api-key`, `x-tenant-id` — covers bearer/session auth plus core's own API-key middleware (`createAPIKeyMiddleware`) and header-based multi-tenancy (`multiTenant`). This is what lets a single token gate both `/mcp` and the CRUD routes (see [Authentication](#authentication)). Override the list when your pipeline reads custom headers (a function form for full control may come later):
+
+```typescript
+import { DEFAULT_FORWARD_HEADERS, createCrudMcp } from '@hono-crud/mcp';
+
+createCrudMcp(app, {
+  name: 'my-api',
+  version: '1.0.0',
+  forwardHeaders: [...DEFAULT_FORWARD_HEADERS, 'x-org-id'], // replaces the default list
+});
+```
+
+### Structured output
+
+Where an endpoint's 2xx response is a plain JSON object schema (`application/json` as its sole declared content type, representable in JSON Schema), the tool advertises a matching MCP `outputSchema` and every successful call returns the parsed response as `structuredContent` alongside the pretty-printed text content. Endpoints with a non-JSON response alternative (e.g. `export`'s CSV) skip the output schema rather than declare a contract their non-JSON responses would break.
 
 Errors are returned as MCP tool errors (`isError: true`) with the message text; the failure is also logged through core's logger.
 
@@ -105,15 +125,31 @@ createCrudMcp(app, {
 });
 ```
 
-Default descriptions per operation (a resource-level `description` is prepended when set):
+Default descriptions per operation (a resource-level `description` is prepended when set; _{one}_ is the naively singularized resource label):
 
 | Operation | Default description |
 |---|---|
 | `list` | List _{resource}_ with optional filters, search, sorting and pagination. |
-| `read` | Get a single _{resource}_ by id. |
-| `create` | Create a new _{resource}_. |
-| `update` | Update an existing _{resource}_ by id. |
-| `delete` | Delete a _{resource}_ by id. |
+| `read` | Get a single _{one}_ by id. |
+| `create` | Create a new _{one}_. |
+| `update` | Update an existing _{one}_ by id. |
+| `delete` | Delete a _{one}_ by id. |
+| `restore` | Restore a soft-deleted _{one}_ by id. |
+| `batchCreate` | Create multiple _{resource}_ in one call. |
+| `batchUpdate` | Update multiple _{resource}_ by id in one call. |
+| `batchDelete` | Delete multiple _{resource}_ by id in one call. |
+| `batchRestore` | Restore multiple soft-deleted _{resource}_ by id in one call. |
+| `batchUpsert` | Insert or update multiple _{resource}_ in one call. |
+| `search` | Full-text search _{resource}_ with relevance scoring. |
+| `aggregate` | Compute aggregations (count, sum, avg, min, max, group by) over _{resource}_. |
+| `export` | Export _{resource}_ in bulk. |
+| `upsert` | Insert a new _{one}_ or update the existing one. |
+| `clone` | Duplicate an existing _{one}_ by id. |
+| `bulkPatch` | Apply one partial update to all _{resource}_ matching a filter. |
+| `versionHistory` | List the version history of a _{one}_ by id. |
+| `versionRead` | Get a specific version of a _{one}_. |
+| `versionCompare` | Compare two versions of a _{one}_. |
+| `versionRollback` | Roll a _{one}_ back to a previous version. |
 
 Duplicate tool names across resources throw a `ConfigurationException` at registration — disambiguate with a resource `name`, a custom `naming` strategy, or per-tool `name` overrides.
 
@@ -121,15 +157,14 @@ Duplicate tool names across resources throw a `ConfigurationException` at regist
 
 ## Annotations
 
-MCP tool annotations are advisory hints an LLM client may surface to the user (e.g. confirm before a destructive action). Sensible per-operation defaults are applied and can be overridden per tool:
+MCP tool annotations are advisory hints an LLM client may surface to the user (e.g. confirm before a destructive action). Sensible per-operation defaults are applied and can be overridden per tool. The MCP spec treats an absent `destructiveHint` as `true`, so non-destructive mutations set it to `false` explicitly; `idempotentHint` is set only where repeating the same call converges on the same state:
 
-| Operation | `readOnlyHint` | `destructiveHint` |
-|---|---|---|
-| `list` | `true` | — |
-| `read` | `true` | — |
-| `create` | `false` | `false` |
-| `update` | `false` | `false` |
-| `delete` | `false` | `true` |
+| Operations | `readOnlyHint` | `destructiveHint` | `idempotentHint` |
+|---|---|---|---|
+| `list`, `read`, `search`, `aggregate`, `export`, `versionHistory`, `versionRead`, `versionCompare` | `true` | — | — |
+| `create`, `clone`, `batchCreate`, `batchUpdate`, `batchRestore`, `batchUpsert`, `bulkPatch`, `versionRollback` | `false` | `false` | — |
+| `update`, `upsert`, `restore` | `false` | `false` | `true` |
+| `delete`, `batchDelete` | `false` | `true` | — |
 
 ```typescript
 mcp.resource('/users', userEndpoints, {
@@ -147,7 +182,7 @@ mcp.resource('/users', userEndpoints, {
 mcp.resource('/users', userEndpoints, {
   name: 'people',                            // resource label used in tool names
   description: 'User accounts.',             // prepended to each tool's description
-  operations: ['list', 'read', 'create'],    // allow-list (default: all present)
+  operations: ['list', 'read', 'create'],    // allow-list (default: all present, minus import)
   tools: {
     list: { name: 'find_people', description: 'Search people by name or role.' },
     create: { description: 'Create a person. Admin only.' },
@@ -156,7 +191,7 @@ mcp.resource('/users', userEndpoints, {
 });
 ```
 
-- `operations` is an allow-list applied before per-tool `enabled`.
+- `operations` is a narrowing allow-list applied before per-tool `enabled`; the default exposes every operation present in the endpoints map except `import`.
 - A `tools[op].name` overrides the naming strategy for that tool.
 - A `tools[op].enabled: false` excludes the operation even if it's present in the endpoints map.
 
@@ -267,6 +302,7 @@ mcp-session-id: <id from the initialize response>
 | `instructions` | `string` | — | Free-form guidance surfaced to the LLM. |
 | `naming` | `(ctx) => string` | `` `${resource}_${operation}` `` | Tool-name strategy. |
 | `auth` | `McpAuthOptions` | none (open) | `/mcp` authentication strategy. |
+| `forwardHeaders` | `string[]` | `['authorization', 'cookie', 'x-api-key', 'x-tenant-id']` | Headers forwarded on tool re-dispatch (case-insensitive; replaces the default list). |
 | `auto` | `boolean \| AutoOptions` | `false` | Auto-register every `registerCrud` resource. |
 
 ### `mcp.resource(path, endpoints, options?)` — `ResourceOptions`
@@ -275,7 +311,7 @@ mcp-session-id: <id from the initialize response>
 |---|---|---|---|
 | `name` | `string` | model `tag`/`tableName`, else path segment | Resource label used in tool names. |
 | `description` | `string` | — | Prepended to each generated tool description. |
-| `operations` | `OperationName[]` | all present | Allow-list of operations to expose. |
+| `operations` | `OperationName[]` | all present, minus `import` | Narrowing allow-list of operations to expose. |
 | `tools` | `Partial<Record<OperationName, ToolOptions>>` | `{}` | Per-operation overrides. |
 
 ### `ToolOptions`

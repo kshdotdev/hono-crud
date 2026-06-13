@@ -3,13 +3,14 @@ import type { Hono } from 'hono';
 import { ConfigurationException, getLogger } from 'hono-crud/internal';
 import { defaultDescription, defaultNaming, resolveAnnotations } from './config';
 import {
+  DEFAULT_FORWARD_HEADERS,
   type DispatchTarget,
   type ForwardHeaders,
   type ToolCallResult,
   dispatch,
   toToolResult,
 } from './dispatch';
-import { buildInputShape, extractRequestPlan } from './schema';
+import { buildInputShape, buildOutputShape, extractRequestPlan } from './schema';
 import {
   type CrudMcpConfig,
   type EndpointInstance,
@@ -32,6 +33,7 @@ type RegisterTool = (
     title?: string;
     description?: string;
     inputSchema?: Record<string, unknown>;
+    outputSchema?: Record<string, unknown>;
     annotations?: ToolAnnotations;
   },
   cb: (args: Record<string, unknown>, extra: ToolExtra) => Promise<ToolCallResult>,
@@ -74,6 +76,7 @@ export function registerResourceTools(
   const normalizedPath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
   const naming = options.naming ?? defaultNaming;
   const requested = resourceOptions.operations ?? OPERATIONS;
+  const forwardHeaders = options.forwardHeaders ?? DEFAULT_FORWARD_HEADERS;
   const register = server.registerTool.bind(server) as unknown as RegisterTool;
   const registered: string[] = [];
 
@@ -107,16 +110,18 @@ export function registerResourceTools(
       plan: extractRequestPlan(route),
     };
 
+    const outputSchema = buildOutputShape(route);
     register(
       toolName,
       {
         description,
         inputSchema: buildInputShape(route),
+        ...(outputSchema !== undefined && { outputSchema }),
         annotations: resolveAnnotations(operation, toolOptions.annotations),
       },
       async (args, extra) => {
         try {
-          const res = await dispatch(app, target, args ?? {}, headersFrom(extra));
+          const res = await dispatch(app, target, args ?? {}, headersFrom(extra), forwardHeaders);
           return await toToolResult(res);
         } catch (err) {
           getLogger().error('@hono-crud/mcp tool dispatch failed', {
