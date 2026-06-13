@@ -14,9 +14,10 @@ Install: `npm install @hono-crud/mcp @modelcontextprotocol/sdk`.
 
 ## Quick start
 
+<!-- docs-typecheck:prelude -->
 ```typescript
 import { Hono } from 'hono';
-import { fromHono, registerCrud } from 'hono-crud';
+import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
 import { createCrudMcp } from '@hono-crud/mcp';
 import {
   MemoryCreateEndpoint,
@@ -25,6 +26,17 @@ import {
   MemoryUpdateEndpoint,
   MemoryDeleteEndpoint,
 } from '@hono-crud/memory';
+import { z } from 'zod';
+
+const UserSchema = z.object({ id: z.uuid(), name: z.string(), email: z.email() });
+const UserModel = defineModel({ tableName: 'users', schema: UserSchema, primaryKeys: ['id'] });
+const userMeta = defineMeta({ model: UserModel });
+
+class UserCreate extends MemoryCreateEndpoint { _meta = userMeta; }
+class UserList extends MemoryListEndpoint { _meta = userMeta; }
+class UserRead extends MemoryReadEndpoint { _meta = userMeta; }
+class UserUpdate extends MemoryUpdateEndpoint { _meta = userMeta; }
+class UserDelete extends MemoryDeleteEndpoint { _meta = userMeta; }
 
 const userEndpoints = {
   create: UserCreate,
@@ -66,7 +78,7 @@ The HTTP method and URL template come from core's canonical route table (`CRUD_R
 An allow-list of inbound `/mcp` headers (matched case-insensitively) is forwarded on re-dispatch, so the call runs as the caller. The default — `authorization`, `cookie`, `x-api-key`, `x-tenant-id` — covers bearer/session auth plus core's own API-key middleware (`createAPIKeyMiddleware`) and header-based multi-tenancy (`multiTenant`). This is what lets a single token gate both `/mcp` and the CRUD routes (see [Authentication](#authentication)). Override the list when your pipeline reads custom headers (a function form for full control may come later):
 
 ```typescript
-import { DEFAULT_FORWARD_HEADERS, createCrudMcp } from '@hono-crud/mcp';
+import { DEFAULT_FORWARD_HEADERS } from '@hono-crud/mcp';
 
 createCrudMcp(app, {
   name: 'my-api',
@@ -88,8 +100,8 @@ Errors are returned as MCP tool errors (`isError: true`) with the message text; 
 Instead of one `mcp.resource()` call per resource, let the server discover every resource you registered with `registerCrud(...)`:
 
 ```typescript
-const mcp = createCrudMcp(app, { name: 'my-api', version: '1.0.0', auto: true });
-app.all('/mcp', mcp.handler());
+const autoMcp = createCrudMcp(app, { name: 'my-api', version: '1.0.0', auto: true });
+app.all('/mcp', autoMcp.handler());
 ```
 
 Pass an object to scope or override it:
@@ -206,12 +218,15 @@ The `/mcp` endpoint is **open by default**. Pick a strategy via the `auth` optio
 Verify the bearer token yourself. The same token gates `/mcp` and is forwarded verbatim to the CRUD routes on re-dispatch, and the returned identity is attached to the Hono context as `auth`:
 
 ```typescript
+/** Your token verification — return an identity, or null to reject with 401. */
+declare function verifySession(token: string): Promise<Record<string, unknown> | null>;
+
 createCrudMcp(app, {
   name: 'my-api',
   version: '1.0.0',
   auth: {
     strategy: 'verifier',
-    verifyToken: (token, c) => verifySession(token), // return an identity, or null to reject
+    verifyToken: (token) => verifySession(token), // return an identity, or null to reject
   },
 });
 ```
@@ -226,14 +241,15 @@ import { createJWTMiddleware } from 'hono-crud/auth';
 createCrudMcp(app, {
   name: 'my-api',
   version: '1.0.0',
-  auth: { strategy: 'middleware', middleware: createJWTMiddleware({ secret: env.JWT_SECRET }) },
+  auth: { strategy: 'middleware', middleware: createJWTMiddleware({ secret: 'top-secret' }) },
 });
 ```
 
 ### OAuth 2.1 (opt-in)
 
-Full MCP OAuth, decoupled by design — you bring the metadata router and the bearer-auth middleware (for example from [`@hono/mcp`](https://github.com/honojs/middleware/tree/main/packages/mcp)), so this package never pulls extra dependencies:
+Full MCP OAuth, decoupled by design — you bring the metadata router and the bearer-auth middleware (for example [`@hono/mcp`](https://github.com/honojs/middleware/tree/main/packages/mcp)'s `simpleMcpAuthRouter` and `bearerAuth`); this package only mounts the router and applies the middleware:
 
+<!-- docs-typecheck:skip external package (@hono/mcp) auth helpers not installed in this repo -->
 ```typescript
 import { simpleMcpAuthRouter, bearerAuth } from '@hono/mcp/auth';
 
@@ -260,6 +276,9 @@ With the official SDK client:
 ```typescript
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+
+// The bearer token your /mcp auth strategy expects.
+declare const token: string;
 
 const client = new Client({ name: 'my-agent', version: '1.0.0' });
 await client.connect(
@@ -327,7 +346,7 @@ mcp-session-id: <id from the initialize response>
 
 | Option | Type | Description |
 |---|---|---|
-| `include` | `PathPattern[]` | Only auto-register matching paths (default: all). |
-| `exclude` | `PathPattern[]` | Skip matching paths (excludes win). |
+| `includePaths` | `PathPattern[]` | Only auto-register matching paths (default: all). |
+| `excludePaths` | `PathPattern[]` | Skip matching paths (excludes win). |
 | `operations` | `OperationName[]` | Default allow-list for every auto-registered resource. |
 | `resources` | `Record<string, ResourceOptions>` | Per-path overrides, keyed by the `registerCrud` path. |

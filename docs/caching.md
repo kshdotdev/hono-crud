@@ -16,9 +16,13 @@ Inject the storage through `createStorageMiddleware` — the recommended path,
 especially on edge/serverless runtimes. It writes the `cacheStorage` context
 var that the cache mixin resolves from:
 
+<!-- docs-typecheck:prelude -->
 ```typescript
-import { createStorageMiddleware } from 'hono-crud/storage';
 import { MemoryCacheStorage } from '@hono-crud/cache';
+import { Hono } from 'hono';
+import { createStorageMiddleware } from 'hono-crud/storage';
+
+const app = new Hono();
 
 app.use('*', createStorageMiddleware({
   cacheStorage: new MemoryCacheStorage(),
@@ -28,11 +32,13 @@ app.use('*', createStorageMiddleware({
 ### Redis Storage
 
 ```typescript
-import { RedisCacheStorage } from '@hono-crud/cache';
+import { RedisCacheStorage, type RedisClient } from '@hono-crud/cache';
+
+declare const redisClient: RedisClient; // any client with get/set/del (+ optional keys/scan)
 
 app.use('*', createStorageMiddleware({
   cacheStorage: new RedisCacheStorage({
-    client: redisClient,   // Any Redis client with get/set/del/keys
+    client: redisClient,
     prefix: 'cache:',      // Key prefix (default: 'cache:')
   }),
 }));
@@ -45,7 +51,7 @@ instead. Resolution priority is context > global, so the setter is a
 compatibility option, never a requirement:
 
 ```typescript
-import { setCacheStorage, MemoryCacheStorage } from '@hono-crud/cache';
+import { setCacheStorage } from '@hono-crud/cache';
 
 setCacheStorage(new MemoryCacheStorage());
 ```
@@ -54,11 +60,25 @@ setCacheStorage(new MemoryCacheStorage());
 
 ## withCache Mixin
 
-Add caching to read/list endpoints:
+The endpoint samples below share this model:
+
+<!-- docs-typecheck:prelude -->
+```typescript
+import { defineMeta, defineModel } from 'hono-crud';
+import { z } from 'zod';
+
+const UserSchema = z.object({ id: z.uuid(), name: z.string(), role: z.string() });
+const UserModel = defineModel({ tableName: 'users', schema: UserSchema, primaryKeys: ['id'] });
+const userMeta = defineMeta({ model: UserModel });
+```
+
+Add caching to read/list endpoints. The route registrar calls
+`setContext(c)` before invoking `handle()`, so the override is
+parameterless — no manual context wiring:
 
 ```typescript
 import { withCache } from '@hono-crud/cache';
-import { MemoryReadEndpoint, MemoryListEndpoint } from '@hono-crud/memory';
+import { MemoryReadEndpoint } from '@hono-crud/memory';
 
 class UserRead extends withCache(MemoryReadEndpoint) {
   _meta = userMeta;
@@ -70,9 +90,7 @@ class UserRead extends withCache(MemoryReadEndpoint) {
     tags: ['users'],    // Cache tags for targeted invalidation
   };
 
-  async handle(ctx) {
-    this.setContext(ctx);
-
+  override async handle(): Promise<Response> {
     // Try cache first
     const cached = await this.getCachedResponse();
     if (cached) {
@@ -80,11 +98,11 @@ class UserRead extends withCache(MemoryReadEndpoint) {
     }
 
     // Fetch from database
-    const response = await super.handle(ctx);
+    const response = await super.handle();
 
     // Cache successful responses
     if (response.status === 200) {
-      const data = await response.clone().json();
+      const data = (await response.clone().json()) as { result: unknown };
       await this.setCachedResponse(data.result);
     }
 
@@ -133,15 +151,15 @@ class UserRead extends withCache(MemoryReadEndpoint) {
 Automatically invalidate caches after mutations:
 
 ```typescript
-import { withCacheInvalidation } from '@hono-crud/cache';
-import { MemoryUpdateEndpoint, MemoryDeleteEndpoint } from '@hono-crud/memory';
+import { withCacheInvalidation, type CacheInvalidationConfig } from '@hono-crud/cache';
+import { MemoryDeleteEndpoint, MemoryUpdateEndpoint } from '@hono-crud/memory';
 
 class UserUpdate extends withCacheInvalidation(MemoryUpdateEndpoint) {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Update user' };
   allowedUpdateFields = ['name', 'role'];
 
-  cacheInvalidation = {
+  cacheInvalidation: CacheInvalidationConfig = {
     strategy: 'all',              // Invalidate all user caches
     relatedModels: ['posts'],     // Also invalidate posts cache
   };
@@ -151,7 +169,7 @@ class UserDelete extends withCacheInvalidation(MemoryDeleteEndpoint) {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Delete user' };
 
-  cacheInvalidation = {
+  cacheInvalidation: CacheInvalidationConfig = {
     strategy: 'single',           // Only invalidate the specific record
   };
 }
@@ -183,20 +201,34 @@ class UserDelete extends withCacheInvalidation(MemoryDeleteEndpoint) {
 Generate and match ETags for conditional requests:
 
 ```typescript
-import { generateETag, matchesIfNoneMatch, matchesIfMatch } from 'hono-crud';
+import { generateETag, matchesIfMatch, matchesIfNoneMatch } from 'hono-crud';
 
-// Generate ETag from data
-const etag = await generateETag(userData);
+app.get('/users/:id', async (c) => {
+  const userData = { id: c.req.param('id'), name: 'Ada' }; // your lookup
 
-// Check If-None-Match (GET - 304 Not Modified)
-const ifNoneMatch = ctx.req.header('If-None-Match');
-if (ifNoneMatch && matchesIfNoneMatch(ifNoneMatch, etag)) {
-  return new Response(null, { status: 304 });
-}
+  // Generate ETag from data
+  const etag = await generateETag(userData);
 
-// Check If-Match (PUT/PATCH - optimistic concurrency)
-const ifMatch = ctx.req.header('If-Match');
-if (ifMatch && !matchesIfMatch(ifMatch, etag)) {
-  return ctx.json({ error: 'Precondition failed' }, 412);
-}
+  // Check If-None-Match (GET - 304 Not Modified)
+  const ifNoneMatch = c.req.header('If-None-Match');
+  if (ifNoneMatch && matchesIfNoneMatch(ifNoneMatch, etag)) {
+    return new Response(null, { status: 304 });
+  }
+
+  return c.json(userData, 200, { ETag: etag });
+});
+
+app.put('/users/:id', async (c) => {
+  const current = { id: c.req.param('id'), name: 'Ada' }; // current record
+  const etag = await generateETag(current);
+
+  // Check If-Match (PUT/PATCH - optimistic concurrency)
+  const ifMatch = c.req.header('If-Match');
+  if (ifMatch && !matchesIfMatch(ifMatch, etag)) {
+    return c.json({ error: 'Precondition failed' }, 412);
+  }
+
+  // ...apply the update
+  return c.json(current);
+});
 ```

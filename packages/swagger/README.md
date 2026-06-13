@@ -11,9 +11,11 @@ npm install @hono-crud/swagger hono-crud hono
 ## Usage
 
 ```ts
-import { swaggerUI, redocUI, docsIndex } from '@hono-crud/swagger';
+import { docsIndex, redocUI, swaggerUI } from '@hono-crud/swagger';
+import { Hono } from 'hono';
 
-// app exposes its OpenAPI spec at /openapi.json
+const app = new Hono(); // exposes its OpenAPI spec at /openapi.json
+
 app.get('/docs', swaggerUI({ specUrl: '/openapi.json' }));
 app.get('/redoc', redocUI({ specUrl: '/openapi.json', pageTitle: 'My API' }));
 

@@ -1,6 +1,6 @@
 # Rate Limiting
 
-Rate limiting lives in the `@hono-crud/rate-limit` package. It provides middleware with fixed-window and sliding-window algorithms, tier-based limits, and Memory/Redis storage.
+Rate limiting lives in the `@hono-crud/rate-limit` package. It provides middleware with fixed-window and sliding-window algorithms, tier-based limits, and Memory/Redis/Cloudflare KV storage.
 
 Install: `npm install @hono-crud/rate-limit`.
 
@@ -13,9 +13,13 @@ especially on edge/serverless runtimes where backends are built from
 per-request bindings. It writes the `rateLimitStorage` context var that the
 rate-limit middleware resolves from:
 
+<!-- docs-typecheck:prelude -->
 ```typescript
+import { Hono } from 'hono';
 import { createStorageMiddleware } from 'hono-crud/storage';
 import { createRateLimitMiddleware, MemoryRateLimitStorage } from '@hono-crud/rate-limit';
+
+const app = new Hono();
 
 app.use('*', createStorageMiddleware({
   rateLimitStorage: new MemoryRateLimitStorage(),
@@ -26,6 +30,9 @@ app.use('*', createStorageMiddleware({
 
 ```typescript
 import { RedisRateLimitStorage } from '@hono-crud/rate-limit';
+import type { RedisRateLimitClient } from '@hono-crud/rate-limit';
+
+declare const redisClient: RedisRateLimitClient; // your ioredis / node-redis client
 
 app.use('*', createStorageMiddleware({
   rateLimitStorage: new RedisRateLimitStorage({ client: redisClient }),
@@ -43,7 +50,7 @@ instead. Resolution priority is explicit `config.storage` > context > global,
 so the setter is a compatibility option, never a requirement:
 
 ```typescript
-import { setRateLimitStorage, MemoryRateLimitStorage } from '@hono-crud/rate-limit';
+import { setRateLimitStorage } from '@hono-crud/rate-limit';
 
 setRateLimitStorage(new MemoryRateLimitStorage());
 ```
@@ -90,17 +97,17 @@ When rate limit is exceeded, the response is `429 Too Many Requests` with a `Ret
 | `limit` | `number` | `100` | Maximum requests per window |
 | `windowSeconds` | `number` | `60` | Window size in seconds |
 | `algorithm` | `'fixed-window' \| 'sliding-window'` | `'sliding-window'` | Rate limit algorithm |
-| `keyStrategy` | `KeyStrategy \| function` | `'ip'` | How to identify clients |
+| `keyStrategy` | `KeyStrategy \| KeyExtractor` | `'ip'` | How to identify clients |
 | `keyPrefix` | `string` | `'rl'` | Storage key prefix |
-| `excludePaths` | `string[]` | `[]` | Paths excluded from rate limiting (glob patterns) |
+| `excludePaths` | `PathPattern[]` | `[]` | Paths excluded from rate limiting (exact, glob, or regex) |
 | `includeHeaders` | `boolean` | `true` | Include rate limit headers |
 | `errorMessage` | `string` | `'Too many requests'` | Error message on 429 |
 | `storage` | `RateLimitStorage` | - | Per-middleware storage override |
-| `ipHeader` | `string` | - | Custom header for client IP |
-| `trustProxy` | `boolean` | - | Trust X-Forwarded-For |
-| `apiKeyHeader` | `string` | - | Header for API key strategy |
-| `getTier` | `function` | - | Dynamic limits per user |
-| `onRateLimitExceeded` | `function` | - | Callback on rate limit hit |
+| `ipHeader` | `string` | `'X-Forwarded-For'` | Custom header for client IP |
+| `trustProxy` | `boolean` | `true` | Trust proxy headers for IP extraction |
+| `apiKeyHeader` | `string` | `'X-API-Key'` | Header for API key strategy |
+| `getTier` | `TierFunction` | - | Dynamic limits per user |
+| `onRateLimitExceeded` | `OnRateLimitExceeded` | - | Callback on rate limit hit |
 
 ### Key Strategies
 
@@ -110,16 +117,20 @@ When rate limit is exceeded, the response is `429 Too Many Requests` with a `Ret
 | `'user'` | Authenticated user ID (falls back to IP) |
 | `'api-key'` | API key header (falls back to IP) |
 | `'combined'` | IP + user ID combination |
-| `(ctx) => string` | Custom key extraction function |
+| `(ctx) => string \| undefined` | Custom key extraction function (`undefined` skips rate limiting) |
 
 ---
 
 ## Tier-based Limits
 
-Different rate limits based on user type:
+Different rate limits based on user type. The `'user'` strategy and
+`ctx.get('user')` read the auth context, so type the middleware with `AuthEnv`
+from `hono-crud/auth`:
 
 ```typescript
-app.use('/api/*', createRateLimitMiddleware({
+import type { AuthEnv } from 'hono-crud/auth';
+
+app.use('/api/*', createRateLimitMiddleware<AuthEnv>({
   keyStrategy: 'user',
   getTier: async (ctx) => {
     const user = ctx.get('user');
@@ -143,6 +154,8 @@ app.use('/api/*', createRateLimitMiddleware({
 ## Custom Key Strategy
 
 ```typescript
+import { extractIP } from '@hono-crud/rate-limit';
+
 app.use('/api/*', createRateLimitMiddleware({
   keyStrategy: (ctx) => {
     // Rate limit by organization

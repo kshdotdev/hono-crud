@@ -1,6 +1,6 @@
 import type { Context, Env } from 'hono';
 import type {
-  Constructor,
+  AbstractConstructor,
   MetaInput,
   OpenAPIRoute,
   ResponseEnvelopeInfo,
@@ -163,31 +163,33 @@ export interface CacheInvalidationMethods {
 /**
  * Mixin that adds caching capabilities to read/list endpoints.
  *
+ * The route registrar calls `setContext(c)` before invoking `handle()`,
+ * so overrides are parameterless — never add a `ctx` parameter or call
+ * `setContext` yourself.
+ *
  * @example
  * ```ts
  * class UserRead extends withCache(MemoryReadEndpoint) {
- *   _meta = { model: UserModel };
+ *   _meta = userMeta;
  *
  *   cacheConfig = {
  *     ttlSeconds: 300,    // 5 minutes
  *     perUser: false,     // Shared cache
  *   };
  *
- *   async handle(ctx: Context) {
- *     this.setContext(ctx);
- *
+ *   override async handle(): Promise<Response> {
  *     // Try cache first
  *     const cached = await this.getCachedResponse<UserData>();
  *     if (cached) {
- *       return this.success(cached);
+ *       return this.successWithCache(cached);
  *     }
  *
  *     // Fetch from database
- *     const response = await super.handle(ctx);
+ *     const response = await super.handle();
  *
  *     // Cache the result (only if successful)
  *     if (response.status === 200) {
- *       const data = await response.clone().json();
+ *       const data = (await response.clone().json()) as { result: UserData };
  *       await this.setCachedResponse(data.result);
  *     }
  *
@@ -196,9 +198,13 @@ export interface CacheInvalidationMethods {
  * }
  * ```
  */
-export function withCache<TBase extends Constructor<OpenAPIRoute>>(
+export function withCache<TBase extends AbstractConstructor<OpenAPIRoute>>(
   Base: TBase,
-): TBase & Constructor<CacheEndpointMethods> {
+  // A single construct signature (instance type intersected) — an
+  // intersection of two constructor types (`TBase & Constructor<...>`)
+  // cannot be extended (TS2510: base constructors must share a return
+  // type), which would break `class X extends withCache(Base)`.
+): AbstractConstructor<InstanceType<TBase> & CacheEndpointMethods> {
   // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class CachedRoute extends Base implements CacheEndpointMethods {
     /**
@@ -383,7 +389,7 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
     }
   }
 
-  return CachedRoute as unknown as TBase & Constructor<CacheEndpointMethods>;
+  return CachedRoute as unknown as AbstractConstructor<InstanceType<TBase> & CacheEndpointMethods>;
 }
 
 // ============================================================================
@@ -406,9 +412,10 @@ export function withCache<TBase extends Constructor<OpenAPIRoute>>(
  * }
  * ```
  */
-export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
+export function withCacheInvalidation<TBase extends AbstractConstructor<OpenAPIRoute>>(
   Base: TBase,
-): TBase & Constructor<CacheInvalidationMethods> {
+  // Single construct signature — see the `withCache` return-type note.
+): AbstractConstructor<InstanceType<TBase> & CacheInvalidationMethods> {
   // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class InvalidatingRoute extends Base implements CacheInvalidationMethods {
     /**
@@ -523,7 +530,9 @@ export function withCacheInvalidation<TBase extends Constructor<OpenAPIRoute>>(
     }
   }
 
-  return InvalidatingRoute as unknown as TBase & Constructor<CacheInvalidationMethods>;
+  return InvalidatingRoute as unknown as AbstractConstructor<
+    InstanceType<TBase> & CacheInvalidationMethods
+  >;
 }
 
 // ============================================================================

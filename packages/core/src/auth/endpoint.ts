@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import { ForbiddenException, UnauthorizedException } from '../core/exceptions';
 import { OpenAPIRoute } from '../core/route';
-import type { Constructor, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import type { AbstractConstructor, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { errorResponseSchema } from '../endpoints/responses';
 import type { AuthEnv, AuthUser, EndpointAuthConfig } from './types';
 
@@ -37,14 +37,18 @@ export interface AuthEndpointMethods {
  * Base class for authenticated endpoints.
  * Provides helper methods for accessing user info and checking roles/permissions.
  *
+ * The route registrar calls `setContext(c)` before invoking `handle()`,
+ * so overrides are parameterless — never add a `ctx` parameter or call
+ * `setContext` yourself.
+ *
  * @example
  * ```ts
  * class SecureEndpoint extends AuthenticatedEndpoint<AuthEnv, MetaInput> {
  *   requiresAuth = true;
  *   requiredRoles = ['admin'];
  *
- *   async handle(ctx: Context<AuthEnv>) {
- *     this.setContext(ctx);
+ *   async handle(): Promise<Response> {
+ *     await this.enforceAuth();
  *     const user = this.getUser(); // AuthUser
  *     return this.success({ user });
  *   }
@@ -302,9 +306,13 @@ export abstract class AuthenticatedEndpoint<
  * }
  * ```
  */
-export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
+export function withAuth<TBase extends AbstractConstructor<OpenAPIRoute>>(
   Base: TBase,
-): TBase & Constructor<EndpointAuthConfig & AuthEndpointMethods> {
+  // A single construct signature (instance type intersected) — an
+  // intersection of two constructor types (`TBase & Constructor<...>`)
+  // cannot be extended (TS2510: base constructors must share a return
+  // type), which would break `class X extends withAuth(Base)`.
+): AbstractConstructor<InstanceType<TBase> & EndpointAuthConfig & AuthEndpointMethods> {
   // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class AuthenticatedRoute extends Base implements EndpointAuthConfig {
     /**
@@ -535,6 +543,7 @@ export function withAuth<TBase extends Constructor<OpenAPIRoute>>(
     }
   }
 
-  return AuthenticatedRoute as unknown as TBase &
-    Constructor<EndpointAuthConfig & AuthEndpointMethods>;
+  return AuthenticatedRoute as unknown as AbstractConstructor<
+    InstanceType<TBase> & EndpointAuthConfig & AuthEndpointMethods
+  >;
 }

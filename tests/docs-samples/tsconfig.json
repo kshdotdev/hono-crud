@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Doc samples legitimately declare things they don't use (they teach a
+    // shape, not a program) — keep strictness but drop the unused checks.
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": [".generated/**/*.ts"]
+}

@@ -12,8 +12,10 @@ npm install @hono-crud/scalar hono-crud hono
 
 ```ts
 import { scalarUI } from '@hono-crud/scalar';
+import { Hono } from 'hono';
 
-// app exposes its OpenAPI spec at /openapi.json
+const app = new Hono(); // exposes its OpenAPI spec at /openapi.json
+
 app.get('/reference', scalarUI({
   specUrl: '/openapi.json',
   pageTitle: 'My API',
