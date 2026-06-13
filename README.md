@@ -63,6 +63,9 @@ Health check routes (`createHealthRoutes`) live in core, importable from the `ho
 
 ## Quick Start
 
+The samples in the rest of this README build on this setup:
+
+<!-- docs-typecheck:prelude -->
 ```typescript
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -125,13 +128,15 @@ class UserDelete extends MemoryDeleteEndpoint {
 // 4. Wire it up
 const app = fromHono(new Hono());
 
-registerCrud(app, '/users', {
+const userEndpoints = {
   create: UserCreate,
   list: UserList,
   read: UserRead,
   update: UserUpdate,
   delete: UserDelete,
-});
+};
+
+registerCrud(app, '/users', userEndpoints);
 
 // 5. OpenAPI docs
 app.doc('/openapi.json', {
@@ -171,13 +176,13 @@ import { createList } from 'hono-crud/functional';
 import { MemoryAdapters } from '@hono-crud/memory';
 
 // Functional
-const UserList = createList(
+const FunctionalUserList = createList(
   { meta: userMeta, filterFields: ['role'], searchFields: ['name'] },
   MemoryListEndpoint
 );
 
 // Builder
-const UserList = crud(userMeta)
+const BuilderUserList = crud(userMeta)
   .list()
   .filter('role')
   .search('name')
@@ -194,7 +199,7 @@ const endpoints = defineEndpoints({
   delete: {},
 }, MemoryAdapters);
 
-registerCrud(app, '/users', endpoints);
+registerCrud(app, '/people', endpoints);
 ```
 
 See [docs/alternative-api-patterns.md](./docs/alternative-api-patterns.md) for the full reference.
@@ -205,6 +210,7 @@ See [docs/alternative-api-patterns.md](./docs/alternative-api-patterns.md) for t
 
 Zero-config, perfect for prototyping and tests (`npm install @hono-crud/memory`):
 
+<!-- docs-typecheck:skip import-path demo; these classes are already imported in the Quick Start -->
 ```typescript
 import { MemoryCreateEndpoint, MemoryListEndpoint /* ... */ } from '@hono-crud/memory';
 ```
@@ -214,16 +220,17 @@ import { MemoryCreateEndpoint, MemoryListEndpoint /* ... */ } from '@hono-crud/m
 `npm install @hono-crud/drizzle drizzle-orm drizzle-zod`. Use `createDrizzleCrud` for minimal boilerplate:
 
 ```typescript
-import { createDrizzleCrud } from '@hono-crud/drizzle';
-import { db } from './db';
+import { createDrizzleCrud, type DrizzleDatabaseConstraint } from '@hono-crud/drizzle';
 
-const User = createDrizzleCrud(db, userMeta);
+declare const drizzleDb: DrizzleDatabaseConstraint; // your drizzle instance
 
-class UserCreate extends User.Create {
+const User = createDrizzleCrud(drizzleDb, userMeta);
+
+class CreateUser extends User.Create {
   schema = { tags: ['Users'], summary: 'Create user' };
 }
 
-class UserList extends User.List {
+class ListUsers extends User.List {
   schema = { tags: ['Users'], summary: 'List users' };
   filterFields = ['role'];
 }
@@ -232,9 +239,11 @@ class UserList extends User.List {
 Or set `db` directly on each endpoint class:
 
 ```typescript
-import { DrizzleListEndpoint } from '@hono-crud/drizzle';
+import { DrizzleListEndpoint, type DrizzleDatabaseConstraint } from '@hono-crud/drizzle';
 
-class UserList extends DrizzleListEndpoint {
+declare const drizzleDb: DrizzleDatabaseConstraint; // your drizzle instance
+
+class DrizzleUserList extends DrizzleListEndpoint {
   _meta = userMeta;
   db = drizzleDb;
   filterFields = ['role'];
@@ -246,9 +255,11 @@ class UserList extends DrizzleListEndpoint {
 `npm install @hono-crud/prisma @prisma/client pluralize fastest-levenshtein`:
 
 ```typescript
-import { PrismaListEndpoint } from '@hono-crud/prisma';
+import { PrismaListEndpoint, type PrismaClient } from '@hono-crud/prisma';
 
-class UserList extends PrismaListEndpoint {
+declare const prismaClient: PrismaClient; // your generated Prisma client
+
+class PrismaUserList extends PrismaListEndpoint {
   _meta = userMeta;
   prisma = prismaClient;
   filterFields = ['role'];
@@ -262,16 +273,34 @@ See [docs/database-adapters.md](./docs/database-adapters.md) for complete setup 
 Built-in JWT and API Key middleware with composable guards:
 
 ```typescript
-import { createJWTMiddleware, requireRoles, requireAuthenticated, anyOf } from 'hono-crud/auth';
+import { env } from 'hono/adapter';
+import {
+  anyOf,
+  createJWTMiddleware,
+  requireAuthenticated,
+  requireOwnership,
+  requireRoles,
+  type AuthEnv,
+} from 'hono-crud/auth';
 
-// JWT middleware
-app.use('/api/*', createJWTMiddleware({
-  secret: process.env.JWT_SECRET!,
-  issuer: 'my-app',
-}));
+// Auth-aware endpoints share the app's Env type
+const securedApp = fromHono(new Hono<AuthEnv>());
+
+class SecuredUserCreate extends MemoryCreateEndpoint<AuthEnv> {
+  _meta = userMeta;
+}
+class SecuredUserDelete extends MemoryDeleteEndpoint<AuthEnv> {
+  _meta = userMeta;
+}
+
+// JWT middleware — read the secret per request via env() (edge-safe)
+securedApp.use('/api/*', (c, next) => {
+  const { JWT_SECRET } = env<{ JWT_SECRET: string }>(c);
+  return createJWTMiddleware({ secret: JWT_SECRET, issuer: 'my-app' })(c, next);
+});
 
 // Guards on specific endpoints
-registerCrud(app, '/users', endpoints, {
+registerCrud(securedApp, '/users', { create: SecuredUserCreate, delete: SecuredUserDelete }, {
   middlewares: [requireAuthenticated()],
   endpointMiddlewares: {
     delete: [requireRoles('admin')],
@@ -279,7 +308,7 @@ registerCrud(app, '/users', endpoints, {
 });
 
 // Composable guards
-app.use('/admin/*', anyOf(
+securedApp.use('/admin/*', anyOf(
   requireRoles('admin'),
   requireOwnership((ctx) => ctx.req.param('id'))
 ));
@@ -293,24 +322,24 @@ See [docs/authentication.md](./docs/authentication.md) for JWT, API Key, guards,
 
 ```typescript
 import { withCache, MemoryCacheStorage } from '@hono-crud/cache';
-import { MemoryReadEndpoint } from '@hono-crud/memory';
 import { createStorageMiddleware } from 'hono-crud/storage';
 
 // Wire storage (recommended: per-request injection, edge-safe)
 app.use('*', createStorageMiddleware({ cacheStorage: new MemoryCacheStorage() }));
 
-class UserRead extends withCache(MemoryReadEndpoint) {
+// The registrar calls setContext(c) before handle() — overrides are parameterless
+class CachedUserRead extends withCache(MemoryReadEndpoint) {
   _meta = userMeta;
   cacheConfig = { ttlSeconds: 300, perUser: false };
 
-  async handle(ctx) {
-    this.setContext(ctx);
+  override async handle(): Promise<Response> {
     const cached = await this.getCachedResponse();
     if (cached) return this.successWithCache(cached);
 
-    const response = await super.handle(ctx);
+    const response = await super.handle();
     if (response.status === 200) {
-      await this.setCachedResponse((await response.clone().json()).result);
+      const data = (await response.clone().json()) as { result: unknown };
+      await this.setCachedResponse(data.result);
     }
     return response;
   }
@@ -395,7 +424,7 @@ Thrown `ApiException`s serialize to this envelope even without any error-handler
 If your house API standard prefers a different shape — RFC 7807 Problem Details, JSON:API `{ data, meta }`, or any custom envelope — pass `responseEnvelope` to `registerCrud`. The two functions are the **final formatting step** before the response body is serialised:
 
 ```typescript
-import { registerCrud, type ResponseEnvelope } from 'hono-crud';
+import type { ResponseEnvelope } from 'hono-crud';
 
 const envelope: ResponseEnvelope = {
   success: (result, info) =>
@@ -405,7 +434,7 @@ const envelope: ResponseEnvelope = {
   }),
 };
 
-registerCrud(app, '/users', endpoints, { responseEnvelope: envelope });
+registerCrud(app, '/enveloped-users', userEndpoints, { responseEnvelope: envelope });
 ```
 
 The `info` argument is the pagination metadata for list/search responses; it's `undefined` for single-item responses, so a single envelope works across the whole CRUD surface.
@@ -418,7 +447,14 @@ For errors, the envelope composes with the existing `mappers` chain on `createEr
 2. `responseEnvelope.error(...)` wraps that structured object into the final response body.
 
 ```typescript
-import { createErrorHandler, type ErrorMapper } from 'hono-crud';
+import {
+  ConflictException,
+  createErrorHandler,
+  type ErrorMapper,
+  type ResponseEnvelope,
+} from 'hono-crud';
+
+declare const envelope: ResponseEnvelope; // from the previous sample
 
 const prismaMapper: ErrorMapper = (err) => {
   if ((err as { code?: string }).code === 'P2002') {
@@ -429,8 +465,9 @@ const prismaMapper: ErrorMapper = (err) => {
 app.onError(createErrorHandler({
   mappers: [prismaMapper],
   // Handler-level default — applies to errors that propagate to onError
-  // (i.e. anything that's not already an ApiException). Per-route envelope
-  // set via `registerCrud({ responseEnvelope })` always wins.
+  // (i.e. anything that's not already an ApiException). The per-route
+  // envelope passed to `registerCrud(app, path, endpoints, { responseEnvelope })`
+  // always wins.
   responseEnvelope: envelope,
 }));
 ```
@@ -496,7 +533,7 @@ app.use('/api/*', createIdempotencyMiddleware());
 `npm install @hono-crud/swagger @hono-crud/scalar`:
 
 ```typescript
-import { swaggerUI, redocUI } from '@hono-crud/swagger';
+import { redocUI } from '@hono-crud/swagger'; // swaggerUI already imported in the Quick Start
 import { scalarUI } from '@hono-crud/scalar';
 
 // OpenAPI spec

@@ -11,11 +11,14 @@ npm install @hono-crud/idempotency hono-crud hono
 ## Usage
 
 ```ts
-import { createStorageMiddleware } from 'hono-crud/storage';
 import {
   createIdempotencyMiddleware,
   MemoryIdempotencyStorage,
 } from '@hono-crud/idempotency';
+import { Hono } from 'hono';
+import { createStorageMiddleware } from 'hono-crud/storage';
+
+const app = new Hono();
 
 // Wire storage (recommended: per-request injection, edge-safe)
 app.use('*', createStorageMiddleware({
@@ -32,6 +35,7 @@ On a long-lived server, `setIdempotencyStorage(new MemoryIdempotencyStorage())` 
 
 `MemoryIdempotencyStorage` is per-process / per-isolate: on Cloudflare Workers (or any multi-instance deployment) a retry may hit a different isolate with an empty store, so replay protection is not guaranteed exactly where it matters. Use `RedisIdempotencyStorage` in production — compatible with `@upstash/redis` (edge-safe) out of the box:
 
+<!-- docs-typecheck:skip external SDK (@upstash/redis) not installed in this repo -->
 ```ts
 import { Redis } from '@upstash/redis';
 import { RedisIdempotencyStorage } from '@hono-crud/idempotency';

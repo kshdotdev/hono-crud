@@ -26,8 +26,29 @@ other dependencies.
 
 ## Usage
 
+<!-- docs-typecheck:prelude -->
 ```ts
+import {
+  MemoryCreateEndpoint,
+  MemoryDeleteEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
+} from '@hono-crud/memory';
 import { createCrudMcp } from '@hono-crud/mcp';
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { z } from 'zod';
+
+const UserSchema = z.object({ id: z.uuid(), name: z.string(), email: z.email() });
+const UserModel = defineModel({ tableName: 'users', schema: UserSchema, primaryKeys: ['id'] });
+const userMeta = defineMeta({ model: UserModel });
+
+class UserCreate extends MemoryCreateEndpoint { _meta = userMeta; }
+class UserList extends MemoryListEndpoint { _meta = userMeta; }
+class UserRead extends MemoryReadEndpoint { _meta = userMeta; }
+class UserUpdate extends MemoryUpdateEndpoint { _meta = userMeta; }
+class UserDelete extends MemoryDeleteEndpoint { _meta = userMeta; }
 
 const userEndpoints = { create: UserCreate, list: UserList, read: UserRead, update: UserUpdate, delete: UserDelete };
 
@@ -91,7 +112,7 @@ API-key middleware and header-based multi-tenancy. Override it when your pipelin
 headers (a function form for full control may come later):
 
 ```ts
-import { DEFAULT_FORWARD_HEADERS, createCrudMcp } from '@hono-crud/mcp';
+import { DEFAULT_FORWARD_HEADERS } from '@hono-crud/mcp';
 
 createCrudMcp(app, {
   name: 'my-api',
@@ -105,6 +126,9 @@ createCrudMcp(app, {
 **Verifier (default, simple).** The token gates `/mcp` and is forwarded to the CRUD routes:
 
 ```ts
+/** Your token verification — return an identity, or null to reject with 401. */
+declare function verifySession(token: string): Promise<Record<string, unknown> | null>;
+
 createCrudMcp(app, {
   name: 'my-api',
   version: '1.0.0',
@@ -117,21 +141,30 @@ createCrudMcp(app, {
 ```ts
 import { createJWTMiddleware } from 'hono-crud/auth';
 
-auth: { strategy: 'middleware', middleware: createJWTMiddleware({ secret }) }
+createCrudMcp(app, {
+  name: 'my-api',
+  version: '1.0.0',
+  auth: { strategy: 'middleware', middleware: createJWTMiddleware({ secret: 'top-secret' }) },
+});
 ```
 
 **OAuth 2.1 (opt-in).** Bring your own metadata router + bearer middleware (e.g. from
 [`@hono/mcp`](https://github.com/honojs/middleware/tree/main/packages/mcp)'s `simpleMcpAuthRouter`
 and `bearerAuth`):
 
+<!-- docs-typecheck:skip external package (@hono/mcp) not installed in this repo -->
 ```ts
-import { simpleMcpAuthRouter, bearerAuth } from '@hono/mcp/auth';
+import { bearerAuth, simpleMcpAuthRouter } from '@hono/mcp/auth';
 
-auth: {
-  strategy: 'oauth',
-  router: simpleMcpAuthRouter({ issuer: 'https://issuer.example.com' }),
-  bearer: bearerAuth({ verifier }),
-}
+createCrudMcp(app, {
+  name: 'my-api',
+  version: '1.0.0',
+  auth: {
+    strategy: 'oauth',
+    router: simpleMcpAuthRouter({ issuer: 'https://issuer.example.com' }),
+    bearer: bearerAuth({ verifier }),
+  },
+});
 ```
 
 ## License

@@ -11,12 +11,15 @@ npm install @hono-crud/rate-limit hono-crud hono
 ## Usage
 
 ```ts
-import { createStorageMiddleware } from 'hono-crud/storage';
 import {
   createRateLimitMiddleware,
   MemoryRateLimitStorage,
   type RateLimitEnv,
 } from '@hono-crud/rate-limit';
+import { Hono } from 'hono';
+import { createStorageMiddleware } from 'hono-crud/storage';
+
+const app = new Hono();
 
 // Wire storage (recommended: per-request injection, edge-safe)
 app.use('*', createStorageMiddleware({

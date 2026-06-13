@@ -2,22 +2,52 @@
 
 This document covers all advanced hono-crud features with code examples.
 
+The samples below share this setup — an in-memory `users` resource:
+
+<!-- docs-typecheck:prelude -->
+```typescript
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import {
+  MemoryCreateEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
+} from '@hono-crud/memory';
+
+const UserSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  email: z.email(),
+  role: z.enum(['admin', 'user']),
+  status: z.string(),
+  age: z.number(),
+  createdAt: z.string(),
+  deletedAt: z.date().nullable().optional(),
+});
+
+const userMeta = defineMeta({
+  model: defineModel({
+    tableName: 'users',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+  }),
+});
+
+const app = fromHono(new Hono());
+```
+
 ---
 
 ## Soft Delete & Restore
 
-Mark records as deleted instead of removing them. Requires a `deletedAt` field in your schema.
+Mark records as deleted instead of removing them. Requires a `deletedAt` field in your schema (see `UserSchema` above).
 
 ```typescript
-const UserSchema = z.object({
-  id: z.uuid(),
-  name: z.string(),
-  deletedAt: z.date().nullable().optional(),
-});
-
 const UserModel = defineModel({
   tableName: 'users',
-  schema: UserSchema,
+  schema: UserSchema, // includes `deletedAt: z.date().nullable().optional()`
   primaryKeys: ['id'],
   softDelete: true,
   // Or with custom config:
@@ -66,6 +96,13 @@ const UserModel = defineModel({
     profile: { type: 'hasOne', model: 'profiles', foreignKey: 'userId' },
     comments: { type: 'hasMany', model: 'comments', foreignKey: 'authorId' },
   },
+});
+
+const PostSchema = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  content: z.string(),
+  authorId: z.uuid(),
 });
 
 const PostModel = defineModel({
@@ -174,6 +211,12 @@ class UserBatchDelete extends MemoryBatchDeleteEndpoint {
   maxBatchSize = 100;
 }
 
+class UserBatchRestore extends MemoryBatchRestoreEndpoint {
+  _meta = userMeta;
+  schema = { tags: ['Users'], summary: 'Batch restore users' };
+  maxBatchSize = 100;
+}
+
 registerCrud(app, '/users', {
   // ...standard endpoints
   batchCreate: UserBatchCreate,
@@ -220,19 +263,36 @@ Create or update a record based on unique keys.
 ```typescript
 import { MemoryUpsertEndpoint } from '@hono-crud/memory';
 
+const CategorySchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  description: z.string(),
+  sortOrder: z.number(),
+});
+
+const categoryMeta = defineMeta({
+  model: defineModel({
+    tableName: 'categories',
+    schema: CategorySchema,
+    primaryKeys: ['id'],
+  }),
+});
+
 class CategoryUpsert extends MemoryUpsertEndpoint {
   _meta = categoryMeta;
   schema = { tags: ['Categories'], summary: 'Upsert a category' };
   upsertKeys = ['name']; // Match on these fields
 }
 
-// Register manually (not part of standard CRUD)
-app.put('/categories', CategoryUpsert);
+registerCrud(app, '/categories', {
+  upsert: CategoryUpsert,
+});
+// Registers: POST /categories/upsert
 ```
 
 **Request:**
 ```json
-PUT /categories
+POST /categories/upsert
 { "name": "Technology", "description": "Tech posts", "sortOrder": 1 }
 ```
 
@@ -245,16 +305,7 @@ If a category with `name: "Technology"` exists, it's updated. Otherwise, it's cr
 Track record version history with rollback support.
 
 ```typescript
-import {
-  VersionHistoryEndpoint,
-  VersionReadEndpoint,
-  VersionCompareEndpoint,
-  VersionRollbackEndpoint,
-} from 'hono-crud';
-import {
-  createVersionManager,
-  MemoryVersioningStorage,
-} from 'hono-crud/versioning';
+import { MemoryVersioningStorage } from 'hono-crud/versioning';
 import { createStorageMiddleware } from 'hono-crud/storage';
 
 // Setup storage (recommended: per-request injection, edge-safe; on a
@@ -273,28 +324,47 @@ const UserModel = defineModel({
 });
 ```
 
-**Version endpoints:**
+**Version endpoints** (each adapter package ships its own variants — shown here for `@hono-crud/memory`):
 
 ```typescript
-class UserVersionHistory extends VersionHistoryEndpoint {
+import {
+  MemoryVersionHistoryEndpoint,
+  MemoryVersionReadEndpoint,
+  MemoryVersionCompareEndpoint,
+  MemoryVersionRollbackEndpoint,
+} from '@hono-crud/memory';
+
+class UserVersionHistory extends MemoryVersionHistoryEndpoint {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Version history' };
 }
 
-class UserVersionRead extends VersionReadEndpoint {
+class UserVersionRead extends MemoryVersionReadEndpoint {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Read specific version' };
 }
 
-class UserVersionCompare extends VersionCompareEndpoint {
+class UserVersionCompare extends MemoryVersionCompareEndpoint {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Compare versions' };
 }
 
-class UserVersionRollback extends VersionRollbackEndpoint {
+class UserVersionRollback extends MemoryVersionRollbackEndpoint {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Rollback to version' };
 }
+
+registerCrud(app, '/users', {
+  versionHistory: UserVersionHistory,
+  versionRead: UserVersionRead,
+  versionCompare: UserVersionCompare,
+  versionRollback: UserVersionRollback,
+});
+// Registers:
+//   GET  /users/:id/versions
+//   GET  /users/:id/versions/compare
+//   GET  /users/:id/versions/:version
+//   POST /users/:id/versions/:version/rollback
 ```
 
 ---
@@ -304,10 +374,7 @@ class UserVersionRollback extends VersionRollbackEndpoint {
 Track who changed what and when.
 
 ```typescript
-import {
-  createAuditLogger,
-  MemoryAuditLogStorage,
-} from 'hono-crud/audit';
+import { MemoryAuditLogStorage } from 'hono-crud/audit';
 import { createStorageMiddleware } from 'hono-crud/storage';
 
 // Setup storage (recommended: per-request injection, edge-safe; on a
@@ -335,15 +402,18 @@ Audit entries include: action type, table, record ID, user ID, timestamp, and op
 Weighted search with highlighting across multiple fields.
 
 ```typescript
-import { SearchEndpoint } from 'hono-crud';
+import { MemorySearchEndpoint } from '@hono-crud/memory';
 
-class UserSearch extends SearchEndpoint {
+class UserSearch extends MemorySearchEndpoint {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Search users' };
+  searchFields = ['name', 'email'];
 }
 
-// Register separately
-app.get('/users/search', UserSearch);
+registerCrud(app, '/users', {
+  search: UserSearch,
+});
+// Registers: GET /users/search
 ```
 
 **Query:**
@@ -369,19 +439,22 @@ class UserList extends MemoryListEndpoint {
 Compute sum, count, avg, min, max with grouping.
 
 ```typescript
-import { AggregateEndpoint } from 'hono-crud';
+import { MemoryAggregateEndpoint } from '@hono-crud/memory';
 
-class UserAggregate extends AggregateEndpoint {
+class UserAggregate extends MemoryAggregateEndpoint {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Aggregate user data' };
 }
 
-app.get('/users/aggregate', UserAggregate);
+registerCrud(app, '/users', {
+  aggregate: UserAggregate,
+});
+// Registers: GET /users/aggregate
 ```
 
-**Query:**
+**Query** (one query param per operation: `count`, `sum`, `avg`, `min`, `max`, `countDistinct`):
 ```
-GET /users/aggregate?aggregate=count:id,avg:age&groupBy=role
+GET /users/aggregate?count=id&avg=age&groupBy=role
 ```
 
 ---
@@ -391,20 +464,23 @@ GET /users/aggregate?aggregate=count:id,avg:age&groupBy=role
 Export and import records as CSV or JSON.
 
 ```typescript
-import { ExportEndpoint, ImportEndpoint } from 'hono-crud';
+import { MemoryExportEndpoint, MemoryImportEndpoint } from '@hono-crud/memory';
 
-class UserExport extends ExportEndpoint {
+class UserExport extends MemoryExportEndpoint {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Export users' };
 }
 
-class UserImport extends ImportEndpoint {
+class UserImport extends MemoryImportEndpoint {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Import users' };
 }
 
-app.get('/users/export', UserExport);
-app.post('/users/import', UserImport);
+registerCrud(app, '/users', {
+  export: UserExport,
+  import: UserImport,
+});
+// Registers: GET /users/export and POST /users/import
 ```
 
 **Export:**
@@ -413,44 +489,53 @@ GET /users/export?format=csv
 GET /users/export?format=json&fields=id,name,email
 ```
 
-**Import modes:**
-- `create` - Create new records only
-- `update` - Update existing records only
-- `upsert` - Create or update
+**Import modes** (`?mode=`):
+- `create` - Create new records only (fails on duplicates)
+- `upsert` - Create or update (matched by `upsertKeys`)
 
 ---
 
 ## Computed Fields
 
-Virtual fields calculated at runtime, not stored in the database.
+Virtual fields calculated at runtime, not stored in the database. Each entry
+(`ComputedFieldConfig`) takes a `compute` function, an optional Zod `schema`
+(for OpenAPI documentation), and an optional `dependsOn` list used to skip
+computation when none of those fields were selected.
 
 ```typescript
-import type { ComputedFieldsConfig } from 'hono-crud';
+const PersonSchema = z.object({
+  id: z.uuid(),
+  firstName: z.string(),
+  lastName: z.string(),
+  birthDate: z.string(),
+  status: z.string(),
+  emailVerified: z.boolean(),
+});
 
-const computedFields: ComputedFieldsConfig = {
-  fullName: {
-    type: 'string',
-    compute: (record) => `${record.firstName} ${record.lastName}`,
-  },
-  age: {
-    type: 'number',
-    compute: (record) => {
-      const birth = new Date(record.birthDate);
-      const today = new Date();
-      return today.getFullYear() - birth.getFullYear();
+const PersonModel = defineModel({
+  tableName: 'people',
+  schema: PersonSchema,
+  primaryKeys: ['id'],
+  computedFields: {
+    fullName: {
+      schema: z.string(),
+      dependsOn: ['firstName', 'lastName'],
+      compute: (record) => `${record.firstName} ${record.lastName}`,
+    },
+    age: {
+      schema: z.number(),
+      dependsOn: ['birthDate'],
+      compute: (record) => {
+        const birth = new Date(record.birthDate);
+        const today = new Date();
+        return today.getFullYear() - birth.getFullYear();
+      },
+    },
+    isActive: {
+      schema: z.boolean(),
+      compute: (record) => record.status === 'active' && record.emailVerified,
     },
   },
-  isActive: {
-    type: 'boolean',
-    compute: (record) => record.status === 'active' && record.emailVerified,
-  },
-};
-
-const UserModel = defineModel({
-  tableName: 'users',
-  schema: UserSchema,
-  primaryKeys: ['id'],
-  computedFields,
 });
 ```
 
@@ -503,7 +588,7 @@ events.on('users', 'created', (event) => {
 });
 
 // Subscribe to all events on a table
-events.on('users', '*', (event) => {
+events.onTable('users', (event) => {
   console.log(`User ${event.type}:`, event.recordId);
 });
 
@@ -516,16 +601,25 @@ events.onAny((event) => {
 ### Webhooks
 
 ```typescript
-import { registerWebhooks } from 'hono-crud/events';
+import { CrudEventEmitter, registerWebhooks } from 'hono-crud/events';
+import { createStorageMiddleware } from 'hono-crud/storage';
+
+const events = new CrudEventEmitter();
+app.use('*', createStorageMiddleware({ eventEmitter: events }));
+
+// Webhook signing secret — load from your secret store
+// (e.g. `env()` from 'hono/adapter')
+declare const WEBHOOK_SECRET: string;
 
 registerWebhooks({
+  emitter: events,
   endpoints: [
     {
       url: 'https://hooks.example.com/crud',
-      secret: process.env.WEBHOOK_SECRET,
+      secret: WEBHOOK_SECRET,
       events: ['users:created', 'users:updated'],
       retries: 2,
-      timeout: 10000,
+      timeoutMs: 10000,
     },
   ],
 });
@@ -537,38 +631,51 @@ Webhooks are signed with HMAC-SHA256 using the Web Crypto API (edge-safe). The s
 
 ## Encryption
 
-Field-level encryption using AES-GCM via the Web Crypto API.
+Field-level encryption using AES-GCM via the Web Crypto API. Configure it once
+on the model (`fieldEncryption`, a `FieldEncryptionConfig`) and endpoints
+encrypt the listed fields before create/update writes and decrypt them after
+read/list reads automatically. For lower-level control, call
+`encryptFields` / `decryptFields` yourself in lifecycle hooks.
 
 ```typescript
 import {
-  encryptFields,
   decryptFields,
+  encryptFields,
   StaticKeyProvider,
-  type FieldEncryptionConfig,
 } from 'hono-crud/encryption';
+import type { HookContext } from 'hono-crud';
 
-const keyProvider = new StaticKeyProvider(process.env.ENCRYPTION_KEY!);
+// 256-bit key, base64-encoded — load from your secret store (e.g. `env()`
+// from 'hono/adapter'); `StaticKeyProvider.generateKey()` makes one for dev.
+declare const ENCRYPTION_KEY_BASE64: string;
 
-const encryptionConfig: FieldEncryptionConfig[] = [
-  { field: 'ssn', keyProvider },
-  { field: 'creditCard', keyProvider },
-];
+const keyProvider = new StaticKeyProvider(ENCRYPTION_KEY_BASE64);
 
-// Encrypt before storing
+// Model-level config: encrypt/decrypt happens automatically in endpoints
+const UserModel = defineModel({
+  tableName: 'users',
+  schema: UserSchema,
+  primaryKeys: ['id'],
+  fieldEncryption: {
+    fields: ['ssn', 'creditCard'],
+    keyProvider,
+  },
+});
+
+// Lower-level alternative: encrypt/decrypt yourself in hooks
 class UserCreate extends MemoryCreateEndpoint {
   _meta = userMeta;
 
-  async before(data) {
-    return encryptFields(data, encryptionConfig);
+  override async before(data: Record<string, unknown>, hookCtx: HookContext) {
+    return encryptFields(data, ['ssn', 'creditCard'], keyProvider);
   }
 }
 
-// Decrypt after reading
 class UserRead extends MemoryReadEndpoint {
   _meta = userMeta;
 
-  async after(record) {
-    return decryptFields(record, encryptionConfig);
+  override async after(record: Record<string, unknown>) {
+    return decryptFields(record, ['ssn', 'creditCard'], keyProvider);
   }
 }
 ```
@@ -690,7 +797,7 @@ const UserModel = defineModel({
     contextKey: 'tenantId',   // context var the data layer READS (middleware WRITES it)
     headerName: 'X-Tenant-ID',// used when source is 'header'
     pathParam: 'tenantId',    // used when source is 'path'
-    getTenantId: undefined,   // custom extractor when source is 'custom'
+    // getTenantId: (ctx) => ..., // custom extractor when source is 'custom'
     required: true,           // false = silently return no results when missing
     errorMessage: 'Tenant ID is required',
   },
@@ -706,6 +813,10 @@ Liveness and readiness endpoints.
 ```typescript
 import { createHealthRoutes } from 'hono-crud/health';
 
+// your own connections
+declare const db: { execute(sql: string): Promise<unknown> };
+declare const redis: { ping(): Promise<string> };
+
 app.route('/', createHealthRoutes({
   version: '1.0.0',
   path: '/health',       // Liveness (always 200)
@@ -720,7 +831,7 @@ app.route('/', createHealthRoutes({
       name: 'cache',
       check: async () => { await redis.ping(); },
       critical: false,   // Failure = degraded, not unhealthy
-      timeout: 3000,     // Per-check timeout
+      timeoutMs: 3000,   // Per-check timeout
     },
   ],
 }));
@@ -756,11 +867,14 @@ import {
   InputValidationException,
 } from 'hono-crud';
 
+// your own lookup
+declare function findByEmail(email: unknown): Promise<Record<string, unknown> | null>;
+
 // Throw in endpoint hooks
 class UserCreate extends MemoryCreateEndpoint {
   _meta = userMeta;
 
-  async before(data) {
+  override async before(data: Record<string, unknown>) {
     const existing = await findByEmail(data.email);
     if (existing) {
       throw new ConflictException('Email already in use');
@@ -778,7 +892,7 @@ import { createErrorHandler } from 'hono-crud';
 const errorHandler = createErrorHandler({
   defaultErrorCode: 'INTERNAL_ERROR', // code for unmapped errors (default)
   defaultErrorMessage: 'An internal error occurred', // message for unmapped errors (default)
-  includeStackTrace: process.env.NODE_ENV !== 'production', // never enable in production
+  includeStackTrace: false, // dev-only escape hatch — never enable in production
 });
 
 app.onError(errorHandler);
@@ -856,7 +970,7 @@ class UserList extends MemoryListEndpoint {
 ```
 GET /users?age[gte]=18
 GET /users?age[between]=18,30
-GET /users?name[ilike]=%alice%
+GET /users?name[ilike]=alice
 GET /users?role[in]=admin,user
 GET /users?age[null]=true
 ```
@@ -871,11 +985,15 @@ GET /users?age[null]=true
 | `gte` | Greater than or equal | `?age[gte]=18` |
 | `lt` | Less than | `?age[lt]=65` |
 | `lte` | Less than or equal | `?age[lte]=65` |
-| `like` | LIKE (case-sensitive) | `?name[like]=%alice%` |
-| `ilike` | ILIKE (case-insensitive) | `?name[ilike]=%alice%` |
+| `like` | Substring match (case behavior follows the DB collation; case-sensitive in memory) | `?name[like]=alice` |
+| `ilike` | Substring match (always case-insensitive) | `?name[ilike]=alice` |
 | `in` | In list | `?role[in]=admin,user` |
+| `nin` | Not in list | `?role[nin]=admin,user` |
 | `between` | Between two values | `?age[between]=18,30` |
 | `null` | Is null / is not null | `?age[null]=true` |
+
+`like`/`ilike` values are literal needles: `%` is stripped and `_` is inert —
+they are never live SQL wildcards.
 
 ---
 
@@ -897,15 +1015,21 @@ GET /users?order_by=name&order_by_direction=asc
 GET /users?page=2&per_page=50
 ```
 
-**Response includes pagination metadata:**
+**Response includes pagination metadata** (nested under `result_info`; with
+cursor pagination it carries a `next_cursor` instead of page counts — cursor
+walks are next-only, there is no `prev_cursor`):
 ```json
 {
   "success": true,
   "result": [...],
-  "page": 2,
-  "per_page": 50,
-  "total": 150,
-  "page_count": 3
+  "result_info": {
+    "page": 2,
+    "per_page": 50,
+    "total_count": 150,
+    "total_pages": 3,
+    "has_next_page": true,
+    "has_prev_page": true
+  }
 }
 ```
 
@@ -921,6 +1045,8 @@ never runs.
 
 ```typescript
 import { apiVersion, apiVersionedResponse, getApiVersion, getApiVersionConfig } from 'hono-crud/api-version';
+
+declare const userData: Record<string, unknown>; // your record
 
 app.use('/api/*', apiVersion({
   versions: [
@@ -958,13 +1084,16 @@ Transform response data based on context (e.g., public vs admin views).
 
 ```typescript
 import { applyProfile, type SerializationProfile } from 'hono-crud/serialization';
+import { hasRole } from 'hono-crud/auth';
 
 const publicProfile: SerializationProfile = {
+  name: 'public',
   include: ['id', 'name', 'avatar'],
   exclude: ['email', 'role', 'createdAt'],
 };
 
 const adminProfile: SerializationProfile = {
+  name: 'admin',
   include: ['id', 'name', 'email', 'role', 'createdAt'],
 };
 
@@ -972,9 +1101,8 @@ const adminProfile: SerializationProfile = {
 class UserRead extends MemoryReadEndpoint {
   _meta = userMeta;
 
-  async after(record) {
-    const user = this.getContext().var.user;
-    const profile = user?.roles?.includes('admin') ? adminProfile : publicProfile;
+  override async after(record: Record<string, unknown>) {
+    const profile = hasRole(this.getContext(), 'admin') ? adminProfile : publicProfile;
     return applyProfile(record, profile);
   }
 }

@@ -13,22 +13,68 @@ hono-crud provides four different ways to define CRUD endpoints. All patterns pr
 
 The functional and builder APIs are deliberate sugar over the 5 basic verbs (create/list/read/update/delete). The config-based API (`defineEndpoints`) covers every `registerCrud` verb — including search, aggregate, batch.*, export/import, upsert, clone, bulk-patch and the four versioning verbs — and the class API is the full-power surface.
 
+## Shared Setup
+
+All samples on this page share one model, meta, and app:
+
+<!-- docs-typecheck:prelude -->
+```typescript
+import { Hono } from 'hono';
+import type { Env } from 'hono';
+import { z } from 'zod';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import {
+  MemoryCreateEndpoint,
+  MemoryDeleteEndpoint,
+  MemoryListEndpoint,
+  MemoryReadEndpoint,
+  MemoryUpdateEndpoint,
+} from '@hono-crud/memory';
+
+const UserSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  email: z.string(),
+  role: z.string(),
+  status: z.string(),
+  age: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+type User = z.infer<typeof UserSchema>;
+
+const UserModel = defineModel({
+  tableName: 'users',
+  schema: UserSchema,
+  primaryKeys: ['id'],
+});
+
+const userMeta = defineMeta({ model: UserModel });
+
+const app = fromHono(new Hono());
+```
+
 ## Quick Comparison
 
 ```typescript
-// All four patterns produce the same result:
+import { defineEndpoints } from 'hono-crud';
+import { createList } from 'hono-crud/functional';
+import { crud } from 'hono-crud/builder';
+import { MemoryAdapters } from '@hono-crud/memory';
+
+// All four patterns produce the same endpoint:
 
 // 1. Class-based
-class UserList extends MemoryListEndpoint {
+class UserListClass extends MemoryListEndpoint {
   _meta = userMeta;
   filterFields = ['role'];
 }
 
 // 2. Functional
-const UserList = createList({ meta: userMeta, filterFields: ['role'] }, MemoryListEndpoint);
+const UserListFunctional = createList({ meta: userMeta, filterFields: ['role'] }, MemoryListEndpoint);
 
 // 3. Builder
-const UserList = crud(userMeta).list().filter('role').build(MemoryListEndpoint);
+const UserListBuilder = crud(userMeta).list().filter('role').build(MemoryListEndpoint);
 
 // 4. Config-based
 const endpoints = defineEndpoints({
@@ -45,23 +91,14 @@ The original approach using class inheritance. Best for complex logic, custom me
 
 ### Basic Usage
 
+Model, meta, and app come from the [shared setup](#shared-setup) above. Passing the meta type as the second generic (`MemoryCreateEndpoint<Env, typeof userMeta>`) gives hook overrides like `before` fully typed parameters:
+
 ```typescript
-import { defineModel, defineMeta, registerCrud } from 'hono-crud';
-import { MemoryCreateEndpoint, MemoryListEndpoint } from '@hono-crud/memory';
-
-const UserModel = defineModel({
-  tableName: 'users',
-  schema: UserSchema,
-  primaryKeys: ['id'],
-});
-
-const userMeta = defineMeta({ model: UserModel });
-
-class UserCreate extends MemoryCreateEndpoint {
+class UserCreate extends MemoryCreateEndpoint<Env, typeof userMeta> {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Create user' };
 
-  async before(data) {
+  override async before(data: User): Promise<User> {
     return { ...data, createdAt: new Date().toISOString() };
   }
 }
@@ -86,21 +123,24 @@ registerCrud(app, '/users', {
 For Drizzle and Prisma, provide the database connection as a class property:
 
 ```typescript
-// Drizzle
-import { DrizzleListEndpoint } from '@hono-crud/drizzle';
+import { type DrizzleDatabaseConstraint, DrizzleListEndpoint } from '@hono-crud/drizzle';
+import { PrismaListEndpoint } from '@hono-crud/prisma';
+import { PrismaClient } from '@prisma/client';
 
-class UserList extends DrizzleListEndpoint {
+declare const drizzleDb: DrizzleDatabaseConstraint; // your drizzle(...) instance
+declare const prismaClient: PrismaClient; // your generated Prisma client
+
+// Drizzle
+class DrizzleUserList extends DrizzleListEndpoint {
   _meta = userMeta;
-  db = drizzleDb;  // Required for Drizzle
+  db = drizzleDb; // Required for Drizzle
   filterFields = ['role'];
 }
 
 // Prisma
-import { PrismaListEndpoint } from '@hono-crud/prisma';
-
-class UserList extends PrismaListEndpoint {
+class PrismaUserList extends PrismaListEndpoint {
   _meta = userMeta;
-  prisma = prismaClient;  // Required for Prisma
+  prisma = prismaClient; // Required for Prisma
   filterFields = ['role'];
 }
 ```
@@ -113,6 +153,7 @@ Factory functions that return endpoint classes. Concise and easy to use for simp
 
 ### Import
 
+<!-- docs-typecheck:prelude -->
 ```typescript
 import {
   createCreate,
@@ -126,8 +167,6 @@ import {
 ### Basic Usage
 
 ```typescript
-import { MemoryCreateEndpoint, MemoryListEndpoint, MemoryReadEndpoint, MemoryUpdateEndpoint, MemoryDeleteEndpoint } from '@hono-crud/memory';
-
 const UserCreate = createCreate({
   meta: userMeta,
   schema: { tags: ['Users'], summary: 'Create user' },
@@ -255,6 +294,7 @@ Chainable API with method chaining for readable, discoverable configuration.
 
 ### Import
 
+<!-- docs-typecheck:prelude -->
 ```typescript
 import { crud } from 'hono-crud/builder';
 ```
@@ -262,8 +302,6 @@ import { crud } from 'hono-crud/builder';
 ### Basic Usage
 
 ```typescript
-import { MemoryCreateEndpoint, MemoryListEndpoint, MemoryReadEndpoint, MemoryUpdateEndpoint, MemoryDeleteEndpoint } from '@hono-crud/memory';
-
 const UserCreate = crud(userMeta)
   .create()
   .tags('Users')
@@ -319,12 +357,13 @@ registerCrud(app, '/users', {
 #### Entry Point
 
 ```typescript
-crud(meta)  // Returns CrudBuilder
-  .create() // Returns CreateBuilder
-  .list()   // Returns ListBuilder
-  .read()   // Returns ReadBuilder
-  .update() // Returns UpdateBuilder
-  .delete() // Returns DeleteBuilder
+const builder = crud(userMeta); // CrudBuilder
+
+builder.create(); // Returns CreateBuilder
+builder.list();   // Returns ListBuilder
+builder.read();   // Returns ReadBuilder
+builder.update(); // Returns UpdateBuilder
+builder.delete(); // Returns DeleteBuilder
 ```
 
 #### Common Methods (all builders)
@@ -358,7 +397,7 @@ crud(meta)  // Returns CrudBuilder
 | `.search(...fields)` | Enable search on fields |
 | `.searchParam(name)` | Set search parameter name (default: `'search'`) |
 | `.sortable(...fields)` | Enable sorting on fields |
-| `.defaultSort(field, direction?)` | Set default sort |
+| `.defaultSort(field, order?)` | Set default sort (order defaults to `'asc'`) |
 | `.pagination(perPage, maxPerPage?)` | Configure pagination |
 | `.include(...relations)` | Allow relation includes |
 | `.fieldSelection(config)` | Configure field selection |
@@ -415,6 +454,7 @@ Configuring a verb whose adapter bundle does not ship the matching base class th
 
 ### Import
 
+<!-- docs-typecheck:prelude -->
 ```typescript
 import { defineEndpoints } from 'hono-crud';
 import { MemoryAdapters } from '@hono-crud/memory';
@@ -475,14 +515,16 @@ registerCrud(app, '/users', userEndpoints);
 
 ### Adapter Bundles
 
-```typescript
-// Built-in Memory adapter bundle
-import { MemoryAdapters } from '@hono-crud/memory';
+`MemoryAdapters` (imported above) is the built-in in-memory bundle. Database bundles work the same way — `DrizzleAdapters` from `@hono-crud/drizzle` and `PrismaAdapters` from `@hono-crud/prisma`:
 
-// Built-in Drizzle bundle (PrismaAdapters from @hono-crud/prisma works the same way)
+```typescript
 import { DrizzleAdapters } from '@hono-crud/drizzle';
 
-const endpoints = defineEndpoints(config, DrizzleAdapters);
+const endpoints = defineEndpoints({
+  meta: userMeta,
+  create: {},
+  list: {},
+}, DrizzleAdapters);
 ```
 
 ---

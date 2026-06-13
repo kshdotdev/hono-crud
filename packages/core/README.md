@@ -29,20 +29,21 @@ You will also want a storage adapter, e.g. `@hono-crud/memory`, `@hono-crud/driz
 ## Usage
 
 ```ts
+import { Hono } from 'hono';
+import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { MemoryCreateEndpoint, MemoryListEndpoint, MemoryReadEndpoint } from '@hono-crud/memory';
 import { z } from 'zod';
-import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { MemoryCreateEndpoint, MemoryReadEndpoint, MemoryListEndpoint } from '@hono-crud/memory';
 
-const UserSchema = z.object({ id: z.string(), name: z.string() });
-const model = defineModel({ schema: UserSchema, primaryKey: 'id' });
-const meta = defineMeta({ tableName: 'users' });
+const UserSchema = z.object({ id: z.uuid(), name: z.string() });
+const UserModel = defineModel({ tableName: 'users', schema: UserSchema, primaryKeys: ['id'] });
+const userMeta = defineMeta({ model: UserModel });
+
+class UserCreate extends MemoryCreateEndpoint { _meta = userMeta; }
+class UserRead extends MemoryReadEndpoint { _meta = userMeta; }
+class UserList extends MemoryListEndpoint { _meta = userMeta; }
 
 const app = fromHono(new Hono());
-registerCrud(app, '/users', {
-  model,
-  meta,
-  endpoints: { create: MemoryCreateEndpoint, read: MemoryReadEndpoint, list: MemoryListEndpoint },
-});
+registerCrud(app, '/users', { create: UserCreate, read: UserRead, list: UserList });
 ```
 
 See the [repository README](https://github.com/kshdotdev/hono-crud) for the full guide.

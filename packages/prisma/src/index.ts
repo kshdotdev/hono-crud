@@ -1,4 +1,7 @@
 export { getPrismaClient } from './connection';
+// The structural client constraint endpoints accept (`prisma = ...`,
+// `createPrismaCrud(prisma, meta)`) — exported so consumers can name it.
+export type { PrismaClient } from './helpers';
 export { createPrismaCrud, type PrismaCrudClasses } from './factory';
 export * from './crud';
 export * from './batch';

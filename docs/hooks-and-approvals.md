@@ -30,12 +30,68 @@ The guide first walks each in isolation, then shows them composed.
 
 ### The bug class this prevents
 
+The samples in this guide share this setup — a Drizzle-backed `orders`
+table plus an `outbox` sibling table:
+
+<!-- docs-typecheck:prelude -->
+```ts
+import {
+  DrizzleCreateEndpoint,
+  DrizzleDeleteEndpoint,
+  DrizzleUpdateEndpoint,
+  type DrizzleDatabaseConstraint,
+} from '@hono-crud/drizzle';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { integer, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
+import { defineMeta, defineModel } from 'hono-crud';
+import { z } from 'zod';
+
+const orders = pgTable('orders', {
+  id: text('id').primaryKey(),
+  amount: integer('amount').notNull(),
+  to: text('to').notNull(),
+});
+
+const outbox = pgTable('outbox', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  payload: jsonb('payload').notNull(),
+  tenantId: text('tenant_id'),
+  status: text('status').notNull(),
+  createdAt: text('created_at'),
+});
+
+const db = drizzle('postgres://localhost/app');
+const typedDb = db as unknown as DrizzleDatabaseConstraint;
+
+const OrderSchema = z.object({
+  id: z.uuid(),
+  amount: z.number(),
+  to: z.string(),
+});
+type Order = z.infer<typeof OrderSchema>;
+
+const OrderModel = defineModel({
+  tableName: 'orders',
+  schema: OrderSchema,
+  primaryKeys: ['id'],
+  table: orders,
+});
+const orderMeta = defineMeta({ model: OrderModel });
+```
+
 Every CRUD endpoint exposes lifecycle hooks:
 
 ```ts
+import type { HookContext } from 'hono-crud';
+
 class OrderCreate extends DrizzleCreateEndpoint {
-  override async after(order, hookCtx) {
+  _meta = orderMeta;
+  db = typedDb;
+
+  override async after(order: Order, hookCtx: HookContext): Promise<Order> {
     // do something with the freshly-created order
+    return order;
   }
 }
 ```
@@ -51,6 +107,7 @@ the parent INSERT**. This is the classic event-outbox pattern.
 
 ### The naïve (broken) implementation
 
+<!-- docs-typecheck:skip intentionally broken pseudo-code -->
 ```ts
 // PSEUDO — broken
 override async after(order, hookCtx) {
@@ -97,22 +154,28 @@ interface HookContext {
 
 When the Drizzle adapter has `useTransaction = true`, `handle()` wraps
 the entire flow in `db.transaction(async (tx) => { ... })` and threads
-`tx` into `HookContext.db.tx`. Use it like this:
+`tx` into `HookContext.db.tx`. The handle is typed `unknown` (it is
+adapter-specific) — cast it to your Drizzle database type; the
+transaction object exposes the same query API. Use it like this:
 
 ```ts
-import { drizzle } from 'drizzle-orm/<dialect>';
 import type { HookContext } from 'hono-crud';
 
 class OrderCreate extends DrizzleCreateEndpoint {
-  protected useTransaction = true;
+  _meta = orderMeta;
+  db = typedDb;
+  protected override useTransaction = true;
 
-  override async after(order, hookCtx: HookContext) {
+  override async after(order: Order, hookCtx: HookContext): Promise<Order> {
     // Same transaction as the parent INSERT — atomic
-    await drizzle(hookCtx.db.tx).insert(outbox).values({
+    const tx = hookCtx.db.tx as typeof db;
+    await tx.insert(outbox).values({
+      id: crypto.randomUUID(),
       type: 'order.created',
       payload: order,
       status: 'pending',
     });
+    return order;
   }
 }
 ```
@@ -158,13 +221,27 @@ The `MEMORY_NOOP_TX` sentinel exists so production code can feature-detect
 
 ```ts
 import { MEMORY_NOOP_TX } from '@hono-crud/memory';
+import type { HookContext } from 'hono-crud';
 
-override async after(order, hookCtx) {
-  if (hookCtx.db.tx === MEMORY_NOOP_TX) {
-    // running against memory adapter — skip outbox writes or fail loudly
-    throw new Error('event-outbox pattern requires a real DB adapter');
+class GuardedOrderCreate extends DrizzleCreateEndpoint {
+  _meta = orderMeta;
+  db = typedDb;
+  protected override useTransaction = true;
+
+  override async after(order: Order, hookCtx: HookContext): Promise<Order> {
+    if (hookCtx.db.tx === MEMORY_NOOP_TX) {
+      // running against memory adapter — skip outbox writes or fail loudly
+      throw new Error('event-outbox pattern requires a real DB adapter');
+    }
+    const tx = hookCtx.db.tx as typeof db;
+    await tx.insert(outbox).values({
+      id: crypto.randomUUID(),
+      type: 'order.created',
+      payload: order,
+      status: 'pending',
+    });
+    return order;
   }
-  await drizzle(hookCtx.db.tx).insert(outbox).values({...});
 }
 ```
 
@@ -173,10 +250,23 @@ override async after(order, hookCtx) {
 Hooks accept the `HookContext` as a **required** trailing parameter:
 
 ```ts
-// Create
-override async after(data: User, hookCtx: HookContext): Promise<User> {
-  await drizzle(hookCtx.db.tx).insert(audit).values({...});
-  return data;
+import type { HookContext } from 'hono-crud';
+
+class AuditedOrderCreate extends DrizzleCreateEndpoint {
+  _meta = orderMeta;
+  db = typedDb;
+  protected override useTransaction = true;
+
+  override async after(data: Order, hookCtx: HookContext): Promise<Order> {
+    const tx = hookCtx.db.tx as typeof db;
+    await tx.insert(outbox).values({
+      id: crypto.randomUUID(),
+      type: 'order.created',
+      payload: data,
+      status: 'pending',
+    });
+    return data;
+  }
 }
 ```
 
@@ -192,26 +282,41 @@ first argument so hooks can compute field-level diffs server-side
 without forcing a re-fetch in `before`:
 
 ```ts
+import type { HookContext } from 'hono-crud';
+
 // Update — see the row before AND after the UPDATE
-override async after(prior: User, current: User, hookCtx: HookContext): Promise<User | void> {
-  const diff = Object.keys(current).filter(k => prior[k] !== current[k]);
-  await drizzle(hookCtx.db.tx).insert(audit).values({
-    table: 'users',
-    recordId: current.id,
-    changedFields: diff,
-    before: prior,
-    after: current,
-  });
+class OrderUpdate extends DrizzleUpdateEndpoint {
+  _meta = orderMeta;
+  db = typedDb;
+  protected override useTransaction = true;
+
+  override async after(prior: Order, current: Order, hookCtx: HookContext): Promise<Order | void> {
+    const diff = (Object.keys(current) as (keyof Order)[]).filter((k) => prior[k] !== current[k]);
+    const tx = hookCtx.db.tx as typeof db;
+    await tx.insert(outbox).values({
+      id: crypto.randomUUID(),
+      type: 'order.updated',
+      payload: { recordId: current.id, changedFields: diff, before: prior, after: current },
+      status: 'pending',
+    });
+  }
 }
 
 // Delete — see the row that just disappeared
-override async after(prior: User, hookCtx: HookContext): Promise<void> {
-  await drizzle(hookCtx.db.tx).insert(audit).values({
-    table: 'users',
-    recordId: prior.id,
-    payload: prior,
-    action: 'delete',
-  });
+class OrderDelete extends DrizzleDeleteEndpoint {
+  _meta = orderMeta;
+  db = typedDb;
+  protected override useTransaction = true;
+
+  override async after(prior: Order, hookCtx: HookContext): Promise<void> {
+    const tx = hookCtx.db.tx as typeof db;
+    await tx.insert(outbox).values({
+      id: crypto.randomUUID(),
+      type: 'order.deleted',
+      payload: prior,
+      status: 'pending',
+    });
+  }
 }
 ```
 
@@ -248,30 +353,6 @@ a defensive copy taken just before the mutation lands. Throwing in
 `MEMORY_NOOP_TX` semantics documented above), but `prior` is still the
 pre-mutation row — so unit tests can exercise the diff-computation logic
 without a real DB.
-
-#### Migration from pre-0.10.0
-
-The new signature is a hard breaking change — there's no fallback that
-preserves the old shape:
-
-```ts
-// BEFORE (0.9.x)
-override async after(data: User, ctx: HookContext): Promise<User> {
-  // had to re-fetch in before() and stash on c.var to compute a diff
-  return data;
-}
-override async after(deletedItem: User, _cascade, ctx: HookContext): Promise<void> {
-  // only the post-mutation shadow was available
-}
-
-// AFTER (0.10.0)
-override async after(prior: User, current: User, ctx: HookContext): Promise<User | void> {
-  // diff is one line away
-}
-override async after(prior: User, ctx: HookContext): Promise<void> {
-  // full pre-mutation row
-}
-```
 
 Cascade results — when needed by the response — are still available via
 the response body when `includeCascadeResults = true`. Override
@@ -327,8 +408,10 @@ The middleware intercepts BEFORE the handler runs:
    production:
 
    ```ts
-   {
-     id: 'a3f-...',
+   import type { PendingAction } from 'hono-crud/auth';
+
+   const pending: PendingAction = {
+     id: 'a3f1c9d2-0b1e-4f6a-9c3d-7e2a5b8d4f01',
      toolName: 'POST /transfers',
      input: { amount: 50000, to: 'account-x' },
      status: 'pending',
@@ -337,9 +420,9 @@ The middleware intercepts BEFORE the handler runs:
      agentRunId: 'run-9001',
      source: 'agent-mcp',
      reason: 'Funds transfer',
-     createdAt: '...',
-     expiresAt: '...'   // ISO 8601 P1D default
-   }
+     createdAt: '2026-06-12T09:00:00.000Z',
+     expiresAt: '2026-06-13T09:00:00.000Z', // ISO 8601 — 'P1D' default
+   };
    ```
 
 5. Returns `202 Accepted` with `{ status: 'pending', actionId, expiresAt, reason }`.
@@ -350,7 +433,12 @@ The handler **does not run**. No money moves.
 
 Your downstream UI lists pending actions for the relevant approver:
 
+<!-- docs-typecheck:prelude -->
 ```ts
+import { MemoryApprovalStorage } from 'hono-crud/auth';
+
+const approvalStorage = new MemoryApprovalStorage(); // or your durable backend (§4)
+
 await approvalStorage.approve('a3f-...', 'reviewer-1');
 // status flips to 'approved', records approvedBy + approvedAt
 ```
@@ -382,6 +470,7 @@ The middleware intercepts again:
 
 The handler is unchanged. It does:
 
+<!-- docs-typecheck:skip fragment — `c` is the handler's Hono Context -->
 ```ts
 const body = await c.req.json();
 // receives: { amount: 50000, to: 'account-x' } — never sees the resume marker
@@ -473,8 +562,22 @@ healthcare, and anything AI-assisted.
 To populate them, set the relevant vars in upstream middleware:
 
 ```ts
+import { Hono } from 'hono';
+import { setContextVar } from 'hono-crud';
+
+/** Your authentication — JWT claims, session lookup, … */
+declare function authenticate(c: unknown): Promise<{
+  sub: string;
+  agentId?: string;
+  agentRunId?: string;
+  toolCallId?: string;
+  onBehalfOfUserId?: string;
+}>;
+
+const app = new Hono();
+
 app.use('*', async (c, next) => {
-  const auth = await verifyJWT(c);
+  const auth = await authenticate(c);
   setContextVar(c, 'userId', auth.sub);
   if (auth.agentId) setContextVar(c, 'agentId', auth.agentId);
   if (auth.agentRunId) setContextVar(c, 'agentRunId', auth.agentRunId);
@@ -511,23 +614,35 @@ The parser is tiny (~30 lines), no dependencies, no `node:*` imports.
 The two mechanisms stack naturally:
 
 ```ts
-app.post(
-  '/transfers',
-  requireApproval({ reason: 'Funds transfer over $1k' }),  // gate the request
-  TransferCreate,                                            // runs after approval
-);
+import { Hono } from 'hono';
+import { fromHono, type HookContext } from 'hono-crud';
+import { requireApproval, type AuthEnv } from 'hono-crud/auth';
 
 class TransferCreate extends DrizzleCreateEndpoint {
-  protected useTransaction = true;
+  _meta = orderMeta;
+  db = typedDb;
+  protected override useTransaction = true;
 
-  override async after(transfer, hookCtx) {
+  override async after(transfer: Order, hookCtx: HookContext): Promise<Order> {
     // INSIDE the same tx as the INSERT — atomic
-    await drizzle(hookCtx.db.tx).insert(outbox).values({
+    const tx = hookCtx.db.tx as typeof db;
+    await tx.insert(outbox).values({
+      id: crypto.randomUUID(),
       type: 'transfer.created',
       payload: transfer,
+      status: 'pending',
     });
+    return transfer;
   }
 }
+
+const app = fromHono(new Hono<AuthEnv>());
+
+app.post(
+  '/transfers',
+  requireApproval({ reason: 'Funds transfer over $1k' }), // gate the request
+  TransferCreate,                                         // runs after approval
+);
 ```
 
 Walkthrough:
@@ -621,10 +736,37 @@ CREATE INDEX idx_pending_expiring  ON pending_actions(expires_at) WHERE status =
 
 ```ts
 import type { ApprovalStorage, PendingAction } from 'hono-crud/auth';
-import type { PgClient } from 'pg';
+import { PendingActionSchema } from 'hono-crud/auth';
+import type { Pool } from 'pg';
+
+/** Map a snake_case row to a camelCase PendingAction, validating it. */
+function rowToPendingAction(row: Record<string, unknown>): PendingAction {
+  return PendingActionSchema.parse({
+    id: row.id,
+    tenantId: row.tenant_id ?? undefined,
+    organizationId: row.organization_id ?? undefined,
+    userId: row.actor_user_id ?? undefined,
+    actorUserId: row.actor_user_id ?? undefined,
+    onBehalfOfUserId: row.on_behalf_of_user_id ?? undefined,
+    agentId: row.agent_id ?? undefined,
+    agentRunId: row.agent_run_id ?? undefined,
+    toolCallId: row.tool_call_id ?? undefined,
+    source: row.source,
+    toolName: row.tool_name,
+    input: row.input,
+    status: row.status,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    reason: row.reason,
+    approvedBy: row.approved_by ?? undefined,
+    approvedAt: row.approved_at ?? undefined,
+    rejectedBy: row.rejected_by ?? undefined,
+    rejectedReason: row.rejected_reason ?? undefined,
+  });
+}
 
 export class PostgresApprovalStorage implements ApprovalStorage {
-  constructor(private db: PgClient) {}
+  constructor(private db: Pool) {}
 
   async create(a: PendingAction) {
     await this.db.query(
@@ -698,6 +840,9 @@ Each pending action becomes its own Durable Object instance — no
 contention, single-writer guarantees, and built-in alarms for expiry:
 
 ```ts
+import type { DurableObjectNamespace, DurableObjectState } from '@cloudflare/workers-types';
+import type { ApprovalStorage, PendingAction } from 'hono-crud/auth';
+
 export class ApprovalActionDO {
   constructor(private state: DurableObjectState) {}
 
@@ -797,10 +942,19 @@ For high-traffic deployments where many `get()` calls would hit Postgres
 unnecessarily:
 
 ```ts
+import type { ApprovalStorage, PendingAction } from 'hono-crud/auth';
+
+/** Minimal structural slice of a Redis client (ioredis-compatible). */
+interface RedisLike {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, mode: 'EX', ttlSeconds: number): Promise<unknown>;
+  del(key: string): Promise<unknown>;
+}
+
 class CachedPgApprovalStorage implements ApprovalStorage {
   constructor(
-    private pg: PostgresApprovalStorage,
-    private redis: Redis
+    private pg: ApprovalStorage, // e.g. PostgresApprovalStorage above
+    private redis: RedisLike
   ) {}
 
   async create(a: PendingAction) {
@@ -852,6 +1006,13 @@ event onto your queue.
 **Cloudflare Queues:**
 
 ```ts
+import type { Queue } from '@cloudflare/workers-types';
+import { CrudEventEmitter } from 'hono-crud/events';
+
+declare const env: { MY_QUEUE: Queue }; // Worker binding
+
+const emitter = new CrudEventEmitter();
+
 emitter.onAny(async (event) => {
   await env.MY_QUEUE.send(event);
 });
@@ -859,6 +1020,7 @@ emitter.onAny(async (event) => {
 
 **BullMQ (Redis):**
 
+<!-- docs-typecheck:skip external SDK (bullmq) not installed in this repo -->
 ```ts
 import { Queue } from 'bullmq';
 const eventQueue = new Queue('crud-events', { connection: redis });
@@ -868,8 +1030,9 @@ emitter.onAny(async (event) => {
 });
 ```
 
-**SQS:**
+**SQS** (Node worker context):
 
+<!-- docs-typecheck:skip external SDK (@aws-sdk/client-sqs) not installed in this repo -->
 ```ts
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 const sqs = new SQSClient({});
@@ -913,12 +1076,17 @@ This is where the **transactional hooks** become load-bearing.
 3. A separate worker polls the outbox and publishes to the real queue.
 
 ```ts
-class OrderCreate extends DrizzleCreateEndpoint {
-  protected useTransaction = true;
+import type { HookContext } from 'hono-crud';
 
-  override async after(order, hookCtx) {
+class OrderCreate extends DrizzleCreateEndpoint {
+  _meta = orderMeta;
+  db = typedDb;
+  protected override useTransaction = true;
+
+  override async after(order: Order, hookCtx: HookContext): Promise<Order> {
     // Same tx as the parent INSERT — atomic
-    await drizzle(hookCtx.db.tx).insert(outbox).values({
+    const tx = hookCtx.db.tx as typeof db;
+    await tx.insert(outbox).values({
       id: crypto.randomUUID(),
       type: 'order.created',
       payload: order,
@@ -926,11 +1094,16 @@ class OrderCreate extends DrizzleCreateEndpoint {
       status: 'pending',
       createdAt: new Date().toISOString(),
     });
+    return order;
   }
 }
 ```
 
 ```ts
+import { eq } from 'drizzle-orm';
+
+declare const myQueue: { send(message: unknown): Promise<void> }; // your queue client
+
 // Separate worker (cron / consumer / Durable Object alarm)
 async function publishOutbox() {
   const pending = await db
@@ -993,8 +1166,9 @@ notify the approver (Slack, email, push). Two patterns again.
 Wrap any `ApprovalStorage` implementation with a notifier:
 
 ```ts
+import type { Queue } from '@cloudflare/workers-types';
 import type { ApprovalStorage, PendingAction } from 'hono-crud/auth';
-import type { CrudEventEmitter } from 'hono-crud/events';
+import { CrudEventEmitter } from 'hono-crud/events';
 
 export class NotifyingApprovalStorage implements ApprovalStorage {
   constructor(
@@ -1025,10 +1199,11 @@ export class NotifyingApprovalStorage implements ApprovalStorage {
 }
 
 // Wire it up:
-const storage = new NotifyingApprovalStorage(
-  new PostgresApprovalStorage(db),
-  emitter
-);
+declare const durableStorage: ApprovalStorage; // e.g. PostgresApprovalStorage from §4
+declare const env: { APPROVAL_NOTIFY_QUEUE: Queue }; // Worker binding
+
+const emitter = new CrudEventEmitter();
+const storage = new NotifyingApprovalStorage(durableStorage, emitter);
 
 emitter.on('__pending_actions__', 'created', async (event) => {
   // Push to Slack, send email, fan out to your approver inbox queue
@@ -1045,6 +1220,7 @@ deliver.
 If "notify on creation" must be reliable (no Slack message lost), put
 the notify into the same transaction as the storage write:
 
+<!-- docs-typecheck:skip illustrative pseudo-SQL sketch -->
 ```ts
 class TxNotifyingPostgresApprovalStorage implements ApprovalStorage {
   constructor(private db: PgPool) {}
@@ -1159,10 +1335,15 @@ An approved action could in principle be resumed multiple times if the
 resume call is idempotent at the HTTP layer. If your handler is non-
 idempotent (transfer money), wrap with the lib's existing
 `createIdempotencyMiddleware` OR mark the action `consumed` after first resume. The minimal
-addition would be a 5th method on `ApprovalStorage`:
+addition would be a 5th method, implemented as an extension of
+`ApprovalStorage` on your side:
 
 ```ts
-markConsumed(id: string): Promise<void>;
+import type { ApprovalStorage } from 'hono-crud/auth';
+
+interface ConsumableApprovalStorage extends ApprovalStorage {
+  markConsumed(id: string): Promise<void>;
+}
 ```
 
 Not in this release — left as a deliberate extension point until

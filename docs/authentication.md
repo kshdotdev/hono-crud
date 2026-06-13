@@ -6,20 +6,29 @@ hono-crud provides JWT and API Key authentication middleware, plus composable au
 
 ## JWT Middleware
 
+The factory takes the secret in its config, so resolve it per request with
+`env()` from `hono/adapter` — edge-safe on Cloudflare Workers, Deno, Bun, and
+Node alike (never read `process.env` in edge-bound code):
+
+<!-- docs-typecheck:prelude -->
 ```typescript
 import { Hono } from 'hono';
+import { env } from 'hono/adapter';
 import { createJWTMiddleware } from 'hono-crud/auth';
 import type { AuthEnv } from 'hono-crud/auth';
 
 const app = new Hono<AuthEnv>();
 
-app.use('/api/*', createJWTMiddleware({
-  secret: process.env.JWT_SECRET!,
-  algorithm: 'HS256',     // default
-  issuer: 'my-app',       // optional: validate iss claim
-  audience: 'my-api',     // optional: validate aud claim
-  clockToleranceSeconds: 30, // optional: seconds of clock skew tolerance
-}));
+app.use('/api/*', async (c, next) => {
+  const { JWT_SECRET } = env<{ JWT_SECRET: string }>(c);
+  return createJWTMiddleware({
+    secret: JWT_SECRET,
+    algorithm: 'HS256',        // default
+    issuer: 'my-app',          // optional: validate iss claim
+    audience: 'my-api',        // optional: validate aud claim
+    clockToleranceSeconds: 30, // optional: seconds of clock skew tolerance
+  })(c, next);
+});
 
 // After middleware runs, context variables are available:
 app.get('/api/me', (c) => {
@@ -35,28 +44,39 @@ app.get('/api/me', (c) => {
 ### Custom Token Extraction
 
 ```typescript
-app.use('/api/*', createJWTMiddleware({
-  secret: process.env.JWT_SECRET!,
-  extractToken: (ctx) => {
-    // Extract from cookie instead of Authorization header
-    return ctx.req.header('X-Auth-Token') ?? null;
-  },
-  extractUser: (claims) => ({
-    id: String(claims.sub),
-    email: claims.email as string,
-    roles: claims.realm_access?.roles as string[],
-    permissions: claims.scope?.split(' ') as string[],
-  }),
-}));
+app.use('/api/*', async (c, next) => {
+  const { JWT_SECRET } = env<{ JWT_SECRET: string }>(c);
+  return createJWTMiddleware({
+    secret: JWT_SECRET,
+    extractToken: (ctx) => {
+      // Extract from a custom header instead of Authorization
+      return ctx.req.header('X-Auth-Token') ?? null;
+    },
+    extractUser: (claims) => ({
+      id: String(claims.sub),
+      email: claims.email,
+      roles: (claims.realm_access as { roles?: string[] } | undefined)?.roles,
+      permissions: typeof claims.scope === 'string' ? claims.scope.split(' ') : undefined,
+    }),
+  })(c, next);
+});
 ```
+
+Common identity claims (`email`, `roles`, `permissions`, `metadata`) are
+already typed on `JWTClaims`; custom claims (like Keycloak's `realm_access`
+or OAuth's `scope` above) pass through as `unknown`, so narrow them with a
+`typeof` check or a targeted cast before use.
 
 ### Manual Token Verification
 
 ```typescript
 import { verifyJWT, decodeJWT } from 'hono-crud/auth';
 
+declare const token: string;      // e.g. from the Authorization header
+declare const JWT_SECRET: string; // resolve via env(c) inside a handler
+
 // Verify and decode
-const claims = await verifyJWT(token, { secret: process.env.JWT_SECRET! });
+const claims = await verifyJWT(token, { secret: JWT_SECRET });
 
 // Decode without verification (for debugging)
 const decoded = decodeJWT(token); // { header, payload } | null
@@ -71,6 +91,7 @@ import {
   createAPIKeyMiddleware,
   MemoryAPIKeyStorage,
   generateAPIKey,
+  hashAPIKey,
 } from 'hono-crud/auth';
 import { createStorageMiddleware } from 'hono-crud/storage';
 
@@ -81,17 +102,20 @@ app.use('*', createStorageMiddleware({ apiKeyStorage }));
 // Generate and store an API key
 const key = generateAPIKey();
 await apiKeyStorage.store({
+  id: crypto.randomUUID(),
   keyHash: await hashAPIKey(key),
   name: 'My API Key',
   userId: 'user-123',
   roles: ['admin'],
   permissions: ['users:read', 'users:write'],
+  active: true,
+  createdAt: new Date(),
   expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
 });
 
 // Apply middleware
 app.use('/api/*', createAPIKeyMiddleware({
-  header: 'X-API-Key',     // default
+  headerName: 'X-API-Key',     // default
   // Or: queryParam: 'api_key'
 }));
 ```
@@ -114,6 +138,12 @@ order:
 If none of these resolve, the middleware throws a `ConfigurationException`.
 
 ```typescript
+import { createAPIKeyMiddleware, MemoryAPIKeyStorage } from 'hono-crud/auth';
+import type { APIKeyEntry } from 'hono-crud/auth';
+
+const apiKeyStorage = new MemoryAPIKeyStorage();
+declare const myKeyTable: Map<string, APIKeyEntry>; // your own key table
+
 // Pass storage explicitly on the config instead of relying on a global
 app.use('/api/*', createAPIKeyMiddleware({
   headerName: 'X-API-Key',
@@ -122,7 +152,7 @@ app.use('/api/*', createAPIKeyMiddleware({
 
 // Or the lightweight lookupKey overload (no full storage backend)
 app.use('/api/*', createAPIKeyMiddleware({
-  lookupKey: async (keyHash) => myKeyTable.find(keyHash),
+  lookupKey: async (keyHash) => myKeyTable.get(keyHash) ?? null,
 }));
 ```
 
@@ -136,20 +166,26 @@ Support both JWT and API Key on the same routes:
 import { createAuthMiddleware, optionalAuth } from 'hono-crud/auth';
 
 // Require one of JWT or API Key
-app.use('/api/*', createAuthMiddleware({
-  jwt: {
-    secret: process.env.JWT_SECRET!,
-    issuer: 'my-app',
-  },
-  apiKey: {
-    header: 'X-API-Key',
-  },
-}));
+app.use('/api/*', async (c, next) => {
+  const { JWT_SECRET } = env<{ JWT_SECRET: string }>(c);
+  return createAuthMiddleware({
+    jwt: {
+      secret: JWT_SECRET,
+      issuer: 'my-app',
+    },
+    apiKey: {
+      headerName: 'X-API-Key',
+    },
+  })(c, next);
+});
 
 // Optional auth: sets user if present, allows anonymous
-app.use('/public/*', optionalAuth({
-  jwt: { secret: process.env.JWT_SECRET! },
-}));
+app.use('/public/*', async (c, next) => {
+  const { JWT_SECRET } = env<{ JWT_SECRET: string }>(c);
+  return optionalAuth({
+    jwt: { secret: JWT_SECRET },
+  })(c, next);
+});
 ```
 
 ---
@@ -190,8 +226,13 @@ app.use('/data/*', requireAnyPermission('data:read', 'data:admin'));
 ```typescript
 import { requireAuth, requireOwnership, requireOwnershipOrRole } from 'hono-crud/auth';
 
+// Stand-in for your database client
+declare const db: {
+  posts: { findFirst(args: { where: { id: string } }): Promise<{ authorId: string } | null> };
+};
+
 // Custom authorization check
-app.use('/premium/*', requireAuth((user, ctx) => {
+app.use('/premium/*', requireAuth((user) => {
   return user.metadata?.subscription === 'premium';
 }));
 
@@ -211,7 +252,20 @@ app.use('/posts/:id/*', requireOwnershipOrRole(
 ### Guard Composition
 
 ```typescript
-import { allOf, anyOf, denyAll, allowAll } from 'hono-crud/auth';
+import {
+  allOf,
+  anyOf,
+  denyAll,
+  allowAll,
+  requireRoles,
+  requirePermissions,
+  requireAuth,
+  requireOwnership,
+} from 'hono-crud/auth';
+import type { Context } from 'hono';
+
+// Stand-in: resolves the owner of the requested resource
+declare function getResourceOwnerId(ctx: Context<AuthEnv>): string;
 
 // ALL guards must pass (AND)
 app.use('/secure/*', allOf(
@@ -237,10 +291,20 @@ app.use('/public/*', allowAll());
 ### Guards with registerCrud
 
 ```typescript
-import { registerCrud } from 'hono-crud';
+import { fromHono, registerCrud } from 'hono-crud';
+import type { EndpointClass } from 'hono-crud';
 import { requireAuthenticated, requireRoles } from 'hono-crud/auth';
 
-registerCrud(app, '/users', {
+// Your CRUD endpoint classes (see the getting-started guide)
+declare const UserCreate: EndpointClass<AuthEnv>;
+declare const UserList: EndpointClass<AuthEnv>;
+declare const UserRead: EndpointClass<AuthEnv>;
+declare const UserUpdate: EndpointClass<AuthEnv>;
+declare const UserDelete: EndpointClass<AuthEnv>;
+
+const api = fromHono(new Hono<AuthEnv>());
+
+registerCrud(api, '/users', {
   create: UserCreate,
   list: UserList,
   read: UserRead,
@@ -263,6 +327,7 @@ registerCrud(app, '/users', {
 
 [better-auth](https://www.better-auth.com) handles login, signup, OAuth, 2FA, and session management. hono-crud handles CRUD with authorization guards.
 
+<!-- docs-typecheck:skip better-auth is an external SDK not installed in this repo -->
 ```typescript
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';

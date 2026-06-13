@@ -11,8 +11,11 @@ npm install @hono-crud/cache hono-crud hono
 ## Usage
 
 ```ts
-import { createStorageMiddleware } from 'hono-crud/storage';
 import { MemoryCacheStorage } from '@hono-crud/cache';
+import { Hono } from 'hono';
+import { createStorageMiddleware } from 'hono-crud/storage';
+
+const app = new Hono();
 
 // Inject the storage into context so cache-enabled endpoints / mixins resolve it.
 app.use('*', createStorageMiddleware({

@@ -1275,9 +1275,9 @@ export interface NormalizedMultiTenantConfig {
  * Drizzle transaction (when `useTransaction === true`). For the in-memory
  * adapter it's a no-op sentinel. Throwing inside an `after*` hook only
  * rolls back the parent write when the adapter is operating inside a real
- * transaction AND `afterHookMode === 'sequential'`. The default
+ * transaction AND `afterHookMode === 'sequential'` (the default).
  * `fire-and-forget` mode runs after the response is sent and cannot
- * trigger rollback — opt into `sequential` to get rollback semantics.
+ * trigger rollback.
  */
 export interface HookContext {
   /** Adapter-specific transaction handle (Drizzle tx, Prisma client, sentinel for memory). */
@@ -1679,3 +1679,13 @@ export type RequiredBy<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>
  * Constructor type for classes. Used in mixin patterns (withCache, withAuth, etc.).
  */
 export type Constructor<T = object> = new (...args: unknown[]) => T;
+
+/**
+ * Constructor type that also accepts abstract classes. Mixin factories
+ * (`withAuth`, `withCache`, `withCacheInvalidation`) constrain their base
+ * parameter with this: adapter endpoint classes are abstract (consumers
+ * supply `_meta` in a subclass), and an abstract constructor type is not
+ * assignable to the non-abstract `Constructor<T>` — so e.g.
+ * `withCache(MemoryReadEndpoint)` would not typecheck otherwise.
+ */
+export type AbstractConstructor<T = object> = abstract new (...args: unknown[]) => T;

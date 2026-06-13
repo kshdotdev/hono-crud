@@ -244,8 +244,8 @@ export abstract class CreateEndpoint<
 
   /**
    * Lifecycle hook: called after create operation. When `afterHookMode ===
-   * 'sequential'` AND the adapter wraps in a transaction, throwing here
-   * rolls back the parent INSERT. The default `fire-and-forget` mode runs
+   * 'sequential'` (the default) AND the adapter wraps in a transaction,
+   * throwing here rolls back the parent INSERT. `fire-and-forget` mode runs
    * after the response is sent and cannot trigger rollback.
    */
   async after(

@@ -16,7 +16,7 @@
 
 // The meta contract endpoints are generic over, and the model shape adapters
 // operate on (`Row` always derives from the consumer's Zod schema).
-export type { Constructor, MetaInput } from './core/types';
+export type { AbstractConstructor, Constructor, MetaInput } from './core/types';
 export type { ModelObject } from './endpoints/types';
 
 // ============================================================================

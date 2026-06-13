@@ -2,7 +2,7 @@
 
 hono-crud ships with three adapters: **Memory** (prototyping), **Drizzle** (SQL via Drizzle ORM), and **Prisma** (SQL via Prisma).
 
-All adapters expose the same endpoint class hierarchy: `Create`, `Read`, `Update`, `Delete`, `List`, plus `Restore`, `Upsert`, `BatchCreate`, `BatchUpdate`, `BatchDelete`, `BatchRestore`, `BatchUpsert`, and `BulkPatch`.
+All adapters expose the same endpoint class hierarchy — one class per `registerCrud` verb: `Create`, `Read`, `Update`, `Delete`, `List`, plus `Restore`, `Upsert`, `Search`, `Aggregate`, `Export`, `Import`, `Clone`, `BulkPatch`, the batch endpoints (`BatchCreate`, `BatchUpdate`, `BatchDelete`, `BatchRestore`, `BatchUpsert`), and the version endpoints (`VersionHistory`, `VersionRead`, `VersionCompare`, `VersionRollback`). Adapter behavior is pinned by a shared conformance suite (`tests/conformance`) that runs the same contract cells against all three adapters through the real HTTP surface.
 
 ---
 
@@ -104,6 +104,12 @@ registerCrud(app, '/tasks', {
 ```typescript
 import { clearStorage, getStore } from '@hono-crud/memory';
 
+interface Task {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
 // Clear all in-memory data
 clearStorage();
 
@@ -126,6 +132,7 @@ npm install @hono-crud/drizzle drizzle-orm drizzle-zod
 
 ### Schema Definition
 
+<!-- docs-typecheck:prelude -->
 ```typescript
 // schema.ts
 import { pgTable, text, integer, timestamp, uuid, pgEnum } from 'drizzle-orm/pg-core';
@@ -151,9 +158,11 @@ The `createDrizzleCrud` factory pre-configures `db` and `_meta` on all endpoint 
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { fromHono, registerCrud, defineModel, defineMeta } from 'hono-crud';
-import { createDrizzleCrud } from '@hono-crud/drizzle';
-import { db } from './db';
-import { users } from './schema';
+import { createDrizzleCrud, type DrizzleDatabaseConstraint } from '@hono-crud/drizzle';
+
+// Your Drizzle database instance (any driver: node-postgres, libsql, d1, ...).
+declare const db: unknown;
+const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 const UserSchema = z.object({
   id: z.uuid(),
@@ -176,7 +185,7 @@ const UserModel = defineModel({
 const userMeta = defineMeta({ model: UserModel });
 
 // Factory creates base classes with db + meta pre-configured
-const User = createDrizzleCrud(db, userMeta);
+const User = createDrizzleCrud(typedDb, userMeta, { dialect: 'pg' });
 
 class UserCreate extends User.Create {
   schema = { tags: ['Users'], summary: 'Create user' };
@@ -212,7 +221,7 @@ registerCrud(app, '/users', {
 });
 ```
 
-The factory also provides `User.Restore`, `User.Upsert`, `User.BatchCreate`, `User.BatchUpdate`, `User.BatchDelete`, `User.BatchRestore`, and `User.BatchUpsert`.
+The factory also provides `User.Restore`, `User.Upsert`, `User.Search`, `User.BatchCreate`, `User.BatchUpdate`, `User.BatchDelete`, `User.BatchRestore`, and `User.BatchUpsert`. The optional third argument (`{ dialect: 'pg' | 'mysql' | 'sqlite' }`, default `'sqlite'`) enables dialect-specific behavior such as native upsert syntax.
 
 ### Manual Pattern
 
@@ -227,6 +236,11 @@ import {
   DrizzleDeleteEndpoint,
   type DrizzleDatabaseConstraint,
 } from '@hono-crud/drizzle';
+import type { MetaInput } from 'hono-crud';
+
+// The same model meta and Drizzle instance as in the factory example above.
+declare const userMeta: MetaInput;
+declare const db: unknown;
 
 const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
@@ -241,8 +255,11 @@ class UserList extends DrizzleListEndpoint {
 ### Config-based with Drizzle
 
 ```typescript
-import { defineEndpoints } from 'hono-crud';
+import { defineEndpoints, type MetaInput } from 'hono-crud';
 import { DrizzleAdapters } from '@hono-crud/drizzle';
+
+// The same model meta as in the factory example above.
+declare const userMeta: MetaInput;
 
 const endpoints = defineEndpoints({
   meta: userMeta,
@@ -286,6 +303,7 @@ model User {
 
 ### Complete Example
 
+<!-- docs-typecheck:prelude -->
 ```typescript
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -366,6 +384,8 @@ registerCrud(app, '/users', {
 });
 ```
 
+A `createPrismaCrud(prisma, userMeta)` factory mirrors `createDrizzleCrud`, pre-configuring `prisma` and `_meta` on `Create`, `Read`, `Update`, `Delete`, `List`, `Restore`, `Upsert`, `Search`, `Aggregate`, `Export`, `Import`, `Clone`, and the batch classes.
+
 ### Model Name Mapping
 
 The Prisma adapter derives the client delegate name from `tableName` (camelCase
@@ -375,6 +395,8 @@ naming — set the delegate name explicitly with the model meta's `table` field
 (a string for Prisma):
 
 ```typescript
+const PersonSchema = z.object({ id: z.uuid(), name: z.string() });
+
 // 'people' would derive to 'person'; this client's delegate is 'humanBeing'.
 const peopleModel = defineModel({
   tableName: 'people',

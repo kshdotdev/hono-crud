@@ -101,6 +101,10 @@ export { parseIso8601Duration } from './utils/duration';
 // Approval Type Exports
 // ============================================================================
 
+// Runtime validator for PendingAction rows read from durable backends —
+// its own JSDoc directs storage-adapter authors to parse with it, so it
+// ships alongside the derived type.
+export { PendingActionSchema } from './types';
 export type {
   ApprovalConfig,
   ApprovalStorage,
