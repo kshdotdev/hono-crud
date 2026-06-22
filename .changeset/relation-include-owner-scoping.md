@@ -1,5 +1,5 @@
 ---
-"hono-crud": minor
+"hono-crud": patch
 "@hono-crud/drizzle": patch
 "@hono-crud/memory": patch
 "@hono-crud/prisma": patch
