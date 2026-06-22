@@ -25,7 +25,8 @@ export function withIncludableRelations(
   const relations = meta.model.relations;
   if (!relations || allowedIncludes.length === 0) return itemSchema;
 
-  const extension: ZodRawShape = {};
+  // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4).
+  const extension: Record<string, z.ZodTypeAny> = {};
   for (const name of allowedIncludes) {
     const relation = relations[name] as RelationConfig | undefined;
     const relationSchema = relation?.schema;
