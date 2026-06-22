@@ -9,6 +9,7 @@ import type {
   SortSpec,
 } from '../core/types';
 import { SORT_DIRECTIONS } from '../core/types';
+import { withIncludableRelations } from '../relations/response-schema';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
 import {
@@ -283,7 +284,13 @@ export abstract class ListEndpoint<
               'application/json': {
                 schema: z.object({
                   success: z.literal(true),
-                  result: z.array(this.getModelSchema()),
+                  result: z.array(
+                    withIncludableRelations(
+                      this.getModelSchema(),
+                      this._meta,
+                      this.allowedIncludes,
+                    ),
+                  ),
                   result_info: z.object(resultInfoShape),
                 }),
               },
