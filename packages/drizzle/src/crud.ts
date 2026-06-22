@@ -804,7 +804,12 @@ export abstract class DrizzleListEndpoint<
       cursorField: this.isCursorPaginationActive() ? this.cursorField || 'id' : undefined,
     });
 
-    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
+    const includeOptions: IncludeOptions = {
+      relations: filters.options.include || [],
+      // Scope included related rows to the caller (owner-scope + soft-delete),
+      // honoring `?withDeleted` for the related soft-delete filter.
+      scope: this.getRelationScope(filters.options.withDeleted),
+    };
 
     // Keyset cursor page: trim the has-more sentinel row before loading
     // relations, then return the canonical cursor-mode envelope.

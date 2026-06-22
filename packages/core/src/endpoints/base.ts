@@ -41,6 +41,7 @@ import {
   type NormalizedSoftDeleteConfig,
   type NormalizedVersioningConfig,
   type PolicyContext,
+  type RelationRequestScope,
   type SchemaResolveContext,
   type ValidatedData,
 } from '../core/types';
@@ -258,6 +259,17 @@ export abstract class CrudEndpoint<
     if (!this.context) return undefined;
     const config = this.getMultiTenantConfig();
     return extractTenantId(this.context, config);
+  }
+
+  /**
+   * Build the request-scoped access scope for relation includes — the parent
+   * request's resolved tenant id plus whether soft-deleted related rows are
+   * wanted. Threaded into `IncludeOptions.scope` so the relation loader can
+   * constrain included related rows per each relation's `scope` config
+   * (owner-scope + soft-delete), preventing cross-tenant exposure via `?include=`.
+   */
+  protected getRelationScope(includeDeleted = false): RelationRequestScope {
+    return { tenantId: this.getTenantId(), includeDeleted };
   }
 
   /**

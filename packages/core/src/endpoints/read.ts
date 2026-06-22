@@ -322,6 +322,10 @@ export abstract class ReadEndpoint<
     const lookupValue = await this.getLookupValue();
     const additionalFilters = await this.getAdditionalFilters();
     const includeOptions = await this.getIncludeOptions();
+    // Scope included related rows to the caller (owner-scope + soft-delete), so
+    // `?include=` can't expose a related row in another tenant. Read never
+    // surfaces soft-deleted rows, so includeDeleted stays false.
+    if (includeOptions) includeOptions.scope = this.getRelationScope();
     const fieldSelection = await this.getFieldSelection();
 
     // Inject tenant filter if multi-tenancy is enabled

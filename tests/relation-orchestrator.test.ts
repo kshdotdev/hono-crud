@@ -557,3 +557,139 @@ describe('resolveRelationValueSync', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Owner-scoped includes — `RelationConfig.scope` + `IncludeOptions.scope`
+//
+// Security: `?include=` must not expose a related row the caller can't read.
+// The orchestrator filters fetched related rows by the related table's owner
+// column (scoped to the request's tenant id) and soft-delete column BEFORE they
+// are mapped back onto the parent — so a foreign-key pointing at another
+// tenant's row resolves to null/[] and never reaches the response.
+// ---------------------------------------------------------------------------
+
+describe('include scope filtering (owner-scope + soft-delete)', () => {
+  // comment belongsTo post; the related post is owner-scoped by `authorId` and
+  // soft-deleted via `deletedAt`.
+  const scopedPost = belongsTo({
+    model: 'posts',
+    foreignKey: 'postId',
+    localKey: 'id',
+    scope: { tenantField: 'authorId', softDeleteField: 'deletedAt' },
+  });
+
+  it('belongsTo: a related row owned by another tenant resolves to null', async () => {
+    // comment owned by tenant A references a post owned by tenant B.
+    const { fetch } = makeFakeFetch([{ id: 'p1', authorId: 'B', deletedAt: null }]);
+    const result = await batchLoadRelations(
+      [{ id: 'c1', postId: 'p1' }],
+      metaWith({ post: scopedPost }),
+      asyncAdapter(fetch),
+      { relations: ['post'], scope: { tenantId: 'A' } },
+    );
+    expect(result[0].post).toBeNull();
+  });
+
+  it('belongsTo: a related row owned by the same tenant is returned', async () => {
+    const post = { id: 'p1', authorId: 'A', deletedAt: null };
+    const { fetch } = makeFakeFetch([post]);
+    const result = await batchLoadRelations(
+      [{ id: 'c1', postId: 'p1' }],
+      metaWith({ post: scopedPost }),
+      asyncAdapter(fetch),
+      { relations: ['post'], scope: { tenantId: 'A' } },
+    );
+    expect(result[0].post).toEqual(post);
+  });
+
+  it('belongsTo: a soft-deleted related row is excluded by default', async () => {
+    const { fetch } = makeFakeFetch([{ id: 'p1', authorId: 'A', deletedAt: '2020-01-01' }]);
+    const result = await batchLoadRelations(
+      [{ id: 'c1', postId: 'p1' }],
+      metaWith({ post: scopedPost }),
+      asyncAdapter(fetch),
+      { relations: ['post'], scope: { tenantId: 'A' } },
+    );
+    expect(result[0].post).toBeNull();
+  });
+
+  it('belongsTo: a soft-deleted related row is kept when includeDeleted', async () => {
+    const post = { id: 'p1', authorId: 'A', deletedAt: '2020-01-01' };
+    const { fetch } = makeFakeFetch([post]);
+    const result = await batchLoadRelations(
+      [{ id: 'c1', postId: 'p1' }],
+      metaWith({ post: scopedPost }),
+      asyncAdapter(fetch),
+      { relations: ['post'], scope: { tenantId: 'A', includeDeleted: true } },
+    );
+    expect(result[0].post).toEqual(post);
+  });
+
+  it('hasMany: drops related rows in other tenants and soft-deleted ones', async () => {
+    const scopedPosts = hasMany({
+      model: 'posts',
+      foreignKey: 'ownerId', // grouping key (the parent user id)
+      scope: { tenantField: 'tenantId', softDeleteField: 'deletedAt' },
+    });
+    const posts: RelatedRecord[] = [
+      { id: 'p1', ownerId: 'u1', tenantId: 'A', deletedAt: null }, // kept
+      { id: 'p2', ownerId: 'u1', tenantId: 'B', deletedAt: null }, // other tenant → dropped
+      { id: 'p3', ownerId: 'u1', tenantId: 'A', deletedAt: '2020' }, // soft-deleted → dropped
+    ];
+    const { fetch } = makeFakeFetch(posts);
+    const result = await batchLoadRelations(
+      [{ id: 'u1' }],
+      metaWith({ posts: scopedPosts }),
+      asyncAdapter(fetch),
+      { relations: ['posts'], scope: { tenantId: 'A' } },
+    );
+    expect(result[0].posts).toEqual([{ id: 'p1', ownerId: 'u1', tenantId: 'A', deletedAt: null }]);
+  });
+
+  it('no-op when the relation declares no scope (backward compatible)', async () => {
+    const post = { id: 'p1', authorId: 'B', deletedAt: '2020' };
+    const { fetch } = makeFakeFetch([post]);
+    const result = await batchLoadRelations(
+      [{ id: 'c1', postId: 'p1' }],
+      metaWith({ post: belongsTo({ foreignKey: 'postId', localKey: 'id' }) }),
+      asyncAdapter(fetch),
+      { relations: ['post'], scope: { tenantId: 'A' } },
+    );
+    expect(result[0].post).toEqual(post); // unscoped relation → unfiltered
+  });
+
+  it('no-op when the request carries no scope (backward compatible)', async () => {
+    const post = { id: 'p1', authorId: 'B', deletedAt: '2020' };
+    const { fetch } = makeFakeFetch([post]);
+    const result = await batchLoadRelations(
+      [{ id: 'c1', postId: 'p1' }],
+      metaWith({ post: scopedPost }),
+      asyncAdapter(fetch),
+      { relations: ['post'] }, // no scope on the request
+    );
+    expect(result[0].post).toEqual(post);
+  });
+
+  it('sync path: cross-tenant related row resolves to null', () => {
+    const { fetch } = makeFakeFetch([{ id: 'p1', authorId: 'B', deletedAt: null }]);
+    const result = loadRelationsForItemSync(
+      { id: 'c1', postId: 'p1' },
+      metaWith({ post: scopedPost }),
+      syncAdapter(fetch),
+      { relations: ['post'], scope: { tenantId: 'A' } },
+    );
+    expect(result.post).toBeNull();
+  });
+
+  it('single primitive: resolveRelationValueAsync honors the request scope', async () => {
+    const { fetch } = makeFakeFetch([{ id: 'p1', authorId: 'B', deletedAt: null }]);
+    const value = await resolveRelationValueAsync(
+      { id: 'c1', postId: 'p1' },
+      scopedPost,
+      'HANDLE',
+      fetch,
+      { tenantId: 'A' },
+    );
+    expect(value).toBeNull();
+  });
+});
