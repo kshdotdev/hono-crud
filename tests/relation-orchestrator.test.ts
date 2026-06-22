@@ -693,3 +693,63 @@ describe('include scope filtering (owner-scope + soft-delete)', () => {
     expect(value).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fetch-scope push-down — the orchestrator hands the resolved scope to
+// `fetchRelated` so adapters can filter in SQL (the orchestrator's post-fetch
+// `applyRelationScope` stays as a defense-in-depth net).
+// ---------------------------------------------------------------------------
+
+describe('fetch-scope push-down to fetchRelated', () => {
+  const scopedRel = belongsTo({
+    foreignKey: 'postId',
+    localKey: 'id',
+    scope: { tenantField: 'authorId', softDeleteField: 'deletedAt' },
+  });
+
+  function recordingAdapter() {
+    const scopes: unknown[] = [];
+    const adapter: RelationLoaderAdapter<string> = {
+      resolveRelation: () => 'HANDLE',
+      fetchRelated: (_h, _k, _values, scope) => {
+        scopes.push(scope);
+        return [];
+      },
+    };
+    return { adapter, scopes };
+  }
+
+  it('passes the resolved tenant + soft-delete scope', async () => {
+    const { adapter, scopes } = recordingAdapter();
+    await batchLoadRelations([{ id: 'c1', postId: 'p1' }], metaWith({ post: scopedRel }), adapter, {
+      relations: ['post'],
+      scope: { tenantId: 'A' },
+    });
+    expect(scopes[0]).toEqual({
+      tenantField: 'authorId',
+      tenantValue: 'A',
+      excludeDeletedField: 'deletedAt',
+    });
+  });
+
+  it('drops the soft-delete field when includeDeleted is set', async () => {
+    const { adapter, scopes } = recordingAdapter();
+    await batchLoadRelations([{ id: 'c1', postId: 'p1' }], metaWith({ post: scopedRel }), adapter, {
+      relations: ['post'],
+      scope: { tenantId: 'A', includeDeleted: true },
+    });
+    expect(scopes[0]).toMatchObject({ tenantField: 'authorId', tenantValue: 'A' });
+    expect((scopes[0] as { excludeDeletedField?: string }).excludeDeletedField).toBeUndefined();
+  });
+
+  it('passes undefined when the relation declares no scope', async () => {
+    const { adapter, scopes } = recordingAdapter();
+    await batchLoadRelations(
+      [{ id: 'c1', postId: 'p1' }],
+      metaWith({ post: belongsTo({ foreignKey: 'postId', localKey: 'id' }) }),
+      adapter,
+      { relations: ['post'], scope: { tenantId: 'A' } },
+    );
+    expect(scopes[0]).toBeUndefined();
+  });
+});

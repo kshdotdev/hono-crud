@@ -67,6 +67,14 @@ export interface ConformanceCapabilities {
    *   (memory adapter, `MEMORY_NOOP_TX`).
    */
   transactionalHooks: 'rollback' | 'noop-sentinel';
+  /**
+   * Whether this leg's conformance model carries an owner-scoped self-relation
+   * (`parent` belongsTo via `parentId`, `scope` tied to the tenant + soft-delete
+   * columns), so the relation-include scoping cell can run. False on the prisma
+   * leg — it reuses the fixed examples `users` schema, which has no self-relation
+   * column; the skip is named.
+   */
+  relationScoping: boolean;
 }
 
 export interface HookObservation {

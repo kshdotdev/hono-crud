@@ -37,6 +37,7 @@ import { CONFORMANCE_FILTER_CONFIG, buildConformanceSchema } from '../model';
 
 const schema = buildConformanceSchema('epoch-ms').extend({
   tenantId: z.string().nullable().optional(),
+  parentId: z.string().nullable().optional(),
 });
 type Item = z.infer<typeof schema>;
 
@@ -58,6 +59,18 @@ const tenantModel = defineModel({
   softDelete: { field: 'deletedAt' },
   timestamps: true,
   multiTenant: { field: 'tenantId', source: 'context', contextKey: 'tenantId' },
+  // Owner-scoped self-relation: a row's `parent` is filtered to the caller's
+  // tenant + excludes soft-deleted parents (exercises the relation-include scope).
+  relations: {
+    parent: {
+      type: 'belongsTo',
+      model: TABLE,
+      foreignKey: 'parentId',
+      localKey: 'id',
+      schema,
+      scope: { tenantField: 'tenantId', softDeleteField: 'deletedAt' },
+    },
+  },
 });
 const tenantMeta = defineMeta({ model: tenantModel });
 
@@ -130,6 +143,7 @@ class TenantCreate extends MemoryCreateEndpoint {
 }
 class TenantRead extends MemoryReadEndpoint {
   _meta = tenantMeta;
+  protected override allowedIncludes = ['parent'];
 }
 class TenantUpdate extends MemoryUpdateEndpoint {
   _meta = tenantMeta;
@@ -139,6 +153,7 @@ class TenantDelete extends MemoryDeleteEndpoint {
 }
 class TenantList extends MemoryListEndpoint {
   _meta = tenantMeta;
+  protected override allowedIncludes = ['parent'];
 }
 
 class FinalizeCreate extends MemoryCreateEndpoint {
@@ -252,6 +267,7 @@ export const memoryConformance: AdapterDescriptor = {
     uniqueConstraints: false,
     timestampKind: 'epoch-ms',
     transactionalHooks: 'noop-sentinel',
+    relationScoping: true,
   },
   tenant: {
     field: 'tenantId',

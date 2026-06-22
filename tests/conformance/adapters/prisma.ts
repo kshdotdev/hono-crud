@@ -326,6 +326,9 @@ export const prismaConformance: AdapterDescriptor = {
     uniqueConstraints: true,
     timestampKind: 'iso-datetime',
     transactionalHooks: 'rollback',
+    // The prisma leg reuses the fixed examples `users` schema, which has no
+    // self-relation column — the relation-scoping cell is a named skip here.
+    relationScoping: false,
   },
   tenant: {
     field: 'status',

@@ -45,6 +45,44 @@ function applyRelationScope(
   });
 }
 
+/**
+ * The push-down form of {@link RelationConfig.scope} for a single request: the
+ * concrete column + value an adapter can add to its related-row query (WHERE) so
+ * the owner-scope is enforced in SQL instead of by post-fetch filtering. Computed
+ * by {@link resolveFetchScope} from the relation `scope` + the request scope.
+ */
+export interface RelationFetchScope {
+  /** Owner/tenant column on the related table to constrain by equality. */
+  tenantField?: string;
+  /** The request's tenant id (the equality value for `tenantField`). */
+  tenantValue?: unknown;
+  /** Soft-delete column on the related table to require `IS NULL`. */
+  excludeDeletedField?: string;
+}
+
+/**
+ * Resolve the per-relation, per-request fetch scope an adapter can push into its
+ * query. Returns `undefined` when there is nothing to constrain (no relation
+ * `scope`, no request scope, or every applicable field opted out). Adapters that
+ * honor it filter in SQL; the orchestrator still applies {@link applyRelationScope}
+ * afterward as a defense-in-depth net for adapters that ignore the scope arg.
+ */
+export function resolveFetchScope(
+  config: RelationConfig,
+  requestScope?: RelationRequestScope,
+): RelationFetchScope | undefined {
+  const scope = config.scope;
+  if (!scope || !requestScope) return undefined;
+  const tenantField =
+    scope.tenantField != null && requestScope.tenantId != null ? scope.tenantField : undefined;
+  const excludeDeletedField =
+    scope.softDeleteField != null && !requestScope.includeDeleted
+      ? scope.softDeleteField
+      : undefined;
+  if (tenantField == null && excludeDeletedField == null) return undefined;
+  return { tenantField, tenantValue: requestScope.tenantId, excludeDeletedField };
+}
+
 // --- ASYNC adapter (drizzle, prisma) ---
 // MUST be PromiseLike, NOT Promise: drizzle's fetchRelated returns a
 // QueryBuilder<Row> which `extends PromiseLike<Row[]>` (drizzle helpers.ts:77),
@@ -60,6 +98,7 @@ export type FetchRelated<Handle> = (
   handle: Handle,
   keyField: string,
   values: unknown[],
+  scope?: RelationFetchScope,
 ) => RelatedRecord[] | PromiseLike<RelatedRecord[]>;
 
 export interface RelationLoaderAdapter<Handle> {
@@ -76,6 +115,7 @@ export type SyncFetchRelated<Handle> = (
   handle: Handle,
   keyField: string,
   values: unknown[],
+  scope?: RelationFetchScope,
 ) => RelatedRecord[];
 
 export interface SyncRelationLoaderAdapter<Handle> {
@@ -144,7 +184,8 @@ function makeHasHandler(single: boolean): BatchHandler {
     if (localValues.length === 0) {
       return results.map((i) => ({ ...i, [relationName]: single ? null : [] }));
     }
-    const fetched = await adapter.fetchRelated(handle, config.foreignKey, localValues);
+    const fetchScope = resolveFetchScope(config, requestScope);
+    const fetched = await adapter.fetchRelated(handle, config.foreignKey, localValues, fetchScope);
     const records = applyRelationScope(fetched, config, requestScope);
     const byForeignKey = new Map<unknown, RelatedRecord[]>();
     for (const record of records) {
@@ -171,7 +212,8 @@ function makeBelongsToHandler(): BatchHandler {
     if (foreignValues.length === 0) {
       return results.map((i) => ({ ...i, [relationName]: null }));
     }
-    const fetched = await adapter.fetchRelated(handle, refLocalKey, foreignValues);
+    const fetchScope = resolveFetchScope(config, requestScope);
+    const fetched = await adapter.fetchRelated(handle, refLocalKey, foreignValues, fetchScope);
     const records = applyRelationScope(fetched, config, requestScope);
     const byLocalKey = new Map<unknown, RelatedRecord>();
     for (const record of records) byLocalKey.set(record[refLocalKey], record); // last-writer-wins
@@ -232,7 +274,12 @@ export async function resolveRelationValueAsync<Handle>(
   const plan = singleQueryPlan(config, item);
   if (!plan) return reducer([]);
   const records = applyRelationScope(
-    await fetchRelated(handle, plan.keyField, [plan.gateValue]),
+    await fetchRelated(
+      handle,
+      plan.keyField,
+      [plan.gateValue],
+      resolveFetchScope(config, requestScope),
+    ),
     config,
     requestScope,
   );
@@ -250,7 +297,7 @@ export function resolveRelationValueSync<Handle>(
   const plan = singleQueryPlan(config, item);
   if (!plan) return reducer([]);
   const records = applyRelationScope(
-    fetchRelated(handle, plan.keyField, [plan.gateValue]),
+    fetchRelated(handle, plan.keyField, [plan.gateValue], resolveFetchScope(config, requestScope)),
     config,
     requestScope,
   );
