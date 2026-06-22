@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/drizzle",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Drizzle ORM CRUD adapter for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
