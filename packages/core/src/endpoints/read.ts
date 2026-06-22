@@ -2,6 +2,7 @@ import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { NotFoundException } from '../core/exceptions';
 import type { IncludeOptions, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { withIncludableRelations } from '../relations/response-schema';
 import { generateETag, matchesIfNoneMatch } from '../utils/etag';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
@@ -168,7 +169,11 @@ export abstract class ReadEndpoint<
               'application/json': {
                 schema: z.object({
                   success: z.literal(true),
-                  result: this.getModelSchema(),
+                  result: withIncludableRelations(
+                    this.getModelSchema(),
+                    this._meta,
+                    this.allowedIncludes,
+                  ),
                 }),
               },
             },

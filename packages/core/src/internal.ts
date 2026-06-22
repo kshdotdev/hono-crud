@@ -137,6 +137,8 @@ export type {
   SyncFetchRelated,
   SyncRelationLoaderAdapter,
 } from './relations/batch-loader';
+// Adds includable relations to a List/Read response item schema (OpenAPI).
+export { withIncludableRelations } from './relations/response-schema';
 
 // The contract adapter bundles implement, plus the generated-endpoints map.
 export type { AdapterBundle, GeneratedEndpoints } from './config/index';
