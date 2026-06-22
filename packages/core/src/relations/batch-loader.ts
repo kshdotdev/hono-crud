@@ -6,10 +6,44 @@
  * sync loader so memory stays fully synchronous.
  */
 
-import type { IncludeOptions, MetaInput, RelationConfig, RelationType } from '../core/types';
+import type {
+  IncludeOptions,
+  MetaInput,
+  RelationConfig,
+  RelationRequestScope,
+  RelationType,
+} from '../core/types';
 
 /** A loaded related record (opaque to the orchestrator). */
 export type RelatedRecord = Record<string, unknown>;
+
+/**
+ * Filter fetched related rows to what the caller may read, per the relation's
+ * `scope` (owner column + soft-delete column) and the request scope (tenant id +
+ * `includeDeleted`). Pure and adapter-agnostic, so every adapter inherits
+ * owner-scoped includes identically — a related row in another tenant (or a
+ * soft-deleted one) is dropped BEFORE it is mapped back onto the parent and
+ * never reaches the response. No-op when the relation declares no `scope` or the
+ * request carries none.
+ */
+function applyRelationScope(
+  records: RelatedRecord[],
+  config: RelationConfig,
+  requestScope?: RelationRequestScope,
+): RelatedRecord[] {
+  const scope = config.scope;
+  if (!scope || !requestScope) return records;
+  const { tenantField, softDeleteField } = scope;
+  const { tenantId, includeDeleted } = requestScope;
+  const scopeTenant = tenantField != null && tenantId != null;
+  const scopeSoftDelete = softDeleteField != null && !includeDeleted;
+  if (!scopeTenant && !scopeSoftDelete) return records;
+  return records.filter((record) => {
+    if (scopeTenant && record[tenantField as string] !== tenantId) return false;
+    if (scopeSoftDelete && record[softDeleteField as string] != null) return false;
+    return true;
+  });
+}
 
 // --- ASYNC adapter (drizzle, prisma) ---
 // MUST be PromiseLike, NOT Promise: drizzle's fetchRelated returns a
@@ -85,6 +119,7 @@ export async function batchLoadRelations<
       relationConfig,
       handle as unknown,
       adapter as unknown as RelationLoaderAdapter<unknown>,
+      includeOptions.scope,
     );
   }
   return results;
@@ -96,11 +131,12 @@ type BatchHandler = <T extends Record<string, unknown>>(
   config: RelationConfig,
   handle: unknown,
   adapter: RelationLoaderAdapter<unknown>,
+  requestScope?: RelationRequestScope,
 ) => Promise<T[]>;
 
 /** Shared hasOne/hasMany grouping; `single` shapes the map-back. */
 function makeHasHandler(single: boolean): BatchHandler {
-  return async (results, relationName, config, handle, adapter) => {
+  return async (results, relationName, config, handle, adapter, requestScope) => {
     const localKey = config.localKey || 'id';
     const localValues = [
       ...new Set(results.map((i) => i[localKey]).filter((v) => v !== undefined && v !== null)),
@@ -108,7 +144,8 @@ function makeHasHandler(single: boolean): BatchHandler {
     if (localValues.length === 0) {
       return results.map((i) => ({ ...i, [relationName]: single ? null : [] }));
     }
-    const records = await adapter.fetchRelated(handle, config.foreignKey, localValues);
+    const fetched = await adapter.fetchRelated(handle, config.foreignKey, localValues);
+    const records = applyRelationScope(fetched, config, requestScope);
     const byForeignKey = new Map<unknown, RelatedRecord[]>();
     for (const record of records) {
       const fk = record[config.foreignKey];
@@ -124,7 +161,7 @@ function makeHasHandler(single: boolean): BatchHandler {
 }
 
 function makeBelongsToHandler(): BatchHandler {
-  return async (results, relationName, config, handle, adapter) => {
+  return async (results, relationName, config, handle, adapter, requestScope) => {
     const refLocalKey = config.localKey || 'id';
     const foreignValues = [
       ...new Set(
@@ -134,7 +171,8 @@ function makeBelongsToHandler(): BatchHandler {
     if (foreignValues.length === 0) {
       return results.map((i) => ({ ...i, [relationName]: null }));
     }
-    const records = await adapter.fetchRelated(handle, refLocalKey, foreignValues);
+    const fetched = await adapter.fetchRelated(handle, refLocalKey, foreignValues);
+    const records = applyRelationScope(fetched, config, requestScope);
     const byLocalKey = new Map<unknown, RelatedRecord>();
     for (const record of records) byLocalKey.set(record[refLocalKey], record); // last-writer-wins
     return results.map((i) => ({
@@ -188,11 +226,16 @@ export async function resolveRelationValueAsync<Handle>(
   config: RelationConfig,
   handle: Handle,
   fetchRelated: FetchRelated<Handle>,
+  requestScope?: RelationRequestScope,
 ): Promise<unknown> {
   const reducer = RELATION_SINGLE_REDUCER[config.type];
   const plan = singleQueryPlan(config, item);
   if (!plan) return reducer([]);
-  const records = await fetchRelated(handle, plan.keyField, [plan.gateValue]);
+  const records = applyRelationScope(
+    await fetchRelated(handle, plan.keyField, [plan.gateValue]),
+    config,
+    requestScope,
+  );
   return reducer(records);
 }
 
@@ -201,11 +244,16 @@ export function resolveRelationValueSync<Handle>(
   config: RelationConfig,
   handle: Handle,
   fetchRelated: SyncFetchRelated<Handle>,
+  requestScope?: RelationRequestScope,
 ): unknown {
   const reducer = RELATION_SINGLE_REDUCER[config.type];
   const plan = singleQueryPlan(config, item);
   if (!plan) return reducer([]);
-  const records = fetchRelated(handle, plan.keyField, [plan.gateValue]);
+  const records = applyRelationScope(
+    fetchRelated(handle, plan.keyField, [plan.gateValue]),
+    config,
+    requestScope,
+  );
   return reducer(records);
 }
 
@@ -234,6 +282,7 @@ export async function loadRelationsForItem<
       config,
       handle,
       adapter.fetchRelated,
+      includeOptions.scope,
     );
   }
   return result as T;
@@ -257,7 +306,13 @@ export function loadRelationsForItemSync<
     if (!config) continue;
     const handle = adapter.resolveRelation(config);
     if (handle == null) continue;
-    result[relationName] = resolveRelationValueSync(result, config, handle, adapter.fetchRelated);
+    result[relationName] = resolveRelationValueSync(
+      result,
+      config,
+      handle,
+      adapter.fetchRelated,
+      includeOptions.scope,
+    );
   }
   return result as T;
 }

@@ -241,6 +241,35 @@ export interface RelationConfig<TTable = unknown> {
    * Configuration for cascade operations when parent is deleted.
    */
   cascade?: CascadeConfig;
+  /**
+   * Access scope applied to the RELATED rows when this relation is loaded via
+   * `?include=`. Without it, an include loads related rows by foreign key alone —
+   * so a parent the caller may read can expose a related row in another tenant
+   * (or a soft-deleted one). Declare the related table's owner/soft-delete columns
+   * here to scope the include to the caller, closing that cross-tenant read.
+   */
+  scope?: RelationScopeConfig;
+}
+
+/**
+ * Per-relation access scope for `?include=`. Names the columns ON THE RELATED
+ * TABLE used to constrain loaded related rows to what the caller may read.
+ */
+export interface RelationScopeConfig {
+  /**
+   * Column on the related table holding its owner/tenant id. When set, included
+   * related rows are filtered to the request's resolved tenant id
+   * (`IncludeOptions.scope.tenantId`), so a foreign-key pointing at another
+   * tenant's row resolves to `null` (belongsTo/hasOne) or is omitted (hasMany).
+   * Use when the related model is owner-scoped by the same identity as the parent.
+   */
+  tenantField?: string;
+  /**
+   * Soft-delete column on the related table. When set, soft-deleted related rows
+   * (column non-null) are excluded from includes unless the request opts in via
+   * `?withDeleted=true` (`IncludeOptions.scope.includeDeleted`).
+   */
+  softDeleteField?: string;
 }
 
 /**
@@ -249,11 +278,30 @@ export interface RelationConfig<TTable = unknown> {
 export type RelationsConfig = Record<string, RelationConfig>;
 
 /**
+ * Request-scoped values that drive {@link RelationScopeConfig} filtering of
+ * included related rows. Populated by the endpoint from the parent request's
+ * resolved tenant id and `withDeleted` flag; consumed by the relation loader.
+ */
+export interface RelationRequestScope {
+  /** The request's resolved tenant id (parent endpoint's `getTenantId()`). */
+  tenantId?: unknown;
+  /** When true (`?withDeleted=true`), keep soft-deleted related rows. */
+  includeDeleted?: boolean;
+}
+
+/**
  * Parsed include options from query string.
  */
 export interface IncludeOptions {
   /** List of relation names to include */
   relations: string[];
+  /**
+   * Request-scoped access scope applied to included related rows (owner-scope +
+   * soft-delete), per each relation's {@link RelationScopeConfig}. Omitted when
+   * the request resolves no tenant — in which case only declared `softDeleteField`
+   * filtering (if any) applies.
+   */
+  scope?: RelationRequestScope;
 }
 
 // ============================================================================

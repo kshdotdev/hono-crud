@@ -460,7 +460,12 @@ export abstract class MemoryListEndpoint<
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const items = queryMemoryStore(store, filters, this.searchFields, this.getSoftDeleteConfig());
     const totalCount = items.length;
-    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
+    const includeOptions: IncludeOptions = {
+      relations: filters.options.include || [],
+      // Scope included related rows to the caller (owner-scope + soft-delete),
+      // honoring `?withDeleted` for the related soft-delete filter.
+      scope: this.getRelationScope(filters.options.withDeleted),
+    };
 
     const loadItemRelations = (item: ModelObject<M['model']>) =>
       loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<
