@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/prisma",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Prisma CRUD adapter for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
