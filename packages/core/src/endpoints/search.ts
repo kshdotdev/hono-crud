@@ -510,6 +510,10 @@ export abstract class SearchEndpoint<
     let searchOptions = await this.getSearchOptions();
     const filters = await this.getFilters();
 
+    // Constrain the search to the caller's tenant before the adapter runs the
+    // query. Without this, GET /resource/search reads across all tenants.
+    this.applyTenantScope(filters);
+
     // Validate query length
     if (!searchOptions.query || searchOptions.query.length < this.minQueryLength) {
       throw new ApiException(

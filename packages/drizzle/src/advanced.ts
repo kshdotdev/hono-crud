@@ -873,7 +873,13 @@ export abstract class DrizzleSearchEndpoint<
     const searchResults = searchInMemory(records, scoringOptions, searchableFields);
 
     // Load relations if requested using batch loading to avoid N+1 queries
-    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
+    const includeOptions: IncludeOptions = {
+      relations: filters.options.include || [],
+      // Owner-scope the included relations exactly as List/Read do — without
+      // this, `?include=` on search/export loads related rows cross-tenant even
+      // though the parent rows are scoped (the multi-tenant include-leak class).
+      scope: this.getRelationScope(filters.options.withDeleted),
+    };
 
     // Extract items for batch relation loading
     const items = searchResults.map((r) => r.item);
@@ -942,7 +948,13 @@ export abstract class DrizzleExportEndpoint<
     });
 
     // Load relations if requested using batch loading to avoid N+1 queries
-    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
+    const includeOptions: IncludeOptions = {
+      relations: filters.options.include || [],
+      // Owner-scope the included relations exactly as List/Read do — without
+      // this, `?include=` on search/export loads related rows cross-tenant even
+      // though the parent rows are scoped (the multi-tenant include-leak class).
+      scope: this.getRelationScope(filters.options.withDeleted),
+    };
     const itemsWithRelations = await batchLoadDrizzleRelations(
       this.getDb(),
       queryResult.records,

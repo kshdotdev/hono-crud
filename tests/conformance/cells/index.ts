@@ -11,6 +11,7 @@ import { registerBatchTenantScopingCells } from './batch-tenant-scoping';
 import { registerBulkPatchCells } from './bulk-patch';
 import { registerCursorPaginationCells } from './cursor-pagination';
 import { registerEtagConcurrencyCells } from './etag-concurrency';
+import { registerExtendedVerbTenantScopingCells } from './extended-verb-tenant-scoping';
 import { registerFilterOperatorCells } from './filter-operators';
 import { registerFinalizePipelineCells } from './finalize-pipeline';
 import { registerManagedFieldCells } from './managed-fields';
@@ -53,6 +54,7 @@ export function registerConformanceCells(descriptor: AdapterDescriptor): void {
   registerTenantScopingCells(descriptor, ctx);
   registerRelationScopingCells(descriptor, ctx);
   registerBatchTenantScopingCells(descriptor, ctx);
+  registerExtendedVerbTenantScopingCells(descriptor, ctx);
   registerFinalizePipelineCells(descriptor, ctx);
   registerUpsertRestoreCells(descriptor, ctx);
   registerTransactionalHookCells(descriptor, ctx);

@@ -150,6 +150,11 @@ export abstract class BulkPatchEndpoint<
       } as ListFilterParseOptions,
     );
 
+    // Constrain the matched set to the caller's tenant BEFORE counting or
+    // patching — both countMatching and applyPatch receive these filters, so a
+    // bulk patch can never count, dry-run, or mutate another tenant's rows.
+    this.applyTenantScope(filters);
+
     // Count matching records
     const matchedCount = await this.countMatching(filters);
 

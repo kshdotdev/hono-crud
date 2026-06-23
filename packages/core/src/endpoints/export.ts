@@ -366,6 +366,12 @@ export abstract class ExportEndpoint<
     const exportOptions = await this.getExportOptions();
     const filters = await this.getFilters();
 
+    // ExportEndpoint overrides ListEndpoint.handle and therefore does NOT
+    // inherit List's tenant injection — apply it explicitly so neither the
+    // streaming nor the buffered path can export another tenant's rows. Both
+    // paths below consume this same `filters` object.
+    this.applyTenantScope(filters);
+
     // Use paginated streaming for CSV when streaming is requested
     if (exportOptions.format === 'csv' && exportOptions.stream) {
       return this.exportAsCsvStreamPaginated(filters, exportOptions.format);

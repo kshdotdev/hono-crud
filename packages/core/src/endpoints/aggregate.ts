@@ -268,6 +268,11 @@ export abstract class AggregateEndpoint<
   async handle(): Promise<Response> {
     const options = await this.getAggregateOptions();
 
+    // Force the owner field to the caller's tenant so aggregations only ever
+    // span the caller's own rows. The aggregate WHERE clause is a Record, so
+    // this overwrites any client-supplied value for the owner field.
+    options.filters = this.applyTenantScopeToAggregateFilters(options.filters);
+
     // Ensure at least one aggregation is requested
     if (options.aggregations.length === 0) {
       // Default to COUNT(*)
