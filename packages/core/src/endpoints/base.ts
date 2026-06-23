@@ -34,6 +34,7 @@ import { getSoftDeleteConfig } from '../core/soft-delete';
 import {
   type FilterCondition,
   type HookContext,
+  type ListFilters,
   type MetaInput,
   type ModelPolicies,
   type NormalizedAuditConfig,
@@ -285,6 +286,47 @@ export abstract class CrudEndpoint<
     if (!config.enabled) return undefined;
     const tenantId = this.getTenantId();
     return tenantId == null ? undefined : { field: config.field, value: tenantId };
+  }
+
+  /**
+   * Constrain a parsed `ListFilters` to the caller's tenant by appending the
+   * owner equality condition. This is the single, auditable owner-scope
+   * injection that EVERY read/bulk verb building a `ListFilters` and handing it
+   * to the adapter (`list`, `search`, `export`, `bulkPatch`) MUST call AFTER
+   * parsing filters and BEFORE running the query, so the owner equality is
+   * `AND`ed into the adapter WHERE clause and a client cannot read or mutate
+   * another tenant's rows. Centralizing it here prevents the per-verb drift
+   * that produced the recurring multi-tenant leak class — a new verb that
+   * forgets to call it is the only way to reintroduce the hole.
+   *
+   * No-op when multi-tenancy is disabled. Throws `TENANT_REQUIRED` (400) when a
+   * tenant is required but absent — identical contract to {@link validateTenantId},
+   * which List already relies on.
+   */
+  protected applyTenantScope(filters: ListFilters): void {
+    const tenantId = this.validateTenantId();
+    if (!tenantId) return;
+    filters.filters.push({
+      field: this.getMultiTenantConfig().field,
+      operator: 'eq',
+      value: tenantId,
+    });
+  }
+
+  /**
+   * Aggregate-shaped owner scope. The aggregate WHERE clause is a
+   * `Record<field, value>` map (not `FilterCondition[]`), so this forces the
+   * owner field to the caller's tenant — overwriting any client-supplied value
+   * for that field — making cross-tenant aggregation impossible. Returns the
+   * scoped record. Same no-op / `TENANT_REQUIRED` contract as
+   * {@link applyTenantScope}.
+   */
+  protected applyTenantScopeToAggregateFilters(
+    filters: Record<string, unknown> | undefined,
+  ): Record<string, unknown> | undefined {
+    const tenantId = this.validateTenantId();
+    if (!tenantId) return filters;
+    return { ...(filters ?? {}), [this.getMultiTenantConfig().field]: tenantId };
   }
 
   /**

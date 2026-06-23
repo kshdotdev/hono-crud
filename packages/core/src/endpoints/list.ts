@@ -381,20 +381,18 @@ export abstract class ListEndpoint<
       );
     }
 
-    // Validate tenant ID if multi-tenancy is enabled
-    const tenantId = this.validateTenantId();
+    // Validate tenant presence BEFORE parsing the query so a missing required
+    // tenant surfaces TENANT_REQUIRED ahead of any query-validation error
+    // (parity with the pre-refactor List contract).
+    this.validateTenantId();
 
     const filters = await this.getFilters();
 
-    // Inject tenant filter if multi-tenancy is enabled
-    if (tenantId) {
-      const config = this.getMultiTenantConfig();
-      filters.filters.push({
-        field: config.field,
-        operator: 'eq',
-        value: tenantId,
-      });
-    }
+    // Constrain results to the caller's tenant. Shared with search/export/
+    // bulk-patch via `applyTenantScope` so owner-scoping has a single auditable
+    // implementation and cannot drift per verb (`applyTenantScope` re-validates
+    // the tenant idempotently, then performs the owner-scope injection).
+    this.applyTenantScope(filters);
 
     // Inject policy `readPushdown` filters (cheap perf opt-in: lets the
     // adapter exclude rows at the SQL level rather than post-fetch).

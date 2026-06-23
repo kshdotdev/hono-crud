@@ -14,6 +14,7 @@ import { join } from 'node:path';
  *   `db.transaction(...)`; an after-hook throw rolls the INSERT back.
  */
 import {
+  DrizzleAggregateEndpoint,
   DrizzleBatchCreateEndpoint,
   DrizzleBatchDeleteEndpoint,
   DrizzleBatchRestoreEndpoint,
@@ -23,9 +24,11 @@ import {
   DrizzleCreateEndpoint,
   type DrizzleDatabaseConstraint,
   DrizzleDeleteEndpoint,
+  DrizzleExportEndpoint,
   DrizzleListEndpoint,
   DrizzleReadEndpoint,
   DrizzleRestoreEndpoint,
+  DrizzleSearchEndpoint,
   DrizzleUpdateEndpoint,
   DrizzleUpsertEndpoint,
 } from '@hono-crud/drizzle';
@@ -227,6 +230,29 @@ class TenantBatchRestore extends DrizzleBatchRestoreEndpoint {
   _meta = tenantMeta;
   db = DB;
 }
+class TenantAggregate extends DrizzleAggregateEndpoint {
+  _meta = tenantMeta;
+  db = DB;
+  protected override filterFields = ['role'];
+}
+class TenantSearch extends DrizzleSearchEndpoint {
+  _meta = tenantMeta;
+  db = DB;
+  protected override searchFields = ['name'];
+  protected override filterFields = ['role'];
+  protected override allowedIncludes = ['parent'];
+}
+class TenantExport extends DrizzleExportEndpoint {
+  _meta = tenantMeta;
+  db = DB;
+  protected override filterFields = ['role'];
+  protected override allowedIncludes = ['parent'];
+}
+class TenantBulkPatch extends DrizzleBulkPatchEndpoint {
+  _meta = tenantMeta;
+  db = DB;
+  protected override filterFields = ['role'];
+}
 
 class FinalizeCreate extends DrizzleCreateEndpoint {
   _meta = finalizeMeta;
@@ -336,6 +362,10 @@ async function setup(): Promise<AdapterContext> {
     batchUpdate: TenantBatchUpdate,
     batchDelete: TenantBatchDelete,
     batchRestore: TenantBatchRestore,
+    aggregate: TenantAggregate,
+    search: TenantSearch,
+    export: TenantExport,
+    bulkPatch: TenantBulkPatch,
   });
   registerCrud(app, '/finalize-items', {
     create: FinalizeCreate,
@@ -369,6 +399,7 @@ export const drizzleConformance: AdapterDescriptor = {
     transactionalHooks: 'rollback',
     relationScoping: true,
     batchTenantScoping: true,
+    extendedVerbTenantScoping: true,
   },
   tenant: {
     field: 'tenantId',

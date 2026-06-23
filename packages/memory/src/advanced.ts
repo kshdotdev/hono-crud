@@ -552,7 +552,13 @@ export abstract class MemorySearchEndpoint<
     const paginatedResults = searchResults.slice(start, start + perPage);
 
     // Load relations if requested
-    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
+    const includeOptions: IncludeOptions = {
+      relations: filters.options.include || [],
+      // Owner-scope the included relations exactly as List/Read do — without
+      // this, `?include=` on search/export loads related rows cross-tenant even
+      // though the parent rows are scoped (the multi-tenant include-leak class).
+      scope: this.getRelationScope(filters.options.withDeleted),
+    };
     const resultsWithRelations = paginatedResults.map((result) => ({
       ...result,
       item: loadRelations(
@@ -589,7 +595,13 @@ export abstract class MemoryExportEndpoint<
     const paginatedItems = items.slice(start, start + perPage);
 
     // Load relations if requested
-    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
+    const includeOptions: IncludeOptions = {
+      relations: filters.options.include || [],
+      // Owner-scope the included relations exactly as List/Read do — without
+      // this, `?include=` on search/export loads related rows cross-tenant even
+      // though the parent rows are scoped (the multi-tenant include-leak class).
+      scope: this.getRelationScope(filters.options.withDeleted),
+    };
     const itemsWithRelations = paginatedItems.map(
       (item) =>
         loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<

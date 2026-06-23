@@ -83,6 +83,18 @@ export interface ConformanceCapabilities {
    * registers no batch verbs there; the skip is named.
    */
   batchTenantScoping: boolean;
+  /**
+   * Whether this leg registers the extended read/bulk verbs (`aggregate` /
+   * `search` / `export` / `bulkPatch`) on the multi-tenant model, so the
+   * extended-verb owner-scoping cell can assert none of them ever read,
+   * aggregate, or mutate another tenant's rows. These verbs build their WHERE
+   * from a parsed filter set (not a client id list), so the contract is: core's
+   * `applyTenantScope` injects the owner equality into that set before the
+   * adapter runs the query. False on the prisma leg — its tenant variant reuses
+   * the fixed examples schema and registers none of these verbs there; the skip
+   * is named.
+   */
+  extendedVerbTenantScoping: boolean;
 }
 
 export interface HookObservation {

@@ -332,6 +332,10 @@ export const prismaConformance: AdapterDescriptor = {
     // No batch verbs are registered on the prisma tenant variant; the
     // batch owner-scoping cell is a named skip here.
     batchTenantScoping: false,
+    // Likewise the extended read/bulk verbs (aggregate/search/export/bulkPatch)
+    // are not registered on the prisma tenant variant; the extended-verb
+    // owner-scoping cell is a named skip here.
+    extendedVerbTenantScoping: false,
   },
   tenant: {
     field: 'status',

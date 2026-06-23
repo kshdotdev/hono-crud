@@ -11,6 +11,7 @@
  */
 import {
   MEMORY_NOOP_TX,
+  MemoryAggregateEndpoint,
   MemoryBatchCreateEndpoint,
   MemoryBatchDeleteEndpoint,
   MemoryBatchRestoreEndpoint,
@@ -19,9 +20,11 @@ import {
   MemoryBulkPatchEndpoint,
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
+  MemoryExportEndpoint,
   MemoryListEndpoint,
   MemoryReadEndpoint,
   MemoryRestoreEndpoint,
+  MemorySearchEndpoint,
   MemoryUpdateEndpoint,
   MemoryUpsertEndpoint,
   clearStorage,
@@ -166,6 +169,25 @@ class TenantBatchUpdate extends MemoryBatchUpdateEndpoint {
 class TenantBatchRestore extends MemoryBatchRestoreEndpoint {
   _meta = tenantMeta;
 }
+class TenantAggregate extends MemoryAggregateEndpoint {
+  _meta = tenantMeta;
+  protected override filterFields = ['role'];
+}
+class TenantSearch extends MemorySearchEndpoint {
+  _meta = tenantMeta;
+  protected override searchFields = ['name'];
+  protected override filterFields = ['role'];
+  protected override allowedIncludes = ['parent'];
+}
+class TenantExport extends MemoryExportEndpoint {
+  _meta = tenantMeta;
+  protected override filterFields = ['role'];
+  protected override allowedIncludes = ['parent'];
+}
+class TenantBulkPatch extends MemoryBulkPatchEndpoint {
+  _meta = tenantMeta;
+  protected override filterFields = ['role'];
+}
 
 class FinalizeCreate extends MemoryCreateEndpoint {
   _meta = finalizeMeta;
@@ -254,6 +276,10 @@ async function setup(): Promise<AdapterContext> {
     batchUpdate: TenantBatchUpdate,
     batchDelete: TenantBatchDelete,
     batchRestore: TenantBatchRestore,
+    aggregate: TenantAggregate,
+    search: TenantSearch,
+    export: TenantExport,
+    bulkPatch: TenantBulkPatch,
   });
   registerCrud(app, '/finalize-items', {
     create: FinalizeCreate,
@@ -283,6 +309,7 @@ export const memoryConformance: AdapterDescriptor = {
     transactionalHooks: 'noop-sentinel',
     relationScoping: true,
     batchTenantScoping: true,
+    extendedVerbTenantScoping: true,
   },
   tenant: {
     field: 'tenantId',

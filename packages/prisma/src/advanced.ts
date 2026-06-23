@@ -162,7 +162,13 @@ export abstract class PrismaSearchEndpoint<
     const searchResults = searchInMemory(records, scoringOptions, this.getSearchableFields());
 
     // Load relations if requested using batch loading to avoid N+1 queries
-    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
+    const includeOptions: IncludeOptions = {
+      relations: filters.options.include || [],
+      // Owner-scope the included relations exactly as List/Read do — without
+      // this, `?include=` on search/export loads related rows cross-tenant even
+      // though the parent rows are scoped (the multi-tenant include-leak class).
+      scope: this.getRelationScope(filters.options.withDeleted),
+    };
     const items = searchResults.map((r) => r.item);
     const itemsWithRelations = await batchLoadPrismaRelations(
       getPrismaClient(this),
@@ -209,7 +215,13 @@ export abstract class PrismaExportEndpoint<
     });
 
     // Load relations if requested using batch loading to avoid N+1 queries
-    const includeOptions: IncludeOptions = { relations: filters.options.include || [] };
+    const includeOptions: IncludeOptions = {
+      relations: filters.options.include || [],
+      // Owner-scope the included relations exactly as List/Read do — without
+      // this, `?include=` on search/export loads related rows cross-tenant even
+      // though the parent rows are scoped (the multi-tenant include-leak class).
+      scope: this.getRelationScope(filters.options.withDeleted),
+    };
     const itemsWithRelations = await batchLoadPrismaRelations(
       getPrismaClient(this),
       queryResult.records,
