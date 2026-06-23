@@ -157,6 +157,9 @@ export abstract class BatchDeleteEndpoint<
    * Main handler for the batch delete operation.
    */
   async handle(): Promise<Response> {
+    // Enforce tenant presence (required tenants 400 instead of touching every
+    // row); the adapter's `batchDelete` AND-s the tenant filter into its WHERE.
+    this.validateTenantId();
     const ids = await this.getIds();
     const errors: Array<{ id: string; error: string }> = [];
 

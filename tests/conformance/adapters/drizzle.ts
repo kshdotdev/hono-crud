@@ -16,6 +16,8 @@ import { join } from 'node:path';
 import {
   DrizzleBatchCreateEndpoint,
   DrizzleBatchDeleteEndpoint,
+  DrizzleBatchRestoreEndpoint,
+  DrizzleBatchUpdateEndpoint,
   DrizzleBatchUpsertEndpoint,
   DrizzleBulkPatchEndpoint,
   DrizzleCreateEndpoint,
@@ -213,6 +215,18 @@ class TenantList extends DrizzleListEndpoint {
   db = DB;
   protected override allowedIncludes = ['parent'];
 }
+class TenantBatchDelete extends DrizzleBatchDeleteEndpoint {
+  _meta = tenantMeta;
+  db = DB;
+}
+class TenantBatchUpdate extends DrizzleBatchUpdateEndpoint {
+  _meta = tenantMeta;
+  db = DB;
+}
+class TenantBatchRestore extends DrizzleBatchRestoreEndpoint {
+  _meta = tenantMeta;
+  db = DB;
+}
 
 class FinalizeCreate extends DrizzleCreateEndpoint {
   _meta = finalizeMeta;
@@ -319,6 +333,9 @@ async function setup(): Promise<AdapterContext> {
     read: TenantRead,
     update: TenantUpdate,
     delete: TenantDelete,
+    batchUpdate: TenantBatchUpdate,
+    batchDelete: TenantBatchDelete,
+    batchRestore: TenantBatchRestore,
   });
   registerCrud(app, '/finalize-items', {
     create: FinalizeCreate,
@@ -351,6 +368,7 @@ export const drizzleConformance: AdapterDescriptor = {
     timestampKind: 'epoch-ms',
     transactionalHooks: 'rollback',
     relationScoping: true,
+    batchTenantScoping: true,
   },
   tenant: {
     field: 'tenantId',
