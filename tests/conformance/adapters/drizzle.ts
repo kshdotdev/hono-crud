@@ -62,6 +62,7 @@ const itemsTable = sqliteTable('conformance_items', {
   role: text('role').notNull().default('user'),
   age: integer('age'),
   tenantId: text('tenantId'),
+  parentId: text('parentId'),
   deletedAt: text('deletedAt'),
   createdAt: integer('createdAt'),
   updatedAt: integer('updatedAt'),
@@ -73,6 +74,7 @@ const itemsTable = sqliteTable('conformance_items', {
 
 const schema = buildConformanceSchema('epoch-ms').extend({
   tenantId: z.string().nullable().optional(),
+  parentId: z.string().nullable().optional(),
 });
 type Item = z.infer<typeof schema>;
 
@@ -96,6 +98,20 @@ const tenantModel = defineModel({
   softDelete: { field: 'deletedAt' },
   timestamps: true,
   multiTenant: { field: 'tenantId', source: 'context', contextKey: 'tenantId' },
+  // Owner-scoped self-relation: a row's `parent` is filtered to the caller's
+  // tenant + excludes soft-deleted parents — the include scope pushes these into
+  // the SQL WHERE (see drizzle helpers `fetchRelated`).
+  relations: {
+    parent: {
+      type: 'belongsTo',
+      model: TABLE,
+      table: itemsTable,
+      foreignKey: 'parentId',
+      localKey: 'id',
+      schema,
+      scope: { tenantField: 'tenantId', softDeleteField: 'deletedAt' },
+    },
+  },
 });
 const tenantMeta = defineMeta({ model: tenantModel });
 
@@ -182,6 +198,7 @@ class TenantCreate extends DrizzleCreateEndpoint {
 class TenantRead extends DrizzleReadEndpoint {
   _meta = tenantMeta;
   db = DB;
+  protected override allowedIncludes = ['parent'];
 }
 class TenantUpdate extends DrizzleUpdateEndpoint {
   _meta = tenantMeta;
@@ -194,6 +211,7 @@ class TenantDelete extends DrizzleDeleteEndpoint {
 class TenantList extends DrizzleListEndpoint {
   _meta = tenantMeta;
   db = DB;
+  protected override allowedIncludes = ['parent'];
 }
 
 class FinalizeCreate extends DrizzleCreateEndpoint {
@@ -266,6 +284,7 @@ async function setup(): Promise<AdapterContext> {
       role TEXT NOT NULL DEFAULT 'user',
       age INTEGER,
       tenantId TEXT,
+      parentId TEXT,
       deletedAt TEXT,
       createdAt INTEGER,
       updatedAt INTEGER
@@ -331,6 +350,7 @@ export const drizzleConformance: AdapterDescriptor = {
     uniqueConstraints: true,
     timestampKind: 'epoch-ms',
     transactionalHooks: 'rollback',
+    relationScoping: true,
   },
   tenant: {
     field: 'tenantId',

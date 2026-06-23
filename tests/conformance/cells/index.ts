@@ -14,6 +14,7 @@ import { registerFilterOperatorCells } from './filter-operators';
 import { registerFinalizePipelineCells } from './finalize-pipeline';
 import { registerManagedFieldCells } from './managed-fields';
 import { registerPaginationCells } from './pagination';
+import { registerRelationScopingCells } from './relation-scoping';
 import { registerSoftDeleteLifecycleCells } from './soft-delete-lifecycle';
 import { registerTenantScopingCells } from './tenant-scoping';
 import { registerTransactionalHookCells } from './transactional-hooks';
@@ -49,6 +50,7 @@ export function registerConformanceCells(descriptor: AdapterDescriptor): void {
   registerManagedFieldCells(descriptor, ctx);
   registerUniqueConflictCells(descriptor, ctx);
   registerTenantScopingCells(descriptor, ctx);
+  registerRelationScopingCells(descriptor, ctx);
   registerFinalizePipelineCells(descriptor, ctx);
   registerUpsertRestoreCells(descriptor, ctx);
   registerTransactionalHookCells(descriptor, ctx);

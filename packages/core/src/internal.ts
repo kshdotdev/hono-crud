@@ -130,6 +130,7 @@ export {
 } from './relations/batch-loader';
 export type {
   RelatedRecord,
+  RelationFetchScope,
   ResolveRelation,
   FetchRelated,
   RelationLoaderAdapter,

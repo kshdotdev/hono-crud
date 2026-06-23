@@ -255,11 +255,25 @@ function drizzleRelationAdapter(
 ): RelationLoaderAdapter<DrizzleTable> {
   return {
     resolveRelation: (config) => (config as RelationConfig<DrizzleTable>).table ?? null,
-    fetchRelated: (table, keyField, values) =>
-      cast<RelatedRecord>(db)
+    // Push the owner-scope into the WHERE clause (instead of post-fetch filtering):
+    // the related rows are constrained to the caller's tenant + non-soft-deleted in
+    // SQL, so cross-tenant rows are never fetched. The core orchestrator still
+    // re-filters as a defense-in-depth net.
+    fetchRelated: (table, keyField, values, scope) => {
+      // Inferred as drizzle's real `SQL[]` (operators return SQLWrapper) so `_and`
+      // accepts it — not the local `DrizzleSql` stand-in.
+      const conditions = [inArray(getColumn(table, keyField), values)];
+      if (scope?.tenantField != null && scope.tenantValue != null) {
+        conditions.push(eq(getColumn(table, scope.tenantField), scope.tenantValue));
+      }
+      if (scope?.excludeDeletedField != null) {
+        conditions.push(isNull(getColumn(table, scope.excludeDeletedField)));
+      }
+      return cast<RelatedRecord>(db)
         .select()
         .from(table)
-        .where(inArray(getColumn(table, keyField), values)),
+        .where(conditions.length === 1 ? conditions[0] : _and(...conditions));
+    },
   };
 }
 

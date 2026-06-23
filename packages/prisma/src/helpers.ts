@@ -383,8 +383,19 @@ function prismaRelationAdapter(prisma: PrismaClient): RelationLoaderAdapter<Pris
         prisma,
         await resolvePrismaDelegateName({ tableName: config.model, table: config.table }),
       ) ?? null,
-    fetchRelated: (model, keyField, values) =>
-      model.findMany({ where: { [keyField]: { in: values } } }),
+    // Push the owner-scope into the `where` (instead of post-fetch filtering): the
+    // related rows are constrained to the caller's tenant + non-soft-deleted in the
+    // query. The core orchestrator still re-filters as a defense-in-depth net.
+    fetchRelated: (model, keyField, values, scope) => {
+      const where: Record<string, unknown> = { [keyField]: { in: values } };
+      if (scope?.tenantField != null && scope.tenantValue != null) {
+        where[scope.tenantField] = scope.tenantValue;
+      }
+      if (scope?.excludeDeletedField != null) {
+        where[scope.excludeDeletedField] = null;
+      }
+      return model.findMany({ where });
+    },
   };
 }
 

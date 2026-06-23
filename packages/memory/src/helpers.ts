@@ -41,8 +41,23 @@ export function getStore<T>(tableName: string): Map<string, T> {
 function memoryRelationAdapter(): SyncRelationLoaderAdapter<Map<string, RelatedRecord>> {
   return {
     resolveRelation: (config) => getStore<RelatedRecord>(config.model),
-    fetchRelated: (store, keyField, values) =>
-      Array.from(store.values()).filter((r) => values.includes(r[keyField])),
+    // Apply the owner-scope while scanning the store (parity with the SQL adapters'
+    // WHERE push-down): a related row in another tenant or a soft-deleted one is
+    // skipped here, not just by the orchestrator's defense-in-depth re-filter.
+    fetchRelated: (store, keyField, values, scope) =>
+      Array.from(store.values()).filter((r) => {
+        if (!values.includes(r[keyField])) return false;
+        if (
+          scope?.tenantField != null &&
+          scope.tenantValue != null &&
+          r[scope.tenantField] !== scope.tenantValue
+        ) {
+          return false;
+        }
+        if (scope?.excludeDeletedField != null && r[scope.excludeDeletedField] != null)
+          return false;
+        return true;
+      }),
   };
 }
 
