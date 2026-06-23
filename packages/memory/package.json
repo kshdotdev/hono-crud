@@ -1,6 +1,6 @@
 {
   "name": "@hono-crud/memory",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "In-memory CRUD adapter for hono-crud",
   "author": "Kauan Guesser <contato@kauan.net>",
   "license": "MIT",
