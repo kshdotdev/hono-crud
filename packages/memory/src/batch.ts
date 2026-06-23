@@ -58,11 +58,18 @@ export abstract class MemoryBatchUpdateEndpoint<
     const softDeleteConfig = this.getSoftDeleteConfig();
     const updated: ModelObject<M['model']>[] = [];
     const notFound: string[] = [];
+    const tenant = this.getTenantScopeFilter();
 
     for (const item of items) {
       const existing = store.get(item.id);
 
       if (!existing) {
+        notFound.push(item.id);
+        continue;
+      }
+
+      // Owner-scope: another tenant's row is not the caller's to update.
+      if (tenant && (existing as Record<string, unknown>)[tenant.field] !== tenant.value) {
         notFound.push(item.id);
         continue;
       }
@@ -99,11 +106,18 @@ export abstract class MemoryBatchDeleteEndpoint<
     const softDeleteConfig = this.getSoftDeleteConfig();
     const deleted: ModelObject<M['model']>[] = [];
     const notFound: string[] = [];
+    const tenant = this.getTenantScopeFilter();
 
     for (const id of ids) {
       const existing = store.get(id);
 
       if (!existing) {
+        notFound.push(id);
+        continue;
+      }
+
+      // Owner-scope: another tenant's row is not the caller's to delete.
+      if (tenant && (existing as Record<string, unknown>)[tenant.field] !== tenant.value) {
         notFound.push(id);
         continue;
       }
@@ -147,11 +161,18 @@ export abstract class MemoryBatchRestoreEndpoint<
     const softDeleteConfig = this.getSoftDeleteConfig();
     const restored: ModelObject<M['model']>[] = [];
     const notFound: string[] = [];
+    const tenant = this.getTenantScopeFilter();
 
     for (const id of ids) {
       const existing = store.get(id);
 
       if (!existing) {
+        notFound.push(id);
+        continue;
+      }
+
+      // Owner-scope: another tenant's row is not the caller's to restore.
+      if (tenant && (existing as Record<string, unknown>)[tenant.field] !== tenant.value) {
         notFound.push(id);
         continue;
       }

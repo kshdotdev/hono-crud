@@ -151,6 +151,13 @@ export abstract class PrismaBatchUpdateEndpoint<
       where[softDeleteConfig.field] = null;
     }
 
+    // Owner-scope: only the caller's own rows are loaded, so cross-tenant ids
+    // never match and fall through to `notFound`.
+    const tenant = this.getTenantScopeFilter();
+    if (tenant) {
+      where[tenant.field] = tenant.value;
+    }
+
     // Batch lookup: Find all existing records in a single query (fixes N+1)
     const existingRecords = await model.findMany({ where });
 
@@ -215,6 +222,13 @@ export abstract class PrismaBatchDeleteEndpoint<
     // For soft delete, exclude already-deleted records
     if (softDeleteConfig.enabled) {
       where[softDeleteConfig.field] = null;
+    }
+
+    // Owner-scope: only the caller's own rows are loaded, so cross-tenant ids
+    // never match and fall through to `notFound`.
+    const tenant = this.getTenantScopeFilter();
+    if (tenant) {
+      where[tenant.field] = tenant.value;
     }
 
     // Batch lookup: Find all existing records in a single query (fixes N+1)
@@ -290,6 +304,13 @@ export abstract class PrismaBatchRestoreEndpoint<
       [this.lookupField]: { in: ids },
       [softDeleteConfig.field]: { not: null },
     };
+
+    // Owner-scope: only the caller's own rows are loaded, so cross-tenant ids
+    // never match and fall through to `notFound`.
+    const tenant = this.getTenantScopeFilter();
+    if (tenant) {
+      where[tenant.field] = tenant.value;
+    }
 
     // Batch lookup: Find all deleted records in a single query (fixes N+1)
     const existingRecords = await model.findMany({ where });

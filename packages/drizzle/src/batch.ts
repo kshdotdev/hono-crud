@@ -93,6 +93,9 @@ export abstract class DrizzleBatchUpdateEndpoint<
     const softDeleteConfig = this.getSoftDeleteConfig();
     const updated: ModelObject<M['model']>[] = [];
     const notFound: string[] = [];
+    // Owner-scope: only the caller's own rows are updatable (cross-tenant ids fall
+    // through to `notFound`).
+    const tenant = this.getTenantScopeFilter();
 
     // Process each update individually (Drizzle doesn't have bulk update with different values)
     for (const item of items) {
@@ -101,6 +104,10 @@ export abstract class DrizzleBatchUpdateEndpoint<
       // Filter out soft-deleted records
       if (softDeleteConfig.enabled) {
         conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
+      }
+
+      if (tenant) {
+        conditions.push(eq(this.getColumn(tenant.field), tenant.value));
       }
 
       const result = await cast<ModelObject<M['model']>>(this.getDb())
@@ -160,6 +167,12 @@ export abstract class DrizzleBatchDeleteEndpoint<
     // For soft delete, exclude already-deleted records
     if (softDeleteConfig.enabled) {
       conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
+    }
+
+    // Owner-scope: only the caller's own rows are deletable.
+    const tenant = this.getTenantScopeFilter();
+    if (tenant) {
+      conditions.push(eq(this.getColumn(tenant.field), tenant.value));
     }
 
     let result: ModelObject<M['model']>[];
@@ -228,6 +241,12 @@ export abstract class DrizzleBatchRestoreEndpoint<
       inArray(lookupColumn, ids),
       isNotNull(this.getColumn(softDeleteConfig.field)),
     ];
+
+    // Owner-scope: only the caller's own rows are restorable.
+    const tenant = this.getTenantScopeFilter();
+    if (tenant) {
+      conditions.push(eq(this.getColumn(tenant.field), tenant.value));
+    }
 
     // Set deletedAt to null to restore the records
     const result = await cast<ModelObject<M['model']>>(this.getDb())

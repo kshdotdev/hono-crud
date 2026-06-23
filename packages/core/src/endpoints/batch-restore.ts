@@ -166,6 +166,9 @@ export abstract class BatchRestoreEndpoint<
       );
     }
 
+    // Enforce tenant presence; the adapter's `batchRestore` AND-s the tenant
+    // filter into its WHERE so a caller can't restore another tenant's rows.
+    this.validateTenantId();
     const ids = await this.getIds();
     const errors: Array<{ id: string; error: string }> = [];
 

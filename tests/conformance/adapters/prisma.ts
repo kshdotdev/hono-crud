@@ -329,6 +329,9 @@ export const prismaConformance: AdapterDescriptor = {
     // The prisma leg reuses the fixed examples `users` schema, which has no
     // self-relation column — the relation-scoping cell is a named skip here.
     relationScoping: false,
+    // No batch verbs are registered on the prisma tenant variant; the
+    // batch owner-scoping cell is a named skip here.
+    batchTenantScoping: false,
   },
   tenant: {
     field: 'status',

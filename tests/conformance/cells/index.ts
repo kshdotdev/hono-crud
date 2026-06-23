@@ -7,6 +7,7 @@
  */
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import type { AdapterContext, AdapterDescriptor, CtxGetter } from '../contract';
+import { registerBatchTenantScopingCells } from './batch-tenant-scoping';
 import { registerBulkPatchCells } from './bulk-patch';
 import { registerCursorPaginationCells } from './cursor-pagination';
 import { registerEtagConcurrencyCells } from './etag-concurrency';
@@ -51,6 +52,7 @@ export function registerConformanceCells(descriptor: AdapterDescriptor): void {
   registerUniqueConflictCells(descriptor, ctx);
   registerTenantScopingCells(descriptor, ctx);
   registerRelationScopingCells(descriptor, ctx);
+  registerBatchTenantScopingCells(descriptor, ctx);
   registerFinalizePipelineCells(descriptor, ctx);
   registerUpsertRestoreCells(descriptor, ctx);
   registerTransactionalHookCells(descriptor, ctx);

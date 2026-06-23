@@ -75,6 +75,14 @@ export interface ConformanceCapabilities {
    * column; the skip is named.
    */
   relationScoping: boolean;
+  /**
+   * Whether this leg registers batch verbs (`batchDelete` / `batchUpdate` /
+   * `batchRestore`) on the multi-tenant model, so the batch owner-scoping cell
+   * can assert a tenant cannot batch-mutate another tenant's rows by id. False
+   * on the prisma leg — its tenant variant reuses the fixed examples schema and
+   * registers no batch verbs there; the skip is named.
+   */
+  batchTenantScoping: boolean;
 }
 
 export interface HookObservation {

@@ -215,6 +215,9 @@ export abstract class BatchUpdateEndpoint<
    * Main handler for the batch update operation.
    */
   async handle(): Promise<Response> {
+    // Enforce tenant presence; the adapter's `batchUpdate` AND-s the tenant
+    // filter into each item's WHERE so cross-tenant rows are never updated.
+    this.validateTenantId();
     const items = await this.getItems();
     const errors: Array<{ id: string; error: string }> = [];
 

@@ -273,6 +273,21 @@ export abstract class CrudEndpoint<
   }
 
   /**
+   * The owner/tenant equality filter for the current request, or `undefined`
+   * when multi-tenancy is off or no tenant is resolved. Adapters AND it into
+   * batch-operation WHERE clauses so `batchUpdate` / `batchDelete` /
+   * `batchRestore` only ever touch the caller's own rows — single-row verbs get
+   * this via core-injected `additionalFilters`, but the batch verbs operate on a
+   * client-supplied id list and must constrain it the same way.
+   */
+  protected getTenantScopeFilter(): { field: string; value: string } | undefined {
+    const config = this.getMultiTenantConfig();
+    if (!config.enabled) return undefined;
+    const tenantId = this.getTenantId();
+    return tenantId == null ? undefined : { field: config.field, value: tenantId };
+  }
+
+  /**
    * Validates that tenant ID is present when required.
    * Throws a 400 `TENANT_REQUIRED` ApiException if missing and required.
    */

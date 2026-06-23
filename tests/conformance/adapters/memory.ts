@@ -13,6 +13,8 @@ import {
   MEMORY_NOOP_TX,
   MemoryBatchCreateEndpoint,
   MemoryBatchDeleteEndpoint,
+  MemoryBatchRestoreEndpoint,
+  MemoryBatchUpdateEndpoint,
   MemoryBatchUpsertEndpoint,
   MemoryBulkPatchEndpoint,
   MemoryCreateEndpoint,
@@ -155,6 +157,15 @@ class TenantList extends MemoryListEndpoint {
   _meta = tenantMeta;
   protected override allowedIncludes = ['parent'];
 }
+class TenantBatchDelete extends MemoryBatchDeleteEndpoint {
+  _meta = tenantMeta;
+}
+class TenantBatchUpdate extends MemoryBatchUpdateEndpoint {
+  _meta = tenantMeta;
+}
+class TenantBatchRestore extends MemoryBatchRestoreEndpoint {
+  _meta = tenantMeta;
+}
 
 class FinalizeCreate extends MemoryCreateEndpoint {
   _meta = finalizeMeta;
@@ -240,6 +251,9 @@ async function setup(): Promise<AdapterContext> {
     read: TenantRead,
     update: TenantUpdate,
     delete: TenantDelete,
+    batchUpdate: TenantBatchUpdate,
+    batchDelete: TenantBatchDelete,
+    batchRestore: TenantBatchRestore,
   });
   registerCrud(app, '/finalize-items', {
     create: FinalizeCreate,
@@ -268,6 +282,7 @@ export const memoryConformance: AdapterDescriptor = {
     timestampKind: 'epoch-ms',
     transactionalHooks: 'noop-sentinel',
     relationScoping: true,
+    batchTenantScoping: true,
   },
   tenant: {
     field: 'tenantId',
