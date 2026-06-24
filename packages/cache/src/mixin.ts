@@ -161,6 +161,21 @@ export interface CacheInvalidationMethods {
 // ============================================================================
 
 /**
+ * Resolve a mixin's instance type. When the caller passes an explicit `TInstance`
+ * (e.g. `withCache<UserRead<AuthEnv, typeof meta>>(UserRead)`) it is preserved;
+ * otherwise it falls back to the base's own `InstanceType<TBase>`. This lets a
+ * GENERIC base class keep its `<Env, Meta>` type params — which `InstanceType<TBase>`
+ * alone erases to the class defaults, since TS cannot pass a parametrized class as a
+ * value, so a `Hono<AuthEnv>` endpoint would otherwise widen back to `Env` and fail
+ * a typed `CrudEndpoints<AuthEnv>` registration.
+ */
+type MixinInstance<TInstance, TBase extends AbstractConstructor<OpenAPIRoute>> = [
+  TInstance,
+] extends [never]
+  ? InstanceType<TBase>
+  : TInstance;
+
+/**
  * Mixin that adds caching capabilities to read/list endpoints.
  *
  * The route registrar calls `setContext(c)` before invoking `handle()`,
@@ -198,13 +213,23 @@ export interface CacheInvalidationMethods {
  * }
  * ```
  */
-export function withCache<TBase extends AbstractConstructor<OpenAPIRoute>>(
+export function withCache<
+  // Optional explicit instance type — defaults to `never`, which preserves the
+  // exact backward-compatible inference (`InstanceType<TBase>`). Pass it to keep a
+  // generic base's `<Env, Meta>` params: `withCache<UserRead<AuthEnv, typeof meta>>(UserRead)`.
+  // The constraint is env-agnostic (`<any>`): a non-default env like `AuthEnv` is
+  // NOT assignable to `OpenAPIRoute<Env>` (Context variance), which is the very
+  // widening this overload exists to prevent.
+  // biome-ignore lint/suspicious/noExplicitAny: env-agnostic constraint by design.
+  TInstance extends OpenAPIRoute<any> = never,
+  TBase extends AbstractConstructor<OpenAPIRoute> = AbstractConstructor<OpenAPIRoute>,
+>(
   Base: TBase,
   // A single construct signature (instance type intersected) — an
   // intersection of two constructor types (`TBase & Constructor<...>`)
   // cannot be extended (TS2510: base constructors must share a return
   // type), which would break `class X extends withCache(Base)`.
-): AbstractConstructor<InstanceType<TBase> & CacheEndpointMethods> {
+): AbstractConstructor<MixinInstance<TInstance, TBase> & CacheEndpointMethods> {
   // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class CachedRoute extends Base implements CacheEndpointMethods {
     /**
@@ -389,7 +414,9 @@ export function withCache<TBase extends AbstractConstructor<OpenAPIRoute>>(
     }
   }
 
-  return CachedRoute as unknown as AbstractConstructor<InstanceType<TBase> & CacheEndpointMethods>;
+  return CachedRoute as unknown as AbstractConstructor<
+    MixinInstance<TInstance, TBase> & CacheEndpointMethods
+  >;
 }
 
 // ============================================================================
@@ -412,10 +439,17 @@ export function withCache<TBase extends AbstractConstructor<OpenAPIRoute>>(
  * }
  * ```
  */
-export function withCacheInvalidation<TBase extends AbstractConstructor<OpenAPIRoute>>(
+export function withCacheInvalidation<
+  // Optional explicit instance type (see `withCache`): pass it to preserve a
+  // generic base's `<Env, Meta>` params, e.g.
+  // `withCacheInvalidation<UserUpdate<AuthEnv, typeof meta>>(UserUpdate)`.
+  // biome-ignore lint/suspicious/noExplicitAny: env-agnostic constraint by design.
+  TInstance extends OpenAPIRoute<any> = never,
+  TBase extends AbstractConstructor<OpenAPIRoute> = AbstractConstructor<OpenAPIRoute>,
+>(
   Base: TBase,
   // Single construct signature — see the `withCache` return-type note.
-): AbstractConstructor<InstanceType<TBase> & CacheInvalidationMethods> {
+): AbstractConstructor<MixinInstance<TInstance, TBase> & CacheInvalidationMethods> {
   // @ts-expect-error - TS mixin limitation: cannot access protected members of generic base class (TS#17744)
   class InvalidatingRoute extends Base implements CacheInvalidationMethods {
     /**
@@ -531,7 +565,7 @@ export function withCacheInvalidation<TBase extends AbstractConstructor<OpenAPIR
   }
 
   return InvalidatingRoute as unknown as AbstractConstructor<
-    InstanceType<TBase> & CacheInvalidationMethods
+    MixinInstance<TInstance, TBase> & CacheInvalidationMethods
   >;
 }
 
