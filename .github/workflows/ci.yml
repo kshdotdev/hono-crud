@@ -57,6 +57,9 @@ jobs:
       - name: Type check examples
         run: pnpm run typecheck:examples
 
+      - name: Type check conformance
+        run: pnpm run typecheck:conformance
+
       - name: Unit tests
         run: pnpm run test:unit
 
