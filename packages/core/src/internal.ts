@@ -56,8 +56,10 @@ export type { CrudEndpointName, CrudEndpoints } from './core/register';
 // registration order — the single source of truth registerCrud iterates.
 export { CRUD_ROUTES } from './core/crud-routes';
 
-// App-scoped CRUD resource registry — lets addons enumerate registerCrud(...) calls.
-export { getRegisteredCrudResources } from './core/resource-registry';
+// App-scoped CRUD resource registry — lets addons enumerate registerCrud(...) calls,
+// and lets framework bridges (e.g. @velajs/crud) record a resource on a parent app
+// when they mount the generated routes via a sub-app.
+export { getRegisteredCrudResources, recordCrudResource } from './core/resource-registry';
 export type { RegisteredCrudResource } from './core/resource-registry';
 
 // ============================================================================

@@ -44,11 +44,66 @@ export function extractRequestPlan(route: OpenAPIRouteSchema): RequestPlan {
  * converts this Zod shape to JSON Schema for the wire.
  */
 export function buildInputShape(route: OpenAPIRouteSchema): RawShape {
-  return {
+  const merged: RawShape = {
     ...shapeOf(route.request?.params),
     ...shapeOf(route.request?.query),
     ...shapeOf(bodySchema(route)),
   };
+  // The MCP SDK converts this shape to JSON Schema, and Zod cannot represent
+  // `z.date()` — it throws ("Date cannot be represented in JSON Schema"),
+  // breaking the entire `tools/list`. A date is carried on the wire as an ISO
+  // 8601 string, so represent it as exactly that — Zod's own `z.iso.datetime()`,
+  // which converts to `{ type: 'string', format: 'date-time' }`.
+  const out: RawShape = {};
+  for (const [key, schema] of Object.entries(merged)) {
+    out[key] = datesAsIsoStrings(schema);
+  }
+  return out;
+}
+
+/**
+ * Replace every `z.date()` in a schema with `z.iso.datetime()`, recursing
+ * through optional / nullable / default / array / object wrappers. Schemas with
+ * no date pass through by identity (no rebuild), so non-date fields keep their
+ * exact shape/refinements. Dates are the only Zod type our endpoint schemas use
+ * that the SDK's JSON-Schema conversion can't represent.
+ */
+function datesAsIsoStrings(schema: ZodType): ZodType {
+  if (schema instanceof z.ZodDate) return z.iso.datetime();
+
+  if (schema instanceof z.ZodOptional) {
+    const inner = schema.unwrap() as ZodType;
+    const next = datesAsIsoStrings(inner);
+    return next === inner ? schema : next.optional();
+  }
+  if (schema instanceof z.ZodNullable) {
+    const inner = schema.unwrap() as ZodType;
+    const next = datesAsIsoStrings(inner);
+    return next === inner ? schema : next.nullable();
+  }
+  if (schema instanceof z.ZodDefault) {
+    const def = schema.def as unknown as { innerType: ZodType; defaultValue: never };
+    const next = datesAsIsoStrings(def.innerType);
+    return next === def.innerType ? schema : next.default(def.defaultValue);
+  }
+  if (schema instanceof z.ZodArray) {
+    const element = schema.element as ZodType;
+    const next = datesAsIsoStrings(element);
+    return next === element ? schema : z.array(next);
+  }
+  if (schema instanceof z.ZodObject) {
+    const shape = schema.shape as RawShape;
+    let changed = false;
+    const next: RawShape = {};
+    for (const [key, value] of Object.entries(shape)) {
+      const mapped = datesAsIsoStrings(value);
+      if (mapped !== value) changed = true;
+      next[key] = mapped;
+    }
+    return changed ? z.object(next) : schema;
+  }
+
+  return schema;
 }
 
 type ResponseContent = { content?: Record<string, { schema?: unknown }> } | undefined;
