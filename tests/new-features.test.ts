@@ -1,6 +1,7 @@
 import { createIdempotencyMiddleware } from '@hono-crud/idempotency/middleware';
 import { MemoryIdempotencyStorage } from '@hono-crud/idempotency/storage/memory';
 import {
+  MemoryAdapters,
   MemoryCloneEndpoint,
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
@@ -10,7 +11,7 @@ import {
   clearStorage,
 } from '@hono-crud/memory';
 import { Hono } from 'hono';
-import { fromHono, registerCrud } from 'hono-crud';
+import { defineEndpoints, fromHono, registerCrud } from 'hono-crud';
 import type { MetaInput, Model } from 'hono-crud';
 import { generateETag, matchesIfMatch, matchesIfNoneMatch } from 'hono-crud';
 import { decodeCursor, encodeCursor } from 'hono-crud';
@@ -186,6 +187,76 @@ describe('Cursor-Based Pagination', () => {
     expect(body.success).toBe(false);
     expect(body.error.code).toBe('CONFIGURATION_ERROR');
     expect(body.error.message).toContain('supportsCursorPagination');
+  });
+});
+
+// ============================================================================
+// Cursor Pagination via the CONFIG API (defineEndpoints)
+// ============================================================================
+// The block above drives cursor pagination through an imperative subclass
+// (`cursorPaginationEnabled = true`). These pin the config-API bridge: setting
+// `list.pagination.cursor.{enabled,field}` must reach the generated endpoint
+// so config-only consumers (e.g. the @velajs/crud @Crud bridge) get keyset
+// pagination without subclassing.
+
+describe('Cursor-Based Pagination (config API)', () => {
+  let app: ReturnType<typeof fromHono>;
+
+  beforeEach(async () => {
+    clearStorage();
+    app = fromHono(new Hono());
+    const endpoints = defineEndpoints(
+      {
+        meta: userMeta,
+        create: {},
+        list: { pagination: { cursor: { enabled: true, field: 'id' } } },
+      },
+      MemoryAdapters,
+    );
+    registerCrud(app, '/cfg-users', endpoints as any);
+
+    for (const user of [
+      { name: 'Alice', email: 'alice@cfg.com', age: 30 },
+      { name: 'Bob', email: 'bob@cfg.com', age: 25 },
+      { name: 'Charlie', email: 'charlie@cfg.com', age: 35 },
+      { name: 'Diana', email: 'diana@cfg.com', age: 28 },
+    ]) {
+      await app.request('/cfg-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user),
+      });
+    }
+  });
+
+  it('enables keyset pagination through list.pagination.cursor', async () => {
+    const res = await app.request('/cfg-users?limit=2');
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as any;
+    expect(data.result.length).toBe(2);
+    expect(data.result_info.page).toBe(0);
+    expect(data.result_info.has_next_page).toBe(true);
+    expect(data.result_info.next_cursor).toBeDefined();
+    expect('prev_cursor' in data.result_info).toBe(false);
+  });
+
+  it('walks every row exactly once via the config-enabled cursor', async () => {
+    const res1 = await app.request('/cfg-users?limit=2');
+    const data1 = (await res1.json()) as any;
+    const res2 = await app.request(`/cfg-users?cursor=${data1.result_info.next_cursor}&limit=2`);
+    const data2 = (await res2.json()) as any;
+    const allIds = [...data1.result.map((r: any) => r.id), ...data2.result.map((r: any) => r.id)];
+    expect(new Set(allIds).size).toBe(4);
+    expect(data2.result_info.has_next_page).toBe(false);
+  });
+
+  it('still uses offset pagination on plain page/per_page', async () => {
+    const res = await app.request('/cfg-users?page=1&per_page=2');
+    const data = (await res.json()) as any;
+    expect(data.result.length).toBe(2);
+    expect(data.result_info.page).toBe(1);
+    expect(data.result_info.total_count).toBe(4);
+    expect('next_cursor' in data.result_info).toBe(false);
   });
 });
 

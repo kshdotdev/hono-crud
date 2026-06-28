@@ -165,6 +165,20 @@ interface SortingConfig {
 interface PaginationConfig {
   defaultPerPage?: number;
   maxPerPage?: number;
+  /**
+   * Opt into keyset (cursor) pagination for this list endpoint. When enabled
+   * and the adapter supports it, `?cursor`/`?limit` drive a forward-only
+   * keyset walk ordered by `field` (default `'id'`), and responses carry a
+   * `next_cursor`. Plain `?page`/`?per_page` requests stay offset-paginated.
+   *
+   * If the adapter does not support cursor pagination, enabling this throws a
+   * `ConfigurationException` at request time (never a silent fallback).
+   */
+  cursor?: {
+    enabled?: boolean;
+    /** Keyset column — must be unique + monotonic (e.g. a ULID id). Default `'id'`. */
+    field?: string;
+  };
 }
 
 /**
@@ -910,6 +924,8 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
         : undefined,
       defaultPerPage: cfg.pagination?.defaultPerPage,
       maxPerPage: cfg.pagination?.maxPerPage,
+      cursorPaginationEnabled: cfg.pagination?.cursor?.enabled,
+      cursorField: cfg.pagination?.cursor?.field,
       allowedIncludes: cfg.includes,
       fieldSelectionEnabled: cfg.fieldSelection?.enabled,
       allowedSelectFields: cfg.fieldSelection?.allowed,

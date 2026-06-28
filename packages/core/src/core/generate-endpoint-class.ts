@@ -66,6 +66,11 @@ export interface NormalizedEndpointConfig {
   blockedSelectFields?: string[];
   alwaysIncludeFields?: string[];
   defaultSelectFields?: string[];
+  // Keyset (cursor) pagination opt-in. `supportsCursorPagination` stays
+  // adapter-owned — the loud ConfigurationException must still fire when an
+  // adapter without keyset support is asked to cursor-paginate.
+  cursorPaginationEnabled?: boolean;
+  cursorField?: string;
 
   // Verb-specific protected field overrides for endpoints whose
   // configuration shape isn't part of the shared 5-verb surface
@@ -180,6 +185,10 @@ export function generateEndpointClass<B extends abstract new () => unknown>(
     protected blockedSelectFields: string[] = config.blockedSelectFields ?? [];
     protected alwaysIncludeFields: string[] = config.alwaysIncludeFields ?? [];
     protected defaultSelectFields: string[] = config.defaultSelectFields ?? [];
+    // Keyset pagination opt-in (config bridge). Only the enable flag + field
+    // are config-settable; `supportsCursorPagination` remains adapter-owned.
+    protected cursorPaginationEnabled: boolean = config.cursorPaginationEnabled ?? false;
+    protected cursorField: string | undefined = config.cursorField;
 
     async before(...args: unknown[]): Promise<unknown> {
       if (config.before) return config.before(...args);
