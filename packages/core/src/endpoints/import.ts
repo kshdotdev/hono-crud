@@ -813,6 +813,9 @@ export abstract class ImportEndpoint<
     // Return 207 Multi-Status if there were partial failures
     const status = summary.failed > 0 && summary.failed < summary.total ? 207 : 200;
 
+    // Mutation changes which rows a cached list/read would return.
+    await this.invalidateModelCache();
+
     return this.json({ success: true, result: importResult }, status);
   }
 }

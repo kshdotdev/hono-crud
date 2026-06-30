@@ -282,6 +282,9 @@ export abstract class BatchCreateEndpoint<
 
     // Return 207 if there were partial errors
     const status = errors.length > 0 ? 207 : 201;
+    // Mutation changes which rows a cached list/read would return.
+    await this.invalidateModelCache();
+
     return this.json(response, status);
   }
 }

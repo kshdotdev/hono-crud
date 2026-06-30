@@ -18,6 +18,12 @@ import { type AuditLogger, createAuditLogger } from '../audit';
 import { getAuditConfig } from '../audit/config';
 import { POLICIES_CONTEXT_KEY } from '../auth/guards';
 import type { AuthUser } from '../auth/types';
+import {
+  type CacheInvalidateInput,
+  type InvalidatingEndpoint,
+  invalidateEndpointCache,
+  warnCacheSkippedForPolicy,
+} from '../core/cache';
 import { applyComputedFields, applyComputedFieldsToArray } from '../core/computed-fields';
 import { CONTEXT_KEYS } from '../core/context-keys';
 import { ApiException, ForbiddenException, InputValidationException } from '../core/exceptions';
@@ -556,6 +562,72 @@ export abstract class CrudEndpoint<
     // narrow boundary; downstream call sites in `applyRead*`/`applyWrite`
     // use the typed return without further casts.
     return this._meta.model.policies as ModelPolicies<RowOf<M>> | undefined;
+  }
+
+  // --- Response cache (config-driven) — shared across verbs -----------------
+
+  /** Enable response caching (list/read). */
+  protected cacheEnabled = false;
+  /** TTL in seconds. @default 300 */
+  protected cacheTtlSeconds?: number;
+  /** Query params included in the cache key (default: all present query params). */
+  protected cacheKeyFields?: string[];
+  /** Add the request `userId` var to the cache key (per-user caching). */
+  protected cachePerUser?: boolean;
+  /** Tags attached to cache entries (for tag-based invalidation). */
+  protected cacheTags?: string[];
+  /** Invalidation config for mutation verbs (set by the config bridge). */
+  protected cacheInvalidate?: CacheInvalidateInput;
+  /** Cache key prefix (must match the read/list cache prefix). */
+  protected cachePrefix?: string;
+
+  /**
+   * Whether config response-caching is active for THIS request. False when
+   * disabled, or when user-scoped read policies are present and `cachePerUser`
+   * is not set — caching a tenant-only key would serve one user's policy-shaped
+   * view to another, so it is disabled (with a once-per-isolate warning) rather
+   * than risk a leak. Used by list/read.
+   */
+  protected isResponseCacheActive(): boolean {
+    if (!this.cacheEnabled) return false;
+    if (this.cachePerUser) return true;
+    if (this.hasUserScopedReadPolicy()) {
+      warnCacheSkippedForPolicy();
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Whether per-user read policies are configured. When true a response can
+   * vary by caller identity (row filtering, field masking, existence-hiding),
+   * so a tenant-only cache key would leak one user's view to another. List/Read
+   * therefore SKIP config-caching when this is true unless `cachePerUser` folds
+   * the userId into the key.
+   */
+  protected hasUserScopedReadPolicy(): boolean {
+    const p = this.getPolicies();
+    return !!(p && (p.read || p.fields || p.readPushdown));
+  }
+
+  /**
+   * Invalidate this tenant's cached list/read entries after a successful
+   * mutation. Best-effort + a no-op when no cache store is configured, so every
+   * mutation verb can call it unconditionally. Defaults to busting all of the
+   * model's cache for the tenant; `cacheInvalidate` narrows it.
+   */
+  protected async invalidateModelCache(): Promise<void> {
+    // Context<E> → Context<Env> is invariant; the whole shape is cast at this
+    // boundary (the helper only reads context + meta + the cache config).
+    await invalidateEndpointCache(
+      {
+        getContext: () => this.getContext(),
+        _meta: this._meta,
+        cacheInvalidate: this.cacheInvalidate ?? true,
+        cachePrefix: this.cachePrefix,
+      } as unknown as InvalidatingEndpoint,
+      this.getTenantId(),
+    );
   }
 
   /**

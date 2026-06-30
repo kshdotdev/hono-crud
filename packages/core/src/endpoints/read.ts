@@ -30,20 +30,7 @@ export abstract class ReadEndpoint<
   /** Enable ETag generation and If-None-Match support for conditional requests */
   protected etagEnabled = false;
 
-  // Response caching (config-driven) — caches the single record keyed by table
-  // + id params (+ tenant, always; + userId when `cachePerUser`). See ListEndpoint.
-  /** Enable response caching for this read endpoint. */
-  protected cacheEnabled = false;
-  /** TTL in seconds. @default 300 */
-  protected cacheTtlSeconds?: number;
-  /** Query params included in the cache key (default: all present). */
-  protected cacheKeyFields?: string[];
-  /** Add the request `userId` var to the cache key (per-user caching). */
-  protected cachePerUser?: boolean;
-  /** Cache key prefix. */
-  protected cachePrefix?: string;
-  /** Tags attached to cache entries (for tag-based invalidation). */
-  protected cacheTags?: string[];
+  // Response cache fields (cacheEnabled/cacheTtlSeconds/…) live on CrudEndpoint.
 
   // Relations configuration
   /** Allowed relation names that can be included via ?include=relation1,relation2 */
@@ -341,13 +328,25 @@ export abstract class ReadEndpoint<
     const tenantId = this.validateTenantId();
 
     // Response cache check (config-driven). Tenant-scoped key, so a cached
-    // record is only ever served back to the tenant that produced it.
-    if (this.cacheEnabled) {
+    // record is only ever served back to the tenant that produced it;
+    // `isResponseCacheActive` disables caching under user-scoped read policies
+    // (unless cachePerUser) so one user's view can't leak to another.
+    const cacheActive = this.isResponseCacheActive();
+    if (cacheActive) {
       const cached = await readEndpointCache<ModelObject<M['model']>>(
         this as unknown as CacheableEndpoint,
         tenantId,
       );
       if (cached) {
+        // Honor conditional GET on a cache HIT too (parity with the MISS path).
+        if (this.etagEnabled) {
+          const etag = await generateETag(cached);
+          const ctx = this.getContext();
+          if (matchesIfNoneMatch(ctx.req.header('If-None-Match'), etag)) {
+            return new Response(null, { status: 304, headers: { ETag: etag, 'X-Cache': 'HIT' } });
+          }
+          ctx.header('ETag', etag);
+        }
         const hit = this.success(cached);
         hit.headers.set('X-Cache', 'HIT');
         return hit;
@@ -392,7 +391,7 @@ export abstract class ReadEndpoint<
 
     // Populate the response cache (config-driven) before the ETag branch so the
     // record is cached even when this request 304s on a conditional GET.
-    if (this.cacheEnabled) {
+    if (cacheActive) {
       await writeEndpointCache(this as unknown as CacheableEndpoint, result, tenantId);
     }
 
@@ -406,7 +405,7 @@ export abstract class ReadEndpoint<
       if (matchesIfNoneMatch(ifNoneMatch, etag)) {
         return new Response(null, {
           status: 304,
-          headers: { ETag: etag },
+          headers: cacheActive ? { ETag: etag, 'X-Cache': 'MISS' } : { ETag: etag },
         });
       }
 
@@ -414,7 +413,7 @@ export abstract class ReadEndpoint<
     }
 
     const response = this.success(result);
-    if (this.cacheEnabled) response.headers.set('X-Cache', 'MISS');
+    if (cacheActive) response.headers.set('X-Cache', 'MISS');
     return response;
   }
 }

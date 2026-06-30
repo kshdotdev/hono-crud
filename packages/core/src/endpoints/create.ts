@@ -1,10 +1,5 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
-import {
-  type CacheInvalidateInput,
-  type InvalidatingEndpoint,
-  invalidateEndpointCache,
-} from '../core/cache';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
 import { extractNestedData } from '../core/nested-writes';
@@ -53,12 +48,6 @@ export abstract class CreateEndpoint<
   // Nested writes configuration
   /** Relations that allow nested creates. If empty, uses relation config. */
   protected allowNestedCreate: string[] = [];
-
-  // Cache invalidation (config-driven) — after a successful create, clears this
-  // tenant's cached list/read entries for the model per `cacheInvalidate`.
-  protected cacheInvalidate?: CacheInvalidateInput;
-  /** Prefix of the cache keys to invalidate (must match the read/list cachePrefix). */
-  protected cachePrefix?: string;
 
   // Audit logging
 
@@ -412,7 +401,7 @@ export abstract class CreateEndpoint<
     const result = await this.finalizeRecord(obj);
 
     // Invalidate this tenant's cached list/read entries (best-effort).
-    await invalidateEndpointCache(this as unknown as InvalidatingEndpoint, this.getTenantId());
+    await this.invalidateModelCache();
 
     return this.success(result, 201);
   }

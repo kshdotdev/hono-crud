@@ -219,6 +219,9 @@ export abstract class BulkPatchEndpoint<
       await this.afterBulkPatch(bulkResult);
     }
 
+    // Mutation changes which rows a cached list/read would return.
+    await this.invalidateModelCache();
+
     return this.json({
       success: true,
       matched: bulkResult.matched,

@@ -114,24 +114,7 @@ export abstract class ListEndpoint<
   protected alwaysIncludeFields: string[] = [];
   /** Default fields to return when no fields parameter is provided. */
   protected defaultSelectFields: string[] = [];
-
-  // Response caching (config-driven). When `cacheEnabled`, the list payload
-  // (`{ result, result_info }`) is read from / written to the resolved cache
-  // storage, keyed by table + method + query (+ tenant, always, and userId when
-  // `cachePerUser`). Storage is resolved from request context
-  // (`createCacheStorageMiddleware`) or the global `setCacheStorage`.
-  /** Enable response caching for this list endpoint. */
-  protected cacheEnabled = false;
-  /** TTL in seconds. @default 300 */
-  protected cacheTtlSeconds?: number;
-  /** Query params included in the cache key (default: all present). */
-  protected cacheKeyFields?: string[];
-  /** Add the request `userId` var to the cache key (per-user caching). */
-  protected cachePerUser?: boolean;
-  /** Cache key prefix. */
-  protected cachePrefix?: string;
-  /** Tags attached to cache entries (for tag-based invalidation). */
-  protected cacheTags?: string[];
+  // Response cache fields (cacheEnabled/cacheTtlSeconds/…) live on CrudEndpoint.
 
   /**
    * Get the soft delete configuration for this model.
@@ -406,9 +389,12 @@ export abstract class ListEndpoint<
     this.validateTenantId();
 
     // Response cache check (config-driven). The key is tenant-scoped, so a
-    // cached page is only ever served back to the tenant that produced it.
-    const cacheTenantId = this.cacheEnabled ? this.getTenantId() : undefined;
-    if (this.cacheEnabled) {
+    // cached page is only ever served back to the tenant that produced it;
+    // `isResponseCacheActive` also disables caching under user-scoped read
+    // policies (unless cachePerUser) so one user's view can't leak to another.
+    const cacheActive = this.isResponseCacheActive();
+    const cacheTenantId = cacheActive ? this.getTenantId() : undefined;
+    if (cacheActive) {
       const cached = await readEndpointCache<{
         result: ModelObject<M['model']>[];
         result_info: PaginatedResult<ModelObject<M['model']>>['result_info'];
@@ -454,7 +440,7 @@ export abstract class ListEndpoint<
         : undefined;
     const result = await this.finalizeArray(items, fieldSelection);
 
-    if (this.cacheEnabled) {
+    if (cacheActive) {
       await writeEndpointCache(
         this as unknown as CacheableEndpoint,
         { result, result_info: paginatedResult.result_info },
@@ -463,7 +449,7 @@ export abstract class ListEndpoint<
     }
 
     const response = this.successPaginated(result, paginatedResult.result_info);
-    if (this.cacheEnabled) response.headers.set('X-Cache', 'MISS');
+    if (cacheActive) response.headers.set('X-Cache', 'MISS');
     return response;
   }
 }

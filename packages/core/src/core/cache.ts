@@ -105,7 +105,12 @@ export function generateCacheKey(options: CacheKeyOptions): string {
       (key) => query[key] !== undefined && query[key] !== null && query[key] !== '',
     );
     if (keyFields && keyFields.length > 0) {
-      queryKeys = queryKeys.filter((key) => keyFields.includes(key));
+      // Always keep the response-shaping params (`fields`/`include`) in the key
+      // even when `keyFields` narrows the rest — otherwise two requests with
+      // different field-selection / includes would collide on one cached body.
+      queryKeys = queryKeys.filter(
+        (key) => keyFields.includes(key) || key === 'fields' || key === 'include',
+      );
     }
     if (queryKeys.length > 0) {
       const sortedQuery = queryKeys
@@ -228,6 +233,25 @@ export function __resetCacheStorageWarning(): void {
   warnedMissingCacheStorage = false;
 }
 
+/** Once-per-isolate guard for the policy-skip warning. */
+let warnedCacheSkippedForPolicy = false;
+
+/**
+ * Warn once when config-caching is disabled because user-scoped read policies
+ * are present without `cachePerUser` — a tenant-only key would otherwise serve
+ * one user's authorized view to another.
+ */
+export function warnCacheSkippedForPolicy(): void {
+  if (warnedCacheSkippedForPolicy) return;
+  warnedCacheSkippedForPolicy = true;
+  getLogger().warn(
+    'Response caching is disabled for an endpoint with user-scoped read policies ' +
+      '(read / fields / readPushdown) because the cache key is not per-user. Set ' +
+      '`cache.perUser: true` to fold the userId into the key and re-enable caching. ' +
+      'This warning is logged once per isolate.',
+  );
+}
+
 // ============================================================================
 // Endpoint runtime helpers (config-driven cache path)
 // ============================================================================
@@ -336,7 +360,9 @@ export async function writeEndpointCache<T>(
 
   const tags: string[] = ep.cacheTags ? [...ep.cacheTags] : [];
   const tableName = ep._meta?.model?.tableName;
-  if (tableName) tags.push(tableName);
+  // Tenant-scope the auto model tag so tag-based invalidation can't cross
+  // tenants (the bare table tag would clear every tenant's entries).
+  if (tableName) tags.push(tenantId != null ? `${tableName}:t=${tenantId}` : tableName);
 
   await storage.set(key, data, {
     ttlMs: ep.cacheTtlSeconds != null ? ep.cacheTtlSeconds * 1000 : undefined,
@@ -390,7 +416,10 @@ export async function invalidateEndpointCache(
     const config = inv as CacheInvalidationConfig;
     if (config.pattern) patterns.add(config.pattern);
     if (config.tags) for (const t of config.tags) tagsToDelete.add(t);
-    if (config.strategy === 'tags') tagsToDelete.add(tableName);
+    // Match the tenant-scoped auto model tag written by writeEndpointCache.
+    if (config.strategy === 'tags') {
+      tagsToDelete.add(tenantId != null ? `${tableName}:t=${tenantId}` : tableName);
+    }
     if (config.relatedModels) {
       for (const p of createRelatedPatterns(tableName, config.relatedModels, prefix)) {
         patterns.add(p);

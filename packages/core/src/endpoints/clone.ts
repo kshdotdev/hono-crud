@@ -222,6 +222,9 @@ export abstract class CloneEndpoint<
     // computed fields → serializer → profile → transform
     const result = await this.finalizeRecord(obj);
 
+    // Mutation changes which rows a cached list/read would return.
+    await this.invalidateModelCache();
+
     return this.success(result, 201);
   }
 }

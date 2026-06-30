@@ -208,9 +208,14 @@ interface ListHooks<M extends MetaInput> {
 /**
  * Response cache configuration for list/read endpoints. Caching is opt-in;
  * `cacheStorage` is wired separately via `createCacheStorageMiddleware()`
- * (recommended on Workers) or `setCacheStorage()`. Cache keys are tenant-scoped
- * automatically on multiTenant resources, so a cached page is never served
- * across tenants.
+ * (recommended on Workers) or `setCacheStorage()`.
+ *
+ * Cache keys are **tenant-scoped automatically** on multiTenant resources, so a
+ * cached page is never served across tenants. They are NOT per-user by default:
+ * if the resource uses user-scoped read **policies** (`read` / `fields` /
+ * `readPushdown`), caching is automatically disabled (with a once-per-isolate
+ * warning) unless you set `perUser: true` to fold the userId into the key —
+ * otherwise one user's policy-shaped view could be served to another.
  */
 export interface EndpointCacheConfig {
   /**
