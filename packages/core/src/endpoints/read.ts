@@ -1,5 +1,6 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { type CacheableEndpoint, readEndpointCache, writeEndpointCache } from '../core/cache';
 import { NotFoundException } from '../core/exceptions';
 import type { IncludeOptions, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { withIncludableRelations } from '../relations/response-schema';
@@ -28,6 +29,21 @@ export abstract class ReadEndpoint<
   // ETag configuration
   /** Enable ETag generation and If-None-Match support for conditional requests */
   protected etagEnabled = false;
+
+  // Response caching (config-driven) — caches the single record keyed by table
+  // + id params (+ tenant, always; + userId when `cachePerUser`). See ListEndpoint.
+  /** Enable response caching for this read endpoint. */
+  protected cacheEnabled = false;
+  /** TTL in seconds. @default 300 */
+  protected cacheTtlSeconds?: number;
+  /** Query params included in the cache key (default: all present). */
+  protected cacheKeyFields?: string[];
+  /** Add the request `userId` var to the cache key (per-user caching). */
+  protected cachePerUser?: boolean;
+  /** Cache key prefix. */
+  protected cachePrefix?: string;
+  /** Tags attached to cache entries (for tag-based invalidation). */
+  protected cacheTags?: string[];
 
   // Relations configuration
   /** Allowed relation names that can be included via ?include=relation1,relation2 */
@@ -324,6 +340,20 @@ export abstract class ReadEndpoint<
     // Validate tenant ID if multi-tenancy is enabled
     const tenantId = this.validateTenantId();
 
+    // Response cache check (config-driven). Tenant-scoped key, so a cached
+    // record is only ever served back to the tenant that produced it.
+    if (this.cacheEnabled) {
+      const cached = await readEndpointCache<ModelObject<M['model']>>(
+        this as unknown as CacheableEndpoint,
+        tenantId,
+      );
+      if (cached) {
+        const hit = this.success(cached);
+        hit.headers.set('X-Cache', 'HIT');
+        return hit;
+      }
+    }
+
     const lookupValue = await this.getLookupValue();
     const additionalFilters = await this.getAdditionalFilters();
     const includeOptions = await this.getIncludeOptions();
@@ -360,6 +390,12 @@ export abstract class ReadEndpoint<
     // computed fields → serializer → profile → transform → field selection
     const result = await this.finalizeRecord(obj, fieldSelection);
 
+    // Populate the response cache (config-driven) before the ETag branch so the
+    // record is cached even when this request 304s on a conditional GET.
+    if (this.cacheEnabled) {
+      await writeEndpointCache(this as unknown as CacheableEndpoint, result, tenantId);
+    }
+
     // ETag support
     if (this.etagEnabled) {
       const etag = await generateETag(result);
@@ -377,6 +413,8 @@ export abstract class ReadEndpoint<
       ctx.header('ETag', etag);
     }
 
-    return this.success(result);
+    const response = this.success(result);
+    if (this.cacheEnabled) response.headers.set('X-Cache', 'MISS');
+    return response;
   }
 }

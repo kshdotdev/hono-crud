@@ -1,5 +1,10 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import {
+  type CacheInvalidateInput,
+  type InvalidatingEndpoint,
+  invalidateEndpointCache,
+} from '../core/cache';
 import { NotFoundException } from '../core/exceptions';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions } from '../core/managed-fields';
@@ -57,6 +62,12 @@ export abstract class UpdateEndpoint<
   // Update field control
   protected allowedUpdateFields?: string[];
   protected blockedUpdateFields?: string[];
+
+  // Cache invalidation (config-driven) — after a successful update, clears this
+  // tenant's cached list/read entries for the model per `cacheInvalidate`.
+  protected cacheInvalidate?: CacheInvalidateInput;
+  /** Prefix of the cache keys to invalidate (must match the read/list cachePrefix). */
+  protected cachePrefix?: string;
 
   // Hook execution mode
   protected beforeHookMode: HookMode = 'sequential';
@@ -623,6 +634,9 @@ export abstract class UpdateEndpoint<
       const etag = await generateETag(result);
       this.getContext().header('ETag', etag);
     }
+
+    // Invalidate this tenant's cached list/read entries (best-effort).
+    await invalidateEndpointCache(this as unknown as InvalidatingEndpoint, tenantId);
 
     return this.success(result);
   }

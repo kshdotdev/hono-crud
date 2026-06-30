@@ -1,5 +1,10 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import {
+  type CacheInvalidateInput,
+  type InvalidatingEndpoint,
+  invalidateEndpointCache,
+} from '../core/cache';
 import { ConflictException, NotFoundException } from '../core/exceptions';
 import { getLogger } from '../core/logger';
 import type {
@@ -69,6 +74,12 @@ export abstract class DeleteEndpoint<
   protected lookupField = 'id';
   protected lookupFields?: string[];
   protected additionalFilters?: string[];
+
+  // Cache invalidation (config-driven) — after a successful delete, clears this
+  // tenant's cached list/read entries for the model per `cacheInvalidate`.
+  protected cacheInvalidate?: CacheInvalidateInput;
+  /** Prefix of the cache keys to invalidate (must match the read/list cachePrefix). */
+  protected cachePrefix?: string;
 
   // Hook execution mode
   protected beforeHookMode: HookMode = 'sequential';
@@ -523,6 +534,9 @@ export abstract class DeleteEndpoint<
         response.cascade = cascadeResult;
       }
     }
+
+    // Invalidate this tenant's cached list/read entries (best-effort).
+    await invalidateEndpointCache(this as unknown as InvalidatingEndpoint, tenantId);
 
     return this.success(response);
   }
