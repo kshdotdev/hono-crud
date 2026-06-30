@@ -199,3 +199,30 @@ export type { ClientIpOptions } from './utils/request-info';
 // Generic TTL Map store composed by the in-memory cache/rate-limit/idempotency backends.
 export { MemoryTtlStore } from './storage/memory-ttl-store';
 export type { MemoryTtlStoreOptions } from './storage/memory-ttl-store';
+
+// Caching primitives (config-API cache path; shared key format with @hono-crud/cache).
+export {
+  generateCacheKey,
+  createInvalidationPattern,
+  createRelatedPatterns,
+  matchesPattern,
+  setCacheStorage,
+  getCacheStorage,
+  getCacheStorageRequired,
+  resolveCacheStorage,
+  resolveCacheStorageOrWarn,
+  cacheStorageRegistry,
+  readEndpointCache,
+  writeEndpointCache,
+  invalidateEndpointCache,
+} from './core/cache';
+export type {
+  CacheConfig,
+  CacheInvalidationConfig,
+  CacheInvalidateInput,
+  CacheKeyOptions,
+  InvalidationStrategy,
+  InvalidationPatternOptions,
+  CacheableEndpoint,
+  InvalidatingEndpoint,
+} from './core/cache';

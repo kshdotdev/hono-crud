@@ -524,6 +524,9 @@ export abstract class DeleteEndpoint<
       }
     }
 
+    // Invalidate this tenant's cached list/read entries (best-effort).
+    await this.invalidateModelCache();
+
     return this.success(response);
   }
 }

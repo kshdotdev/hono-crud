@@ -555,6 +555,9 @@ export abstract class BatchUpsertEndpoint<
       };
     });
 
+    // Mutation changes which rows a cached list/read would return.
+    await this.invalidateModelCache();
+
     return this.success(result);
   }
 }

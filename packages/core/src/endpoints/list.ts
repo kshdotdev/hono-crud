@@ -1,5 +1,6 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { type CacheableEndpoint, readEndpointCache, writeEndpointCache } from '../core/cache';
 import { ConfigurationException } from '../core/exceptions';
 import type {
   FilterConfig,
@@ -113,6 +114,7 @@ export abstract class ListEndpoint<
   protected alwaysIncludeFields: string[] = [];
   /** Default fields to return when no fields parameter is provided. */
   protected defaultSelectFields: string[] = [];
+  // Response cache fields (cacheEnabled/cacheTtlSeconds/…) live on CrudEndpoint.
 
   /**
    * Get the soft delete configuration for this model.
@@ -386,6 +388,24 @@ export abstract class ListEndpoint<
     // (parity with the pre-refactor List contract).
     this.validateTenantId();
 
+    // Response cache check (config-driven). The key is tenant-scoped, so a
+    // cached page is only ever served back to the tenant that produced it;
+    // `isResponseCacheActive` also disables caching under user-scoped read
+    // policies (unless cachePerUser) so one user's view can't leak to another.
+    const cacheActive = this.isResponseCacheActive();
+    const cacheTenantId = cacheActive ? this.getTenantId() : undefined;
+    if (cacheActive) {
+      const cached = await readEndpointCache<{
+        result: ModelObject<M['model']>[];
+        result_info: PaginatedResult<ModelObject<M['model']>>['result_info'];
+      }>(this as unknown as CacheableEndpoint, cacheTenantId);
+      if (cached) {
+        const hit = this.successPaginated(cached.result, cached.result_info);
+        hit.headers.set('X-Cache', 'HIT');
+        return hit;
+      }
+    }
+
     const filters = await this.getFilters();
 
     // Constrain results to the caller's tenant. Shared with search/export/
@@ -420,6 +440,16 @@ export abstract class ListEndpoint<
         : undefined;
     const result = await this.finalizeArray(items, fieldSelection);
 
-    return this.successPaginated(result, paginatedResult.result_info);
+    if (cacheActive) {
+      await writeEndpointCache(
+        this as unknown as CacheableEndpoint,
+        { result, result_info: paginatedResult.result_info },
+        cacheTenantId,
+      );
+    }
+
+    const response = this.successPaginated(result, paginatedResult.result_info);
+    if (cacheActive) response.headers.set('X-Cache', 'MISS');
+    return response;
   }
 }

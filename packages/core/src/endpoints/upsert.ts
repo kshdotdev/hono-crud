@@ -641,6 +641,9 @@ export abstract class UpsertEndpoint<
     const finalized = await this.finalizeRecord(obj);
 
     // Return with created flag and appropriate status code
+    // Mutation changes which rows a cached list/read would return.
+    await this.invalidateModelCache();
+
     return this.json(
       {
         success: true as const,

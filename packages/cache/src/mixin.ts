@@ -5,23 +5,13 @@ import type {
   OpenAPIRoute,
   ResponseEnvelopeInfo,
 } from 'hono-crud/internal';
-import {
-  CONTEXT_KEYS,
-  ConfigurationException,
-  createStorageFeature,
-  getLogger,
-} from 'hono-crud/internal';
+import { ConfigurationException, getLogger, resolveCacheStorageOrWarn } from 'hono-crud/internal';
 import {
   createInvalidationPattern,
   createRelatedPatterns,
   generateCacheKey,
 } from './key-generator';
-import type {
-  CacheConfig,
-  CacheInvalidationConfig,
-  CacheStorage,
-  InvalidationStrategy,
-} from './types';
+import type { CacheConfig, CacheInvalidationConfig, InvalidationStrategy } from './types';
 
 /**
  * Read `_meta.model.tableName` off the endpoint instance and throw a clear
@@ -42,79 +32,18 @@ function getTableName(self: unknown): string {
 // ============================================================================
 // Global Cache Storage
 // ============================================================================
-
-/**
- * Cache storage feature.
- * Nullable — no default storage is created unless explicitly set. The request
- * path uses `resolveCacheStorage` and emits a once-per-isolate warning when no
- * storage resolves (caching silently disabled is a mis-wiring worth surfacing).
- */
-const cacheStorageFeature = createStorageFeature<CacheStorage>({
-  contextKey: CONTEXT_KEYS.cacheStorage,
-});
-
-/**
- * Backing registry (exported for advanced use / tests).
- */
-export const cacheStorageRegistry = cacheStorageFeature.registry;
-
-/**
- * Set the global cache storage instance.
- *
- * @example
- * ```ts
- * import { Redis } from '@upstash/redis';
- * import { RedisCacheStorage, setCacheStorage } from '@hono-crud/cache';
- *
- * setCacheStorage(new RedisCacheStorage({
- *   client: new Redis({ url: c.env.REDIS_URL }),
- * }));
- * ```
- */
-export const setCacheStorage = cacheStorageFeature.set;
-
-/**
- * Get the explicitly-configured global cache storage, or `null` when none is
- * configured. Never throws and never creates a hidden default. Use
- * {@link getCacheStorageRequired} when a non-null storage is required.
- */
-export const getCacheStorage = cacheStorageFeature.get;
-
-/**
- * Get the global cache storage instance, throwing if not configured.
- */
-export const getCacheStorageRequired = cacheStorageFeature.getRequired;
-
-/**
- * Resolves cache storage with priority: explicit param > context > global.
- *
- * @param ctx - Optional Hono context
- * @param explicitStorage - Optional explicit storage instance
- * @returns The resolved storage, or null when no storage was configured
- */
-export const resolveCacheStorage = cacheStorageFeature.resolve;
-
-/** Once-per-isolate guard for the missing-storage warning (dedup, not request state). */
-let warnedMissingCacheStorage = false;
-
-/**
- * Resolve cache storage for the request path, emitting a once-per-isolate
- * warning when nothing resolves. Caching then degrades to a no-op — correct
- * for an optimization-only feature, but loud enough that a mis-wired app
- * (forgotten `createStorageMiddleware` / `setCacheStorage`) is observable.
- */
-function resolveCacheStorageOrWarn(ctx?: Context<Env>): CacheStorage | null {
-  const storage = cacheStorageFeature.resolve(ctx);
-  if (!storage && !warnedMissingCacheStorage) {
-    warnedMissingCacheStorage = true;
-    getLogger().warn(
-      'Cache storage not configured — caching is disabled. Inject cacheStorage with ' +
-        'createStorageMiddleware() (recommended) or call setCacheStorage(). ' +
-        'This warning is logged once per isolate.',
-    );
-  }
-  return storage;
-}
+//
+// The cache storage feature is OWNED by core so the config-API cache path
+// (`endpoints.{list,read}.cache`) and this mixin share ONE global + context
+// registry — `setCacheStorage()` (or `createCacheStorageMiddleware`) configures
+// both. Re-exported here so existing `@hono-crud/cache` imports keep working.
+export {
+  cacheStorageRegistry,
+  setCacheStorage,
+  getCacheStorage,
+  getCacheStorageRequired,
+  resolveCacheStorage,
+} from 'hono-crud/internal';
 
 // ============================================================================
 // Type Helpers

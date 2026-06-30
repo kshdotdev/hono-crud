@@ -11,6 +11,7 @@
 
 import type { MiddlewareHandler } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
+import type { CacheInvalidateInput } from './cache';
 import type { HookMode, MetaInput, OpenAPIRouteSchema, SortSpec } from './types';
 
 type AnyHook = (...args: unknown[]) => unknown;
@@ -71,6 +72,14 @@ export interface NormalizedEndpointConfig {
   // adapter without keyset support is asked to cursor-paginate.
   cursorPaginationEnabled?: boolean;
   cursorField?: string;
+  // Response cache (list/read) + invalidation (create/update/delete).
+  cacheEnabled?: boolean;
+  cacheTtlSeconds?: number;
+  cacheKeyFields?: string[];
+  cachePerUser?: boolean;
+  cachePrefix?: string;
+  cacheTags?: string[];
+  cacheInvalidate?: CacheInvalidateInput;
 
   // Verb-specific protected field overrides for endpoints whose
   // configuration shape isn't part of the shared 5-verb surface
@@ -189,6 +198,15 @@ export function generateEndpointClass<B extends abstract new () => unknown>(
     // are config-settable; `supportsCursorPagination` remains adapter-owned.
     protected cursorPaginationEnabled: boolean = config.cursorPaginationEnabled ?? false;
     protected cursorField: string | undefined = config.cursorField;
+    // Response cache (list/read) + invalidation (create/update/delete). Inert
+    // on verbs that don't read these fields.
+    protected cacheEnabled: boolean = config.cacheEnabled ?? false;
+    protected cacheTtlSeconds: number | undefined = config.cacheTtlSeconds;
+    protected cacheKeyFields: string[] | undefined = config.cacheKeyFields;
+    protected cachePerUser: boolean | undefined = config.cachePerUser;
+    protected cachePrefix: string | undefined = config.cachePrefix;
+    protected cacheTags: string[] | undefined = config.cacheTags;
+    protected cacheInvalidate: CacheInvalidateInput | undefined = config.cacheInvalidate;
 
     async before(...args: unknown[]): Promise<unknown> {
       if (config.before) return config.before(...args);

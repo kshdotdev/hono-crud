@@ -400,6 +400,9 @@ export abstract class CreateEndpoint<
     // computed fields → serializer → profile → transform
     const result = await this.finalizeRecord(obj);
 
+    // Invalidate this tenant's cached list/read entries (best-effort).
+    await this.invalidateModelCache();
+
     return this.success(result, 201);
   }
 

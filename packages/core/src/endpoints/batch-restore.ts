@@ -250,6 +250,9 @@ export abstract class BatchRestoreEndpoint<
 
     // Return 207 if there were partial errors or not found items
     const status = errors.length > 0 || notFound.length > 0 ? 207 : 200;
+    // Mutation changes which rows a cached list/read would return.
+    await this.invalidateModelCache();
+
     return this.json(response, status);
   }
 }

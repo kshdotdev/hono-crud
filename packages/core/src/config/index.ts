@@ -35,6 +35,7 @@
 
 import type { Env, MiddlewareHandler } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
+import type { CacheInvalidateInput } from '../core/cache';
 import { generateEndpointClass } from '../core/generate-endpoint-class';
 import type { CrudEndpoints } from '../core/register';
 import type { OpenAPIRoute } from '../core/route';
@@ -112,6 +113,8 @@ export interface CreateEndpointConfig<M extends MetaInput, E extends Env = Env> 
   middlewares?: MiddlewareHandler<E>[];
   hooks?: CreateHooks<M>;
   nestedCreate?: string[];
+  /** Invalidate cached list/read entries after a successful create. */
+  cache?: MutationCacheConfig;
   /**
    * Override the request body validation schema for this endpoint.
    *
@@ -203,6 +206,51 @@ interface ListHooks<M extends MetaInput> {
 }
 
 /**
+ * Response cache configuration for list/read endpoints. Caching is opt-in;
+ * `cacheStorage` is wired separately via `createCacheStorageMiddleware()`
+ * (recommended on Workers) or `setCacheStorage()`.
+ *
+ * Cache keys are **tenant-scoped automatically** on multiTenant resources, so a
+ * cached page is never served across tenants. They are NOT per-user by default:
+ * if the resource uses user-scoped read **policies** (`read` / `fields` /
+ * `readPushdown`), caching is automatically disabled (with a once-per-isolate
+ * warning) unless you set `perUser: true` to fold the userId into the key —
+ * otherwise one user's policy-shaped view could be served to another.
+ */
+export interface EndpointCacheConfig {
+  /**
+   * Enable response caching. When the `cache` block is present, this defaults
+   * to `true`; set `false` to keep the block (e.g. `keyFields`) but disable.
+   */
+  enabled?: boolean;
+  /** TTL in seconds. @default 300 */
+  ttl?: number;
+  /** Query params included in the cache key (default: all present query params). */
+  keyFields?: string[];
+  /** Add the request `userId` var to the cache key (per-user caching). */
+  perUser?: boolean;
+  /** Cache key prefix. */
+  prefix?: string;
+  /** Tags attached to cache entries (for tag-based invalidation). */
+  tags?: string[];
+}
+
+/**
+ * Cache invalidation configuration for mutation endpoints (create/update/delete).
+ */
+export interface MutationCacheConfig {
+  /**
+   * What to invalidate after a successful mutation:
+   * - `true` → all cached entries for the model (current tenant)
+   * - `Array<'list' | 'read' | 'all'>` → only those operation caches
+   * - a `CacheInvalidationConfig` for tags / custom pattern / related models
+   */
+  invalidate?: CacheInvalidateInput;
+  /** Prefix of the cache keys to invalidate (must match the read/list cache prefix). */
+  prefix?: string;
+}
+
+/**
  * List endpoint configuration.
  */
 export interface ListEndpointConfig<M extends MetaInput, E extends Env = Env> {
@@ -215,6 +263,7 @@ export interface ListEndpointConfig<M extends MetaInput, E extends Env = Env> {
   pagination?: PaginationConfig;
   includes?: string[];
   fieldSelection?: FieldSelectionConfig;
+  cache?: EndpointCacheConfig;
   hooks?: ListHooks<M>;
 }
 
@@ -239,6 +288,7 @@ export interface ReadEndpointConfig<M extends MetaInput, E extends Env = Env> {
   additionalFilters?: string[];
   includes?: string[];
   fieldSelection?: FieldSelectionConfig;
+  cache?: EndpointCacheConfig;
   hooks?: ReadHooks<M>;
 }
 
@@ -279,6 +329,8 @@ export interface UpdateEndpointConfig<M extends MetaInput, E extends Env = Env> 
   additionalFilters?: string[];
   fields?: UpdateFieldConfig;
   nestedWrites?: string[];
+  /** Invalidate cached list/read entries after a successful update. */
+  cache?: MutationCacheConfig;
   hooks?: UpdateHooks<M>;
   /**
    * Override the request body validation schema for this endpoint.
@@ -317,6 +369,8 @@ export interface DeleteEndpointConfig<M extends MetaInput, E extends Env = Env> 
   lookupField?: string;
   additionalFilters?: string[];
   includeCascadeResults?: boolean;
+  /** Invalidate cached list/read entries after a successful delete. */
+  cache?: MutationCacheConfig;
   hooks?: DeleteHooks<M>;
 }
 
@@ -899,6 +953,8 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
       allowNestedCreate: cfg.nestedCreate,
+      cacheInvalidate: cfg.cache?.invalidate,
+      cachePrefix: cfg.cache?.prefix,
       before: cfg.hooks?.before as AnyHook,
       after: cfg.hooks?.after as AnyHook,
     });
@@ -932,6 +988,13 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       blockedSelectFields: cfg.fieldSelection?.blocked,
       alwaysIncludeFields: cfg.fieldSelection?.alwaysInclude,
       defaultSelectFields: cfg.fieldSelection?.defaults,
+      // Presence of the `cache` block enables caching unless `enabled: false`.
+      cacheEnabled: cfg.cache ? (cfg.cache.enabled ?? true) : undefined,
+      cacheTtlSeconds: cfg.cache?.ttl,
+      cacheKeyFields: cfg.cache?.keyFields,
+      cachePerUser: cfg.cache?.perUser,
+      cachePrefix: cfg.cache?.prefix,
+      cacheTags: cfg.cache?.tags,
       after: cfg.hooks?.after as AnyHook,
       transform: cfg.hooks?.transform as AnyHook,
     });
@@ -952,6 +1015,12 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       blockedSelectFields: cfg.fieldSelection?.blocked,
       alwaysIncludeFields: cfg.fieldSelection?.alwaysInclude,
       defaultSelectFields: cfg.fieldSelection?.defaults,
+      cacheEnabled: cfg.cache ? (cfg.cache.enabled ?? true) : undefined,
+      cacheTtlSeconds: cfg.cache?.ttl,
+      cacheKeyFields: cfg.cache?.keyFields,
+      cachePerUser: cfg.cache?.perUser,
+      cachePrefix: cfg.cache?.prefix,
+      cacheTags: cfg.cache?.tags,
       after: cfg.hooks?.after as AnyHook,
       transform: cfg.hooks?.transform as AnyHook,
     });
@@ -970,6 +1039,8 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       allowedUpdateFields: cfg.fields?.allowed,
       blockedUpdateFields: cfg.fields?.blocked,
       allowNestedWrites: cfg.nestedWrites,
+      cacheInvalidate: cfg.cache?.invalidate,
+      cachePrefix: cfg.cache?.prefix,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as AnyHook,
@@ -988,6 +1059,8 @@ export function defineEndpoints<M extends MetaInput, E extends Env = Env>(
       lookupField: cfg.lookupField,
       additionalFilters: cfg.additionalFilters,
       includeCascadeResults: cfg.includeCascadeResults,
+      cacheInvalidate: cfg.cache?.invalidate,
+      cachePrefix: cfg.cache?.prefix,
       beforeHookMode: cfg.hooks?.beforeMode,
       afterHookMode: cfg.hooks?.afterMode,
       before: cfg.hooks?.before as AnyHook,

@@ -624,6 +624,9 @@ export abstract class UpdateEndpoint<
       this.getContext().header('ETag', etag);
     }
 
+    // Invalidate this tenant's cached list/read entries (best-effort).
+    await this.invalidateModelCache();
+
     return this.success(result);
   }
 

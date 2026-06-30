@@ -1,3 +1,4 @@
+import { MemoryCacheStorage } from '@hono-crud/cache';
 import { createIdempotencyMiddleware } from '@hono-crud/idempotency/middleware';
 import { MemoryIdempotencyStorage } from '@hono-crud/idempotency/storage/memory';
 import {
@@ -16,6 +17,7 @@ import type { MetaInput, Model } from 'hono-crud';
 import { generateETag, matchesIfMatch, matchesIfNoneMatch } from 'hono-crud';
 import { decodeCursor, encodeCursor } from 'hono-crud';
 import { CrudEventEmitter } from 'hono-crud/events/emitter';
+import { generateCacheKey, setCacheStorage } from 'hono-crud/internal';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -257,6 +259,175 @@ describe('Cursor-Based Pagination (config API)', () => {
     expect(data.result_info.page).toBe(1);
     expect(data.result_info.total_count).toBe(4);
     expect('next_cursor' in data.result_info).toBe(false);
+  });
+});
+
+// ============================================================================
+// Response caching via the CONFIG API (defineEndpoints)
+// ============================================================================
+// Pins that `endpoints.{list,read}.cache` caches responses (X-Cache MISS→HIT)
+// and `endpoints.{create,update,delete}.cache.invalidate` busts them — all
+// through config, no subclassing. Storage is resolved from the global set here;
+// the request path also accepts createCacheStorageMiddleware context wiring.
+
+describe('Response caching (config API)', () => {
+  let app: ReturnType<typeof fromHono>;
+
+  beforeEach(() => {
+    clearStorage();
+    setCacheStorage(new MemoryCacheStorage());
+    app = fromHono(new Hono());
+    const endpoints = defineEndpoints(
+      {
+        meta: userMeta,
+        create: { cache: { invalidate: true } },
+        list: { cache: { ttl: 300 } },
+        read: { cache: { ttl: 300 } },
+        update: { cache: { invalidate: ['list', 'read'] } },
+        delete: { cache: { invalidate: true } },
+      },
+      MemoryAdapters,
+    );
+    registerCrud(app, '/cached-users', endpoints as any);
+  });
+
+  async function createUser(body: Record<string, unknown>) {
+    const res = await app.request('/cached-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    // biome-ignore lint/suspicious/noExplicitAny: test payload
+    return (await res.json()) as any;
+  }
+
+  it('caches the list response (MISS then HIT, identical body)', async () => {
+    await createUser({ name: 'Alice', email: 'alice@cache.com', age: 30 });
+
+    const r1 = await app.request('/cached-users');
+    expect(r1.headers.get('X-Cache')).toBe('MISS');
+    const b1 = (await r1.json()) as { result: unknown[] };
+
+    const r2 = await app.request('/cached-users');
+    expect(r2.headers.get('X-Cache')).toBe('HIT');
+    const b2 = (await r2.json()) as { result: unknown[] };
+
+    expect(b2.result).toEqual(b1.result);
+  });
+
+  it('caches the read response (MISS then HIT)', async () => {
+    const created = await createUser({ name: 'Bob', email: 'bob@cache.com', age: 25 });
+    const id = created.result.id;
+
+    const r1 = await app.request(`/cached-users/${id}`);
+    expect(r1.headers.get('X-Cache')).toBe('MISS');
+
+    const r2 = await app.request(`/cached-users/${id}`);
+    expect(r2.headers.get('X-Cache')).toBe('HIT');
+  });
+
+  it('busts the list cache on create (invalidate: true)', async () => {
+    await createUser({ name: 'Alice', email: 'alice@cache.com', age: 30 });
+
+    const warm = (await (await app.request('/cached-users')).json()) as { result: unknown[] };
+    expect(warm.result.length).toBe(1);
+    // Second read is a HIT (cache warmed).
+    expect((await app.request('/cached-users')).headers.get('X-Cache')).toBe('HIT');
+
+    // A create invalidates the list cache for the model.
+    await createUser({ name: 'Carol', email: 'carol@cache.com', age: 40 });
+
+    const after = await app.request('/cached-users');
+    expect(after.headers.get('X-Cache')).toBe('MISS');
+    const body = (await after.json()) as { result: unknown[] };
+    expect(body.result.length).toBe(2);
+  });
+
+  it('busts the read cache on update (invalidate: [list, read])', async () => {
+    const created = await createUser({ name: 'Bob', email: 'bob@cache.com', age: 25 });
+    const id = created.result.id;
+
+    await app.request(`/cached-users/${id}`); // MISS (warm)
+    expect((await app.request(`/cached-users/${id}`)).headers.get('X-Cache')).toBe('HIT');
+
+    await app.request(`/cached-users/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ age: 26 }),
+    });
+
+    const afterUpdate = await app.request(`/cached-users/${id}`);
+    expect(afterUpdate.headers.get('X-Cache')).toBe('MISS');
+    const body = (await afterUpdate.json()) as { result: { age: number } };
+    expect(body.result.age).toBe(26);
+  });
+
+  it('DISABLES caching when a user-scoped read policy is present (no cross-user leak)', async () => {
+    clearStorage();
+    setCacheStorage(new MemoryCacheStorage());
+    const policyApp = fromHono(new Hono());
+    // A `read` policy makes responses vary per user; a tenant-only cache key
+    // would leak. With no `perUser`, caching must be disabled (no X-Cache).
+    const policyMeta: UserMeta = {
+      model: { ...UserModel, policies: { read: () => true } },
+    };
+    const endpoints = defineEndpoints(
+      {
+        meta: policyMeta,
+        create: {},
+        list: { cache: { ttl: 300 } },
+        read: { cache: { ttl: 300 } },
+      },
+      MemoryAdapters,
+    );
+    registerCrud(policyApp, '/policy-users', endpoints as any);
+    await policyApp.request('/policy-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'P', email: 'p@cache.com', age: 1 }),
+    });
+
+    const r1 = await policyApp.request('/policy-users');
+    const r2 = await policyApp.request('/policy-users');
+    expect(r1.headers.get('X-Cache')).toBeNull();
+    expect(r2.headers.get('X-Cache')).toBeNull();
+  });
+});
+
+// ============================================================================
+// Cache key generation (config-cache key format)
+// ============================================================================
+
+describe('Cache key generation', () => {
+  it('keeps response-shaping params (fields/include) in the key even when keyFields is set', () => {
+    // ?fields=a vs ?fields=b,c must NOT collide on one cached body.
+    const a = generateCacheKey({
+      tableName: 'users',
+      method: 'LIST',
+      query: { page: 1, fields: 'a', include: 'posts' },
+      keyFields: ['page'],
+    });
+    const b = generateCacheKey({
+      tableName: 'users',
+      method: 'LIST',
+      query: { page: 1, fields: 'b,c', include: 'posts' },
+      keyFields: ['page'],
+    });
+    expect(a).toContain('fields=a');
+    expect(a).toContain('include=posts');
+    expect(a).not.toBe(b);
+  });
+
+  it('folds tenant + userId into the key (isolation dimensions)', () => {
+    const key = generateCacheKey({
+      tableName: 'users',
+      method: 'LIST',
+      query: { page: 1 },
+      userId: 'u1',
+      prefix: 't=tenantA',
+    });
+    expect(key.startsWith('t=tenantA:users:LIST')).toBe(true);
+    expect(key).toContain('user=u1');
   });
 });
 

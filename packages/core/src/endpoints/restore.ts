@@ -205,6 +205,9 @@ export abstract class RestoreEndpoint<
     // computed fields → serializer → profile → transform
     const result = await this.finalizeRecord(restoredItem);
 
+    // Mutation changes which rows a cached list/read would return.
+    await this.invalidateModelCache();
+
     return this.success(result);
   }
 }
