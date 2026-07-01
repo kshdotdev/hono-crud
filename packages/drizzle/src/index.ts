@@ -22,6 +22,7 @@ export * from './crud';
 export * from './batch';
 export * from './advanced';
 export * from './factory';
+export * from './versioning-storage';
 
 // Re-export drizzle-zod schema utilities
 export {

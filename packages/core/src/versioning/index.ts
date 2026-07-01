@@ -441,6 +441,11 @@ export function createVersionManager(
   return new VersionManager(config, tableName, storage, ctx);
 }
 
+// The version-history entry shape a VersioningStorage persists — re-exported
+// here so storage implementers (e.g. @hono-crud/drizzle) can import it
+// alongside the VersioningStorage interface from a single module.
+export type { VersionHistoryEntry } from '../core/types';
+
 // Config normalization — the versioning barrel is the complete canonical
 // surface of the versioning family.
 export { getVersioningConfig } from './config';
