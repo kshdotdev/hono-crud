@@ -298,48 +298,86 @@ export abstract class MemoryUpsertEndpoint<
 }
 
 /**
+ * Shared owner-scoped existence check for the memory version endpoints: the
+ * parent record must exist AND (when multi-tenant) belong to the caller's
+ * tenant, so a record in another tenant reads as absent → 404. Mirrors the
+ * Drizzle adapter so history/read/compare/rollback stay private.
+ */
+function memoryVersionRecordExists(
+  tableName: string,
+  lookupValue: string,
+  tenantScope: { field: string; value: string } | undefined,
+): boolean {
+  const store = getStore<Record<string, unknown>>(tableName);
+  const record = store.get(lookupValue);
+  if (!record) return false;
+  if (tenantScope && record[tenantScope.field] !== tenantScope.value) return false;
+  return true;
+}
+
+/**
  * Memory-based Version History endpoint for testing.
- * Lists all versions for a record.
+ * Lists all versions for a record (owner-scoped parent-record check).
  */
 export abstract class MemoryVersionHistoryEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends VersionHistoryEndpoint<E, M> {
-  /**
-   * Checks if the parent record exists.
-   */
-  protected async recordExists(lookupValue: string): Promise<boolean> {
-    const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
-    return store.has(lookupValue);
+  protected async recordExists(
+    lookupValue: string,
+    tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return memoryVersionRecordExists(this._meta.model.tableName, lookupValue, tenantScope);
   }
 }
 
 /**
  * Memory-based Version Read endpoint for testing.
- * Gets a specific version of a record.
+ * Gets a specific version of a record (owner-scoped parent-record check).
  */
 export abstract class MemoryVersionReadEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends VersionReadEndpoint<E, M> {}
+> extends VersionReadEndpoint<E, M> {
+  protected async recordExists(
+    lookupValue: string,
+    tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return memoryVersionRecordExists(this._meta.model.tableName, lookupValue, tenantScope);
+  }
+}
 
 /**
  * Memory-based Version Compare endpoint for testing.
- * Compares two versions of a record.
+ * Compares two versions of a record (owner-scoped parent-record check).
  */
 export abstract class MemoryVersionCompareEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends VersionCompareEndpoint<E, M> {}
+> extends VersionCompareEndpoint<E, M> {
+  protected async recordExists(
+    lookupValue: string,
+    tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return memoryVersionRecordExists(this._meta.model.tableName, lookupValue, tenantScope);
+  }
+}
 
 /**
  * Memory-based Version Rollback endpoint for testing.
- * Rolls back a record to a previous version.
+ * Rolls back a record to a previous version (owner-scoped before mutating).
  */
 export abstract class MemoryVersionRollbackEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends VersionRollbackEndpoint<E, M> {
+  protected async recordExists(
+    lookupValue: string,
+    tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return memoryVersionRecordExists(this._meta.model.tableName, lookupValue, tenantScope);
+  }
+
   /**
    * Rolls back the record to the specified version data.
    */

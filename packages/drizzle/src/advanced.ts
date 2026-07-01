@@ -484,8 +484,34 @@ export abstract class DrizzleBulkPatchEndpoint<
 }
 
 /**
+ * Shared owner-scoped existence check for the Drizzle version endpoints: counts
+ * rows on the MAIN table matching the id and (when multi-tenant) the tenant
+ * field, so a record in another tenant reads as absent → 404. Owning the record
+ * implies owning its versions (recordIds are unique), so scoping this one gate
+ * keeps history/read/compare/rollback private without changing the store.
+ */
+async function drizzleVersionRecordExists(
+  db: unknown,
+  table: DrizzleTable,
+  idColumn: DrizzleColumn,
+  lookupValue: string,
+  tenantScope: { field: string; value: string } | undefined,
+): Promise<boolean> {
+  const where = tenantScope
+    ? and(eq(idColumn, lookupValue), eq(getColumn(table, tenantScope.field), tenantScope.value))
+    : eq(idColumn, lookupValue);
+
+  const result = await cast<Record<string, unknown>>(db)
+    .select({ count: sql<number>`count(*)` })
+    .from(table)
+    .where(where);
+
+  return readCount(result) > 0;
+}
+
+/**
  * Drizzle Version History endpoint.
- * Lists all versions for a record.
+ * Lists all versions for a record (owner-scoped parent-record check).
  */
 export abstract class DrizzleVersionHistoryEndpoint<
   E extends Env = Env,
@@ -508,46 +534,100 @@ export abstract class DrizzleVersionHistoryEndpoint<
     return getColumn(this.getTable(), field);
   }
 
-  protected override async recordExists(lookupValue: string): Promise<boolean> {
-    const table = this.getTable();
-
-    const result = await cast<ModelObject<M['model']>>(this.getDb())
-      .select({ count: sql<number>`count(*)` })
-      .from(table)
-      .where(eq(this.getColumn('id'), lookupValue));
-
-    return readCount(result) > 0;
+  protected override async recordExists(
+    lookupValue: string,
+    tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return drizzleVersionRecordExists(
+      this.getDb(),
+      this.getTable(),
+      this.getColumn('id'),
+      lookupValue,
+      tenantScope,
+    );
   }
 }
 
 /**
  * Drizzle Version Read endpoint.
- * Gets a specific version of a record.
- *
- * Unlike the db-touching endpoints, this is a pure pass-through to the core
- * base class and performs no Drizzle queries, so it intentionally takes only
- * `<E, M>` — there is no third `DB` generic to parametrize.
+ * Gets a specific version of a record. Owner-scopes the parent-record existence
+ * check so another tenant's version is 404.
  */
 export abstract class DrizzleVersionReadEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends VersionReadEndpoint<E, M> {}
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
+> extends VersionReadEndpoint<E, M> {
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DB;
+
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
+  }
+
+  protected getTable(): DrizzleTable {
+    return getTable(this._meta);
+  }
+
+  protected getColumn(field: string): DrizzleColumn {
+    return getColumn(this.getTable(), field);
+  }
+
+  protected override async recordExists(
+    lookupValue: string,
+    tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return drizzleVersionRecordExists(
+      this.getDb(),
+      this.getTable(),
+      this.getColumn('id'),
+      lookupValue,
+      tenantScope,
+    );
+  }
+}
 
 /**
  * Drizzle Version Compare endpoint.
- * Compares two versions of a record.
- *
- * Like {@link DrizzleVersionReadEndpoint}, this is a pure pass-through with no
- * Drizzle queries, so it intentionally takes only `<E, M>` (no `DB` generic).
+ * Compares two versions of a record (owner-scoped parent-record check).
  */
 export abstract class DrizzleVersionCompareEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
-> extends VersionCompareEndpoint<E, M> {}
+  DB extends DrizzleDatabaseConstraint = DrizzleDatabaseConstraint,
+> extends VersionCompareEndpoint<E, M> {
+  /** Drizzle database instance. Can be undefined if using context injection. */
+  db?: DB;
+
+  protected getDb(): DB {
+    return getDrizzleDb(this) as DB;
+  }
+
+  protected getTable(): DrizzleTable {
+    return getTable(this._meta);
+  }
+
+  protected getColumn(field: string): DrizzleColumn {
+    return getColumn(this.getTable(), field);
+  }
+
+  protected override async recordExists(
+    lookupValue: string,
+    tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return drizzleVersionRecordExists(
+      this.getDb(),
+      this.getTable(),
+      this.getColumn('id'),
+      lookupValue,
+      tenantScope,
+    );
+  }
+}
 
 /**
  * Drizzle Version Rollback endpoint.
- * Rolls back a record to a previous version.
+ * Rolls back a record to a previous version (owner-scoped before mutating).
  */
 export abstract class DrizzleVersionRollbackEndpoint<
   E extends Env = Env,
@@ -568,6 +648,19 @@ export abstract class DrizzleVersionRollbackEndpoint<
 
   protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
+  }
+
+  protected override async recordExists(
+    lookupValue: string,
+    tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return drizzleVersionRecordExists(
+      this.getDb(),
+      this.getTable(),
+      this.getColumn('id'),
+      lookupValue,
+      tenantScope,
+    );
   }
 
   override async rollback(

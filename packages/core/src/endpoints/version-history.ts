@@ -140,7 +140,10 @@ export abstract class VersionHistoryEndpoint<
    * Checks if the parent record exists.
    * Override in ORM-specific subclasses.
    */
-  protected async recordExists(_lookupValue: string): Promise<boolean> {
+  protected async recordExists(
+    _lookupValue: string,
+    _tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
     // Default implementation - override in adapter
     return true;
   }
@@ -160,8 +163,10 @@ export abstract class VersionHistoryEndpoint<
     const lookupValue = await this.getLookupValue();
     const { limit, offset } = await this.getPaginationOptions();
 
-    // Check if record exists
-    const exists = await this.recordExists(lookupValue);
+    // Owner-scope the existence check: a record in another tenant is 404, so its
+    // version history never leaks (parity with base CRUD reads). Owning the
+    // record implies owning its versions — recordIds are unique.
+    const exists = await this.recordExists(lookupValue, this.getTenantScope());
     if (!exists) {
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
     }
@@ -264,6 +269,16 @@ export abstract class VersionReadEndpoint<
   }
 
   /**
+   * Checks if the parent record exists (owner-scoped). Override in adapter.
+   */
+  protected async recordExists(
+    _lookupValue: string,
+    _tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return true;
+  }
+
+  /**
    * Main handler.
    */
   async handle(): Promise<Response> {
@@ -277,6 +292,12 @@ export abstract class VersionReadEndpoint<
 
     const lookupValue = await this.getLookupValue();
     const versionNumber = await this.getVersionNumber();
+
+    // Owner-scope: a record in another tenant is 404 (its versions stay private).
+    const exists = await this.recordExists(lookupValue, this.getTenantScope());
+    if (!exists) {
+      throw new NotFoundException(this._meta.model.tableName, lookupValue);
+    }
 
     const versionManager = this.getVersionManager();
     const version = await versionManager.getVersion(lookupValue, versionNumber);
@@ -399,6 +420,16 @@ export abstract class VersionCompareEndpoint<
   }
 
   /**
+   * Checks if the parent record exists (owner-scoped). Override in adapter.
+   */
+  protected async recordExists(
+    _lookupValue: string,
+    _tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return true;
+  }
+
+  /**
    * Main handler.
    */
   async handle(): Promise<Response> {
@@ -412,6 +443,12 @@ export abstract class VersionCompareEndpoint<
 
     const lookupValue = await this.getLookupValue();
     const { from, to } = await this.getVersionNumbers();
+
+    // Owner-scope: a record in another tenant is 404 (its versions stay private).
+    const exists = await this.recordExists(lookupValue, this.getTenantScope());
+    if (!exists) {
+      throw new NotFoundException(this._meta.model.tableName, lookupValue);
+    }
 
     const versionManager = this.getVersionManager();
     const changes = await versionManager.compareVersions(lookupValue, from, to);
@@ -528,6 +565,16 @@ export abstract class VersionRollbackEndpoint<
   ): Promise<ModelObject<M['model']>>;
 
   /**
+   * Checks if the parent record exists (owner-scoped). Override in adapter.
+   */
+  protected async recordExists(
+    _lookupValue: string,
+    _tenantScope?: { field: string; value: string },
+  ): Promise<boolean> {
+    return true;
+  }
+
+  /**
    * Main handler.
    */
   async handle(): Promise<Response> {
@@ -541,6 +588,12 @@ export abstract class VersionRollbackEndpoint<
 
     const lookupValue = await this.getLookupValue();
     const versionNumber = await this.getVersionNumber();
+
+    // Owner-scope BEFORE mutating: rolling back another tenant's record is 404.
+    const exists = await this.recordExists(lookupValue, this.getTenantScope());
+    if (!exists) {
+      throw new NotFoundException(this._meta.model.tableName, lookupValue);
+    }
 
     const versionManager = this.getVersionManager();
     const version = await versionManager.getVersion(lookupValue, versionNumber);

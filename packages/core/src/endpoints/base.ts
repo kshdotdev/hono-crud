@@ -336,6 +336,20 @@ export abstract class CrudEndpoint<
   }
 
   /**
+   * The owner scope as a `{ field, value }` pair, for endpoints whose existence
+   * check isn't a `ListFilters` — notably the version endpoints' `recordExists`,
+   * which must 404 a record in another tenant so its history/rollback stay
+   * private (same leak class the {@link applyTenantScope} comment describes).
+   * Same no-op / `TENANT_REQUIRED` contract as {@link applyTenantScope}; returns
+   * `undefined` when multi-tenancy is off or no tenant is resolved.
+   */
+  protected getTenantScope(): { field: string; value: string } | undefined {
+    const tenantId = this.validateTenantId();
+    if (!tenantId) return undefined;
+    return { field: this.getMultiTenantConfig().field, value: tenantId };
+  }
+
+  /**
    * Validates that tenant ID is present when required.
    * Throws a 400 `TENANT_REQUIRED` ApiException if missing and required.
    */
