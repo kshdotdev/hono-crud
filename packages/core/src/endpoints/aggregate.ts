@@ -232,20 +232,6 @@ export abstract class AggregateEndpoint<
   }
 
   /**
-   * Gets the alias for an aggregation result.
-   */
-  protected getAggregateAlias(agg: AggregateField): string {
-    if (agg.alias) {
-      return agg.alias;
-    }
-    if (agg.field === '*') {
-      return agg.operation;
-    }
-    // camelCase: sumAmount, avgPrice, etc.
-    return `${agg.operation}${agg.field.charAt(0).toUpperCase()}${agg.field.slice(1)}`;
-  }
-
-  /**
    * Performs the aggregation query.
    * Must be implemented by ORM-specific subclasses.
    *

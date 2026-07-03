@@ -99,21 +99,9 @@ export abstract class ListEndpoint<
     return this.cursorPaginationEnabled && this.supportsCursorPagination;
   }
 
-  // Relations configuration
-  /** Allowed relation names that can be included via ?include=relation1,relation2 */
-  protected allowedIncludes: string[] = [];
-
-  // Field selection configuration
-  /** Enable field selection via ?fields=field1,field2 */
-  protected fieldSelectionEnabled = false;
-  /** Fields that are allowed to be selected. If empty, all schema fields are allowed. */
-  protected allowedSelectFields: string[] = [];
-  /** Fields that are never returned, even if requested. */
-  protected blockedSelectFields: string[] = [];
-  /** Fields that are always included in the response. */
-  protected alwaysIncludeFields: string[] = [];
-  /** Default fields to return when no fields parameter is provided. */
-  protected defaultSelectFields: string[] = [];
+  // Relation include (allowedIncludes) + field-selection fields
+  // (fieldSelectionEnabled/allowedSelectFields/blockedSelectFields/
+  // alwaysIncludeFields/defaultSelectFields) live on CrudEndpoint.
   // Response cache fields (cacheEnabled/cacheTtlSeconds/…) live on CrudEndpoint.
 
   /**
@@ -192,26 +180,8 @@ export abstract class ListEndpoint<
       shape.onlyDeleted = z.enum(['true', 'false']).optional();
     }
 
-    // Add include parameter for relations
-    if (this.allowedIncludes.length > 0) {
-      shape.include = z
-        .string()
-        .optional()
-        .meta({
-          description: `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
-        });
-    }
-
-    // Add fields parameter for field selection
-    if (this.fieldSelectionEnabled) {
-      const availableFields = this.getAvailableSelectFields();
-      shape.fields = z
-        .string()
-        .optional()
-        .meta({
-          description: `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
-        });
-    }
+    // Add shared ?include= (relations) and ?fields= (field selection) params
+    this.addRelationAndFieldSelectionParams(shape);
 
     // Add cursor-based pagination parameters (only when the adapter actually
     // implements the keyset window — never advertise a no-op).
@@ -226,33 +196,6 @@ export abstract class ListEndpoint<
     }
 
     return z.object(shape) as ZodObject<ZodRawShape>;
-  }
-
-  /**
-   * Gets the list of fields available for selection.
-   */
-  protected getAvailableSelectFields(): string[] {
-    const schemaFields = Object.keys(this.getModelSchema().shape);
-    const computedFields = this._meta.model.computedFields
-      ? Object.keys(this._meta.model.computedFields)
-      : [];
-    const relationFields = this._meta.model.relations
-      ? Object.keys(this._meta.model.relations)
-      : [];
-
-    let available = [...schemaFields, ...computedFields, ...relationFields];
-
-    // Filter to allowed fields if specified
-    if (this.allowedSelectFields.length > 0) {
-      available = available.filter((f) => this.allowedSelectFields.includes(f));
-    }
-
-    // Remove blocked fields
-    if (this.blockedSelectFields.length > 0) {
-      available = available.filter((f) => !this.blockedSelectFields.includes(f));
-    }
-
-    return available;
   }
 
   /**
