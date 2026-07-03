@@ -336,6 +336,11 @@ export const prismaConformance: AdapterDescriptor = {
     // are not registered on the prisma tenant variant; the extended-verb
     // owner-scoping cell is a named skip here.
     extendedVerbTenantScoping: false,
+    // The prisma leg reuses the fixed examples `users` schema, which has no
+    // JSON column to hold the `{ ct, iv, v }` envelope an encrypted field
+    // serializes to (a `String` column rejects the object bind); the
+    // field-encryption cell is a named skip here.
+    fieldEncryption: false,
   },
   tenant: {
     field: 'status',

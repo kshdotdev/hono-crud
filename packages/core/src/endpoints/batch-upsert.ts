@@ -491,6 +491,14 @@ export abstract class BatchUpsertEndpoint<
     // Apply beforeBatch hook
     items = await this.beforeBatch(items);
 
+    // Encrypt configured fields per item before the adapter write — same
+    // lifecycle position as create/update (after the before hook, before
+    // persist). Runs here so it covers BOTH the native ON CONFLICT path and
+    // the item-by-item fallback (both execute under `this.batchUpsert`).
+    items = (await Promise.all(
+      items.map((item) => this.encryptOnWrite(item as Record<string, unknown>)),
+    )) as Partial<ModelObject<M['model']>>[];
+
     // Perform batch upsert. As with the single upsert, a UNIQUE
     // violation on a non-upsert-key column (or any other adapter-level
     // unique constraint) is mapped to the engine's standard 409
@@ -498,6 +506,17 @@ export abstract class BatchUpsertEndpoint<
     // centralised wrapper so the rule is never duplicated and covers
     // both `performStandardBatchUpsert` and `nativeBatchUpsert`.
     let result = await this.batchUpsert(items).catch(rethrowAsConstraintError);
+
+    // Decrypt each persisted record before the afterBatch hook / response
+    // (mirrors the single upsert and list decrypt).
+    result.items = await Promise.all(
+      result.items.map(async (item) => ({
+        ...item,
+        data: (await this.decryptOnRead(item.data as Record<string, unknown>)) as ModelObject<
+          M['model']
+        >,
+      })),
+    );
 
     // Apply afterBatch hook
     result = await this.afterBatch(result);

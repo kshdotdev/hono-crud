@@ -288,6 +288,12 @@ export abstract class ExportEndpoint<
               records = records.slice(0, maxRecords - exported);
             }
 
+            // Decrypt encrypted fields before the after-hook / export (mirrors
+            // list — the streaming path also reads through the adapter `list`).
+            records = (await Promise.all(
+              records.map((record) => this.decryptOnRead(record as Record<string, unknown>)),
+            )) as ModelObject<M['model']>[];
+
             records = await this.after(records);
             records = await this.beforeExport(records);
             const prepared = this.prepareRecordsForExport(records);
@@ -379,6 +385,13 @@ export abstract class ExportEndpoint<
 
     // Fetch all records for export
     let records = await this.fetchAllForExport(filters);
+
+    // Decrypt encrypted fields before the after-hook / export (mirrors list —
+    // export reads through the adapter `list`, not ListEndpoint.handle, so it
+    // does not inherit List's decrypt).
+    records = (await Promise.all(
+      records.map((record) => this.decryptOnRead(record as Record<string, unknown>)),
+    )) as ModelObject<M['model']>[];
 
     // Apply after hook (from ListEndpoint)
     records = await this.after(records);

@@ -470,6 +470,17 @@ export abstract class SearchEndpoint<
     // Perform search
     const searchResult = await this.search(searchOptions, filters);
 
+    // Decrypt each hit's record payload before afterSearch / response (mirrors
+    // list — the `.item` of every hit is a row read back from storage).
+    searchResult.items = await Promise.all(
+      searchResult.items.map(async (hit) => ({
+        ...hit,
+        item: (await this.decryptOnRead(hit.item as Record<string, unknown>)) as ModelObject<
+          M['model']
+        >,
+      })),
+    );
+
     // Call afterSearch hook
     const items = await this.afterSearch(searchResult.items);
 

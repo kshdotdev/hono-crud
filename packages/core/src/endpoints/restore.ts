@@ -137,6 +137,12 @@ export abstract class RestoreEndpoint<
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
     }
 
+    // Decrypt configured fields on the restored row before the after-hook /
+    // response (mirrors read — restore returns a row read back from storage).
+    restoredItem = (await this.decryptOnRead(
+      restoredItem as Record<string, unknown>,
+    )) as ModelObject<M['model']>;
+
     // Handle after hook based on mode
     if (this.afterHookMode === 'fire-and-forget') {
       this.runAfterResponse(Promise.resolve(this.after(restoredItem)));

@@ -18,9 +18,11 @@ import {
   MemoryBatchUpdateEndpoint,
   MemoryBatchUpsertEndpoint,
   MemoryBulkPatchEndpoint,
+  MemoryCloneEndpoint,
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
   MemoryExportEndpoint,
+  MemoryImportEndpoint,
   MemoryListEndpoint,
   MemoryReadEndpoint,
   MemoryRestoreEndpoint,
@@ -28,13 +30,19 @@ import {
   MemoryUpdateEndpoint,
   MemoryUpsertEndpoint,
   clearStorage,
+  getStore,
 } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { type HookContext, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
 import { multiTenant } from 'hono-crud/multi-tenant';
 import { z } from 'zod';
 import type { AdapterContext, AdapterDescriptor, HookRecorder } from '../contract';
-import { CONFORMANCE_FILTER_CONFIG, buildConformanceSchema } from '../model';
+import {
+  CONFORMANCE_FILTER_CONFIG,
+  buildConformanceSchema,
+  buildEncryptionKeyProvider,
+  buildEncryptionSchema,
+} from '../model';
 
 // ============================================================================
 // Schema + model variants
@@ -47,6 +55,7 @@ const schema = buildConformanceSchema('epoch-ms').extend({
 type Item = z.infer<typeof schema>;
 
 const TABLE = 'conformance_items';
+const ENC_TABLE = 'conformance_enc';
 
 const baseModel = defineModel({
   tableName: TABLE,
@@ -94,6 +103,20 @@ const finalizeModel = defineModel({
   },
 });
 const finalizeMeta = defineMeta({ model: finalizeModel });
+
+// Field-encryption model: `secret` is AES-GCM encrypted at rest. The memory
+// store keeps the `{ ct, iv, v }` envelope as a live object; the enc cell reads
+// it back with `getStore` to prove no verb ever persists plaintext.
+const encSchema = buildEncryptionSchema('epoch-ms');
+const encModel = defineModel({
+  tableName: ENC_TABLE,
+  schema: encSchema,
+  primaryKeys: ['id'],
+  softDelete: { field: 'deletedAt' },
+  timestamps: true,
+  fieldEncryption: { fields: ['secret'], keyProvider: buildEncryptionKeyProvider() },
+});
+const encMeta = defineMeta({ model: encModel });
 
 // ============================================================================
 // Endpoint classes
@@ -205,6 +228,65 @@ class FinalizeBatchDelete extends MemoryBatchDeleteEndpoint {
   _meta = finalizeMeta;
 }
 
+// Encryption endpoint classes — every write/returning verb on the enc model.
+class EncCreate extends MemoryCreateEndpoint {
+  _meta = encMeta;
+}
+class EncRead extends MemoryReadEndpoint {
+  _meta = encMeta;
+}
+class EncList extends MemoryListEndpoint {
+  _meta = encMeta;
+}
+class EncUpdate extends MemoryUpdateEndpoint {
+  _meta = encMeta;
+}
+class EncDelete extends MemoryDeleteEndpoint {
+  _meta = encMeta;
+}
+class EncRestore extends MemoryRestoreEndpoint {
+  _meta = encMeta;
+}
+class EncUpsert extends MemoryUpsertEndpoint {
+  _meta = encMeta;
+  protected override upsertKeys = ['email'];
+}
+class EncClone extends MemoryCloneEndpoint {
+  _meta = encMeta;
+}
+class EncImport extends MemoryImportEndpoint {
+  _meta = encMeta;
+  protected override upsertKeys = ['email'];
+}
+class EncBatchCreate extends MemoryBatchCreateEndpoint {
+  _meta = encMeta;
+}
+class EncBatchUpdate extends MemoryBatchUpdateEndpoint {
+  _meta = encMeta;
+}
+class EncBatchUpsert extends MemoryBatchUpsertEndpoint {
+  _meta = encMeta;
+  protected override upsertKeys = ['email'];
+}
+class EncBatchDelete extends MemoryBatchDeleteEndpoint {
+  _meta = encMeta;
+}
+class EncBatchRestore extends MemoryBatchRestoreEndpoint {
+  _meta = encMeta;
+}
+class EncSearch extends MemorySearchEndpoint {
+  _meta = encMeta;
+  protected override searchFields = ['name'];
+}
+class EncExport extends MemoryExportEndpoint {
+  _meta = encMeta;
+}
+class EncBulkPatch extends MemoryBulkPatchEndpoint {
+  _meta = encMeta;
+  protected override filterFields = ['role'];
+  protected override returnRecords = true;
+}
+
 // ============================================================================
 // Hook instrumentation
 // ============================================================================
@@ -290,6 +372,25 @@ async function setup(): Promise<AdapterContext> {
   });
   registerCrud(app, '/cursor-items', { create: ItemCreate, list: CursorItemList });
   registerCrud(app, '/hook-items', { create: HookItemCreate });
+  registerCrud(app, '/enc-items', {
+    create: EncCreate,
+    list: EncList,
+    read: EncRead,
+    update: EncUpdate,
+    delete: EncDelete,
+    restore: EncRestore,
+    upsert: EncUpsert,
+    clone: EncClone,
+    import: EncImport,
+    batchCreate: EncBatchCreate,
+    batchUpdate: EncBatchUpdate,
+    batchUpsert: EncBatchUpsert,
+    batchDelete: EncBatchDelete,
+    batchRestore: EncBatchRestore,
+    search: EncSearch,
+    export: EncExport,
+    bulkPatch: EncBulkPatch,
+  });
 
   return {
     app,
@@ -297,6 +398,12 @@ async function setup(): Promise<AdapterContext> {
     reset: async () => {
       clearStorage();
       resetRecorder();
+    },
+    // Raw store read: the memory adapter keeps the encrypted envelope as a live
+    // object, so the field is returned exactly as persisted (never decrypted).
+    inspectStoredField: async (id, field) => {
+      const row = getStore<Record<string, unknown>>(ENC_TABLE).get(id);
+      return row?.[field];
     },
   };
 }
@@ -310,6 +417,7 @@ export const memoryConformance: AdapterDescriptor = {
     relationScoping: true,
     batchTenantScoping: true,
     extendedVerbTenantScoping: true,
+    fieldEncryption: true,
   },
   tenant: {
     field: 'tenantId',

@@ -20,12 +20,43 @@
  * `.extend()` the leg-specific column, so the contract lives in one place.
  */
 import type { FilterConfig } from 'hono-crud';
+import { StaticKeyProvider } from 'hono-crud/encryption';
 import { z } from 'zod';
 import { type ConformanceApp, type ConformanceRecord, createRecord } from './contract';
 
 export const CONFORMANCE_ROLES = ['admin', 'user', 'guest'] as const;
 
 export type ConformanceTimestampKind = 'epoch-ms' | 'iso-datetime';
+
+// ============================================================================
+// Field encryption fixture (shared by the memory + drizzle enc-items legs)
+// ============================================================================
+
+/**
+ * Fixed AES-256 key (base64) so every leg encrypts with the same key. The cell
+ * never needs to decrypt in-test — it asserts the raw stored value is an
+ * `{ ct, iv, v }` envelope (never plaintext) and that the HTTP read path
+ * returns the plaintext — so a shared static key is all the legs require.
+ */
+export const CONFORMANCE_ENCRYPTION_KEY = 'tKxYshdHC+/f7GSqpsQg7bGzSC6RpJ/E9TSmq0jB6TQ=';
+export const CONFORMANCE_ENCRYPTION_KEY_ID = 'conformance-key';
+
+/** The single encrypted field on the enc-items model. */
+export const ENCRYPTED_FIELD = 'secret';
+
+export function buildEncryptionKeyProvider(): StaticKeyProvider {
+  return new StaticKeyProvider(CONFORMANCE_ENCRYPTION_KEY, CONFORMANCE_ENCRYPTION_KEY_ID);
+}
+
+/**
+ * The enc-items schema: the shared conformance fields plus a nullable
+ * `secret` string that the model marks for field-level encryption.
+ */
+export function buildEncryptionSchema(timestampKind: ConformanceTimestampKind) {
+  return buildConformanceSchema(timestampKind).extend({
+    secret: z.string().nullable().optional(),
+  });
+}
 
 export function buildConformanceSchema(timestampKind: ConformanceTimestampKind) {
   const timestamp = timestampKind === 'epoch-ms' ? z.number() : z.string();

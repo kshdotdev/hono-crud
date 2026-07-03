@@ -95,6 +95,20 @@ export interface ConformanceCapabilities {
    * is named.
    */
   extendedVerbTenantScoping: boolean;
+  /**
+   * Whether this leg registers a `fieldEncryption` model (an `/enc-items`
+   * route family whose `secret` field is AES-GCM encrypted at rest) AND can
+   * inspect the raw stored value via `AdapterContext.inspectStoredField`, so
+   * the field-encryption cell can assert ciphertext-at-rest across every write
+   * verb and decrypted values on every returning verb.
+   *
+   * True on memory (schemaless store, raw value read via `getStore`) and
+   * drizzle (a `secret` JSON-mode column, raw value read with a direct SQL
+   * SELECT). False on the prisma leg — it reuses the fixed examples `users`
+   * schema, which has no JSON column to hold the `{ ct, iv, v }` envelope an
+   * encrypted field serializes to; the skip is named.
+   */
+  fieldEncryption: boolean;
 }
 
 export interface HookObservation {
@@ -117,6 +131,15 @@ export interface AdapterContext {
   /** Wipe all rows + the hook recorder. Runs in beforeEach. */
   reset(): Promise<void>;
   teardown?(): Promise<void>;
+  /**
+   * Reads a single field's RAW stored value for the encryption model's row
+   * `id`, bypassing the adapter read path (so no decrypt runs). Returns the
+   * value exactly as it sits at rest: the `{ ct, iv, v }` envelope as an object
+   * (memory) or its JSON-string serialization (drizzle JSON column), or the
+   * plaintext when a verb wrote plaintext. `undefined` when the row/field is
+   * absent. Present only on legs whose `fieldEncryption` capability is true.
+   */
+  inspectStoredField?(id: string, field: string): Promise<unknown>;
 }
 
 export interface AdapterDescriptor {
