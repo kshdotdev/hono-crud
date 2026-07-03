@@ -17,19 +17,9 @@
  */
 
 import {
-  DrizzleBatchCreateEndpoint,
-  DrizzleBatchDeleteEndpoint,
-  DrizzleBatchRestoreEndpoint,
-  DrizzleBatchUpdateEndpoint,
   DrizzleCloneEndpoint,
-  DrizzleCreateEndpoint,
   type DrizzleDatabaseConstraint,
-  DrizzleDeleteEndpoint,
-  DrizzleListEndpoint,
-  DrizzleReadEndpoint,
-  DrizzleRestoreEndpoint,
-  DrizzleUpdateEndpoint,
-  DrizzleUpsertEndpoint,
+  createDrizzleCrud,
 } from '@hono-crud/drizzle';
 import { scalarUI } from '@hono-crud/scalar';
 import { redocUI, swaggerUI } from '@hono-crud/swagger';
@@ -56,6 +46,7 @@ const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 const UserModel = defineModel({
   tableName: 'users',
+  tag: 'Users',
   schema: UserSchema,
   primaryKeys: ['id'],
   table: users,
@@ -69,6 +60,7 @@ const UserModel = defineModel({
 
 const PostModel = defineModel({
   tableName: 'posts',
+  tag: 'Posts',
   schema: PostSchema,
   primaryKeys: ['id'],
   table: posts,
@@ -87,6 +79,7 @@ const PostModel = defineModel({
 
 const ProfileModel = defineModel({
   tableName: 'profiles',
+  tag: 'Profiles',
   schema: ProfileSchema,
   primaryKeys: ['id'],
   table: profiles,
@@ -97,6 +90,7 @@ const ProfileModel = defineModel({
 
 const CommentModel = defineModel({
   tableName: 'comments',
+  tag: 'Comments',
   schema: CommentSchema,
   primaryKeys: ['id'],
   table: comments,
@@ -114,6 +108,7 @@ const CommentModel = defineModel({
 
 const CategoryModel = defineModel({
   tableName: 'categories',
+  tag: 'Categories',
   schema: CategorySchema,
   primaryKeys: ['id'],
   table: categories,
@@ -125,23 +120,26 @@ const profileMeta = defineMeta({ model: ProfileModel });
 const commentMeta = defineMeta({ model: CommentModel });
 const categoryMeta = defineMeta({ model: CategoryModel });
 
+// Factory bundles: `db`/`_meta` are stamped, `dialect: 'pg'` is applied to the
+// dialect-aware verbs, and OpenAPI `tags` default from each model's `tag`. The
+// endpoint classes below drop all of that boilerplate; an explicit `schema.tags`
+// (e.g. the 'Users - Batch' group) still wins.
+const Users = createDrizzleCrud(typedDb, userMeta, { dialect: 'pg' });
+const Posts = createDrizzleCrud(typedDb, postMeta, { dialect: 'pg' });
+const Profiles = createDrizzleCrud(typedDb, profileMeta, { dialect: 'pg' });
+const Comments = createDrizzleCrud(typedDb, commentMeta, { dialect: 'pg' });
+const Categories = createDrizzleCrud(typedDb, categoryMeta, { dialect: 'pg' });
+
 // ============================================================================
 // User Endpoints (Full CRUD + Batch + Relations)
 // ============================================================================
 
-class UserCreate extends DrizzleCreateEndpoint {
-  _meta = userMeta;
-  db = typedDb;
-  schema = { tags: ['Users'], summary: 'Create a user' };
+class UserCreate extends Users.Create {
+  schema = { summary: 'Create a user' };
 }
 
-class UserList extends DrizzleListEndpoint {
-  _meta = userMeta;
-  db = typedDb;
-  protected override dialect = 'pg' as const;
-
+class UserList extends Users.List {
   schema = {
-    tags: ['Users'],
     summary: 'List users',
     description: 'Full filtering, searching, sorting, pagination, and relation loading.',
   };
@@ -161,63 +159,47 @@ class UserList extends DrizzleListEndpoint {
   allowedIncludes = ['posts', 'profile', 'comments'];
 }
 
-class UserRead extends DrizzleReadEndpoint {
-  _meta = userMeta;
-  db = typedDb;
-
-  schema = { tags: ['Users'], summary: 'Get a user by ID' };
+class UserRead extends Users.Read {
+  schema = { summary: 'Get a user by ID' };
   allowedIncludes = ['posts', 'profile', 'comments'];
 }
 
-class UserUpdate extends DrizzleUpdateEndpoint {
-  _meta = userMeta;
-  db = typedDb;
-
-  schema = { tags: ['Users'], summary: 'Update a user' };
+class UserUpdate extends Users.Update {
+  schema = { summary: 'Update a user' };
   allowedUpdateFields = ['name', 'role', 'age', 'status'];
 }
 
-class UserDelete extends DrizzleDeleteEndpoint {
-  _meta = userMeta;
-  db = typedDb;
-  schema = { tags: ['Users'], summary: 'Delete a user (soft delete)' };
+class UserDelete extends Users.Delete {
+  schema = { summary: 'Delete a user (soft delete)' };
 }
 
-class UserRestore extends DrizzleRestoreEndpoint {
-  _meta = userMeta;
-  db = typedDb;
-  schema = { tags: ['Users'], summary: 'Restore a deleted user' };
+class UserRestore extends Users.Restore {
+  schema = { summary: 'Restore a deleted user' };
 }
 
-class UserBatchCreate extends DrizzleBatchCreateEndpoint {
-  _meta = userMeta;
-  db = typedDb;
+class UserBatchCreate extends Users.BatchCreate {
   schema = { tags: ['Users - Batch'], summary: 'Batch create users' };
   maxBatchSize = 100;
 }
 
-class UserBatchUpdate extends DrizzleBatchUpdateEndpoint {
-  _meta = userMeta;
-  db = typedDb;
+class UserBatchUpdate extends Users.BatchUpdate {
   schema = { tags: ['Users - Batch'], summary: 'Batch update users' };
   maxBatchSize = 100;
   allowedUpdateFields = ['name', 'role', 'status'];
 }
 
-class UserBatchDelete extends DrizzleBatchDeleteEndpoint {
-  _meta = userMeta;
-  db = typedDb;
+class UserBatchDelete extends Users.BatchDelete {
   schema = { tags: ['Users - Batch'], summary: 'Batch delete users' };
   maxBatchSize = 100;
 }
 
-class UserBatchRestore extends DrizzleBatchRestoreEndpoint {
-  _meta = userMeta;
-  db = typedDb;
+class UserBatchRestore extends Users.BatchRestore {
   schema = { tags: ['Users - Batch'], summary: 'Batch restore users' };
   maxBatchSize = 100;
 }
 
+// Clone is not part of the createDrizzleCrud factory surface, so this one keeps
+// the explicit `_meta`/`db` wiring.
 class UserClone extends DrizzleCloneEndpoint {
   _meta = userMeta;
   db = typedDb;
@@ -237,73 +219,51 @@ class UserClone extends DrizzleCloneEndpoint {
 // Post Endpoints
 // ============================================================================
 
-class PostCreate extends DrizzleCreateEndpoint {
-  _meta = postMeta;
-  db = typedDb;
-  schema = { tags: ['Posts'], summary: 'Create a post' };
+class PostCreate extends Posts.Create {
+  schema = { summary: 'Create a post' };
 }
 
-class PostList extends DrizzleListEndpoint {
-  _meta = postMeta;
-  db = typedDb;
-  protected override dialect = 'pg' as const;
-
-  schema = { tags: ['Posts'], summary: 'List posts' };
+class PostList extends Posts.List {
+  schema = { summary: 'List posts' };
   filterFields = ['status'];
   searchFields = ['title', 'content'];
   sortFields = ['title', 'createdAt'];
   allowedIncludes = ['author', 'comments'];
 }
 
-class PostRead extends DrizzleReadEndpoint {
-  _meta = postMeta;
-  db = typedDb;
-
-  schema = { tags: ['Posts'], summary: 'Get a post by ID' };
+class PostRead extends Posts.Read {
+  schema = { summary: 'Get a post by ID' };
   allowedIncludes = ['author', 'comments'];
 }
 
-class PostUpdate extends DrizzleUpdateEndpoint {
-  _meta = postMeta;
-  db = typedDb;
-
-  schema = { tags: ['Posts'], summary: 'Update a post' };
+class PostUpdate extends Posts.Update {
+  schema = { summary: 'Update a post' };
   allowedUpdateFields = ['title', 'content', 'status'];
 }
 
-class PostDelete extends DrizzleDeleteEndpoint {
-  _meta = postMeta;
-  db = typedDb;
-  schema = { tags: ['Posts'], summary: 'Delete a post (soft delete)' };
+class PostDelete extends Posts.Delete {
+  schema = { summary: 'Delete a post (soft delete)' };
 }
 
-class PostRestore extends DrizzleRestoreEndpoint {
-  _meta = postMeta;
-  db = typedDb;
-  schema = { tags: ['Posts'], summary: 'Restore a deleted post' };
+class PostRestore extends Posts.Restore {
+  schema = { summary: 'Restore a deleted post' };
 }
 
 // ============================================================================
 // Profile Endpoints
 // ============================================================================
 
-class ProfileCreate extends DrizzleCreateEndpoint {
-  _meta = profileMeta;
-  db = typedDb;
-  schema = { tags: ['Profiles'], summary: 'Create a profile' };
+class ProfileCreate extends Profiles.Create {
+  schema = { summary: 'Create a profile' };
 }
 
-class ProfileRead extends DrizzleReadEndpoint {
-  _meta = profileMeta;
-  db = typedDb;
-  schema = { tags: ['Profiles'], summary: 'Get a profile by ID' };
+class ProfileRead extends Profiles.Read {
+  schema = { summary: 'Get a profile by ID' };
   allowedIncludes = ['user'];
 }
 
-class ProfileUpdate extends DrizzleUpdateEndpoint {
-  _meta = profileMeta;
-  db = typedDb;
-  schema = { tags: ['Profiles'], summary: 'Update a profile' };
+class ProfileUpdate extends Profiles.Update {
+  schema = { summary: 'Update a profile' };
   allowedUpdateFields = ['bio', 'avatar', 'website'];
 }
 
@@ -311,24 +271,17 @@ class ProfileUpdate extends DrizzleUpdateEndpoint {
 // Comment Endpoints
 // ============================================================================
 
-class CommentCreate extends DrizzleCreateEndpoint {
-  _meta = commentMeta;
-  db = typedDb;
-  schema = { tags: ['Comments'], summary: 'Create a comment' };
+class CommentCreate extends Comments.Create {
+  schema = { summary: 'Create a comment' };
 }
 
-class CommentList extends DrizzleListEndpoint {
-  _meta = commentMeta;
-  db = typedDb;
-  protected override dialect = 'pg' as const;
-  schema = { tags: ['Comments'], summary: 'List comments' };
+class CommentList extends Comments.List {
+  schema = { summary: 'List comments' };
   allowedIncludes = ['post', 'author'];
 }
 
-class CommentRead extends DrizzleReadEndpoint {
-  _meta = commentMeta;
-  db = typedDb;
-  schema = { tags: ['Comments'], summary: 'Get a comment by ID' };
+class CommentRead extends Comments.Read {
+  schema = { summary: 'Get a comment by ID' };
   allowedIncludes = ['post', 'author'];
 }
 
@@ -336,18 +289,12 @@ class CommentRead extends DrizzleReadEndpoint {
 // Category Endpoints (Upsert)
 // ============================================================================
 
-class CategoryCreate extends DrizzleCreateEndpoint {
-  _meta = categoryMeta;
-  db = typedDb;
-  schema = { tags: ['Categories'], summary: 'Create a category' };
+class CategoryCreate extends Categories.Create {
+  schema = { summary: 'Create a category' };
 }
 
-class CategoryList extends DrizzleListEndpoint {
-  _meta = categoryMeta;
-  db = typedDb;
-  protected override dialect = 'pg' as const;
-
-  schema = { tags: ['Categories'], summary: 'List categories' };
+class CategoryList extends Categories.List {
+  schema = { summary: 'List categories' };
   filterFields = ['name'];
   filterConfig = {
     sortOrder: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'] as const,
@@ -356,13 +303,8 @@ class CategoryList extends DrizzleListEndpoint {
   defaultSort = { field: 'sortOrder', order: 'asc' as const };
 }
 
-class CategoryUpsert extends DrizzleUpsertEndpoint {
-  _meta = categoryMeta;
-  db = typedDb;
-  protected override dialect = 'pg' as const;
-
+class CategoryUpsert extends Categories.Upsert {
   schema = {
-    tags: ['Categories'],
     summary: 'Upsert a category',
     description: 'Creates or updates a category by name.',
   };

@@ -2,6 +2,8 @@ export { clearStorage, getStore, storage } from './helpers';
 export * from './crud';
 export * from './batch';
 export * from './advanced';
+export { createMemoryCrud } from './factory';
+export type { MemoryCrudClasses } from './factory';
 
 import type { AdapterBundle } from 'hono-crud/internal';
 import {

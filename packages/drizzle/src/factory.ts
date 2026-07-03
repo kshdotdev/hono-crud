@@ -1,5 +1,5 @@
 import type { Env } from 'hono';
-import type { MetaInput } from 'hono-crud/internal';
+import { type MetaInput, resolveSchemaTags } from 'hono-crud/internal';
 import {
   DrizzleBatchUpsertEndpoint,
   DrizzleSearchEndpoint,
@@ -78,16 +78,19 @@ export interface CreateDrizzleCrudOptions {
  * ```ts
  * import { createDrizzleCrud } from '@hono-crud/drizzle';
  *
+ * // `tag` on the model becomes the default OpenAPI group for every endpoint,
+ * // so subclasses no longer restate `tags` (an explicit `schema.tags` still wins).
+ * const ProjectModel = defineModel({ tableName: 'projects', tag: 'Projects', schema, primaryKeys: ['id'] });
  * const projectMeta = defineMeta({ model: ProjectModel, fields: projectSchemas.insert });
  * const Project = createDrizzleCrud(db, projectMeta, { dialect: 'pg' });
  *
  * // Now define endpoints with minimal boilerplate:
  * class ProjectCreate extends Project.Create {
- *   schema = { tags: ["Projects"], summary: "Create a new project" };
+ *   schema = { summary: "Create a new project" };
  * }
  *
  * class ProjectList extends Project.List {
- *   schema = { tags: ["Projects"], summary: "List all projects" };
+ *   schema = { summary: "List all projects" };
  *   protected searchFields = ["name", "clientName"];
  *   protected filterFields = ["status"];
  * }
@@ -105,57 +108,96 @@ export function createDrizzleCrud<M extends MetaInput, E extends Env = Env>(
     Create: class extends DrizzleCreateEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
     },
     Read: class extends DrizzleReadEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
     },
     Update: class extends DrizzleUpdateEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
     },
     Delete: class extends DrizzleDeleteEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
     },
     List: class extends DrizzleListEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
       protected override dialect = dialect;
     },
     Restore: class extends DrizzleRestoreEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
     },
     Upsert: class extends DrizzleUpsertEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
       protected override dialect = dialect;
     },
     Search: class extends DrizzleSearchEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
       protected override dialect = dialect;
     },
     BatchCreate: class extends DrizzleBatchCreateEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
     },
     BatchUpdate: class extends DrizzleBatchUpdateEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
     },
     BatchDelete: class extends DrizzleBatchDeleteEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
     },
     BatchRestore: class extends DrizzleBatchRestoreEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
     },
     BatchUpsert: class extends DrizzleBatchUpsertEndpoint<E, M> {
       _meta = meta;
       db = db;
+      override getSchema() {
+        return resolveSchemaTags(super.getSchema(), meta.model);
+      }
       protected override dialect = dialect;
     },
   } as DrizzleCrudClasses<M, E>;

@@ -1,29 +1,13 @@
 import { MemoryCacheStorage } from '@hono-crud/cache';
 import { MemoryIdempotencyStorage, createIdempotencyMiddleware } from '@hono-crud/idempotency';
 import {
-  MemoryAggregateEndpoint,
-  MemoryBatchCreateEndpoint,
-  MemoryBatchDeleteEndpoint,
-  MemoryBatchRestoreEndpoint,
-  MemoryBatchUpdateEndpoint,
-  MemoryBatchUpsertEndpoint,
   MemoryBulkPatchEndpoint,
-  MemoryCloneEndpoint,
-  MemoryCreateEndpoint,
-  MemoryDeleteEndpoint,
-  MemoryExportEndpoint,
-  MemoryImportEndpoint,
-  MemoryListEndpoint,
-  MemoryReadEndpoint,
-  MemoryRestoreEndpoint,
-  MemorySearchEndpoint,
-  MemoryUpdateEndpoint,
-  MemoryUpsertEndpoint,
   MemoryVersionCompareEndpoint,
   MemoryVersionHistoryEndpoint,
   MemoryVersionReadEndpoint,
   MemoryVersionRollbackEndpoint,
   clearStorage,
+  createMemoryCrud,
   getStore,
 } from '@hono-crud/memory';
 import { MemoryRateLimitStorage, createRateLimitMiddleware } from '@hono-crud/rate-limit';
@@ -120,12 +104,14 @@ type Document = z.infer<typeof DocumentSchema>;
 
 const PostModel = defineModel({
   tableName: 'posts',
+  tag: 'Posts',
   schema: PostSchema,
   primaryKeys: ['id'],
 });
 
 const UserModel = defineModel({
   tableName: 'users',
+  tag: 'Users',
   schema: UserSchema,
   primaryKeys: ['id'],
   softDelete: true,
@@ -171,6 +157,7 @@ const UserModel = defineModel({
 
 const DocumentModel = defineModel({
   tableName: 'documents',
+  tag: 'Documents',
   schema: DocumentSchema,
   primaryKeys: ['id'],
   // Boolean shorthand: defaults are field 'version' + historyTable '{tableName}_history'.
@@ -180,6 +167,13 @@ const DocumentModel = defineModel({
 const userMeta = defineMeta({ model: UserModel });
 const postMeta = defineMeta({ model: PostModel });
 const documentMeta = defineMeta({ model: DocumentModel });
+
+// Factory bundles: `_meta` is stamped and OpenAPI `tags` default from each
+// model's `tag`, so the endpoint classes below carry zero `_meta`/`tags`
+// boilerplate. An explicit `schema.tags` on a subclass still wins.
+const Users = createMemoryCrud<typeof userMeta, AppEnv>(userMeta);
+const Posts = createMemoryCrud<typeof postMeta, AppEnv>(postMeta);
+const Documents = createMemoryCrud<typeof documentMeta, AppEnv>(documentMeta);
 
 function timestamp(): string {
   return new Date().toISOString();
@@ -211,18 +205,16 @@ function authFromHeaders(): MiddlewareHandler<AppEnv> {
   };
 }
 
-class UserCreate extends MemoryCreateEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Create a user' };
+class UserCreate extends Users.Create {
+  schema = { summary: 'Create a user' };
 
   override async before(data: User): Promise<User> {
     return withTimestamps(data);
   }
 }
 
-class UserList extends MemoryListEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'List users' };
+class UserList extends Users.List {
+  schema = { summary: 'List users' };
   filterFields = ['role', 'status', 'tenantId'];
   filterConfig = {
     role: ['eq', 'in'] as const,
@@ -250,9 +242,8 @@ class UserList extends MemoryListEndpoint<AppEnv, typeof userMeta> {
   blockedSelectFields = ['secretNote', 'internalNote'];
 }
 
-class UserRead extends MemoryReadEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Read a user' };
+class UserRead extends Users.Read {
+  schema = { summary: 'Read a user' };
   allowedIncludes = ['posts'];
   fieldSelectionEnabled = true;
   allowedSelectFields = [
@@ -270,9 +261,8 @@ class UserRead extends MemoryReadEndpoint<AppEnv, typeof userMeta> {
   blockedSelectFields = ['secretNote', 'internalNote'];
 }
 
-class UserUpdate extends MemoryUpdateEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Update a user' };
+class UserUpdate extends Users.Update {
+  schema = { summary: 'Update a user' };
   allowedUpdateFields = [
     'email',
     'name',
@@ -292,59 +282,49 @@ class UserUpdate extends MemoryUpdateEndpoint<AppEnv, typeof userMeta> {
   }
 }
 
-class UserDelete extends MemoryDeleteEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Soft-delete a user' };
+class UserDelete extends Users.Delete {
+  schema = { summary: 'Soft-delete a user' };
 }
 
-class UserRestore extends MemoryRestoreEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Restore a soft-deleted user' };
+class UserRestore extends Users.Restore {
+  schema = { summary: 'Restore a soft-deleted user' };
 }
 
-class UserBatchCreate extends MemoryBatchCreateEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Batch create users' };
+class UserBatchCreate extends Users.BatchCreate {
+  schema = { summary: 'Batch create users' };
 }
 
-class UserBatchUpdate extends MemoryBatchUpdateEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Batch update users' };
+class UserBatchUpdate extends Users.BatchUpdate {
+  schema = { summary: 'Batch update users' };
 }
 
-class UserBatchDelete extends MemoryBatchDeleteEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Batch soft-delete users' };
+class UserBatchDelete extends Users.BatchDelete {
+  schema = { summary: 'Batch soft-delete users' };
 }
 
-class UserBatchRestore extends MemoryBatchRestoreEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Batch restore users' };
+class UserBatchRestore extends Users.BatchRestore {
+  schema = { summary: 'Batch restore users' };
 }
 
-class UserUpsert extends MemoryUpsertEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Upsert a user by email' };
+class UserUpsert extends Users.Upsert {
+  schema = { summary: 'Upsert a user by email' };
   upsertKeys = ['email'];
 }
 
-class UserBatchUpsert extends MemoryBatchUpsertEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Batch upsert users by email' };
+class UserBatchUpsert extends Users.BatchUpsert {
+  schema = { summary: 'Batch upsert users by email' };
   upsertKeys = ['email'];
 }
 
-class UserSearch extends MemorySearchEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Full-text search users' };
+class UserSearch extends Users.Search {
+  schema = { summary: 'Full-text search users' };
   searchFields = ['name', 'email'];
   fieldWeights = { name: 2, email: 1 };
   filterFields = ['role', 'status'];
 }
 
-class UserAggregate extends MemoryAggregateEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Aggregate users' };
+class UserAggregate extends Users.Aggregate {
+  schema = { summary: 'Aggregate users' };
   aggregateConfig = {
     avgFields: ['age'],
     minMaxFields: ['age'],
@@ -354,17 +334,15 @@ class UserAggregate extends MemoryAggregateEndpoint<AppEnv, typeof userMeta> {
   filterFields = ['role', 'status'];
 }
 
-class UserExport extends MemoryExportEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Export users as JSON or CSV' };
+class UserExport extends Users.Export {
+  schema = { summary: 'Export users as JSON or CSV' };
   filterFields = ['role', 'status'];
   searchFields = ['name', 'email'];
   excludedExportFields = ['secretNote', 'internalNote'];
 }
 
-class UserImport extends MemoryImportEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Import users from JSON or CSV' };
+class UserImport extends Users.Import {
+  schema = { summary: 'Import users from JSON or CSV' };
   upsertKeys = ['email'];
   optionalImportFields = [
     'id',
@@ -378,12 +356,13 @@ class UserImport extends MemoryImportEndpoint<AppEnv, typeof userMeta> {
   ];
 }
 
-class UserClone extends MemoryCloneEndpoint<AppEnv, typeof userMeta> {
-  _meta = userMeta;
-  schema = { tags: ['Users'], summary: 'Clone a user with overrides' };
+class UserClone extends Users.Clone {
+  schema = { summary: 'Clone a user with overrides' };
   excludeFromClone = ['email', 'createdAt', 'updatedAt', 'deletedAt'];
 }
 
+// BulkPatch is not part of the createMemoryCrud factory surface (it mirrors the
+// drizzle/prisma factories, which omit it), so this one stays a direct extend.
 class UserBulkPatch extends MemoryBulkPatchEndpoint<AppEnv, typeof userMeta> {
   _meta = userMeta;
   schema = { tags: ['Users'], summary: 'Bulk patch users matching a filter' };
@@ -399,30 +378,26 @@ class UserBulkPatch extends MemoryBulkPatchEndpoint<AppEnv, typeof userMeta> {
   }
 }
 
-class PostCreate extends MemoryCreateEndpoint<AppEnv, typeof postMeta> {
-  _meta = postMeta;
-  schema = { tags: ['Posts'], summary: 'Create a post' };
+class PostCreate extends Posts.Create {
+  schema = { summary: 'Create a post' };
 
   override async before(data: Post): Promise<Post> {
     return withTimestamps(data);
   }
 }
 
-class PostList extends MemoryListEndpoint<AppEnv, typeof postMeta> {
-  _meta = postMeta;
-  schema = { tags: ['Posts'], summary: 'List posts' };
+class PostList extends Posts.List {
+  schema = { summary: 'List posts' };
   filterFields = ['authorId', 'status'];
   searchFields = ['title', 'content'];
 }
 
-class PostRead extends MemoryReadEndpoint<AppEnv, typeof postMeta> {
-  _meta = postMeta;
-  schema = { tags: ['Posts'], summary: 'Read a post' };
+class PostRead extends Posts.Read {
+  schema = { summary: 'Read a post' };
 }
 
-class DocumentCreate extends MemoryCreateEndpoint<AppEnv, typeof documentMeta> {
-  _meta = documentMeta;
-  schema = { tags: ['Documents'], summary: 'Create a versioned document' };
+class DocumentCreate extends Documents.Create {
+  schema = { summary: 'Create a versioned document' };
 
   override async before(data: Document): Promise<Document> {
     return {
@@ -433,14 +408,12 @@ class DocumentCreate extends MemoryCreateEndpoint<AppEnv, typeof documentMeta> {
   }
 }
 
-class DocumentRead extends MemoryReadEndpoint<AppEnv, typeof documentMeta> {
-  _meta = documentMeta;
-  schema = { tags: ['Documents'], summary: 'Read a document' };
+class DocumentRead extends Documents.Read {
+  schema = { summary: 'Read a document' };
 }
 
-class DocumentUpdate extends MemoryUpdateEndpoint<AppEnv, typeof documentMeta> {
-  _meta = documentMeta;
-  schema = { tags: ['Documents'], summary: 'Update a versioned document' };
+class DocumentUpdate extends Documents.Update {
+  schema = { summary: 'Update a versioned document' };
   allowedUpdateFields = ['title', 'content'];
 
   override async before(data: Partial<Document>): Promise<Partial<Document>> {
