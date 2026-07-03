@@ -227,7 +227,12 @@ export abstract class BatchUpdateEndpoint<
       try {
         const filteredData = this.filterUpdateData(item.data);
         const processed = await this.before(item.id, filteredData);
-        processedItems.push({ id: item.id, data: processed });
+        // Encrypt configured fields per item before the batch update — same
+        // lifecycle position as update (after before-hook, before persist).
+        const encrypted = (await this.encryptOnWrite(
+          processed as Record<string, unknown>,
+        )) as Partial<ModelObject<M['model']>>;
+        processedItems.push({ id: item.id, data: encrypted });
       } catch (err) {
         if (this.stopOnError) {
           throw err;
@@ -239,8 +244,13 @@ export abstract class BatchUpdateEndpoint<
     // Update all items
     const { updated, notFound } = await this.batchUpdate(processedItems);
 
+    // Decrypt each persisted record before the after-hooks / response (mirrors list).
+    const decrypted = (await Promise.all(
+      updated.map((record) => this.decryptOnRead(record as Record<string, unknown>)),
+    )) as ModelObject<M['model']>[];
+
     // Apply after hooks
-    const results = await this.applyBatchAfterHooks(updated, errors, {
+    const results = await this.applyBatchAfterHooks(decrypted, errors, {
       after: (item) => this.after(item),
       afterHookMode: this.afterHookMode,
       stopOnError: this.stopOnError,

@@ -180,8 +180,15 @@ export abstract class BatchDeleteEndpoint<
     // Delete all items
     const { deleted, notFound } = await this.batchDelete(idsToDelete);
 
+    // Decrypt the deleted rows before the after-hooks / response — batch delete
+    // returns the removed records, which come back from storage as ciphertext
+    // (mirrors list).
+    const decrypted = (await Promise.all(
+      deleted.map((record) => this.decryptOnRead(record as Record<string, unknown>)),
+    )) as ModelObject<M['model']>[];
+
     // Apply after hooks
-    const results = await this.applyBatchAfterHooks(deleted, errors, {
+    const results = await this.applyBatchAfterHooks(decrypted, errors, {
       after: (item) => this.after(item),
       afterHookMode: this.afterHookMode,
       stopOnError: this.stopOnError,

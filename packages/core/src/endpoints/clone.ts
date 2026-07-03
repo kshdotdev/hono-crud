@@ -166,6 +166,14 @@ export abstract class CloneEndpoint<
       throw new NotFoundException(this._meta.model.tableName, lookupValue);
     }
 
+    // Decrypt the source's encrypted fields so the clone's before-hook and any
+    // caller overrides operate on plaintext, and so the re-encryption below
+    // produces a fresh ciphertext. Without this, `encryptOnWrite` would
+    // `String()`-cast the stored `{ ct, iv, v }` envelope and double-encrypt it.
+    const decryptedSource = (await this.decryptOnRead(
+      source as Record<string, unknown>,
+    )) as ModelObject<M['model']>;
+
     // Build clone data: source minus engine-managed write fields
     // (primary keys + any configured `Model.timestamps`) and minus
     // any `excludeFromClone` fields, plus overrides. The managed-field
@@ -175,7 +183,10 @@ export abstract class CloneEndpoint<
     // `createdAt` / `updatedAt`, instead of copying the source's
     // values. Computed centrally so the precedence is never
     // duplicated.
-    const cloneData = stripManagedInsertFields(source as Record<string, unknown>, this._meta.model);
+    const cloneData = stripManagedInsertFields(
+      decryptedSource as Record<string, unknown>,
+      this._meta.model,
+    );
 
     // Remove excluded fields
     for (const field of this.excludeFromClone) {
@@ -188,6 +199,12 @@ export abstract class CloneEndpoint<
     // Run before hook
     const data = await this.before(cloneData as ModelObject<M['model']>);
 
+    // Encrypt configured fields before the adapter insert (after the
+    // before-hook, before persist) — mirrors create.
+    const encrypted = (await this.encryptOnWrite(data as Record<string, unknown>)) as ModelObject<
+      M['model']
+    >;
+
     // Create the clone. A clone shares the source row's natural
     // identifiers (e.g. a `slug`) until the caller supplies an override
     // — that turns into a UNIQUE-constraint violation at the adapter
@@ -196,7 +213,11 @@ export abstract class CloneEndpoint<
     // prisma P2002) to the engine's standard 409 envelope. Routed
     // through the centralised `rethrowAsConstraintError` so the rule
     // is never duplicated per endpoint.
-    let obj: ModelObject<M['model']> = await this.createClone(data).catch(rethrowAsConstraintError);
+    let obj: ModelObject<M['model']> =
+      await this.createClone(encrypted).catch(rethrowAsConstraintError);
+
+    // Decrypt the persisted record before the after-hook / response (mirrors create).
+    obj = (await this.decryptOnRead(obj as Record<string, unknown>)) as ModelObject<M['model']>;
 
     // Run after hook
     obj = await this.after(obj);

@@ -205,7 +205,14 @@ export abstract class BatchCreateEndpoint<
     for (let i = 0; i < items.length; i++) {
       try {
         const processed = await this.before(items[i], i);
-        processedItems.push(processed);
+        // Encrypt configured fields per item before the bulk insert — same
+        // lifecycle position as create (after before-hook, before persist),
+        // inside the per-item try so a crypto failure is scoped like a
+        // before-hook failure.
+        const encrypted = (await this.encryptOnWrite(
+          processed as Record<string, unknown>,
+        )) as Partial<ModelObject<M['model']>>;
+        processedItems.push(encrypted);
       } catch (err) {
         if (this.stopOnError) {
           throw err;
@@ -223,22 +230,27 @@ export abstract class BatchCreateEndpoint<
     // duplicated per endpoint.
     const created = await this.batchCreate(processedItems).catch(rethrowAsConstraintError);
 
+    // Decrypt each persisted record before the after-hook / response (mirrors list).
+    const decrypted = (await Promise.all(
+      created.map((record) => this.decryptOnRead(record as Record<string, unknown>)),
+    )) as ModelObject<M['model']>[];
+
     // Apply after hooks
     const results: ModelObject<M['model']>[] = [];
-    for (let i = 0; i < created.length; i++) {
+    for (let i = 0; i < decrypted.length; i++) {
       try {
         if (this.afterHookMode === 'fire-and-forget') {
-          this.runAfterResponse(Promise.resolve(this.after(created[i], i)));
-          results.push(created[i]);
+          this.runAfterResponse(Promise.resolve(this.after(decrypted[i], i)));
+          results.push(decrypted[i]);
         } else {
-          results.push(await this.after(created[i], i));
+          results.push(await this.after(decrypted[i], i));
         }
       } catch (err) {
         if (this.stopOnError) {
           throw err;
         }
         errors.push({ index: i, error: err instanceof Error ? err.message : String(err) });
-        results.push(created[i]);
+        results.push(decrypted[i]);
       }
     }
 

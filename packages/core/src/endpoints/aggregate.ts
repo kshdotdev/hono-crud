@@ -274,7 +274,17 @@ export abstract class AggregateEndpoint<
       options.limit = config.defaultLimit;
     }
 
-    // Perform the aggregation, then the after hook
+    // Perform the aggregation, then the after hook.
+    //
+    // NOTE: no `decryptOnRead` here — aggregate deliberately does NOT decrypt.
+    // Field encryption is non-deterministic (a fresh random IV per write), so a
+    // configured field never yields equal ciphertext for equal plaintext:
+    // GROUP BY on an encrypted field fragments into singletons, and MIN/MAX
+    // return an arbitrary ciphertext, not a meaningful plaintext extremum.
+    // Numeric aggregations (count/sum/avg) never expose the plaintext at all.
+    // Aggregating over encrypted fields is therefore unsupported by design, and
+    // leaving group keys as ciphertext is also the safer default (no plaintext
+    // PII in an aggregate response). See docs/advanced-features.md.
     const result = await this.after(await this.aggregate(options));
 
     return this.success(result);

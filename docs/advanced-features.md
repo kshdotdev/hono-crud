@@ -633,9 +633,24 @@ Webhooks are signed with HMAC-SHA256 using the Web Crypto API (edge-safe). The s
 
 Field-level encryption using AES-GCM via the Web Crypto API. Configure it once
 on the model (`fieldEncryption`, a `FieldEncryptionConfig`) and endpoints
-encrypt the listed fields before create/update writes and decrypt them after
-read/list reads automatically. For lower-level control, call
+encrypt the listed fields before **every** write and decrypt them after **every**
+returning read automatically — the same lifecycle position across the whole
+verb surface: create, update, upsert, clone, import, bulk-patch and all batch
+writes (batch-create/update/upsert) encrypt before the adapter persist; read,
+list, search, export, restore and all batch reads (batch-delete/restore)
+decrypt before the response. For lower-level control, call
 `encryptFields` / `decryptFields` yourself in lifecycle hooks.
+
+> **Storage note (SQL adapters):** an encrypted value is a small
+> `{ ct, iv, v }` envelope object, not a string. On SQL backends the encrypted
+> column must be able to hold that object — a JSON column (Drizzle
+> `text(name, { mode: 'json' })` / Prisma `Json`), not a plain `text`/`String`
+> column (which rejects the object bind). The memory adapter stores it as-is.
+>
+> **Aggregate is exempt by design:** `aggregate` does not decrypt. Encryption is
+> non-deterministic (a fresh IV per write), so grouping or MIN/MAX on an
+> encrypted field is not meaningful and numeric aggregations never expose the
+> plaintext; group keys stay as ciphertext, which is also the safer default.
 
 ```typescript
 import {

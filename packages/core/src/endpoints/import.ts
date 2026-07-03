@@ -641,6 +641,14 @@ export abstract class ImportEndpoint<
       // Apply before hook
       const processedData = await this.before(data, rowNumber, options.mode, tx);
 
+      // Encrypt configured fields before persisting — same lifecycle position
+      // as create/update (after the before-hook, before the write). Matching
+      // (`findExisting`) still runs against the plaintext row so the
+      // upsert/dedup keys compare correctly.
+      const dataToWrite = (await this.encryptOnWrite(
+        processedData as Record<string, unknown>,
+      )) as Partial<ModelObject<M['model']>>;
+
       if (options.mode === 'upsert') {
         // Check for existing record
         const existing = await this.findExisting(processedData, tx);
@@ -649,7 +657,7 @@ export abstract class ImportEndpoint<
           // Update existing record. Match-and-restore: clear the soft-delete
           // field when updating a soft-deleted match (see applyUpsertRestore).
           const updateData = applyUpsertRestore(
-            this.removeImmutableFields(processedData) as Record<string, unknown>,
+            this.removeImmutableFields(dataToWrite) as Record<string, unknown>,
             existing as Record<string, unknown>,
             this.getSoftDeleteConfig(),
           ) as Partial<ModelObject<M['model']>>;
@@ -680,7 +688,7 @@ export abstract class ImportEndpoint<
       }
 
       // Create new record
-      const created = await this.create(processedData, tx);
+      const created = await this.create(dataToWrite, tx);
       return {
         rowNumber,
         status: 'created',
@@ -740,6 +748,16 @@ export abstract class ImportEndpoint<
         batch.map(async (data, idx) => {
           const rowNumber = i + idx + 1;
           let result = await this.processRow(data, rowNumber, options);
+          // Decrypt the persisted row before the after-hook / response
+          // (mirrors read/create), so import returns plaintext, not ciphertext.
+          if (result.data) {
+            result = {
+              ...result,
+              data: (await this.decryptOnRead(
+                result.data as Record<string, unknown>,
+              )) as ModelObject<M['model']>,
+            };
+          }
           result = await this.after(result, rowNumber, options.mode);
           return result;
         }),

@@ -527,6 +527,14 @@ export abstract class UpsertEndpoint<
     // Call common before hook
     data = await this.before(data, isCreate);
 
+    // Encrypt configured fields before the adapter write — same lifecycle
+    // position as create/update (after the before-hook, before persist). Runs
+    // in `handle()` so it covers BOTH the native ON CONFLICT path and the
+    // find-then-insert/update fallback (both execute under `this.upsert`).
+    data = (await this.encryptOnWrite(data as Record<string, unknown>)) as Partial<
+      ModelObject<M['model']>
+    >;
+
     // Perform upsert. An upsert legitimately UPDATEs on a collision of
     // the matching/upsert keys, but a UNIQUE-constraint violation on
     // some OTHER unique column (e.g. a non-upsert-key `slug` when the
@@ -537,6 +545,10 @@ export abstract class UpsertEndpoint<
     // `performStandardUpsert` and `nativeUpsert`.
     const result = await this.upsert(data).catch(rethrowAsConstraintError);
     let obj = result.data;
+
+    // Decrypt configured fields on the persisted record before it flows to
+    // nested writes / after-hook / response (mirrors create/update/read).
+    obj = (await this.decryptOnRead(obj as Record<string, unknown>)) as ModelObject<M['model']>;
 
     // Get the parent ID for nested writes
     const parentId = this.getParentId(obj);

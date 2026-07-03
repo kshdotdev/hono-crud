@@ -10,6 +10,7 @@ import type { AdapterContext, AdapterDescriptor, CtxGetter } from '../contract';
 import { registerBatchTenantScopingCells } from './batch-tenant-scoping';
 import { registerBulkPatchCells } from './bulk-patch';
 import { registerCursorPaginationCells } from './cursor-pagination';
+import { registerEncryptionCells } from './encryption';
 import { registerEtagConcurrencyCells } from './etag-concurrency';
 import { registerExtendedVerbTenantScopingCells } from './extended-verb-tenant-scoping';
 import { registerFilterOperatorCells } from './filter-operators';
@@ -60,4 +61,5 @@ export function registerConformanceCells(descriptor: AdapterDescriptor): void {
   registerTransactionalHookCells(descriptor, ctx);
   registerCursorPaginationCells(descriptor, ctx);
   registerBulkPatchCells(descriptor, ctx);
+  registerEncryptionCells(descriptor, ctx);
 }

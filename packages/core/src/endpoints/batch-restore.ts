@@ -189,8 +189,15 @@ export abstract class BatchRestoreEndpoint<
     // Restore all items
     const { restored, notFound } = await this.batchRestore(idsToRestore);
 
+    // Decrypt the restored rows before the after-hooks / response — batch
+    // restore returns the revived records read back from storage as ciphertext
+    // (mirrors read/restore).
+    const decrypted = (await Promise.all(
+      restored.map((record) => this.decryptOnRead(record as Record<string, unknown>)),
+    )) as ModelObject<M['model']>[];
+
     // Apply after hooks
-    const results = await this.applyBatchAfterHooks(restored, errors, {
+    const results = await this.applyBatchAfterHooks(decrypted, errors, {
       after: (item) => this.after(item),
       afterHookMode: this.afterHookMode,
       stopOnError: this.stopOnError,

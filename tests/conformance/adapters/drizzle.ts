@@ -21,10 +21,12 @@ import {
   DrizzleBatchUpdateEndpoint,
   DrizzleBatchUpsertEndpoint,
   DrizzleBulkPatchEndpoint,
+  DrizzleCloneEndpoint,
   DrizzleCreateEndpoint,
   type DrizzleDatabaseConstraint,
   DrizzleDeleteEndpoint,
   DrizzleExportEndpoint,
+  DrizzleImportEndpoint,
   DrizzleListEndpoint,
   DrizzleReadEndpoint,
   DrizzleRestoreEndpoint,
@@ -41,7 +43,12 @@ import { type HookContext, defineMeta, defineModel, fromHono, registerCrud } fro
 import { multiTenant } from 'hono-crud/multi-tenant';
 import { z } from 'zod';
 import type { AdapterContext, AdapterDescriptor, HookRecorder } from '../contract';
-import { CONFORMANCE_FILTER_CONFIG, buildConformanceSchema } from '../model';
+import {
+  CONFORMANCE_FILTER_CONFIG,
+  buildConformanceSchema,
+  buildEncryptionKeyProvider,
+  buildEncryptionSchema,
+} from '../model';
 
 // ============================================================================
 // Database fixture
@@ -68,6 +75,24 @@ const itemsTable = sqliteTable('conformance_items', {
   age: integer('age'),
   tenantId: text('tenantId'),
   parentId: text('parentId'),
+  deletedAt: text('deletedAt'),
+  createdAt: integer('createdAt'),
+  updatedAt: integer('updatedAt'),
+});
+
+// Encryption fixture table. `secret` is a JSON-mode column: drizzle serializes
+// the `{ ct, iv, v }` envelope (an object) to a JSON string on write and parses
+// it back on read — the only column shape a SQL text column can hold an
+// encrypted field in. A plain `text()` column would reject the object bind
+// ("SQLite3 can only bind ... strings"), which is exactly why field encryption
+// requires a JSON/serialized column on SQL adapters.
+const encItemsTable = sqliteTable('conformance_enc', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  role: text('role').notNull().default('user'),
+  age: integer('age'),
+  secret: text('secret', { mode: 'json' }),
   deletedAt: text('deletedAt'),
   createdAt: integer('createdAt'),
   updatedAt: integer('updatedAt'),
@@ -136,6 +161,19 @@ const finalizeModel = defineModel({
   },
 });
 const finalizeMeta = defineMeta({ model: finalizeModel });
+
+const ENC_TABLE = 'conformance_enc';
+const encSchema = buildEncryptionSchema('epoch-ms');
+const encModel = defineModel({
+  tableName: ENC_TABLE,
+  schema: encSchema,
+  primaryKeys: ['id'],
+  table: encItemsTable,
+  softDelete: { field: 'deletedAt' },
+  timestamps: true,
+  fieldEncryption: { fields: ['secret'], keyProvider: buildEncryptionKeyProvider() },
+});
+const encMeta = defineMeta({ model: encModel });
 
 // ============================================================================
 // Endpoint classes
@@ -275,6 +313,82 @@ class FinalizeBatchDelete extends DrizzleBatchDeleteEndpoint {
   db = DB;
 }
 
+// Encryption endpoint classes — every write/returning verb on the enc model.
+class EncCreate extends DrizzleCreateEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncRead extends DrizzleReadEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncList extends DrizzleListEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncUpdate extends DrizzleUpdateEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncDelete extends DrizzleDeleteEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncRestore extends DrizzleRestoreEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncUpsert extends DrizzleUpsertEndpoint {
+  _meta = encMeta;
+  db = DB;
+  protected override upsertKeys = ['email'];
+}
+class EncClone extends DrizzleCloneEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncImport extends DrizzleImportEndpoint {
+  _meta = encMeta;
+  db = DB;
+  protected override upsertKeys = ['email'];
+}
+class EncBatchCreate extends DrizzleBatchCreateEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncBatchUpdate extends DrizzleBatchUpdateEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncBatchUpsert extends DrizzleBatchUpsertEndpoint {
+  _meta = encMeta;
+  db = DB;
+  protected override upsertKeys = ['email'];
+}
+class EncBatchDelete extends DrizzleBatchDeleteEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncBatchRestore extends DrizzleBatchRestoreEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncSearch extends DrizzleSearchEndpoint {
+  _meta = encMeta;
+  db = DB;
+  protected override searchFields = ['name'];
+}
+class EncExport extends DrizzleExportEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncBulkPatch extends DrizzleBulkPatchEndpoint {
+  _meta = encMeta;
+  db = DB;
+  protected override filterFields = ['role'];
+  protected override returnRecords = true;
+}
+
 // ============================================================================
 // Hook instrumentation
 // ============================================================================
@@ -330,7 +444,21 @@ async function setup(): Promise<AdapterContext> {
       updatedAt INTEGER
     )
   `);
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS conformance_enc (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL DEFAULT 'user',
+      age INTEGER,
+      secret TEXT,
+      deletedAt TEXT,
+      createdAt INTEGER,
+      updatedAt INTEGER
+    )
+  `);
   await db.delete(itemsTable);
+  await db.delete(encItemsTable);
   resetRecorder();
 
   // NOTE: must be an OpenAPIHono — `fromHono(new Hono())` builds a fresh
@@ -376,17 +504,47 @@ async function setup(): Promise<AdapterContext> {
   });
   registerCrud(app, '/cursor-items', { create: ItemCreate, list: CursorItemList });
   registerCrud(app, '/hook-items', { create: HookItemCreate });
+  registerCrud(app, '/enc-items', {
+    create: EncCreate,
+    list: EncList,
+    read: EncRead,
+    update: EncUpdate,
+    delete: EncDelete,
+    restore: EncRestore,
+    upsert: EncUpsert,
+    clone: EncClone,
+    import: EncImport,
+    batchCreate: EncBatchCreate,
+    batchUpdate: EncBatchUpdate,
+    batchUpsert: EncBatchUpsert,
+    batchDelete: EncBatchDelete,
+    batchRestore: EncBatchRestore,
+    search: EncSearch,
+    export: EncExport,
+    bulkPatch: EncBulkPatch,
+  });
 
   return {
     app,
     hookRecorder: recorder,
     reset: async () => {
       await db.delete(itemsTable);
+      await db.delete(encItemsTable);
       resetRecorder();
     },
     teardown: async () => {
       client.close();
       rmSync(databaseDirectory, { recursive: true, force: true });
+    },
+    // Raw SQL read of the JSON-mode `secret` column: libsql returns the stored
+    // JSON string verbatim (never parsed/decrypted), so the cell sees exactly
+    // what sits at rest.
+    inspectStoredField: async (id, field) => {
+      const row = await client.execute({
+        sql: `SELECT ${field} AS value FROM conformance_enc WHERE id = ?`,
+        args: [id],
+      });
+      return row.rows[0]?.value ?? undefined;
     },
   };
 }
@@ -400,6 +558,7 @@ export const drizzleConformance: AdapterDescriptor = {
     relationScoping: true,
     batchTenantScoping: true,
     extendedVerbTenantScoping: true,
+    fieldEncryption: true,
   },
   tenant: {
     field: 'tenantId',

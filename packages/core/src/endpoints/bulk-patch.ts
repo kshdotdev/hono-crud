@@ -204,14 +204,28 @@ export abstract class BulkPatchEndpoint<
       patchData = await this.beforeBulkPatch(patchData, filters, matchedCount);
     }
 
+    // Encrypt configured fields before the patch is written to the matched rows
+    // (after the before-hook, before persist) — mirrors update.
+    patchData = (await this.encryptOnWrite(patchData as Record<string, unknown>)) as Partial<
+      ModelObject<M['model']>
+    >;
+
     // Apply the patch
     const result = await this.applyPatch(patchData, filters);
+
+    // Decrypt the returned rows (present only when `returnRecords`) before they
+    // reach the after-hook / response (mirrors list).
+    const decryptedRecords = result.records
+      ? ((await Promise.all(
+          result.records.map((record) => this.decryptOnRead(record as Record<string, unknown>)),
+        )) as ModelObject<M['model']>[])
+      : result.records;
 
     const bulkResult: BulkPatchResult<ModelObject<M['model']>> = {
       matched: matchedCount,
       updated: result.updated,
       dryRun: false,
-      records: this.returnRecords ? result.records : undefined,
+      records: this.returnRecords ? decryptedRecords : undefined,
     };
 
     // Apply after hook
