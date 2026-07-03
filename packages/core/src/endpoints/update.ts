@@ -49,10 +49,8 @@ export abstract class UpdateEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-  // Lookup configuration
-  protected lookupField = 'id';
+  // Lookup configuration (lookupField/additionalFilters live on CrudEndpoint)
   protected lookupFields?: string[];
-  protected additionalFilters?: string[];
 
   // Update field control
   protected allowedUpdateFields?: string[];
@@ -133,15 +131,6 @@ export abstract class UpdateEndpoint<
   /**
    * Validates that tenant ID is present when required.
    */
-
-  /**
-   * Returns the path parameter schema.
-   */
-  protected getParamsSchema(): ZodObject<ZodRawShape> {
-    return z.object({
-      [this.lookupField]: z.string(),
-    }) as unknown as ZodObject<ZodRawShape>;
-  }
 
   /**
    * Returns the Zod schema for request body.
@@ -291,39 +280,11 @@ export abstract class UpdateEndpoint<
   }
 
   /**
-   * Gets the lookup value from path parameters.
-   */
-  protected async getLookupValue(): Promise<string> {
-    const { params } = await this.getValidatedData();
-    return params?.[this.lookupField] || '';
-  }
-
-  /**
    * Gets the validated request body.
    */
   protected async getObject(): Promise<Partial<ModelObject<M['model']>>> {
     const { body } = await this.getValidatedData<Partial<ModelObject<M['model']>>>();
     return body as Partial<ModelObject<M['model']>>;
-  }
-
-  /**
-   * Gets additional filter values from query parameters.
-   */
-  protected async getAdditionalFilters(): Promise<Record<string, string>> {
-    if (!this.additionalFilters?.length) {
-      return {};
-    }
-
-    const { query } = await this.getValidatedData();
-    const filters: Record<string, string> = {};
-
-    for (const field of this.additionalFilters) {
-      if (query?.[field]) {
-        filters[field] = String(query[field]);
-      }
-    }
-
-    return filters;
   }
 
   /**
