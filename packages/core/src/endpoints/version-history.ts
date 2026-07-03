@@ -1,10 +1,30 @@
 import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { calculateChanges } from '../audit/config';
 import { ApiException, NotFoundException } from '../core/exceptions';
-import type { MetaInput, OpenAPIRouteSchema } from '../core/types';
+import type {
+  AuditFieldChange,
+  MetaInput,
+  OpenAPIRouteSchema,
+  VersionHistoryEntry,
+} from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
 import type { ModelObject } from './types';
+
+/**
+ * Decrypt the configured encrypted fields inside a version snapshot's `data`
+ * before it leaves a returning version endpoint (history / read). Mirrors the
+ * `decryptOnRead` placement doctrine of the CRUD read verbs: after the storage
+ * read, before serialization. Callers gate on `model.fieldEncryption` so
+ * non-encrypted models keep the exact stored entry (no needless clone).
+ */
+async function decryptVersionEntry(
+  entry: VersionHistoryEntry,
+  decrypt: (record: Record<string, unknown>) => Promise<Record<string, unknown>>,
+): Promise<VersionHistoryEntry> {
+  return { ...entry, data: await decrypt(entry.data as Record<string, unknown>) };
+}
 
 /**
  * Response schema for a single version entry.
@@ -155,8 +175,16 @@ export abstract class VersionHistoryEndpoint<
     const versions = await versionManager.getVersions(lookupValue, { limit, offset });
     const latestVersion = await versionManager.getLatestVersion(lookupValue);
 
+    // Decrypt each snapshot's encrypted fields on the way out (no-op without
+    // fieldEncryption; snapshots stay ciphertext at rest).
+    const decryptedVersions = this._meta.model.fieldEncryption
+      ? await Promise.all(
+          versions.map((entry) => decryptVersionEntry(entry, (r) => this.decryptOnRead(r))),
+        )
+      : versions;
+
     return this.success({
-      versions,
+      versions: decryptedVersions,
       totalVersions: latestVersion,
     });
   }
@@ -275,7 +303,13 @@ export abstract class VersionReadEndpoint<
       throw new NotFoundException(`version ${versionNumber}`, lookupValue);
     }
 
-    return this.success(version);
+    // Decrypt the snapshot's encrypted fields on the way out (no-op without
+    // fieldEncryption; the snapshot stays ciphertext at rest).
+    const decrypted = this._meta.model.fieldEncryption
+      ? await decryptVersionEntry(version, (r) => this.decryptOnRead(r))
+      : version;
+
+    return this.success(decrypted);
   }
 }
 
@@ -400,7 +434,29 @@ export abstract class VersionCompareEndpoint<
     }
 
     const versionManager = this.getVersionManager();
-    const changes = await versionManager.compareVersions(lookupValue, from, to);
+
+    // For encrypted models, decrypt BOTH snapshots before diffing so the
+    // comparison is over plaintext. Two versions with the SAME plaintext but
+    // different IVs at rest must show NO change for that field — a raw ciphertext
+    // diff (via `JSON.stringify`) would report a spurious change on every write.
+    let changes: AuditFieldChange[];
+    if (this._meta.model.fieldEncryption) {
+      const [entryFrom, entryTo] = await Promise.all([
+        versionManager.getVersion(lookupValue, from),
+        versionManager.getVersion(lookupValue, to),
+      ]);
+      if (!entryFrom || !entryTo) {
+        changes = [];
+      } else {
+        const [dataFrom, dataTo] = await Promise.all([
+          this.decryptOnRead(entryFrom.data as Record<string, unknown>),
+          this.decryptOnRead(entryTo.data as Record<string, unknown>),
+        ]);
+        changes = calculateChanges(dataFrom, dataTo, this.getVersioningConfig().excludeFields);
+      }
+    } else {
+      changes = await versionManager.compareVersions(lookupValue, from, to);
+    }
 
     return this.success({
       from,
@@ -544,11 +600,23 @@ export abstract class VersionRollbackEndpoint<
     const currentVersion = await versionManager.getLatestVersion(lookupValue);
     const newVersion = currentVersion + 1;
 
-    // Rollback to the version data
+    // Rollback to the version data. The snapshot at rest is CIPHERTEXT for
+    // encrypted fields and is written back verbatim by the adapter — it must NOT
+    // be re-encrypted (that would `String()`-cast the `{ ct, iv, v }` envelope
+    // and double-wrap it). The adapters' `rollback` bypass the encryptOnWrite
+    // path exactly so the historical ciphertext survives intact.
     const result = await this.rollback(lookupValue, version.data, newVersion);
 
+    // Decrypt the returned record for the response (mirrors update/restore). The
+    // value at rest stays the historical ciphertext; this only affects the body.
+    const decrypted = (await this.decryptOnRead(
+      result as Record<string, unknown>,
+    )) as ModelObject<M['model']>;
+
     // Apply serializer if defined
-    const serialized = this._meta.model.serializer ? this._meta.model.serializer(result) : result;
+    const serialized = this._meta.model.serializer
+      ? this._meta.model.serializer(decrypted)
+      : decrypted;
 
     return this.success(serialized);
   }

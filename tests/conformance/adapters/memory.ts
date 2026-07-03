@@ -29,14 +29,25 @@ import {
   MemorySearchEndpoint,
   MemoryUpdateEndpoint,
   MemoryUpsertEndpoint,
+  MemoryVersionCompareEndpoint,
+  MemoryVersionHistoryEndpoint,
+  MemoryVersionReadEndpoint,
+  MemoryVersionRollbackEndpoint,
   clearStorage,
   getStore,
 } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { type HookContext, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { MemoryAuditLogStorage, setAuditStorage } from 'hono-crud/audit';
 import { multiTenant } from 'hono-crud/multi-tenant';
+import { MemoryVersioningStorage, setVersioningStorage } from 'hono-crud/versioning';
 import { z } from 'zod';
-import type { AdapterContext, AdapterDescriptor, HookRecorder } from '../contract';
+import type {
+  AdapterContext,
+  AdapterDescriptor,
+  ConformanceAuditEntry,
+  HookRecorder,
+} from '../contract';
 import {
   CONFORMANCE_FILTER_CONFIG,
   buildConformanceSchema,
@@ -107,13 +118,28 @@ const finalizeMeta = defineMeta({ model: finalizeModel });
 // Field-encryption model: `secret` is AES-GCM encrypted at rest. The memory
 // store keeps the `{ ct, iv, v }` envelope as a live object; the enc cell reads
 // it back with `getStore` to prove no verb ever persists plaintext.
-const encSchema = buildEncryptionSchema('epoch-ms');
+// Versioning + audit ride on the SAME memory enc model (the `version` column is
+// a memory-only schema extension — the drizzle/prisma enc legs define their own
+// schemas, so this does not touch them). This lets the encrypted-consistency
+// cells assert audit inputs, version-history snapshots, and rollback-at-rest all
+// carry plaintext / valid historical ciphertext under field encryption.
+const encSchema = buildEncryptionSchema('epoch-ms').extend({
+  version: z.number().default(1),
+});
 const encModel = defineModel({
   tableName: ENC_TABLE,
   schema: encSchema,
   primaryKeys: ['id'],
   softDelete: { field: 'deletedAt' },
   timestamps: true,
+  versioning: { field: 'version', trackChangedBy: true, excludeFields: ['updatedAt'] },
+  audit: {
+    actions: ['create', 'update', 'delete', 'upsert'],
+    trackChanges: true,
+    storeRecord: true,
+    storePreviousRecord: true,
+    excludeFields: ['createdAt', 'updatedAt'],
+  },
   fieldEncryption: { fields: ['secret'], keyProvider: buildEncryptionKeyProvider() },
 });
 const encMeta = defineMeta({ model: encModel });
@@ -286,6 +312,18 @@ class EncBulkPatch extends MemoryBulkPatchEndpoint {
   protected override filterFields = ['role'];
   protected override returnRecords = true;
 }
+class EncVersionHistory extends MemoryVersionHistoryEndpoint {
+  _meta = encMeta;
+}
+class EncVersionRead extends MemoryVersionReadEndpoint {
+  _meta = encMeta;
+}
+class EncVersionCompare extends MemoryVersionCompareEndpoint {
+  _meta = encMeta;
+}
+class EncVersionRollback extends MemoryVersionRollbackEndpoint {
+  _meta = encMeta;
+}
 
 // ============================================================================
 // Hook instrumentation
@@ -297,6 +335,12 @@ function resetRecorder(): void {
   recorder.observations = [];
   recorder.failAfter = false;
 }
+
+// Version + audit stores for the encrypted-consistency cells. Globally wired in
+// setup() (only the enc model enables versioning/audit, so nothing else emits to
+// them); reset per-cell in the descriptor's `reset`.
+const versioningStore = new MemoryVersioningStorage();
+let auditStore = new MemoryAuditLogStorage();
 
 class HookItemCreate extends MemoryCreateEndpoint {
   _meta = baseMeta;
@@ -328,6 +372,10 @@ class HookItemCreate extends MemoryCreateEndpoint {
 async function setup(): Promise<AdapterContext> {
   clearStorage();
   resetRecorder();
+  versioningStore.clear();
+  setVersioningStorage(versioningStore);
+  auditStore = new MemoryAuditLogStorage();
+  setAuditStorage(auditStore);
 
   // NOTE: must be an OpenAPIHono — `fromHono(new Hono())` builds a fresh
   // internal router and DISCARDS the passed instance, so middleware
@@ -390,6 +438,10 @@ async function setup(): Promise<AdapterContext> {
     search: EncSearch,
     export: EncExport,
     bulkPatch: EncBulkPatch,
+    versionHistory: EncVersionHistory,
+    versionRead: EncVersionRead,
+    versionCompare: EncVersionCompare,
+    versionRollback: EncVersionRollback,
   });
 
   return {
@@ -398,6 +450,9 @@ async function setup(): Promise<AdapterContext> {
     reset: async () => {
       clearStorage();
       resetRecorder();
+      versioningStore.clear();
+      auditStore = new MemoryAuditLogStorage();
+      setAuditStorage(auditStore);
     },
     // Raw store read: the memory adapter keeps the encrypted envelope as a live
     // object, so the field is returned exactly as persisted (never decrypted).
@@ -405,6 +460,7 @@ async function setup(): Promise<AdapterContext> {
       const row = getStore<Record<string, unknown>>(ENC_TABLE).get(id);
       return row?.[field];
     },
+    inspectAudit: () => auditStore.getAllLogs() as ConformanceAuditEntry[],
   };
 }
 
@@ -418,6 +474,7 @@ export const memoryConformance: AdapterDescriptor = {
     batchTenantScoping: true,
     extendedVerbTenantScoping: true,
     fieldEncryption: true,
+    encryptedHistoryAudit: true,
   },
   tenant: {
     field: 'tenantId',

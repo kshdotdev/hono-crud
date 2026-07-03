@@ -508,14 +508,24 @@ export abstract class UpdateEndpoint<
       }
     }
 
+    // Audit + subscribe/event payloads carry PLAINTEXT for encrypted fields,
+    // uniform with the other verbs. The version snapshot saved above and the row
+    // at rest stay ciphertext — this decrypt only feeds the downstream payloads.
+    // `decryptOnRead` is a no-op without fieldEncryption.
+    const previousDecrypted = previousRecord
+      ? ((await this.decryptOnRead(
+          previousRecord as Record<string, unknown>,
+        )) as ModelObject<M['model']>)
+      : previousRecord;
+
     // Audit logging
-    if (this.isAuditEnabled() && parentId !== null && previousRecord) {
+    if (this.isAuditEnabled() && parentId !== null && previousDecrypted) {
       const auditLogger = this.getAuditLogger();
       this.runAfterResponse(
         auditLogger.logUpdate(
           this._meta.model.tableName,
           parentId,
-          previousRecord as Record<string, unknown>,
+          previousDecrypted as Record<string, unknown>,
           obj as Record<string, unknown>,
           this.getAuditUserId(),
         ),
@@ -528,7 +538,7 @@ export abstract class UpdateEndpoint<
         this.emitEvent('updated', {
           recordId: parentId,
           data: obj,
-          previousData: previousRecord ?? undefined,
+          previousData: previousDecrypted ?? undefined,
         }),
       );
     }

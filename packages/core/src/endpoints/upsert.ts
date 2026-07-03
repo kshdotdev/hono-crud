@@ -591,15 +591,23 @@ export abstract class UpsertEndpoint<
       obj = await this.after(obj, result.created);
     }
 
-    // Audit logging
+    // Audit logging. The prior snapshot (`existing`) is read straight from
+    // storage — decrypt it so the audit records PLAINTEXT for encrypted fields,
+    // uniform with the other verbs. `decryptOnRead` is a no-op without
+    // fieldEncryption; the row at rest stays ciphertext.
     if (this.isAuditEnabled() && parentId !== null) {
       const auditLogger = this.getAuditLogger();
+      const existingDecrypted = existing
+        ? ((await this.decryptOnRead(existing as Record<string, unknown>)) as ModelObject<
+            M['model']
+          >)
+        : undefined;
       this.runAfterResponse(
         auditLogger.logUpsert(
           this._meta.model.tableName,
           parentId,
           obj as Record<string, unknown>,
-          existing as Record<string, unknown> | undefined,
+          existingDecrypted as Record<string, unknown> | undefined,
           result.created,
           this.getAuditUserId(),
         ),

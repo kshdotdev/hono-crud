@@ -341,6 +341,9 @@ export const prismaConformance: AdapterDescriptor = {
     // serializes to (a `String` column rejects the object bind); the
     // field-encryption cell is a named skip here.
     fieldEncryption: false,
+    // No enc model at all on the prisma leg -> the encrypted-consistency cells
+    // (audit/version/rollback under encryption) skip loudly.
+    encryptedHistoryAudit: false,
   },
   tenant: {
     field: 'status',

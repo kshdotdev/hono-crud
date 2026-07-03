@@ -559,6 +559,10 @@ export const drizzleConformance: AdapterDescriptor = {
     batchTenantScoping: true,
     extendedVerbTenantScoping: true,
     fieldEncryption: true,
+    // Enc leg wires no version endpoints / inspectable audit store; the
+    // encrypted-consistency cells skip loudly. The fix is core/adapter-agnostic
+    // and anchored on the memory leg + the core unit suite.
+    encryptedHistoryAudit: false,
   },
   tenant: {
     field: 'tenantId',
