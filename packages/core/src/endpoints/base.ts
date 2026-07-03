@@ -39,8 +39,10 @@ import { extractNestedData } from '../core/nested-writes';
 import { OpenAPIRoute } from '../core/route';
 import { getSoftDeleteConfig } from '../core/soft-delete';
 import {
+  type AuditAction,
   type FilterCondition,
   type HookContext,
+  type HookMode,
   type ListFilters,
   type MetaInput,
   type ModelPolicies,
@@ -157,6 +159,42 @@ export abstract class CrudEndpoint<
       return config.getUserId(this.context);
     }
     return this.context ? getContextVar<string>(this.context, CONTEXT_KEYS.userId) : undefined;
+  }
+
+  /**
+   * Emit audit records for a completed batch mutation. Shared verbatim by all
+   * six batch/import audit sites: maps each result record to a
+   * `{ recordId, [recordKey]: record }` entry, drops any record whose primary
+   * key can't be resolved, and — when at least one survives — logs the batch
+   * through `runAfterResponse` so the write outlives the response on Workers.
+   *
+   * `recordKey` is `'record'` for every verb except batch-delete, which stores
+   * the pre-deletion snapshot under `previousRecord`. Callers pass the already
+   * unwrapped record array (e.g. `result.items.map((i) => i.data)`).
+   */
+  protected logBatchAudit(
+    records: ReadonlyArray<unknown>,
+    op: AuditAction,
+    options?: { recordKey?: 'record' | 'previousRecord' },
+  ): void {
+    if (!this.isAuditEnabled()) return;
+    const auditLogger = this.getAuditLogger();
+    const recordKey = options?.recordKey ?? 'record';
+    const auditRecords = records
+      .map((record) => {
+        const recordId = this.getRecordId(record);
+        if (recordId === null) return null;
+        return recordKey === 'previousRecord'
+          ? { recordId, previousRecord: record as Record<string, unknown> }
+          : { recordId, record: record as Record<string, unknown> };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    if (auditRecords.length > 0) {
+      this.runAfterResponse(
+        auditLogger.logBatch(op, this._meta.model.tableName, auditRecords, this.getAuditUserId()),
+      );
+    }
   }
 
   // ============================================================================
@@ -529,6 +567,86 @@ export abstract class CrudEndpoint<
       return applyFieldSelectionToArray(transformed as Record<string, unknown>[], fieldSelection);
     }
     return transformed;
+  }
+
+  // ============================================================================
+  // Batch mutation: shared after-hook loop + response tail (id-list verbs)
+  //
+  // Update / Delete / Restore share these two blocks byte-for-byte, differing
+  // only in the source array, the response result key, and the subclass-owned
+  // `after` / `afterHookMode` / `stopOnError` members (passed in, since they
+  // don't exist on the base). Batch-create and batch-upsert have divergent
+  // tails and never call these. The before-loops stay per-verb (update walks
+  // {id,data}; delete/restore walk bare ids).
+  // ============================================================================
+
+  /**
+   * Run the per-item `after` hook across a batch's mutated rows. In
+   * `fire-and-forget` mode the hook is scheduled via `runAfterResponse` and the
+   * untransformed item is kept; otherwise the awaited result is kept. A
+   * throwing hook re-raises under `stopOnError`, else records a per-id error
+   * (id read via `lookupField`) and keeps the original item.
+   */
+  protected async applyBatchAfterHooks(
+    items: ModelObject<M['model']>[],
+    errors: Array<{ id: string; error: string }>,
+    hooks: {
+      after: (item: ModelObject<M['model']>) => Promise<ModelObject<M['model']>>;
+      afterHookMode: HookMode;
+      stopOnError: boolean;
+    },
+  ): Promise<ModelObject<M['model']>[]> {
+    const results: ModelObject<M['model']>[] = [];
+    for (const item of items) {
+      try {
+        if (hooks.afterHookMode === 'fire-and-forget') {
+          this.runAfterResponse(Promise.resolve(hooks.after(item)));
+          results.push(item);
+        } else {
+          results.push(await hooks.after(item));
+        }
+      } catch (err) {
+        const id = String((item as Record<string, unknown>)[this.lookupField]);
+        if (hooks.stopOnError) {
+          throw err;
+        }
+        errors.push({ id, error: err instanceof Error ? err.message : String(err) });
+        results.push(item);
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Build the success response for an id-list batch verb: runs the read-shaping
+   * `finalizeArray` chain, emits `{ [resultKey], count, notFound?, errors? }`,
+   * returns 207 when anything was skipped (partial errors or not-found ids) and
+   * 200 otherwise, and busts the model cache before responding.
+   */
+  protected async finalizeBatchResponse(
+    resultKey: 'updated' | 'deleted' | 'restored',
+    results: ModelObject<M['model']>[],
+    notFound: string[],
+    errors: Array<{ id: string; error: string }>,
+  ): Promise<Response> {
+    const serialized = await this.finalizeArray(results);
+
+    const response = {
+      success: true as const,
+      result: {
+        [resultKey]: serialized,
+        count: serialized.length,
+        ...(notFound.length > 0 && { notFound }),
+        ...(errors.length > 0 && { errors }),
+      },
+    };
+
+    // Return 207 if there were partial errors or not found items
+    const status = errors.length > 0 || notFound.length > 0 ? 207 : 200;
+    // Mutation changes which rows a cached list/read would return.
+    await this.invalidateModelCache();
+
+    return this.json(response, status);
   }
 
   // ============================================================================

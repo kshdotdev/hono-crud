@@ -190,69 +190,15 @@ export abstract class BatchRestoreEndpoint<
     const { restored, notFound } = await this.batchRestore(idsToRestore);
 
     // Apply after hooks
-    const results: ModelObject<M['model']>[] = [];
-    for (const item of restored) {
-      try {
-        if (this.afterHookMode === 'fire-and-forget') {
-          this.runAfterResponse(Promise.resolve(this.after(item)));
-          results.push(item);
-        } else {
-          results.push(await this.after(item));
-        }
-      } catch (err) {
-        const id = String((item as Record<string, unknown>)[this.lookupField]);
-        if (this.stopOnError) {
-          throw err;
-        }
-        errors.push({ id, error: err instanceof Error ? err.message : String(err) });
-        results.push(item);
-      }
-    }
+    const results = await this.applyBatchAfterHooks(restored, errors, {
+      after: (item) => this.after(item),
+      afterHookMode: this.afterHookMode,
+      stopOnError: this.stopOnError,
+    });
 
     // Audit logging
-    if (this.isAuditEnabled()) {
-      const auditLogger = this.getAuditLogger();
-      const auditRecords = results
-        .map((record) => {
-          const recordId = this.getRecordId(record);
-          if (recordId === null) return null;
-          return {
-            recordId,
-            record: record as Record<string, unknown>,
-          };
-        })
-        .filter((r): r is NonNullable<typeof r> => r !== null);
+    this.logBatchAudit(results, 'batch_restore');
 
-      if (auditRecords.length > 0) {
-        this.runAfterResponse(
-          auditLogger.logBatch(
-            'batch_restore',
-            this._meta.model.tableName,
-            auditRecords,
-            this.getAuditUserId(),
-          ),
-        );
-      }
-    }
-
-    // computed fields → serializer → profile → transform
-    const serialized = await this.finalizeArray(results);
-
-    const response = {
-      success: true as const,
-      result: {
-        restored: serialized,
-        count: serialized.length,
-        ...(notFound.length > 0 && { notFound }),
-        ...(errors.length > 0 && { errors }),
-      },
-    };
-
-    // Return 207 if there were partial errors or not found items
-    const status = errors.length > 0 || notFound.length > 0 ? 207 : 200;
-    // Mutation changes which rows a cached list/read would return.
-    await this.invalidateModelCache();
-
-    return this.json(response, status);
+    return this.finalizeBatchResponse('restored', results, notFound, errors);
   }
 }
