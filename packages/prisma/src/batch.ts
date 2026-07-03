@@ -11,6 +11,7 @@ import { getPrismaClient } from './connection';
 import {
   type PrismaClient,
   type PrismaModelOperations,
+  applySoftDeleteExclusion,
   findByUpsertKeys,
   getPrismaModel,
   getPrismaModelByName,
@@ -147,9 +148,7 @@ export abstract class PrismaBatchUpdateEndpoint<
     };
 
     // Filter out soft-deleted records
-    if (softDeleteConfig.enabled) {
-      where[softDeleteConfig.field] = null;
-    }
+    applySoftDeleteExclusion(where, softDeleteConfig);
 
     // Owner-scope: only the caller's own rows are loaded, so cross-tenant ids
     // never match and fall through to `notFound`.
@@ -220,9 +219,7 @@ export abstract class PrismaBatchDeleteEndpoint<
     };
 
     // For soft delete, exclude already-deleted records
-    if (softDeleteConfig.enabled) {
-      where[softDeleteConfig.field] = null;
-    }
+    applySoftDeleteExclusion(where, softDeleteConfig);
 
     // Owner-scope: only the caller's own rows are loaded, so cross-tenant ids
     // never match and fall through to `notFound`.

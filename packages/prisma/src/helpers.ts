@@ -21,6 +21,7 @@ import {
   decodeCursor,
   loadRelationsForItem,
 } from 'hono-crud/internal';
+import { getPrismaClient } from './connection';
 import { inlineSingular, levenshteinDistance } from './pluralize-util';
 
 /**
@@ -98,6 +99,31 @@ export function getPrismaTransaction(
     throw new ConfigurationException('Prisma client does not support $transaction');
   }
   return prisma.$transaction.bind(prisma);
+}
+
+/**
+ * Run `fn` inside a Prisma `$transaction`, owning the `_tx` bookkeeping the verb
+ * `handle()` overrides otherwise re-hand-roll: resolves the endpoint's client
+ * (`getPrismaClient`), opens the interactive transaction, publishes the
+ * transaction client on `self._tx` (so `getPrismaClient` resolves it first and
+ * every model access inside the verb runs on it), and clears `_tx` in a
+ * `finally` regardless of outcome.
+ *
+ * `self` is typed `unknown` (duck-typed internally) because `_tx` on the
+ * endpoint base class is `protected`, which is incompatible with public
+ * structural-type checking — the same reason {@link getPrismaClient} takes
+ * `unknown`. `super.handle()` is lexically bound, so each verb still keeps its
+ * own one-line override that passes `() => super.handle()` here.
+ */
+export function runInTransaction<T>(self: unknown, fn: () => Promise<T>): Promise<T> {
+  return getPrismaTransaction(getPrismaClient(self))(async (tx) => {
+    (self as { _tx?: PrismaClient })._tx = tx;
+    try {
+      return await fn();
+    } finally {
+      (self as { _tx?: PrismaClient })._tx = undefined;
+    }
+  });
 }
 
 /**
@@ -205,6 +231,25 @@ export function buildPrismaWhere(filters: FilterCondition[]): Record<string, unk
   }
 
   return where;
+}
+
+/**
+ * Set the "exclude soft-deleted rows" predicate (`where[field] = null`) when
+ * soft-delete is enabled. Mutates `where` in place. Centralizes the per-verb
+ * exclude-deleted guard shared by the read/update/delete/find/clone/bulk-patch/
+ * aggregate/batch paths so the shaping cannot drift.
+ *
+ * Not for: restore endpoints (they match ONLY deleted rows via `{ not: null }`)
+ * or the list-path three-way onlyDeleted/withDeleted/default filter (in
+ * {@link executePrismaQuery} and the search endpoint's own three-way where).
+ */
+export function applySoftDeleteExclusion(
+  where: Record<string, unknown>,
+  config: { enabled: boolean; field: string },
+): void {
+  if (config.enabled) {
+    where[config.field] = null;
+  }
 }
 
 // ============================================================================

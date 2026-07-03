@@ -11,12 +11,13 @@ import { getPrismaClient } from './connection';
 import {
   type PrismaClient,
   type PrismaModelOperations,
+  applySoftDeleteExclusion,
   batchLoadPrismaRelations,
   buildPaginatedResult,
   executePrismaQuery,
   getPrismaModel,
-  getPrismaTransaction,
   loadPrismaRelations,
+  runInTransaction,
 } from './helpers';
 
 /**
@@ -42,16 +43,7 @@ export abstract class PrismaCreateEndpoint<
     if (!this.useTransaction) {
       return super.handle();
     }
-
-    // Execute the entire operation within a transaction
-    return getPrismaTransaction(getPrismaClient(this))(async (tx) => {
-      this._tx = tx;
-      try {
-        return await super.handle();
-      } finally {
-        this._tx = undefined;
-      }
-    });
+    return runInTransaction(this, () => super.handle());
   }
 
   override async create(data: ModelObject<M['model']>): Promise<ModelObject<M['model']>> {
@@ -92,9 +84,7 @@ export abstract class PrismaReadEndpoint<
     };
 
     // Exclude soft-deleted records
-    if (softDeleteConfig.enabled) {
-      where[softDeleteConfig.field] = null;
-    }
+    applySoftDeleteExclusion(where, softDeleteConfig);
 
     const result = await model.findFirst({ where });
 
@@ -137,16 +127,7 @@ export abstract class PrismaUpdateEndpoint<
     if (!this.useTransaction) {
       return super.handle();
     }
-
-    // Execute the entire operation within a transaction
-    return getPrismaTransaction(getPrismaClient(this))(async (tx) => {
-      this._tx = tx;
-      try {
-        return await super.handle();
-      } finally {
-        this._tx = undefined;
-      }
-    });
+    return runInTransaction(this, () => super.handle());
   }
 
   /**
@@ -165,9 +146,7 @@ export abstract class PrismaUpdateEndpoint<
     };
 
     // Cannot update soft-deleted records
-    if (softDeleteConfig.enabled) {
-      where[softDeleteConfig.field] = null;
-    }
+    applySoftDeleteExclusion(where, softDeleteConfig);
 
     const result = await model.findFirst({ where });
     return result ?? null;
@@ -220,16 +199,7 @@ export abstract class PrismaDeleteEndpoint<
     if (!this.useTransaction) {
       return super.handle();
     }
-
-    // Execute the entire operation within a transaction
-    return getPrismaTransaction(getPrismaClient(this))(async (tx) => {
-      this._tx = tx;
-      try {
-        return await super.handle();
-      } finally {
-        this._tx = undefined;
-      }
-    });
+    return runInTransaction(this, () => super.handle());
   }
 
   /**
@@ -248,9 +218,7 @@ export abstract class PrismaDeleteEndpoint<
     };
 
     // Exclude already-deleted records for soft delete
-    if (softDeleteConfig.enabled) {
-      where[softDeleteConfig.field] = null;
-    }
+    applySoftDeleteExclusion(where, softDeleteConfig);
 
     const result = await model.findFirst({ where });
     return result;
@@ -270,9 +238,7 @@ export abstract class PrismaDeleteEndpoint<
     };
 
     // Exclude already-deleted records for soft delete
-    if (softDeleteConfig.enabled) {
-      where[softDeleteConfig.field] = null;
-    }
+    applySoftDeleteExclusion(where, softDeleteConfig);
 
     const existing = await model.findFirst({ where });
     if (!existing) {

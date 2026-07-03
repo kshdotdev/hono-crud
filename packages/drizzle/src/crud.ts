@@ -1,4 +1,4 @@
-import { eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { eq, isNotNull, sql } from 'drizzle-orm';
 import type { Env } from 'hono';
 import { buildCursorPage, getLogger } from 'hono-crud/internal';
 import { CreateEndpoint } from 'hono-crud/internal';
@@ -32,7 +32,9 @@ import {
   getColumn,
   getTable,
   loadDrizzleRelations,
+  pushSoftDeleteExclusion,
   readCount,
+  runInTransaction,
 } from './helpers';
 
 /**
@@ -174,16 +176,7 @@ export abstract class DrizzleCreateEndpoint<
     if (!this.useTransaction) {
       return super.handle();
     }
-
-    // Execute the entire operation within a transaction
-    return cast(this.getDb()).transaction(async (tx) => {
-      this._tx = tx;
-      try {
-        return await super.handle();
-      } finally {
-        this._tx = undefined;
-      }
-    });
+    return runInTransaction(this, () => super.handle());
   }
 }
 
@@ -236,9 +229,7 @@ export abstract class DrizzleReadEndpoint<
     }
 
     // Filter out soft-deleted records
-    if (softDeleteConfig.enabled) {
-      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-    }
+    pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
 
     const result = await cast<ModelObject<M['model']>>(this.getDb())
       .select()
@@ -330,9 +321,7 @@ export abstract class DrizzleUpdateEndpoint<
     }
 
     // Filter out soft-deleted records
-    if (softDeleteConfig.enabled) {
-      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-    }
+    pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
 
     const result = await cast<ModelObject<M['model']>>(db)
       .select()
@@ -364,9 +353,7 @@ export abstract class DrizzleUpdateEndpoint<
     }
 
     // Filter out soft-deleted records (cannot update deleted records)
-    if (softDeleteConfig.enabled) {
-      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-    }
+    pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
 
     const result = await cast<ModelObject<M['model']>>(db)
       .update(table)
@@ -518,16 +505,7 @@ export abstract class DrizzleUpdateEndpoint<
     if (!this.useTransaction) {
       return super.handle();
     }
-
-    // Execute the entire operation within a transaction
-    return cast(this.getDb()).transaction(async (tx) => {
-      this._tx = tx;
-      try {
-        return await super.handle();
-      } finally {
-        this._tx = undefined;
-      }
-    });
+    return runInTransaction(this, () => super.handle());
   }
 }
 
@@ -599,9 +577,7 @@ export abstract class DrizzleDeleteEndpoint<
     }
 
     // Exclude already-deleted records
-    if (softDeleteConfig.enabled) {
-      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-    }
+    pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
 
     const result = await cast<ModelObject<M['model']>>(db)
       .select()
@@ -632,9 +608,7 @@ export abstract class DrizzleDeleteEndpoint<
     }
 
     // For soft delete, also exclude already-deleted records
-    if (softDeleteConfig.enabled) {
-      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-    }
+    pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
 
     if (softDeleteConfig.enabled) {
       // Soft delete: set the deletion timestamp
@@ -730,16 +704,7 @@ export abstract class DrizzleDeleteEndpoint<
     if (!this.useTransaction) {
       return super.handle();
     }
-
-    // Execute the entire operation within a transaction
-    return cast(this.getDb()).transaction(async (tx) => {
-      this._tx = tx;
-      try {
-        return await super.handle();
-      } finally {
-        this._tx = undefined;
-      }
-    });
+    return runInTransaction(this, () => super.handle());
   }
 }
 
@@ -919,15 +884,6 @@ export abstract class DrizzleRestoreEndpoint<
     if (!this.useTransaction) {
       return super.handle();
     }
-
-    // Execute the entire operation within a transaction
-    return cast(this.getDb()).transaction(async (tx) => {
-      this._tx = tx;
-      try {
-        return await super.handle();
-      } finally {
-        this._tx = undefined;
-      }
-    });
+    return runInTransaction(this, () => super.handle());
   }
 }
