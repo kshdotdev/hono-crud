@@ -20,7 +20,7 @@
  * envelope (prisma reuses the fixed examples `users` schema) skip LOUDLY via
  * the named `fieldEncryption` capability — never a silent green.
  */
-import { isEncryptedValue } from 'hono-crud/encryption';
+import { type EncryptedValue, isEncryptedValue } from 'hono-crud/encryption';
 import { expect, test } from 'vitest';
 import {
   type AdapterDescriptor,
@@ -167,6 +167,33 @@ export function registerEncryptionCells(descriptor: AdapterDescriptor, ctx: CtxG
     expect(cloned.secret).toBe(PLAINTEXT);
     expect(cloned.id).not.toBe(source.id);
     await expectCiphertextAtRest(ctx, cloned.id);
+  });
+
+  test('clone inheriting the encrypted field re-encrypts (fresh IV) and decrypts to source plaintext', async () => {
+    const { app } = ctx();
+    const source = await seedEncrypted(ctx);
+    const sourceStored = await storedSecret(ctx, source.id);
+    expect(isEncryptedValue(sourceStored)).toBe(true);
+
+    // Clone WITHOUT overriding `secret` — only the unique `email`. This exercises
+    // the decrypt-source-then-re-encrypt guard in clone.ts: the source's stored
+    // ciphertext must be decrypted to plaintext, then re-encrypted at the clone's
+    // write site. Skipping the source decrypt would `String()`-cast the stored
+    // `{ ct, iv, v }` envelope and double-encrypt it, so the response would carry
+    // the stringified envelope instead of the plaintext.
+    const cloneEmail = `clone-inherit-${crypto.randomUUID()}@conformance.test`;
+    const cloned = await expectSuccess<ConformanceRecord>(
+      await app.request(`${BASE}/${source.id}/clone`, jsonInit('POST', { email: cloneEmail })),
+      201,
+    );
+    expect(cloned.id).not.toBe(source.id);
+    // Transparent round trip: the clone response carries the source's plaintext.
+    expect(cloned.secret).toBe(PLAINTEXT);
+
+    // Ciphertext at rest, re-encrypted with a fresh IV distinct from the source's.
+    const clonedStored = await storedSecret(ctx, cloned.id);
+    expect(isEncryptedValue(clonedStored)).toBe(true);
+    expect((clonedStored as EncryptedValue).iv).not.toBe((sourceStored as EncryptedValue).iv);
   });
 
   test('batchCreate encrypts each row at rest and returns plaintext', async () => {
