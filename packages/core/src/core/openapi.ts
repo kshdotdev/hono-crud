@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { Context, Env, Hono, MiddlewareHandler } from 'hono';
 import { openApiValidationHook, toOpenApiPath } from '../openapi/utils';
 import { ApiException } from './exceptions';
+import { resolveInstanceSchemaTags } from './generate-endpoint-class';
 import type { OpenAPIRoute } from './route';
 import { isRouteClass, jsonResponse } from './route';
 import { type OpenAPIRouteSchema, readResponseEnvelope } from './types';
@@ -162,7 +163,14 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
     // Create instance to get schema
     const RouteConstructor = RouteClass as unknown as OpenAPIRouteConstructor;
     const instance = new RouteConstructor();
-    const schema = instance.getSchema();
+    // Single registration-time choke point for OpenAPI `tags` defaulting: when
+    // the endpoint declared no `schema.tags`, inherit the model group
+    // (`tag` ?? `tableName`) read structurally from `_meta`. Applies to EVERY
+    // endpoint style — factory, sugar, hand-written class — so `Model.tag` is
+    // declared once and honored everywhere; an explicit `schema.tags` still
+    // wins, and instances with no `_meta` pass through untouched. Doc-only:
+    // the validation path (`getValidatedData`) is unaffected.
+    const schema = resolveInstanceSchemaTags(instance);
 
     this.routes.set(routeKey, {
       method,

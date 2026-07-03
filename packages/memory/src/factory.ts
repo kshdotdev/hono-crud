@@ -1,5 +1,5 @@
 import type { Env } from 'hono';
-import { type MetaInput, resolveSchemaTags } from 'hono-crud/internal';
+import type { MetaInput } from 'hono-crud/internal';
 import {
   MemoryAggregateEndpoint,
   MemoryCloneEndpoint,
@@ -93,105 +93,54 @@ export function createMemoryCrud<M extends MetaInput, E extends Env = Env>(
   return {
     Create: class extends MemoryCreateEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     Read: class extends MemoryReadEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     Update: class extends MemoryUpdateEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     Delete: class extends MemoryDeleteEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     List: class extends MemoryListEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     Restore: class extends MemoryRestoreEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     Upsert: class extends MemoryUpsertEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     Search: class extends MemorySearchEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     Aggregate: class extends MemoryAggregateEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     Export: class extends MemoryExportEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     Import: class extends MemoryImportEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     Clone: class extends MemoryCloneEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     BatchCreate: class extends MemoryBatchCreateEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     BatchUpdate: class extends MemoryBatchUpdateEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     BatchDelete: class extends MemoryBatchDeleteEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     BatchRestore: class extends MemoryBatchRestoreEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
     BatchUpsert: class extends MemoryBatchUpsertEndpoint<E, M> {
       _meta = meta;
-      override getSchema() {
-        return resolveSchemaTags(super.getSchema(), meta.model);
-      }
     },
   } as MemoryCrudClasses<M, E>;
 }

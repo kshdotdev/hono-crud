@@ -25,13 +25,19 @@ type AnyHook = (...args: unknown[]) => unknown;
  * tag inherit the resource-level group, which is the whole point of
  * `Model.tag`.
  *
- * Shared by the sugar path ({@link generateEndpointClass}, which bakes the
- * result into the raw `schema` class field before the endpoint's own
- * `getSchema()` merges request/response) and the factory path
- * (`createDrizzleCrud`/`createPrismaCrud`/`createMemoryCrud`, which call this
- * on `super.getSchema()` — the endpoint's already-merged schema — from a
- * `getSchema()` override, so a subclass-set `schema` field is resolved at read
- * time). Both paths derive OpenAPI groups from `Model.tag` identically.
+ * Two callers reach this:
+ *   1. The registration-time choke point ({@link resolveInstanceSchemaTags},
+ *      used by `registerRoute` in `core/openapi.ts` and `buildPerTenantOpenApi`
+ *      in `openapi/lazy.ts`) applies it to a live endpoint instance's
+ *      already-merged `getSchema()` result, so EVERY endpoint style — factory,
+ *      sugar, hand-written class — inherits the model group at emit time. This
+ *      is why the adapter factories no longer need a per-class `getSchema()`
+ *      override.
+ *   2. The sugar path ({@link generateEndpointClass}) additionally bakes the
+ *      result into the raw `schema` class field at class-generation time. This
+ *      is idempotent with (1) — an explicit tag still wins — and is retained so
+ *      `toOpenApiPaths(...)`, which reads `getSchema()` without going through
+ *      registration, still emits the model group.
  */
 export function resolveSchemaTags(
   schema: OpenAPIRouteSchema | Record<string, unknown> | undefined,
@@ -42,6 +48,27 @@ export function resolveSchemaTags(
   if (hasExplicitTags) return baseSchema;
   const resolvedTag = model.tag ?? model.tableName;
   return { ...baseSchema, tags: [resolvedTag] };
+}
+
+/**
+ * Registration-time choke point for OpenAPI tag defaulting. Reads a live
+ * endpoint instance's already-merged schema and applies {@link resolveSchemaTags}
+ * using the instance's model, so ALL endpoint styles (factory, sugar,
+ * hand-written class) inherit the model group (`tag` ?? `tableName`) without
+ * restating `schema.tags`; an explicit non-empty `schema.tags` always wins.
+ *
+ * `_meta` is read structurally — `OpenAPIRoute` doesn't declare it, but every
+ * `CrudEndpoint` subclass sets it — so an instance with no `_meta` (a plain
+ * `OpenAPIRoute`) passes its schema through untouched. Doc-only: this never
+ * touches the validation path (`getValidatedData`).
+ */
+export function resolveInstanceSchemaTags(instance: {
+  getSchema(): OpenAPIRouteSchema;
+}): OpenAPIRouteSchema {
+  const schema = instance.getSchema();
+  const model = (instance as { _meta?: { model?: { tag?: string; tableName: string } } })._meta
+    ?.model;
+  return model ? resolveSchemaTags(schema, model) : schema;
 }
 
 /**
