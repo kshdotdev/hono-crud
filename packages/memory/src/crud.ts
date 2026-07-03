@@ -5,7 +5,12 @@ import { UpdateEndpoint } from 'hono-crud/internal';
 import { DeleteEndpoint } from 'hono-crud/internal';
 import { ListEndpoint } from 'hono-crud/internal';
 import { RestoreEndpoint } from 'hono-crud/internal';
-import { buildCursorPage, decodeCursor } from 'hono-crud/internal';
+import {
+  buildCursorPage,
+  buildIncludeOptions,
+  buildOffsetPageInfo,
+  decodeCursor,
+} from 'hono-crud/internal';
 import type {
   IncludeOptions,
   ListFilters,
@@ -460,12 +465,12 @@ export abstract class MemoryListEndpoint<
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
     const items = queryMemoryStore(store, filters, this.searchFields, this.getSoftDeleteConfig());
     const totalCount = items.length;
-    const includeOptions: IncludeOptions = {
-      relations: filters.options.include || [],
-      // Scope included related rows to the caller (owner-scope + soft-delete),
-      // honoring `?withDeleted` for the related soft-delete filter.
-      scope: this.getRelationScope(filters.options.withDeleted),
-    };
+    // Scope included related rows to the caller (owner-scope + soft-delete),
+    // honoring `?withDeleted` for the related soft-delete filter.
+    const includeOptions = buildIncludeOptions(
+      filters.options.include,
+      this.getRelationScope(filters.options.withDeleted),
+    );
 
     const loadItemRelations = (item: ModelObject<M['model']>) =>
       loadRelations(item as Record<string, unknown>, this._meta, includeOptions) as ModelObject<
@@ -511,18 +516,9 @@ export abstract class MemoryListEndpoint<
     const start = (page - 1) * perPage;
     const paginatedItems = items.slice(start, start + perPage);
 
-    const totalPages = Math.ceil(totalCount / perPage);
-
     return {
       result: paginatedItems.map(loadItemRelations),
-      result_info: {
-        page,
-        per_page: perPage,
-        total_count: totalCount,
-        total_pages: totalPages,
-        has_next_page: page < totalPages,
-        has_prev_page: page > 1,
-      },
+      result_info: buildOffsetPageInfo({ page, perPage, totalCount }),
     };
   }
 }

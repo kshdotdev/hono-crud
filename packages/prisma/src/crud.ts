@@ -4,7 +4,7 @@ import { ReadEndpoint } from 'hono-crud/internal';
 import { UpdateEndpoint } from 'hono-crud/internal';
 import { DeleteEndpoint } from 'hono-crud/internal';
 import { ListEndpoint } from 'hono-crud/internal';
-import { buildCursorPage } from 'hono-crud/internal';
+import { buildCursorPage, buildIncludeOptions, buildOffsetPageInfo } from 'hono-crud/internal';
 import type { IncludeOptions, ListFilters, MetaInput, PaginatedResult } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
 import { getPrismaClient } from './connection';
@@ -12,7 +12,6 @@ import {
   type PrismaClient,
   type PrismaModelOperations,
   batchLoadPrismaRelations,
-  buildPaginatedResult,
   executePrismaQuery,
   getPrismaModel,
   getPrismaTransaction,
@@ -326,12 +325,12 @@ export abstract class PrismaListEndpoint<
       cursorField: this.isCursorPaginationActive() ? this.cursorField || 'id' : undefined,
     });
 
-    const includeOptions: IncludeOptions = {
-      relations: filters.options.include || [],
-      // Scope included related rows to the caller (owner-scope + soft-delete),
-      // honoring `?withDeleted` for the related soft-delete filter.
-      scope: this.getRelationScope(filters.options.withDeleted),
-    };
+    // Scope included related rows to the caller (owner-scope + soft-delete),
+    // honoring `?withDeleted` for the related soft-delete filter.
+    const includeOptions = buildIncludeOptions(
+      filters.options.include,
+      this.getRelationScope(filters.options.withDeleted),
+    );
 
     // Keyset cursor page: trim the has-more sentinel row before loading
     // relations, then return the canonical cursor-mode envelope.
@@ -360,6 +359,13 @@ export abstract class PrismaListEndpoint<
       includeOptions,
     );
 
-    return buildPaginatedResult(itemsWithRelations, queryResult);
+    return {
+      result: itemsWithRelations,
+      result_info: buildOffsetPageInfo({
+        page: queryResult.page,
+        perPage: queryResult.perPage,
+        totalCount: queryResult.totalCount,
+      }),
+    };
   }
 }

@@ -114,17 +114,19 @@ export {
 // ============================================================================
 
 // Cursor codecs shared by every list/pagination implementation, plus the
-// cursor-mode result_info builder that keeps the three adapters' cursor
-// envelopes byte-identical.
-export { encodeCursor, decodeCursor, buildCursorPage } from './core/cursor';
-export type { CursorPage, CursorPageInput } from './core/cursor';
+// cursor-mode and offset-mode result_info builders that keep the three
+// adapters' pagination envelopes byte-identical.
+export { encodeCursor, decodeCursor, buildCursorPage, buildOffsetPageInfo } from './core/cursor';
+export type { CursorPage, CursorPageInput, OffsetPageInfoInput } from './core/cursor';
 
 // Upsert-family soft-delete restore ("match-and-restore" contract).
 export { applyUpsertRestore } from './core/soft-delete';
 
-// Relation batch/single-item orchestrator consumed by the drizzle/prisma/memory adapters.
+// Relation batch/single-item orchestrator consumed by the drizzle/prisma/memory adapters,
+// plus the `IncludeOptions` constructor that keeps their `?include=` literals in sync.
 export {
   batchLoadRelations,
+  buildIncludeOptions,
   loadRelationsForItem,
   loadRelationsForItemSync,
   resolveRelationValueAsync,

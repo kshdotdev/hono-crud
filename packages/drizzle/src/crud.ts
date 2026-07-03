@@ -1,6 +1,11 @@
 import { eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { Env } from 'hono';
-import { buildCursorPage, getLogger } from 'hono-crud/internal';
+import {
+  buildCursorPage,
+  buildIncludeOptions,
+  buildOffsetPageInfo,
+  getLogger,
+} from 'hono-crud/internal';
 import { CreateEndpoint } from 'hono-crud/internal';
 import { ReadEndpoint } from 'hono-crud/internal';
 import { UpdateEndpoint } from 'hono-crud/internal';
@@ -26,7 +31,6 @@ import {
   type DrizzleTable,
   and,
   batchLoadDrizzleRelations,
-  buildPaginatedResult,
   cast,
   executeDrizzleListQuery,
   getColumn,
@@ -804,12 +808,12 @@ export abstract class DrizzleListEndpoint<
       cursorField: this.isCursorPaginationActive() ? this.cursorField || 'id' : undefined,
     });
 
-    const includeOptions: IncludeOptions = {
-      relations: filters.options.include || [],
-      // Scope included related rows to the caller (owner-scope + soft-delete),
-      // honoring `?withDeleted` for the related soft-delete filter.
-      scope: this.getRelationScope(filters.options.withDeleted),
-    };
+    // Scope included related rows to the caller (owner-scope + soft-delete),
+    // honoring `?withDeleted` for the related soft-delete filter.
+    const includeOptions = buildIncludeOptions(
+      filters.options.include,
+      this.getRelationScope(filters.options.withDeleted),
+    );
 
     // Keyset cursor page: trim the has-more sentinel row before loading
     // relations, then return the canonical cursor-mode envelope.
@@ -838,7 +842,14 @@ export abstract class DrizzleListEndpoint<
       includeOptions,
     );
 
-    return buildPaginatedResult(itemsWithRelations, queryResult);
+    return {
+      result: itemsWithRelations,
+      result_info: buildOffsetPageInfo({
+        page: queryResult.page,
+        perPage: queryResult.perPage,
+        totalCount: queryResult.totalCount,
+      }),
+    };
   }
 }
 
