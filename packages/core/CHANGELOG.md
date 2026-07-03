@@ -1,5 +1,88 @@
 # Changelog
 
+## 0.13.25
+
+### Patch Changes
+
+- 6b602ce: Add `setAuthContext(ctx, user, authType)` to the auth subpath. This is the
+  write-side counterpart to the existing auth context accessors (`getUser`,
+  `getUserRoles`, `getAuthType`, …): it publishes the authenticated user id,
+  user object, roles/permissions (each defaulting to `[]`), and auth type to the
+  Hono context. The JWT and API-key middleware now share it instead of each
+  duplicating the five `ctx.set` calls; behavior is unchanged.
+- 3788ca4: fix(core): uniform plaintext for audit and version-history under field encryption
+
+  Downstream record snapshots now carry **plaintext** for encrypted fields,
+  consistent with the create/update/read verbs. Previously single delete/update/
+  upsert audited the pre-mutation snapshot as **ciphertext** (the row read from
+  storage was never decrypted), and the `deleted`/`updated` event `previousData`
+  (what `subscribe` consumers receive) leaked ciphertext too. Audit inputs are now
+  decrypted before the audit call on every verb, so `previousRecord` / `record` /
+  `changes` are meaningful; the existing `audit` toggles (`storeRecord` /
+  `storePreviousRecord` / `trackChanges`) remain the opt-out.
+
+  The version-history read endpoints (`versionHistory`, `versionRead`) now decrypt
+  each snapshot's `data` on return, and `versionCompare` decrypts **both** sides
+  before diffing — two versions with the same plaintext but different IVs at rest
+  show **no** change for that field (a raw ciphertext diff reported a spurious
+  change on every write). `versionRollback` returns the historical plaintext in its
+  response.
+
+  Snapshots stay **ciphertext at rest**: the version snapshot saved on update and
+  the row `versionRollback` writes back are never re-encrypted (double-encrypting a
+  `{ ct, iv, v }` envelope would `String()`-cast and corrupt it) — the rolled-back
+  row decrypts to the historical plaintext on the next read.
+
+- e43a483: feat(events): emit events from all mutation verbs
+
+  `emitEvent` previously fired only on create/update/delete/restore. Every other
+  mutation verb was silent: upsert, clone, import, bulk-patch and the batch writes
+  (batch-create/update/delete/restore/upsert) mutated rows without notifying any
+  subscriber or webhook. They now emit at the same lifecycle position the original
+  four use (right after the audit-log call, before the finalize/serialize tail,
+  scheduled through `runAfterResponse`), carrying the decrypted in-memory record
+  so subscribers see a uniform plaintext stream regardless of which verb wrote the
+  row.
+
+  The `CrudEventType` union (a public type, re-exported from `hono-crud/events`
+  and consumed by the webhook `table:type` filter) gains nine past-tense members:
+  `upserted`, `cloned`, `imported`, `bulk_patched`, and `batch_created` /
+  `batch_updated` / `batch_deleted` / `batch_restored` / `batch_upserted`.
+
+  - **Per-record fan-out.** `CrudEventPayload.recordId`/`data` are singular, so the
+    batch verbs (and import / bulk-patch) emit one event PER record — exactly as
+    audit fans out one entry per record via `logBatchAudit`. A new
+    `emitBatchEvents` helper on the endpoint base mirrors that audit helper.
+  - **Create-vs-update distinction.** `upserted` and `batch_upserted` carry
+    `metadata.created`; `imported` carries `metadata.status` (`created`/`updated`).
+  - **Delete snapshots.** `deleted` / `batch_deleted` carry the record under
+    `previousData`.
+  - **bulk-patch** emits only when the adapter surfaces the patched rows (the
+    singular `recordId` payload cannot represent a count-only UPDATE).
+
+- a7ca1bf: fix(core): apply field encryption across all write/read verbs
+
+  `fieldEncryption` previously only encrypted on create/update and decrypted on
+  read/list. Every other verb leaked: upsert, clone, import, bulk-patch and the
+  batch writes (batch-create/update/upsert) persisted **plaintext** for encrypted
+  fields, and search, export, restore and the batch reads (batch-delete/restore)
+  returned **ciphertext**. Encryption is now applied at the same lifecycle
+  position (after the before-hook, before the adapter write) and decryption after
+  the adapter read (before the after-hook/response) on the full verb surface, so
+  a round trip is transparent regardless of which verb wrote or read the row.
+
+  `aggregate` is intentionally exempt: non-deterministic encryption makes grouping
+  and MIN/MAX over an encrypted field meaningless, and numeric aggregations never
+  expose the plaintext.
+
+  Note: on SQL adapters an encrypted column must be a JSON column (Drizzle
+  `text(name, { mode: 'json' })` / Prisma `Json`) to hold the `{ ct, iv, v }`
+  envelope — a plain text/String column cannot.
+
+- 1f1f9b5: Add `createMemoryCrud(meta)` — the in-memory sibling of `createDrizzleCrud`/`createPrismaCrud`. It returns CRUD endpoint base classes with `_meta` pre-stamped (memory has no `db` to bind), so class-based endpoints drop the per-class `_meta` restatement.
+
+  OpenAPI `tags` now default from the model's `tag` (falling back to `tableName`) for **every** endpoint definition style — the sugar path (`defineEndpoints`/builder/functional), the adapter CRUD factories (`createMemoryCrud`/`createDrizzleCrud`/`createPrismaCrud`), and plain hand-written class-based endpoints. Defaulting happens once, at route registration, so declaring `tag` on the model (`defineModel({ tableName: 'users', tag: 'Users', ... })`) sets a capitalized display group that every surface honors — the live `/openapi.json`, `buildPerTenantOpenApi`, and `toOpenApiPaths` — without repeating `tags` on each endpoint. An explicit non-empty `schema.tags` always wins, so existing explicitly-tagged endpoints are byte-identical.
+
 ## 0.13.24
 
 ### Patch Changes
