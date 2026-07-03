@@ -21,10 +21,8 @@ export abstract class ReadEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-  // Lookup configuration
-  protected lookupField = 'id';
+  // Lookup configuration (lookupField/additionalFilters live on CrudEndpoint)
   protected lookupFields?: string[];
-  protected additionalFilters?: string[];
 
   // ETag configuration
   /** Enable ETag generation and If-None-Match support for conditional requests */
@@ -63,15 +61,6 @@ export abstract class ReadEndpoint<
   /**
    * Validates that tenant ID is present when required.
    */
-
-  /**
-   * Returns the path parameter schema.
-   */
-  protected getParamsSchema(): ZodObject<ZodRawShape> {
-    return z.object({
-      [this.lookupField]: z.string(),
-    }) as unknown as ZodObject<ZodRawShape>;
-  }
 
   /**
    * Returns the query parameter schema for includes and additional filters.
@@ -129,34 +118,6 @@ export abstract class ReadEndpoint<
       },
       this.schema,
     );
-  }
-
-  /**
-   * Gets the lookup value from path parameters.
-   */
-  protected async getLookupValue(): Promise<string> {
-    const { params } = await this.getValidatedData();
-    return params?.[this.lookupField] || '';
-  }
-
-  /**
-   * Gets additional filter values from query parameters.
-   */
-  protected async getAdditionalFilters(): Promise<Record<string, string>> {
-    if (!this.additionalFilters?.length) {
-      return {};
-    }
-
-    const { query } = await this.getValidatedData();
-    const filters: Record<string, string> = {};
-
-    for (const field of this.additionalFilters) {
-      if (query?.[field]) {
-        filters[field] = String(query[field]);
-      }
-    }
-
-    return filters;
   }
 
   /**

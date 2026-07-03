@@ -1,5 +1,5 @@
 import type { Env } from 'hono';
-import { type ZodObject, type ZodRawShape, z } from 'zod';
+import { z } from 'zod';
 import { ApiException, NotFoundException } from '../core/exceptions';
 import type { HookMode, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
@@ -17,10 +17,8 @@ export abstract class RestoreEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-  // Lookup configuration
-  protected lookupField = 'id';
+  // Lookup configuration (lookupField/additionalFilters live on CrudEndpoint)
   protected lookupFields?: string[];
-  protected additionalFilters?: string[];
 
   // Hook execution mode
   protected beforeHookMode: HookMode = 'sequential';
@@ -53,15 +51,6 @@ export abstract class RestoreEndpoint<
    */
 
   /**
-   * Returns the path parameter schema.
-   */
-  protected getParamsSchema(): ZodObject<ZodRawShape> {
-    return z.object({
-      [this.lookupField]: z.string(),
-    }) as unknown as ZodObject<ZodRawShape>;
-  }
-
-  /**
    * Generates OpenAPI schema from meta configuration.
    */
   getSchema(): OpenAPIRouteSchema {
@@ -88,34 +77,6 @@ export abstract class RestoreEndpoint<
       },
       this.schema,
     );
-  }
-
-  /**
-   * Gets the lookup value from path parameters.
-   */
-  protected async getLookupValue(): Promise<string> {
-    const { params } = await this.getValidatedData();
-    return params?.[this.lookupField] || '';
-  }
-
-  /**
-   * Gets additional filter values from query parameters.
-   */
-  protected async getAdditionalFilters(): Promise<Record<string, string>> {
-    if (!this.additionalFilters?.length) {
-      return {};
-    }
-
-    const { query } = await this.getValidatedData();
-    const filters: Record<string, string> = {};
-
-    for (const field of this.additionalFilters) {
-      if (query?.[field]) {
-        filters[field] = String(query[field]);
-      }
-    }
-
-    return filters;
   }
 
   /**
