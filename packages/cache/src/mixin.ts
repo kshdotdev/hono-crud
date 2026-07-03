@@ -5,12 +5,14 @@ import type {
   OpenAPIRoute,
   ResponseEnvelopeInfo,
 } from 'hono-crud/internal';
-import { ConfigurationException, getLogger, resolveCacheStorageOrWarn } from 'hono-crud/internal';
 import {
+  ConfigurationException,
   createInvalidationPattern,
   createRelatedPatterns,
   generateCacheKey,
-} from './key-generator';
+  getLogger,
+  resolveCacheStorageOrWarn,
+} from 'hono-crud/internal';
 import type { CacheConfig, CacheInvalidationConfig, InvalidationStrategy } from './types';
 
 /**

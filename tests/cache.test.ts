@@ -430,6 +430,30 @@ describe('Cache Key Generation', () => {
       expect(key).toBe('users:LIST:page=1&search=john');
     });
 
+    it('keeps `fields`/`include` in the key even when keyFields narrows the rest', () => {
+      // Two requests differing only in field-selection / includes must never
+      // collide on one cached body, so `fields`/`include` survive keyFields
+      // narrowing. Guards against the pre-convergence mixin key generator that
+      // dropped both when keyFields was set.
+      const keyA = generateCacheKey({
+        tableName: 'users',
+        method: 'LIST',
+        query: { page: 1, fields: 'a', include: 'posts' },
+        keyFields: ['page'],
+      });
+      const keyB = generateCacheKey({
+        tableName: 'users',
+        method: 'LIST',
+        query: { page: 1, fields: 'b', include: 'posts' },
+        keyFields: ['page'],
+      });
+
+      expect(keyA).not.toBe(keyB);
+      expect(keyA).toContain('fields=a');
+      expect(keyA).toContain('include=posts');
+      expect(keyB).toContain('fields=b');
+    });
+
     it('should sort params alphabetically', () => {
       const key = generateCacheKey({
         tableName: 'users',
