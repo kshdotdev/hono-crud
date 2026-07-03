@@ -598,6 +598,34 @@ events.onAny((event) => {
 });
 ```
 
+### Event types
+
+Every mutation verb emits a `CrudEventPayload` (`{ type, table, recordId, data,
+previousData?, userId?, tenantId?, organizationId?, timestamp, metadata? }`).
+The full `CrudEventType` vocabulary — all past-tense — is:
+
+| Verb | Event `type` | Payload notes |
+|---|---|---|
+| create | `created` | `data` = new record |
+| update | `updated` | `data` = new record, `previousData` = pre-update record |
+| delete | `deleted` | `previousData` = pre-delete record |
+| restore | `restored` | `data` = restored record |
+| upsert | `upserted` | `data` = record; `metadata.created` = `true` on the create branch, `false` on update (with `previousData`) |
+| clone | `cloned` | `data` = new clone |
+| import | `imported` | one event **per row**; `metadata.status` = `'created'` \| `'updated'` |
+| bulk-patch | `bulk_patched` | one event **per affected record** (fires only when the adapter surfaces the patched rows) |
+| batch-create | `batch_created` | one event **per record** |
+| batch-update | `batch_updated` | one event **per record** |
+| batch-delete | `batch_deleted` | one event **per record**, record under `previousData` |
+| batch-restore | `batch_restored` | one event **per record** |
+| batch-upsert | `batch_upserted` | one event **per record**; `metadata.created` per record |
+
+Batch verbs fan out one event per record — `recordId`/`data` are singular, so a
+batch is never a single event — exactly as audit fans out one entry per record.
+Records always carry the decrypted (plaintext) representation, so a `fieldEncryption`
+model streams the same shape to subscribers on every verb. Webhook filters use
+`table:type` (e.g. `users:upserted`, `users:batch_created`).
+
 ### Webhooks
 
 ```typescript

@@ -206,6 +206,9 @@ export abstract class BatchRestoreEndpoint<
     // Audit logging
     this.logBatchAudit(results, 'batch_restore');
 
+    // Emit one `batch_restored` event per restored record (mirrors the audit fan-out).
+    this.emitBatchEvents('batch_restored', results);
+
     return this.finalizeBatchResponse('restored', results, notFound, errors);
   }
 }

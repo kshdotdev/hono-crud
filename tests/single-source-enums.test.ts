@@ -44,7 +44,21 @@ describe('single-source enum arrays', () => {
   });
 
   it('CRUD_EVENT_TYPES', () => {
-    expect([...CRUD_EVENT_TYPES]).toEqual(['created', 'updated', 'deleted', 'restored']);
+    expect([...CRUD_EVENT_TYPES]).toEqual([
+      'created',
+      'updated',
+      'deleted',
+      'restored',
+      'upserted',
+      'cloned',
+      'imported',
+      'bulk_patched',
+      'batch_created',
+      'batch_updated',
+      'batch_deleted',
+      'batch_restored',
+      'batch_upserted',
+    ]);
   });
 
   it('DRIZZLE_DIALECTS', () => {

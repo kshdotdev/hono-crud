@@ -799,6 +799,22 @@ export abstract class ImportEndpoint<
       options.mode === 'upsert' ? 'batch_upsert' : 'batch_create',
     );
 
+    // Emit an `imported` event per successful row (data is already decrypted
+    // above). Each row carries whether it was a create or an update as
+    // `metadata.status` — the same distinction the row result exposes.
+    for (const row of successfulResults) {
+      if (!row.data) continue;
+      const recordId = this.getRecordId(row.data);
+      if (recordId === null) continue;
+      this.runAfterResponse(
+        this.emitEvent('imported', {
+          recordId,
+          data: row.data,
+          metadata: { status: row.status },
+        }),
+      );
+    }
+
     const importResult: ImportResult<ModelObject<M['model']>> = {
       summary,
       results,

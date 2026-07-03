@@ -233,6 +233,15 @@ export abstract class BulkPatchEndpoint<
       await this.afterBulkPatch(bulkResult);
     }
 
+    // Emit a `bulk_patched` event per affected record. The payload's `recordId`
+    // is required, so events fan out per row and can only fire when the adapter
+    // surfaces the patched rows (`decryptedRecords`); a count-only UPDATE that
+    // returns no rows emits nothing. Uses the decrypted rows so encrypted fields
+    // reach subscribers as plaintext, consistent with every other verb.
+    if (decryptedRecords) {
+      this.emitBatchEvents('bulk_patched', decryptedRecords);
+    }
+
     // Mutation changes which rows a cached list/read would return.
     await this.invalidateModelCache();
 

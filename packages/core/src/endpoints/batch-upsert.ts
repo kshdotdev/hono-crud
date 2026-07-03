@@ -540,6 +540,22 @@ export abstract class BatchUpsertEndpoint<
       'batch_upsert',
     );
 
+    // Emit one `batch_upserted` event per item, before the serialize/transform
+    // step below rewrites `item.data`. Each carries its create-vs-update
+    // distinction in `metadata.created` (the upsert family convention); `data`
+    // is already decrypted + computed above.
+    for (const item of result.items) {
+      const recordId = this.getRecordId(item.data);
+      if (recordId === null) continue;
+      this.runAfterResponse(
+        this.emitEvent('batch_upserted', {
+          recordId,
+          data: item.data,
+          metadata: { created: item.created },
+        }),
+      );
+    }
+
     // serializer → profile → transform per item (computed already applied above).
     // Profile + transform were previously skipped here — running them closes the
     // same serialization-profile leak fixed across the other write endpoints.

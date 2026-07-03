@@ -12,6 +12,7 @@ import { registerBulkPatchCells } from './bulk-patch';
 import { registerCursorPaginationCells } from './cursor-pagination';
 import { registerEncryptionCells } from './encryption';
 import { registerEtagConcurrencyCells } from './etag-concurrency';
+import { registerEventCells } from './events';
 import { registerExtendedVerbTenantScopingCells } from './extended-verb-tenant-scoping';
 import { registerFilterOperatorCells } from './filter-operators';
 import { registerFinalizePipelineCells } from './finalize-pipeline';
@@ -62,4 +63,5 @@ export function registerConformanceCells(descriptor: AdapterDescriptor): void {
   registerCursorPaginationCells(descriptor, ctx);
   registerBulkPatchCells(descriptor, ctx);
   registerEncryptionCells(descriptor, ctx);
+  registerEventCells(descriptor, ctx);
 }
