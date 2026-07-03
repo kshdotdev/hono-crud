@@ -31,6 +31,7 @@ import { getPrismaClient } from './connection';
 import {
   type PrismaClient,
   type PrismaModelOperations,
+  applySoftDeleteExclusion,
   batchLoadPrismaRelations,
   buildPrismaWhere,
   escapeLikeWildcards,
@@ -439,9 +440,7 @@ export abstract class PrismaBulkPatchEndpoint<
     const where = buildPrismaWhere(filters.filters);
 
     const softDeleteConfig = this.getSoftDeleteConfig();
-    if (softDeleteConfig.enabled) {
-      where[softDeleteConfig.field] = null;
-    }
+    applySoftDeleteExclusion(where, softDeleteConfig);
 
     return where;
   }
@@ -595,7 +594,7 @@ export abstract class PrismaAggregateEndpoint<
       const withDeleted = query?.withDeleted === true || query?.withDeleted === 'true';
 
       if (!withDeleted) {
-        where[softDeleteConfig.field] = null;
+        applySoftDeleteExclusion(where, softDeleteConfig);
       }
     }
 
@@ -967,9 +966,7 @@ export abstract class PrismaCloneEndpoint<
       ...additionalFilters,
     };
 
-    if (softDeleteConfig.enabled) {
-      where[softDeleteConfig.field] = null;
-    }
+    applySoftDeleteExclusion(where, softDeleteConfig);
 
     const result = await model.findFirst({ where });
     if (!result) return null;

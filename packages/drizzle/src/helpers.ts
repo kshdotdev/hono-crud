@@ -33,6 +33,7 @@ import {
   loadRelationsForItem,
   resolveRelationValueAsync,
 } from 'hono-crud/internal';
+import { getDrizzleDb } from './connection';
 
 // ============================================================================
 // Local stand-ins for drizzle-orm builder types
@@ -126,6 +127,30 @@ export function cast<Row = unknown>(instance: unknown): Database<Row> {
 }
 
 /**
+ * Run `fn` inside a Drizzle transaction, owning the `_tx` bookkeeping the verb
+ * `handle()` overrides otherwise re-hand-roll: resolves the endpoint's database
+ * (`getDrizzleDb`), begins `transaction(...)`, publishes the transaction handle
+ * on `self._tx` so hooks and nested writes join it, and clears `_tx` in a
+ * `finally` regardless of outcome.
+ *
+ * `self` is typed `unknown` (duck-typed internally) because `_tx` on the
+ * endpoint base class is `protected`, which is incompatible with public
+ * structural-type checking — the same reason {@link getDrizzleDb} takes
+ * `unknown`. `super.handle()` is lexically bound, so each verb still keeps its
+ * own one-line override that passes `() => super.handle()` here.
+ */
+export function runInTransaction<T>(self: unknown, fn: () => Promise<T>): Promise<T> {
+  return cast(getDrizzleDb(self)).transaction(async (tx) => {
+    (self as { _tx?: DrizzleDatabaseConstraint })._tx = tx;
+    try {
+      return await fn();
+    } finally {
+      (self as { _tx?: DrizzleDatabaseConstraint })._tx = undefined;
+    }
+  });
+}
+
+/**
  * Combine conditions with SQL `AND`. Thin wrapper over drizzle's `and` that
  * speaks the adapter's local {@link DrizzleSql} type so callers never name a
  * drizzle-orm type. `undefined` entries are ignored (drizzle's behavior); the
@@ -140,6 +165,28 @@ export function and(...conditions: (DrizzleSql | undefined)[]): DrizzleSql | und
  */
 export function or(...conditions: (DrizzleSql | undefined)[]): DrizzleSql | undefined {
   return _or(...(conditions as unknown as Parameters<typeof _or>));
+}
+
+/**
+ * Push the "exclude soft-deleted rows" predicate (`softDeleteField IS NULL`)
+ * onto a WHERE condition list when soft-delete is enabled. Centralizes the
+ * per-verb exclude-deleted guard shared by the read/update/delete/find/clone/
+ * bulk-patch/aggregate/batch paths so the predicate cannot drift.
+ *
+ * Not for: restore endpoints (they select ONLY deleted rows via `isNotNull`),
+ * the native `ON CONFLICT ... WHERE deletedAt IS NULL` upsert path (documented
+ * soft-delete divergence), or the list-path three-way
+ * onlyDeleted/withDeleted/default filter (centralized in
+ * {@link executeDrizzleListQuery}).
+ */
+export function pushSoftDeleteExclusion(
+  conditions: DrizzleSql[],
+  config: { enabled: boolean; field: string },
+  getColumnFor: (field: string) => DrizzleColumn,
+): void {
+  if (config.enabled) {
+    conditions.push(isNull(getColumnFor(config.field)));
+  }
 }
 
 /**

@@ -42,6 +42,7 @@ import {
   getColumn,
   getTable,
   or,
+  pushSoftDeleteExclusion,
   readCount,
   substringMatch,
 } from './helpers';
@@ -448,9 +449,7 @@ export abstract class DrizzleBulkPatchEndpoint<
     }
 
     const softDeleteConfig = this.getSoftDeleteConfig();
-    if (softDeleteConfig.enabled) {
-      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-    }
+    pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
 
     return conditions;
   }
@@ -725,7 +724,7 @@ export abstract class DrizzleAggregateEndpoint<
       const withDeleted = query?.withDeleted === true || query?.withDeleted === 'true';
 
       if (!withDeleted) {
-        conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
+        pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
       }
     }
 
@@ -1203,9 +1202,7 @@ export abstract class DrizzleCloneEndpoint<
       }
     }
 
-    if (softDeleteConfig.enabled) {
-      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-    }
+    pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
 
     const result = await cast<ModelObject<M['model']>>(this.getDb())
       .select()

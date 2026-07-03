@@ -1,4 +1,4 @@
-import { eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { eq, inArray, isNotNull } from 'drizzle-orm';
 import type { Env } from 'hono';
 import { BatchCreateEndpoint } from 'hono-crud/internal';
 import { BatchUpdateEndpoint, type BatchUpdateItem } from 'hono-crud/internal';
@@ -16,6 +16,7 @@ import {
   cast,
   getColumn,
   getTable,
+  pushSoftDeleteExclusion,
 } from './helpers';
 
 /**
@@ -102,9 +103,7 @@ export abstract class DrizzleBatchUpdateEndpoint<
       const conditions: DrizzleSql[] = [eq(lookupColumn, item.id)];
 
       // Filter out soft-deleted records
-      if (softDeleteConfig.enabled) {
-        conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-      }
+      pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
 
       if (tenant) {
         conditions.push(eq(this.getColumn(tenant.field), tenant.value));
@@ -165,9 +164,7 @@ export abstract class DrizzleBatchDeleteEndpoint<
     const conditions: DrizzleSql[] = [inArray(lookupColumn, ids)];
 
     // For soft delete, exclude already-deleted records
-    if (softDeleteConfig.enabled) {
-      conditions.push(isNull(this.getColumn(softDeleteConfig.field)));
-    }
+    pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
 
     // Owner-scope: only the caller's own rows are deletable.
     const tenant = this.getTenantScopeFilter();
