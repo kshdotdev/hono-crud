@@ -128,6 +128,7 @@ export {
   hasAnyRole,
   hasPermission,
   hasRole,
+  setAuthContext,
 } from './context';
 
 // ============================================================================

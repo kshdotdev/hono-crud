@@ -8,12 +8,32 @@
 
 import type { Context, Env } from 'hono';
 import { CONTEXT_KEYS } from '../core/context-keys';
-import { getContextVar } from '../utils/context';
+import { getContextVar, setContextVar } from '../utils/context';
+import type { AuthType, AuthUser } from './types';
 
 // `getUserId` is the lower-level shared accessor in `utils/request-info.ts`
 // (also consumed by logging/audit). Re-exported here as part of the auth
 // accessor family so there is a single definition.
 export { getUserId } from '../utils/request-info';
+
+/**
+ * Publish an authenticated user to the Hono context: user id, the user object,
+ * roles and permissions (each defaulting to an empty array), and the auth type.
+ *
+ * The write-side counterpart to the getters below; the JWT and API-key
+ * middleware call this after a successful authentication.
+ */
+export function setAuthContext<E extends Env>(
+  ctx: Context<E>,
+  user: AuthUser,
+  authType: AuthType,
+): void {
+  setContextVar(ctx, CONTEXT_KEYS.userId, user.id);
+  setContextVar(ctx, CONTEXT_KEYS.user, user);
+  setContextVar(ctx, CONTEXT_KEYS.roles, user.roles || []);
+  setContextVar(ctx, CONTEXT_KEYS.permissions, user.permissions || []);
+  setContextVar(ctx, CONTEXT_KEYS.authType, authType);
+}
 
 export function getUser<E extends Env>(
   ctx: Context<E>,

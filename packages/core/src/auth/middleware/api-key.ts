@@ -1,7 +1,7 @@
 import type { Context, MiddlewareHandler } from 'hono';
-import { CONTEXT_KEYS } from '../../core/context-keys';
 import { ConfigurationException, UnauthorizedException } from '../../core/exceptions';
 import { getWaitUntil } from '../../utils/wait-until';
+import { setAuthContext } from '../context';
 import { hashAPIKey } from '../hash';
 import { resolveAPIKeyStorage } from '../storage/memory';
 import type { APIKeyConfig, APIKeyEntry, APIKeyLookupResult, AuthEnv, AuthUser } from '../types';
@@ -109,24 +109,17 @@ export function createAPIKeyMiddleware<E extends AuthEnv = AuthEnv>(
     // Extract user info
     const user = extractUser(entry);
 
-    // Set context variables
-    ctx.set(CONTEXT_KEYS.userId, user.id);
-    ctx.set(CONTEXT_KEYS.user, user);
-    ctx.set(CONTEXT_KEYS.roles, user.roles || []);
-    ctx.set(CONTEXT_KEYS.permissions, user.permissions || []);
-    ctx.set(CONTEXT_KEYS.authType, 'api-key');
+    // Publish the authenticated user to context
+    setAuthContext(ctx, user, 'api-key');
 
     // Update last-used timestamp without blocking the request. On Workers the
     // write must be registered via waitUntil or it is cancelled when the
-    // response returns; elsewhere it stays fire-and-forget.
+    // response returns; elsewhere it stays fire-and-forget. Config-supplied
+    // callback wins over the resolved storage's own method.
     const waitUntil = getWaitUntil(ctx);
-    if (config.updateLastUsed) {
-      const updated = Promise.resolve(config.updateLastUsed(entry.id)).catch(() => {
-        // Silently ignore errors updating last used
-      });
-      waitUntil?.(updated);
-    } else if (storage) {
-      const updated = Promise.resolve(storage.updateLastUsed(entry.id)).catch(() => {
+    const updateLastUsed = config.updateLastUsed ?? storage?.updateLastUsed.bind(storage);
+    if (updateLastUsed) {
+      const updated = Promise.resolve(updateLastUsed(entry.id)).catch(() => {
         // Silently ignore errors updating last used
       });
       waitUntil?.(updated);
