@@ -243,30 +243,7 @@ export abstract class BatchCreateEndpoint<
     }
 
     // Audit logging
-    if (this.isAuditEnabled()) {
-      const auditLogger = this.getAuditLogger();
-      const auditRecords = results
-        .map((record) => {
-          const recordId = this.getRecordId(record);
-          if (recordId === null) return null;
-          return {
-            recordId,
-            record: record as Record<string, unknown>,
-          };
-        })
-        .filter((r): r is NonNullable<typeof r> => r !== null);
-
-      if (auditRecords.length > 0) {
-        this.runAfterResponse(
-          auditLogger.logBatch(
-            'batch_create',
-            this._meta.model.tableName,
-            auditRecords,
-            this.getAuditUserId(),
-          ),
-        );
-      }
-    }
+    this.logBatchAudit(results, 'batch_create');
 
     // computed fields → serializer → profile → transform
     const transformed = await this.finalizeArray(results);

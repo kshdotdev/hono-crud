@@ -516,30 +516,10 @@ export abstract class BatchUpsertEndpoint<
     }
 
     // Audit logging
-    if (this.isAuditEnabled()) {
-      const auditLogger = this.getAuditLogger();
-      const auditRecords = result.items
-        .map((item) => {
-          const recordId = this.getRecordId(item.data);
-          if (recordId === null) return null;
-          return {
-            recordId,
-            record: item.data as Record<string, unknown>,
-          };
-        })
-        .filter((r): r is NonNullable<typeof r> => r !== null);
-
-      if (auditRecords.length > 0) {
-        this.runAfterResponse(
-          auditLogger.logBatch(
-            'batch_upsert',
-            this._meta.model.tableName,
-            auditRecords,
-            this.getAuditUserId(),
-          ),
-        );
-      }
-    }
+    this.logBatchAudit(
+      result.items.map((item) => item.data),
+      'batch_upsert',
+    );
 
     // serializer → profile → transform per item (computed already applied above).
     // Profile + transform were previously skipped here — running them closes the

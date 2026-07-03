@@ -773,37 +773,13 @@ export abstract class ImportEndpoint<
     }
 
     // Audit logging
-    if (this.isAuditEnabled()) {
-      const auditLogger = this.getAuditLogger();
-      const successfulResults = results.filter(
-        (r) => r.status === 'created' || r.status === 'updated',
-      );
-
-      if (successfulResults.length > 0) {
-        const auditRecords = successfulResults
-          .map((r) => {
-            if (!r.data) return null;
-            const recordId = this.getRecordId(r.data);
-            if (recordId === null) return null;
-            return {
-              recordId,
-              record: r.data as Record<string, unknown>,
-            };
-          })
-          .filter((r): r is NonNullable<typeof r> => r !== null);
-
-        if (auditRecords.length > 0) {
-          this.runAfterResponse(
-            auditLogger.logBatch(
-              options.mode === 'upsert' ? 'batch_upsert' : 'batch_create',
-              this._meta.model.tableName,
-              auditRecords,
-              this.getAuditUserId(),
-            ),
-          );
-        }
-      }
-    }
+    const successfulResults = results.filter(
+      (r) => r.status === 'created' || r.status === 'updated',
+    );
+    this.logBatchAudit(
+      successfulResults.map((r) => r.data),
+      options.mode === 'upsert' ? 'batch_upsert' : 'batch_create',
+    );
 
     const importResult: ImportResult<ModelObject<M['model']>> = {
       summary,
