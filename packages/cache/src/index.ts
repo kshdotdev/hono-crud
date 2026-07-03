@@ -11,14 +11,16 @@ export type {
   InvalidationPatternOptions,
 } from './types';
 
-// Key generation utilities
+// Key generation utilities. The generator + invalidation-pattern helpers are
+// owned by core (`hono-crud/internal`) so the config-API cache path and the
+// `withCache` mixin share ONE key format; `parseCacheKey` lives only here.
 export {
   generateCacheKey,
   createInvalidationPattern,
   createRelatedPatterns,
   matchesPattern,
-  parseCacheKey,
-} from './key-generator';
+} from 'hono-crud/internal';
+export { parseCacheKey } from './key-generator';
 
 // Storage implementations
 export { MemoryCacheStorage } from './storage/memory';

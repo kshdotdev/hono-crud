@@ -1,6 +1,5 @@
-import { MemoryTtlStore } from 'hono-crud/internal';
+import { MemoryTtlStore, matchesPattern } from 'hono-crud/internal';
 import { buildCacheEntry, isCacheEntryExpired } from '../entry';
-import { matchesPattern } from '../key-generator';
 import type { CacheEntry, CacheSetOptions, CacheStats, CacheStorage } from '../types';
 
 /**
