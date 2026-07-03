@@ -38,6 +38,16 @@ describe('createMemoryCrud tag defaulting', () => {
     expect(schema.tags).toEqual(['widgets']);
   });
 
+  it('resolves tags over super.getSchema() so request.body survives (regression)', () => {
+    // The factory override applies tag-defaulting over `super.getSchema()`, not
+    // raw `this.schema`. A past bug resolved over `this.schema`, which dropped
+    // the merged `request.body` and 500'd create. Lock the body's presence.
+    class WidgetCreate extends Widget.Create {}
+
+    const schema = new WidgetCreate().getSchema();
+    expect(schema.request?.body).toBeDefined();
+  });
+
   it('defaults schema.tags from the model `tag` when the model provides one', () => {
     const Account = createMemoryCrud(accountMeta);
     class AccountCreate extends Account.Create {}
