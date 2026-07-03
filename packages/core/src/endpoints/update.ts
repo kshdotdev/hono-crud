@@ -513,9 +513,9 @@ export abstract class UpdateEndpoint<
     // at rest stay ciphertext — this decrypt only feeds the downstream payloads.
     // `decryptOnRead` is a no-op without fieldEncryption.
     const previousDecrypted = previousRecord
-      ? ((await this.decryptOnRead(
-          previousRecord as Record<string, unknown>,
-        )) as ModelObject<M['model']>)
+      ? ((await this.decryptOnRead(previousRecord as Record<string, unknown>)) as ModelObject<
+          M['model']
+        >)
       : previousRecord;
 
     // Audit logging

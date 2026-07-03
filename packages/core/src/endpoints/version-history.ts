@@ -609,9 +609,9 @@ export abstract class VersionRollbackEndpoint<
 
     // Decrypt the returned record for the response (mirrors update/restore). The
     // value at rest stays the historical ciphertext; this only affects the body.
-    const decrypted = (await this.decryptOnRead(
-      result as Record<string, unknown>,
-    )) as ModelObject<M['model']>;
+    const decrypted = (await this.decryptOnRead(result as Record<string, unknown>)) as ModelObject<
+      M['model']
+    >;
 
     // Apply serializer if defined
     const serialized = this._meta.model.serializer
