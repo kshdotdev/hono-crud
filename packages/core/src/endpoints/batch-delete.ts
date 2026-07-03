@@ -197,6 +197,11 @@ export abstract class BatchDeleteEndpoint<
     // Audit logging
     this.logBatchAudit(results, 'batch_delete', { recordKey: 'previousRecord' });
 
+    // Emit one `batch_deleted` event per deleted record. The pre-deletion
+    // snapshot rides in `previousData` (mirrors single `deleted` and the
+    // `previousRecord` audit key); `results` are already decrypted above.
+    this.emitBatchEvents('batch_deleted', results, { as: 'previousData' });
+
     return this.finalizeBatchResponse('deleted', results, notFound, errors);
   }
 }

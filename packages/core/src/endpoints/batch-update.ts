@@ -259,6 +259,9 @@ export abstract class BatchUpdateEndpoint<
     // Audit logging
     this.logBatchAudit(results, 'batch_update');
 
+    // Emit one `batch_updated` event per updated record (mirrors the audit fan-out).
+    this.emitBatchEvents('batch_updated', results);
+
     return this.finalizeBatchResponse('updated', results, notFound, errors);
   }
 }

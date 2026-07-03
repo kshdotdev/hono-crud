@@ -222,6 +222,13 @@ export abstract class CloneEndpoint<
     // Run after hook
     obj = await this.after(obj);
 
+    // Emit cloned event for the new record (mirrors `created`'s position: after
+    // the after-hook, before the finalize/serialize tail).
+    const clonedId = this.getRecordId(obj);
+    if (clonedId !== null) {
+      this.runAfterResponse(this.emitEvent('cloned', { recordId: clonedId, data: obj }));
+    }
+
     // computed fields → serializer → profile → transform
     const result = await this.finalizeRecord(obj);
 

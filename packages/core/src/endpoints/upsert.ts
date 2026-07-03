@@ -606,6 +606,21 @@ export abstract class UpsertEndpoint<
       );
     }
 
+    // Emit upserted event. Reuses the single `upserted` type for both branches
+    // and carries the create-vs-update distinction in `metadata.created` (the
+    // payload has no dedicated field); the update branch also carries the
+    // pre-mutation snapshot as `previousData`, mirroring `updated`.
+    if (parentId !== null) {
+      this.runAfterResponse(
+        this.emitEvent('upserted', {
+          recordId: parentId,
+          data: obj,
+          previousData: result.created ? undefined : (existing ?? undefined),
+          metadata: { created: result.created },
+        }),
+      );
+    }
+
     // computed fields → serializer → profile → transform
     const finalized = await this.finalizeRecord(obj);
 

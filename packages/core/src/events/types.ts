@@ -4,8 +4,34 @@
  * Single source for the {@link CrudEventType} union and any derived shape (e.g.
  * the webhook event-filter template-literal type), so adding an event type here
  * propagates everywhere instead of silently leaving a new type unfilterable.
+ *
+ * The verb surface splits into four families, all past-tense to match the
+ * original four names:
+ * 1. Single-record core:  `created` / `updated` / `deleted` / `restored`.
+ * 2. Single-record extras: `upserted` (carries `metadata.created`), `cloned`,
+ *    `imported` (per row, carries `metadata.status`).
+ * 3. Filter-scoped bulk:  `bulk_patched` (one event per affected record).
+ * 4. Batch verbs:  `batch_created` / `batch_updated` / `batch_deleted` /
+ *    `batch_restored` / `batch_upserted` — one event PER record (the payload's
+ *    `recordId`/`data` are singular), fanned out exactly as `logBatchAudit`
+ *    fans out audit entries. The `batch_` prefix mirrors the `AuditAction`
+ *    grouping (`batch_create`…); the past-tense suffix mirrors this vocabulary.
  */
-export const CRUD_EVENT_TYPES = ['created', 'updated', 'deleted', 'restored'] as const;
+export const CRUD_EVENT_TYPES = [
+  'created',
+  'updated',
+  'deleted',
+  'restored',
+  'upserted',
+  'cloned',
+  'imported',
+  'bulk_patched',
+  'batch_created',
+  'batch_updated',
+  'batch_deleted',
+  'batch_restored',
+  'batch_upserted',
+] as const;
 export type CrudEventType = (typeof CRUD_EVENT_TYPES)[number];
 
 /**

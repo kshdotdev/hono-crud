@@ -197,6 +197,37 @@ export abstract class CrudEndpoint<
     }
   }
 
+  /**
+   * Emit one CRUD event PER record of a completed batch mutation — the events
+   * sibling of {@link logBatchAudit}. The payload's `recordId`/`data` are
+   * singular, so a batch cannot be a single event; each record fans out exactly
+   * as audit does. Records whose primary key can't be resolved are dropped
+   * (they can't form a valid `CrudEventPayload`), matching `logBatchAudit`.
+   *
+   * `options.as` selects the payload slot: `'data'` (default) for create /
+   * update / restore verbs, `'previousData'` for delete (the pre-mutation
+   * snapshot). Verbs needing per-record metadata (import's row status,
+   * batch-upsert's `created` flag) emit inline instead — that data lives on the
+   * per-record result wrapper, not the bare record this helper iterates.
+   *
+   * Each emit is scheduled through `runAfterResponse` so it outlives the
+   * response on Workers, exactly like the single-record verbs.
+   */
+  protected emitBatchEvents(
+    type: CrudEventType,
+    records: ReadonlyArray<unknown>,
+    options?: { as?: 'data' | 'previousData' },
+  ): void {
+    const slot = options?.as ?? 'data';
+    for (const record of records) {
+      const recordId = this.getRecordId(record);
+      if (recordId === null) continue;
+      const payload =
+        slot === 'previousData' ? { recordId, previousData: record } : { recordId, data: record };
+      this.runAfterResponse(this.emitEvent(type, payload));
+    }
+  }
+
   // ============================================================================
   // Versioning
   // ============================================================================
