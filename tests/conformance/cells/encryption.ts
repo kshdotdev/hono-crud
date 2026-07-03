@@ -364,4 +364,75 @@ export function registerEncryptionCells(descriptor: AdapterDescriptor, ctx: CtxG
     expect(body.result.deleted).toHaveLength(1);
     expect(body.result.deleted[0]?.secret).toBe(PLAINTEXT);
   });
+
+  // --------------------------------------------------------------------------
+  // Encrypted-field consistency across audit / version-history / rollback.
+  // Gated on `encryptedHistoryAudit` (memory wires versioning + audit + an
+  // inspectable audit store on the enc model). drizzle/prisma skip LOUDLY — the
+  // fix is core/adapter-agnostic (core endpoint layer) and covered in full by
+  // the core-level unit suite (tests/encryption-consistency.test.ts).
+  // --------------------------------------------------------------------------
+  if (!descriptor.capabilities.encryptedHistoryAudit) {
+    test.skip(`encrypted audit + version-history consistency [skipped: ${descriptor.name} wires no version endpoints / inspectable audit store on its enc leg]`, () => {});
+    return;
+  }
+
+  /** Lets fire-and-forget audit writes settle (no waitUntil in the test env). */
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
+
+  test('single delete audits the PLAINTEXT previous record under encryption', async () => {
+    const { app, inspectAudit } = ctx();
+    if (!inspectAudit) throw new Error('inspectAudit must be present on an encryptedHistoryAudit leg');
+    const seeded = await seedEncrypted(ctx);
+    await settle();
+    expect((await app.request(`${BASE}/${seeded.id}`, { method: 'DELETE' })).status).toBe(200);
+    await settle();
+
+    const del = inspectAudit().find((e) => e.action === 'delete' && e.recordId === seeded.id);
+    expect(del).toBeDefined();
+    // The audited pre-mutation snapshot is plaintext, never the { ct, iv, v } envelope.
+    expect(del?.previousRecord?.secret).toBe(PLAINTEXT);
+    expect(isEncryptedValue(del?.previousRecord?.secret)).toBe(false);
+  });
+
+  test('version read returns the PLAINTEXT historical snapshot under encryption', async () => {
+    const { app } = ctx();
+    const seeded = await seedEncrypted(ctx, { secret: 'history-v1' });
+    // Update creates a version-1 snapshot of the pre-update (secret=history-v1) row.
+    expect(
+      (await app.request(`${BASE}/${seeded.id}`, jsonInit('PATCH', { secret: 'history-v2' })))
+        .status,
+    ).toBe(200);
+
+    const res = await app.request(`${BASE}/${seeded.id}/versions/1`);
+    expect(res.status).toBe(200);
+    const body = await readJson<{ success: true; result: { data: { secret: string } } }>(res);
+    expect(body.result.data.secret).toBe('history-v1');
+    expect(isEncryptedValue(body.result.data.secret)).toBe(false);
+  });
+
+  test('rollback writes valid historical ciphertext at rest (no double-encryption)', async () => {
+    const { app } = ctx();
+    const seeded = await seedEncrypted(ctx, { secret: 'rollback-v1' });
+    expect(
+      (await app.request(`${BASE}/${seeded.id}`, jsonInit('PATCH', { secret: 'rollback-v2' })))
+        .status,
+    ).toBe(200);
+
+    const res = await app.request(`${BASE}/${seeded.id}/versions/1/rollback`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    // Response carries the historical PLAINTEXT.
+    const body = await readJson<{ success: true; result: { secret: string } }>(res);
+    expect(body.result.secret).toBe('rollback-v1');
+
+    // At rest: a valid ciphertext envelope (never the stringified envelope of a
+    // double-encrypted value). It must decrypt back to the historical plaintext,
+    // asserted transparently by re-reading through the decrypt-on-return path.
+    await expectCiphertextAtRest(ctx, seeded.id);
+    const read = await expectSuccess<ConformanceRecord>(
+      await app.request(`${BASE}/${seeded.id}`),
+      200,
+    );
+    expect(read.secret).toBe('rollback-v1');
+  });
 }

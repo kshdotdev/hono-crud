@@ -454,23 +454,31 @@ export abstract class DeleteEndpoint<
       await this.after(existingItem, hookCtx);
     }
 
-    // Audit logging
-    if (this.isAuditEnabled() && parentId !== null) {
-      const auditLogger = this.getAuditLogger();
-      this.runAfterResponse(
-        auditLogger.logDelete(
-          this._meta.model.tableName,
-          parentId,
-          existingItem as Record<string, unknown>,
-          this.getAuditUserId(),
-        ),
-      );
-    }
-
-    // Emit deleted event
+    // Audit + subscribe/event consumers receive the PLAINTEXT pre-mutation
+    // snapshot for encrypted fields (uniform with create/update/batch). The row
+    // at rest and any version snapshot stay ciphertext — this decrypt only feeds
+    // the downstream payloads. `decryptOnRead` is a no-op without fieldEncryption.
     if (parentId !== null) {
+      const previousDecrypted = (await this.decryptOnRead(
+        existingItem as Record<string, unknown>,
+      )) as ModelObject<M['model']>;
+
+      // Audit logging
+      if (this.isAuditEnabled()) {
+        const auditLogger = this.getAuditLogger();
+        this.runAfterResponse(
+          auditLogger.logDelete(
+            this._meta.model.tableName,
+            parentId,
+            previousDecrypted as Record<string, unknown>,
+            this.getAuditUserId(),
+          ),
+        );
+      }
+
+      // Emit deleted event
       this.runAfterResponse(
-        this.emitEvent('deleted', { recordId: parentId, previousData: existingItem }),
+        this.emitEvent('deleted', { recordId: parentId, previousData: previousDecrypted }),
       );
     }
 

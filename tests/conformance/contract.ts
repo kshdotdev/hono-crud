@@ -109,6 +109,28 @@ export interface ConformanceCapabilities {
    * encrypted field serializes to; the skip is named.
    */
   fieldEncryption: boolean;
+  /**
+   * Whether this leg's `fieldEncryption` model ALSO wires versioning + audit
+   * (version-history endpoints + an inspectable audit store), so the
+   * encrypted-consistency cells can assert that audit inputs, version-history
+   * snapshots, and rollback-at-rest carry PLAINTEXT / valid historical
+   * ciphertext under encryption. True on memory (cheap in-process version +
+   * audit stores + `inspectAudit`). False on drizzle/prisma — they wire neither
+   * an inspectable audit store nor version endpoints on their enc leg; the skip
+   * is named. The fix itself is core/adapter-agnostic (it lives in the core
+   * endpoint layer), so the memory leg is a sufficient conformance anchor and
+   * the core-level unit suite covers the behavior in full.
+   */
+  encryptedHistoryAudit: boolean;
+}
+
+/** A single audit-store entry as the conformance suite inspects it. */
+export interface ConformanceAuditEntry {
+  action: string;
+  recordId: string | number;
+  record?: Record<string, unknown>;
+  previousRecord?: Record<string, unknown>;
+  changes?: Array<{ field: string; oldValue?: unknown; newValue?: unknown }>;
 }
 
 export interface HookObservation {
@@ -140,6 +162,12 @@ export interface AdapterContext {
    * absent. Present only on legs whose `fieldEncryption` capability is true.
    */
   inspectStoredField?(id: string, field: string): Promise<unknown>;
+  /**
+   * Returns the audit-store entries recorded so far, for the encrypted
+   * consistency cells to assert audit inputs carry plaintext. Present only on
+   * legs whose `encryptedHistoryAudit` capability is true.
+   */
+  inspectAudit?(): ConformanceAuditEntry[];
 }
 
 export interface AdapterDescriptor {

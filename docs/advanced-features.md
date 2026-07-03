@@ -679,6 +679,22 @@ decrypt before the response. For lower-level control, call
 > non-deterministic (a fresh IV per write), so grouping or MIN/MAX on an
 > encrypted field is not meaningful and numeric aggregations never expose the
 > plaintext; group keys stay as ciphertext, which is also the safer default.
+>
+> **Audit, version-history and events read plaintext:** the same
+> decrypt-on-return position covers the record snapshots that feed downstream
+> pipelines. Audit logs record the **plaintext** of encrypted fields for every
+> verb (create/update/delete/upsert and the batch verbs), so `previousRecord` /
+> `record` / `changes` are meaningful — use the existing `audit` toggles
+> (`storeRecord` / `storePreviousRecord` / `trackChanges`) to opt out.
+> `subscribe`/event payloads carry plaintext in `data` and `previousData` for the
+> same reason. The version-history read endpoints (`versionHistory`,
+> `versionRead`) decrypt each snapshot's `data` on return, and `versionCompare`
+> decrypts **both** sides before diffing — so two versions that share the same
+> plaintext but were re-encrypted with different IVs show **no** change for that
+> field. Snapshots stay **ciphertext at rest**: `versionRollback` writes the
+> stored ciphertext snapshot back verbatim (it is never re-encrypted, which would
+> corrupt it), and the rolled-back row decrypts to the historical plaintext on
+> the next read.
 
 ```typescript
 import {
