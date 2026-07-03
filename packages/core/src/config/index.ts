@@ -90,6 +90,18 @@ interface HookConfig {
 }
 
 /**
+ * Members shared by every per-verb endpoint config: the OpenAPI schema
+ * override and the route middleware chain. Declared once here (with the
+ * `middlewares` doc comment written once) and inherited via `extends` so the
+ * two fields — and their documentation — never drift across the ~22 configs.
+ */
+export interface BaseEndpointConfig<E extends Env = Env> {
+  openapi?: OpenAPIConfig;
+  /** Middleware applied to this endpoint route. Runs before the handler. */
+  middlewares?: MiddlewareHandler<E>[];
+}
+
+/**
  * Create endpoint hooks. The optional second argument is the engine-built
  * `HookContext` (transaction handle + tenant/actor identifiers).
  */
@@ -107,10 +119,8 @@ interface CreateHooks<M extends MetaInput> extends HookConfig {
 /**
  * Create endpoint configuration.
  */
-export interface CreateEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface CreateEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   hooks?: CreateHooks<M>;
   nestedCreate?: string[];
   /** Invalidate cached list/read entries after a successful create. */
@@ -253,10 +263,8 @@ export interface MutationCacheConfig {
 /**
  * List endpoint configuration.
  */
-export interface ListEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface ListEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   filtering?: FilteringConfig;
   search?: SearchConfig;
   sorting?: SortingConfig;
@@ -280,10 +288,8 @@ interface ReadHooks<M extends MetaInput> {
 /**
  * Read endpoint configuration.
  */
-export interface ReadEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface ReadEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   lookupField?: string;
   additionalFilters?: string[];
   includes?: string[];
@@ -321,10 +327,8 @@ interface UpdateHooks<M extends MetaInput> extends HookConfig {
 /**
  * Update endpoint configuration.
  */
-export interface UpdateEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface UpdateEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   lookupField?: string;
   additionalFilters?: string[];
   fields?: UpdateFieldConfig;
@@ -362,10 +366,8 @@ interface DeleteHooks<M extends MetaInput> extends HookConfig {
 /**
  * Delete endpoint configuration.
  */
-export interface DeleteEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface DeleteEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   lookupField?: string;
   additionalFilters?: string[];
   includeCascadeResults?: boolean;
@@ -398,10 +400,8 @@ interface SearchHooks<M extends MetaInput> {
 /**
  * Search endpoint configuration.
  */
-export interface SearchEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface SearchEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   /** Fields included in the search index (maps to SearchEndpoint.searchFields). */
   fields?: string[];
   /**
@@ -425,10 +425,8 @@ interface AggregateHooks {
 /**
  * Aggregate endpoint configuration.
  */
-export interface AggregateEndpointConfig<_M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface AggregateEndpointConfig<_M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   /** Fields the client may filter aggregations by (maps to AggregateEndpoint.filterFields). */
   fields?: string[];
   hooks?: AggregateHooks;
@@ -448,10 +446,8 @@ interface RestoreHooks<M extends MetaInput> extends HookConfig {
 /**
  * Restore endpoint configuration.
  */
-export interface RestoreEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface RestoreEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   hooks?: RestoreHooks<M>;
 }
 
@@ -472,10 +468,8 @@ interface BatchCreateHooks<M extends MetaInput> extends HookConfig {
 /**
  * Batch-create endpoint configuration.
  */
-export interface BatchCreateEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface BatchCreateEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   hooks?: BatchCreateHooks<M>;
   bodySchema?: ZodObject<ZodRawShape>;
   maxBatchSize?: number;
@@ -499,10 +493,8 @@ interface BatchUpdateHooks<M extends MetaInput> extends HookConfig {
 /**
  * Batch-update endpoint configuration.
  */
-export interface BatchUpdateEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface BatchUpdateEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   hooks?: BatchUpdateHooks<M>;
   maxBatchSize?: number;
 }
@@ -521,10 +513,8 @@ interface BatchDeleteHooks<M extends MetaInput> extends HookConfig {
 /**
  * Batch-delete endpoint configuration.
  */
-export interface BatchDeleteEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface BatchDeleteEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   hooks?: BatchDeleteHooks<M>;
   maxBatchSize?: number;
 }
@@ -543,10 +533,8 @@ interface BatchRestoreHooks<M extends MetaInput> extends HookConfig {
 /**
  * Batch-restore endpoint configuration.
  */
-export interface BatchRestoreEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface BatchRestoreEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   hooks?: BatchRestoreHooks<M>;
   maxBatchSize?: number;
 }
@@ -570,10 +558,8 @@ interface BatchUpsertHooks<M extends MetaInput> extends HookConfig {
 /**
  * Batch-upsert endpoint configuration.
  */
-export interface BatchUpsertEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface BatchUpsertEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   hooks?: BatchUpsertHooks<M>;
   bodySchema?: ZodObject<ZodRawShape>;
   /** Conflict-target column(s) for the upsert. String is normalized to single-element array. */
@@ -589,10 +575,8 @@ export interface BatchUpsertEndpointConfig<M extends MetaInput, E extends Env = 
  * non-listed formats) require an `allowedFormats` field on ExportEndpoint —
  * deferred.
  */
-export interface ExportEndpointConfig<_M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface ExportEndpointConfig<_M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   formats?: ('csv' | 'json')[];
   /** Maximum rows to export (maps to ExportEndpoint.maxExportRecords). */
   maxRows?: number;
@@ -623,10 +607,8 @@ interface ImportHooks<M extends MetaInput> {
 /**
  * Import endpoint configuration.
  */
-export interface ImportEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface ImportEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   hooks?: ImportHooks<M>;
   /** Maximum rows accepted per request (maps to ImportEndpoint.maxBatchSize). */
   maxRows?: number;
@@ -650,10 +632,8 @@ interface UpsertHooks<M extends MetaInput> extends HookConfig {
 /**
  * Upsert endpoint configuration.
  */
-export interface UpsertEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface UpsertEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   hooks?: UpsertHooks<M>;
   bodySchema?: ZodObject<ZodRawShape>;
   /** Conflict-target column(s) for the upsert. String is normalized to single-element array. */
@@ -677,10 +657,8 @@ interface CloneHooks<M extends MetaInput> {
 /**
  * Clone endpoint configuration.
  */
-export interface CloneEndpointConfig<M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface CloneEndpointConfig<M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   hooks?: CloneHooks<M>;
   /** Field names to strip from the cloned record (maps to CloneEndpoint.excludeFromClone). */
   fieldsToReset?: string[];
@@ -690,10 +668,8 @@ export interface CloneEndpointConfig<M extends MetaInput, E extends Env = Env> {
  * Bulk-patch endpoint configuration (`PATCH /resource/bulk` — patch every
  * record matching a filter).
  */
-export interface BulkPatchEndpointConfig<_M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface BulkPatchEndpointConfig<_M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   /** Fields the client may filter the target set by (maps to BulkPatchEndpoint.filterFields). */
   fields?: string[];
   /** Maximum records patchable per request (maps to maxBulkSize, default 1000). */
@@ -708,10 +684,8 @@ export interface BulkPatchEndpointConfig<_M extends MetaInput, E extends Env = E
  * Version-history endpoint configuration (`GET /:id/versions`).
  * Requires `meta.model.versioning` to be configured.
  */
-export interface VersionHistoryEndpointConfig<_M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
+export interface VersionHistoryEndpointConfig<_M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {
   /** Default page size for the version list (maps to defaultLimit, default 20). */
   defaultLimit?: number;
   /** Maximum page size for the version list (maps to maxLimit, default 100). */
@@ -722,31 +696,22 @@ export interface VersionHistoryEndpointConfig<_M extends MetaInput, E extends En
  * Single-version read endpoint configuration (`GET /:id/versions/:version`).
  * Requires `meta.model.versioning` to be configured.
  */
-export interface VersionReadEndpointConfig<_M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
-}
+export interface VersionReadEndpointConfig<_M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {}
 
 /**
  * Version-compare endpoint configuration (`GET /:id/versions/compare`).
  * Requires `meta.model.versioning` to be configured.
  */
-export interface VersionCompareEndpointConfig<_M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
-}
+export interface VersionCompareEndpointConfig<_M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {}
 
 /**
  * Version-rollback endpoint configuration (`POST /:id/versions/:version/rollback`).
  * Requires `meta.model.versioning` to be configured.
  */
-export interface VersionRollbackEndpointConfig<_M extends MetaInput, E extends Env = Env> {
-  openapi?: OpenAPIConfig;
-  /** Middleware applied to this endpoint route. Runs before the handler. */
-  middlewares?: MiddlewareHandler<E>[];
-}
+export interface VersionRollbackEndpointConfig<_M extends MetaInput, E extends Env = Env>
+  extends BaseEndpointConfig<E> {}
 
 /**
  * Complete endpoints configuration object — one optional slot per
