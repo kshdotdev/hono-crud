@@ -1,8 +1,8 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { decode, verify } from 'hono/jwt';
 import type { JWTPayload } from 'hono/utils/jwt/types';
-import { CONTEXT_KEYS } from '../../core/context-keys';
 import { UnauthorizedException } from '../../core/exceptions';
+import { setAuthContext } from '../context';
 import type { AuthEnv, AuthUser, JWTAlgorithm, JWTClaims, JWTConfig } from '../types';
 import { JWT_ALGORITHMS, safeParseJWTClaims } from '../types';
 import { validateJWTClaims } from '../validators/jwt-claims';
@@ -73,6 +73,48 @@ function defaultExtractUser(claims: JWTClaims): AuthUser {
 }
 
 // ============================================================================
+// Shared verification helpers
+// ============================================================================
+
+/**
+ * Decode a token's header and assert its algorithm matches the expected one.
+ *
+ * Shared by {@link createJWTMiddleware} and {@link verifyJWT}: both must reject
+ * a token whose header is missing or whose `alg` differs from the configured
+ * algorithm before handing it to Hono's `verify`.
+ */
+function decodeAndAssertAlg(token: string, algorithm: JWTAlgorithm): void {
+  const decoded = decode(token);
+  if (!decoded || !decoded.header) {
+    throw new UnauthorizedException('Invalid token format');
+  }
+
+  if (decoded.header.alg !== algorithm) {
+    throw new UnauthorizedException('Invalid token algorithm');
+  }
+}
+
+/**
+ * Map an error thrown by Hono's `verify` to the appropriate
+ * {@link UnauthorizedException}. Shared by {@link createJWTMiddleware} and
+ * {@link verifyJWT}; the fallthrough is a generic 'Invalid token'.
+ */
+function classifyVerifyError(error: unknown): UnauthorizedException {
+  if (error instanceof Error) {
+    if (error.message.includes('expired') || error.name === 'JwtTokenExpired') {
+      return new UnauthorizedException('Token has expired');
+    }
+    if (error.message.includes('signature') || error.name === 'JwtTokenSignatureMismatched') {
+      return new UnauthorizedException('Invalid token signature');
+    }
+    if (error.message.includes('not valid yet') || error.name === 'JwtTokenNotYetValid') {
+      return new UnauthorizedException('Token not yet valid');
+    }
+  }
+  return new UnauthorizedException('Invalid token');
+}
+
+// ============================================================================
 // JWT Middleware
 // ============================================================================
 
@@ -109,34 +151,14 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
     }
 
     // Decode header to verify algorithm before verification
-    const decoded = decode(token);
-    if (!decoded || !decoded.header) {
-      throw new UnauthorizedException('Invalid token format');
-    }
-
-    // Verify header algorithm matches expected
-    if (decoded.header.alg !== algorithm) {
-      throw new UnauthorizedException('Invalid token algorithm');
-    }
+    decodeAndAssertAlg(token, algorithm);
 
     // Verify signature using Hono's verify function
     let payload: JWTPayload;
     try {
       payload = await verify(token, config.secret, algorithm);
     } catch (error) {
-      // Handle specific JWT errors
-      if (error instanceof Error) {
-        if (error.message.includes('expired') || error.name === 'JwtTokenExpired') {
-          throw new UnauthorizedException('Token has expired');
-        }
-        if (error.message.includes('signature') || error.name === 'JwtTokenSignatureMismatched') {
-          throw new UnauthorizedException('Invalid token signature');
-        }
-        if (error.message.includes('not valid yet') || error.name === 'JwtTokenNotYetValid') {
-          throw new UnauthorizedException('Token not yet valid');
-        }
-      }
-      throw new UnauthorizedException('Invalid token');
+      throw classifyVerifyError(error);
     }
 
     // Validate the verified payload against the claims schema. Hono's `verify`
@@ -160,12 +182,8 @@ export function createJWTMiddleware<E extends AuthEnv = AuthEnv>(
     // Extract user info
     const user = extractUser(claims);
 
-    // Set context variables
-    ctx.set(CONTEXT_KEYS.userId, user.id);
-    ctx.set(CONTEXT_KEYS.user, user);
-    ctx.set(CONTEXT_KEYS.roles, user.roles || []);
-    ctx.set(CONTEXT_KEYS.permissions, user.permissions || []);
-    ctx.set(CONTEXT_KEYS.authType, 'jwt');
+    // Publish the authenticated user to context
+    setAuthContext(ctx, user, 'jwt');
 
     await next();
   };
@@ -185,33 +203,14 @@ export async function verifyJWT(token: string, config: JWTConfig): Promise<JWTCl
   const clockToleranceSeconds = config.clockToleranceSeconds || 0;
 
   // Decode header to verify algorithm
-  const decoded = decode(token);
-  if (!decoded || !decoded.header) {
-    throw new UnauthorizedException('Invalid token format');
-  }
-
-  // Verify header algorithm matches expected
-  if (decoded.header.alg !== algorithm) {
-    throw new UnauthorizedException('Invalid token algorithm');
-  }
+  decodeAndAssertAlg(token, algorithm);
 
   // Verify signature using Hono's verify function
   let payload: JWTPayload;
   try {
     payload = await verify(token, config.secret as string, algorithm);
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes('expired') || error.name === 'JwtTokenExpired') {
-        throw new UnauthorizedException('Token has expired');
-      }
-      if (error.message.includes('signature') || error.name === 'JwtTokenSignatureMismatched') {
-        throw new UnauthorizedException('Invalid token signature');
-      }
-      if (error.message.includes('not valid yet') || error.name === 'JwtTokenNotYetValid') {
-        throw new UnauthorizedException('Token not yet valid');
-      }
-    }
-    throw new UnauthorizedException('Invalid token');
+    throw classifyVerifyError(error);
   }
 
   // Convert payload to JWTClaims
