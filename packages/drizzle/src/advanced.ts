@@ -11,6 +11,7 @@ import {
   VersionRollbackEndpoint,
 } from 'hono-crud/internal';
 import { AggregateEndpoint, computeAggregations } from 'hono-crud/internal';
+import { buildIncludeOptions, buildOffsetPageInfo } from 'hono-crud/internal';
 import { isFilterOperator } from 'hono-crud/internal';
 import { SearchEndpoint, searchInMemory } from 'hono-crud/internal';
 import { ExportEndpoint } from 'hono-crud/internal';
@@ -18,7 +19,6 @@ import { ImportEndpoint } from 'hono-crud/internal';
 import type {
   AggregateOptions,
   AggregateResult,
-  IncludeOptions,
   ListFilters,
   MetaInput,
   PaginatedResult,
@@ -35,7 +35,6 @@ import {
   type DrizzleTable,
   and,
   batchLoadDrizzleRelations,
-  buildPaginatedResult,
   buildWhereCondition,
   cast,
   executeDrizzleListQuery,
@@ -965,14 +964,14 @@ export abstract class DrizzleSearchEndpoint<
     const scoringOptions = options.mode === 'all' ? { ...options, mode: 'any' as const } : options;
     const searchResults = searchInMemory(records, scoringOptions, searchableFields);
 
-    // Load relations if requested using batch loading to avoid N+1 queries
-    const includeOptions: IncludeOptions = {
-      relations: filters.options.include || [],
-      // Owner-scope the included relations exactly as List/Read do — without
-      // this, `?include=` on search/export loads related rows cross-tenant even
-      // though the parent rows are scoped (the multi-tenant include-leak class).
-      scope: this.getRelationScope(filters.options.withDeleted),
-    };
+    // Load relations if requested using batch loading to avoid N+1 queries.
+    // Owner-scope the included relations exactly as List/Read do — without this,
+    // `?include=` on search/export loads related rows cross-tenant even though
+    // the parent rows are scoped (the multi-tenant include-leak class).
+    const includeOptions = buildIncludeOptions(
+      filters.options.include,
+      this.getRelationScope(filters.options.withDeleted),
+    );
 
     // Extract items for batch relation loading
     const items = searchResults.map((r) => r.item);
@@ -1040,14 +1039,14 @@ export abstract class DrizzleExportEndpoint<
       defaultPerPage: this.defaultPerPage,
     });
 
-    // Load relations if requested using batch loading to avoid N+1 queries
-    const includeOptions: IncludeOptions = {
-      relations: filters.options.include || [],
-      // Owner-scope the included relations exactly as List/Read do — without
-      // this, `?include=` on search/export loads related rows cross-tenant even
-      // though the parent rows are scoped (the multi-tenant include-leak class).
-      scope: this.getRelationScope(filters.options.withDeleted),
-    };
+    // Load relations if requested using batch loading to avoid N+1 queries.
+    // Owner-scope the included relations exactly as List/Read do — without this,
+    // `?include=` on search/export loads related rows cross-tenant even though
+    // the parent rows are scoped (the multi-tenant include-leak class).
+    const includeOptions = buildIncludeOptions(
+      filters.options.include,
+      this.getRelationScope(filters.options.withDeleted),
+    );
     const itemsWithRelations = await batchLoadDrizzleRelations(
       this.getDb(),
       queryResult.records,
@@ -1055,7 +1054,14 @@ export abstract class DrizzleExportEndpoint<
       includeOptions,
     );
 
-    return buildPaginatedResult(itemsWithRelations, queryResult);
+    return {
+      result: itemsWithRelations,
+      result_info: buildOffsetPageInfo({
+        page: queryResult.page,
+        perPage: queryResult.perPage,
+        totalCount: queryResult.totalCount,
+      }),
+    };
   }
 }
 

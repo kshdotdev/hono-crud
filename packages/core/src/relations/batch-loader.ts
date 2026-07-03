@@ -18,6 +18,24 @@ import type {
 export type RelatedRecord = Record<string, unknown>;
 
 /**
+ * Builds the {@link IncludeOptions} an adapter hands to the relation loader.
+ *
+ * `includeList` is the request's `?include=` names (`filters.options.include`),
+ * normalized to `[]` when absent. `scope` is the request-scoped access filter
+ * for included related rows (owner-scope + soft-delete) which the CALLER MUST
+ * resolve via `this.getRelationScope(withDeleted)` and pass in. Scope resolution
+ * is deliberately kept at each call site — not folded into this helper — so the
+ * security-relevant tenant/soft-delete decision stays visible where each list /
+ * read / search / export endpoint invokes it.
+ */
+export function buildIncludeOptions(
+  includeList: string[] | undefined,
+  scope: RelationRequestScope | undefined,
+): IncludeOptions {
+  return { relations: includeList || [], scope };
+}
+
+/**
  * Filter fetched related rows to what the caller may read, per the relation's
  * `scope` (owner column + soft-delete column) and the request scope (tenant id +
  * `includeDeleted`). Pure and adapter-agnostic, so every adapter inherits

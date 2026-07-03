@@ -11,7 +11,6 @@ import type {
   IncludeOptions,
   ListFilters,
   MetaInput,
-  PaginatedResult,
   RelationLoaderAdapter,
 } from 'hono-crud/internal';
 import {
@@ -597,27 +596,6 @@ export async function executePrismaQuery<Row = Record<string, unknown>>(
     page,
     perPage,
     totalPages,
-  };
-}
-
-/**
- * Builds a PaginatedResult from offset-mode query results. Cursor-mode
- * results go through core's `buildCursorPage` instead.
- */
-export function buildPaginatedResult<T>(
-  items: T[],
-  queryResult: PrismaQueryResult<unknown>,
-): PaginatedResult<T> {
-  return {
-    result: items,
-    result_info: {
-      page: queryResult.page,
-      per_page: queryResult.perPage,
-      total_count: queryResult.totalCount,
-      total_pages: queryResult.totalPages,
-      has_next_page: queryResult.page < queryResult.totalPages,
-      has_prev_page: queryResult.page > 1,
-    },
   };
 }
 

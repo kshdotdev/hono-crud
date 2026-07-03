@@ -78,3 +78,37 @@ export function buildCursorPage<T>(input: CursorPageInput<T>): CursorPage<T> {
     },
   };
 }
+
+/** Input for {@link buildOffsetPageInfo}. */
+export interface OffsetPageInfoInput {
+  /** 1-based page number (`?page=`, falling back to 1). */
+  page: number;
+  /** Page size (`?per_page=`, falling back to the adapter default). */
+  perPage: number;
+  /** Total rows matching the filters (WITHOUT the pagination window). */
+  totalCount: number;
+}
+
+/**
+ * Builds the offset-mode `result_info` envelope shared by the three adapters
+ * (memory/drizzle/prisma) so their offset pages return byte-identical shapes:
+ * `{ page, per_page, total_count, total_pages, has_next_page, has_prev_page }`
+ * — no `next_cursor` (that is cursor mode; see {@link buildCursorPage}).
+ * `total_pages` is computed here as `ceil(totalCount / perPage)`, so callers
+ * pass raw `page`/`perPage`/`totalCount` and never precompute it;
+ * `has_next_page` is `page < total_pages` and `has_prev_page` is `page > 1`.
+ */
+export function buildOffsetPageInfo(
+  input: OffsetPageInfoInput,
+): PaginatedResult<unknown>['result_info'] {
+  const { page, perPage, totalCount } = input;
+  const totalPages = Math.ceil(totalCount / perPage);
+  return {
+    page,
+    per_page: perPage,
+    total_count: totalCount,
+    total_pages: totalPages,
+    has_next_page: page < totalPages,
+    has_prev_page: page > 1,
+  };
+}
