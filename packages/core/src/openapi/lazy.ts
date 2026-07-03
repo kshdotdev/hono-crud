@@ -13,6 +13,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { Context } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 
+import { resolveInstanceSchemaTags } from '../core/generate-endpoint-class';
 import type { HonoOpenAPIApp, OpenAPIConfig } from '../core/openapi';
 import { getHandlerForApp } from '../core/openapi';
 import type { SchemaResolveContext } from '../core/types';
@@ -99,11 +100,15 @@ export async function buildPerTenantOpenApi(
     if (typeof instance.resolveModelSchema === 'function') {
       await instance.resolveModelSchema();
     }
+    // Apply the same model-tag defaulting as the live registration path
+    // (`registerRoute`) so per-tenant docs honor `Model.tag` for every
+    // endpoint style, factory classes included.
+    //
     // Cast to widen `OpenAPIRouteSchema` (the lib's wrapper) into the
     // `RouteConfig` shape `createRoute` expects. `OpenAPIRouteSchema` is
     // a structural subset (no required `method`/`path`) — we add those
     // below — but TS can't unify the responses union without the cast.
-    const schema = instance.getSchema() as Parameters<typeof createRoute>[0];
+    const schema = resolveInstanceSchemaTags(instance) as Parameters<typeof createRoute>[0];
 
     const routeConfig = createRoute({
       ...schema,

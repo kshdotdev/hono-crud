@@ -66,16 +66,19 @@ export interface PrismaCrudClasses<M extends MetaInput, E extends Env = Env> {
  * ```ts
  * import { createPrismaCrud } from '@hono-crud/prisma';
  *
+ * // `tag` on the model becomes the default OpenAPI group for every endpoint,
+ * // so subclasses no longer restate `tags` (an explicit `schema.tags` still wins).
+ * const UserModel = defineModel({ tableName: 'users', tag: 'Users', schema, primaryKeys: ['id'] });
  * const userMeta = defineMeta({ model: UserModel, fields: userSchemas.insert });
  * const User = createPrismaCrud(prisma, userMeta);
  *
  * // Now define endpoints with minimal boilerplate:
  * class UserCreate extends User.Create {
- *   schema = { tags: ["Users"], summary: "Create a new user" };
+ *   schema = { summary: "Create a new user" };
  * }
  *
  * class UserList extends User.List {
- *   schema = { tags: ["Users"], summary: "List all users" };
+ *   schema = { summary: "List all users" };
  *   protected searchFields = ["name", "email"];
  *   protected filterFields = ["role"];
  * }
