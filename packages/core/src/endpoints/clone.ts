@@ -34,8 +34,7 @@ export abstract class CloneEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-  // Lookup configuration
-  protected lookupField = 'id';
+  // Lookup configuration (lookupField lives on CrudEndpoint)
 
   /** Fields to exclude from the cloned record (besides primary keys). */
   protected excludeFromClone: string[] = [];
@@ -51,15 +50,6 @@ export abstract class CloneEndpoint<
   // ============================================================================
   // Multi-Tenancy Support
   // ============================================================================
-
-  /**
-   * Returns the path parameter schema.
-   */
-  protected getParamsSchema(): ZodObject<ZodRawShape> {
-    return z.object({
-      [this.lookupField]: z.string(),
-    }) as unknown as ZodObject<ZodRawShape>;
-  }
 
   /**
    * Returns the body schema for overrides (all fields optional).
@@ -113,14 +103,6 @@ export abstract class CloneEndpoint<
       },
       this.schema,
     );
-  }
-
-  /**
-   * Gets the lookup value from path parameters.
-   */
-  protected async getLookupValue(): Promise<string> {
-    const { params } = await this.getValidatedData();
-    return params?.[this.lookupField] || '';
   }
 
   /**

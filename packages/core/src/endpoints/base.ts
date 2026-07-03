@@ -609,6 +609,61 @@ export abstract class CrudEndpoint<
   }
 
   // ============================================================================
+  // Item lookup (single-record path param)
+  //
+  // The id-lookup scaffolding shared by every single-record verb (Read /
+  // Update / Delete / Restore / Clone + the version endpoints): the path-param
+  // schema, the lookup-value accessor, and the optional query-param
+  // `additionalFilters` accessor. Driven by `this.lookupField` /
+  // `this.additionalFilters` so a subclass (or the config bridge) can rename
+  // the path param or expose extra filter columns without re-implementing the
+  // accessors. Verbs with a compound param (version read/rollback add
+  // `:version`) override `getParamsSchema()`.
+  // ============================================================================
+
+  /** The path-param / column used to look a single record up. */
+  protected lookupField = 'id';
+  /** Extra query-param columns exposed as equality filters on the lookup. */
+  protected additionalFilters?: string[];
+
+  /**
+   * Returns the path parameter schema.
+   */
+  protected getParamsSchema(): ZodObject<ZodRawShape> {
+    return z.object({
+      [this.lookupField]: z.string(),
+    }) as unknown as ZodObject<ZodRawShape>;
+  }
+
+  /**
+   * Gets the lookup value from path parameters.
+   */
+  protected async getLookupValue(): Promise<string> {
+    const { params } = await this.getValidatedData();
+    return params?.[this.lookupField] || '';
+  }
+
+  /**
+   * Gets additional filter values from query parameters.
+   */
+  protected async getAdditionalFilters(): Promise<Record<string, string>> {
+    if (!this.additionalFilters?.length) {
+      return {};
+    }
+
+    const { query } = await this.getValidatedData();
+    const filters: Record<string, string> = {};
+
+    for (const field of this.additionalFilters) {
+      if (query?.[field]) {
+        filters[field] = String(query[field]);
+      }
+    }
+
+    return filters;
+  }
+
+  // ============================================================================
   // Primary-key extraction
   // ============================================================================
 

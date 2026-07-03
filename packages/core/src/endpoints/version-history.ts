@@ -42,9 +42,6 @@ export abstract class VersionHistoryEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends CrudEndpoint<E, M> {
-  /** The field used to identify the parent record */
-  protected lookupField = 'id';
-
   /** Default number of versions to return */
   protected defaultLimit = 20;
 
@@ -64,15 +61,6 @@ export abstract class VersionHistoryEndpoint<
   /**
    * Check if versioning is enabled for this model.
    */
-
-  /**
-   * Returns the path parameter schema.
-   */
-  protected getParamsSchema(): ZodObject<ZodRawShape> {
-    return z.object({
-      [this.lookupField]: z.string(),
-    }) as unknown as ZodObject<ZodRawShape>;
-  }
 
   /**
    * Returns the query parameter schema.
@@ -115,14 +103,6 @@ export abstract class VersionHistoryEndpoint<
       },
       this.schema,
     );
-  }
-
-  /**
-   * Gets the lookup value from path parameters.
-   */
-  protected async getLookupValue(): Promise<string> {
-    const { params } = await this.getValidatedData();
-    return params?.[this.lookupField] || '';
   }
 
   /**
@@ -196,9 +176,6 @@ export abstract class VersionReadEndpoint<
 > extends CrudEndpoint<E, M> {
   abstract _meta: M;
 
-  /** The field used to identify the parent record */
-  protected lookupField = 'id';
-
   // Versioning
 
   /**
@@ -250,14 +227,6 @@ export abstract class VersionReadEndpoint<
       },
       this.schema,
     );
-  }
-
-  /**
-   * Gets the lookup value from path parameters.
-   */
-  protected async getLookupValue(): Promise<string> {
-    const { params } = await this.getValidatedData();
-    return params?.[this.lookupField] || '';
   }
 
   /**
@@ -324,9 +293,6 @@ export abstract class VersionCompareEndpoint<
 > extends CrudEndpoint<E, M> {
   abstract _meta: M;
 
-  /** The field used to identify the parent record */
-  protected lookupField = 'id';
-
   // Versioning
 
   /**
@@ -340,15 +306,6 @@ export abstract class VersionCompareEndpoint<
   /**
    * Check if versioning is enabled for this model.
    */
-
-  /**
-   * Returns the path parameter schema.
-   */
-  protected getParamsSchema(): ZodObject<ZodRawShape> {
-    return z.object({
-      [this.lookupField]: z.string(),
-    }) as unknown as ZodObject<ZodRawShape>;
-  }
 
   /**
    * Returns the query parameter schema.
@@ -398,14 +355,6 @@ export abstract class VersionCompareEndpoint<
       },
       this.schema,
     );
-  }
-
-  /**
-   * Gets the lookup value from path parameters.
-   */
-  protected async getLookupValue(): Promise<string> {
-    const { params } = await this.getValidatedData();
-    return params?.[this.lookupField] || '';
   }
 
   /**
@@ -475,9 +424,6 @@ export abstract class VersionRollbackEndpoint<
 > extends CrudEndpoint<E, M> {
   abstract _meta: M;
 
-  /** The field used to identify the parent record */
-  protected lookupField = 'id';
-
   // Versioning
 
   /**
@@ -529,14 +475,6 @@ export abstract class VersionRollbackEndpoint<
       },
       this.schema,
     );
-  }
-
-  /**
-   * Gets the lookup value from path parameters.
-   */
-  protected async getLookupValue(): Promise<string> {
-    const { params } = await this.getValidatedData();
-    return params?.[this.lookupField] || '';
   }
 
   /**
