@@ -36,7 +36,7 @@
 
 import type { Env, MiddlewareHandler } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
-import { generateEndpointClass } from '../core/generate-endpoint-class';
+import { type ForwardedKnobs, generateEndpointClass } from '../core/generate-endpoint-class';
 import type {
   AfterDeleteHook,
   AfterUpdateHook,
@@ -49,6 +49,17 @@ import type {
   SortSpec,
 } from '../core/types';
 import type { ModelObject } from '../endpoints/types';
+// The builder is the fluent form of the same flat 5-verb surface the
+// functional API declares; deriving each `.build()`'s exhaustiveness guard from
+// those public config interfaces keeps a single source of truth for "which
+// knobs this verb supports" across both sugar styles (type-only import).
+import type {
+  CreateConfig,
+  DeleteConfig,
+  ListConfig,
+  ReadConfig,
+  UpdateConfig,
+} from '../functional';
 
 type GeneratedClass<B extends abstract new () => unknown> = B & (new () => InstanceType<B>);
 
@@ -177,7 +188,7 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
       allowNestedCreate: this._allowNestedCreate,
       bodySchema: this._bodySchema,
       middlewares: this._middlewares as MiddlewareHandler[],
-    });
+    } satisfies ForwardedKnobs<keyof CreateConfig<M, E>>);
   }
 }
 
@@ -359,7 +370,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
       after: this._after as ((...args: unknown[]) => unknown) | undefined,
       transform: this._transform as ((...args: unknown[]) => unknown) | undefined,
       middlewares: this._middlewares as MiddlewareHandler[],
-    });
+    } satisfies ForwardedKnobs<keyof ListConfig<M, E>>);
   }
 }
 
@@ -492,7 +503,7 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
       after: this._after as ((...args: unknown[]) => unknown) | undefined,
       transform: this._transform as ((...args: unknown[]) => unknown) | undefined,
       middlewares: this._middlewares as MiddlewareHandler[],
-    });
+    } satisfies ForwardedKnobs<keyof ReadConfig<M, E>>);
   }
 }
 
@@ -662,7 +673,7 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
       transform: this._transform as ((...args: unknown[]) => unknown) | undefined,
       bodySchema: this._bodySchema,
       middlewares: this._middlewares as MiddlewareHandler[],
-    });
+    } satisfies ForwardedKnobs<keyof UpdateConfig<M, E>>);
   }
 }
 
@@ -789,7 +800,7 @@ export class DeleteBuilder<M extends MetaInput, E extends Env = Env> {
       beforeHookMode: this._beforeHookMode,
       afterHookMode: this._afterHookMode,
       middlewares: this._middlewares as MiddlewareHandler[],
-    });
+    } satisfies ForwardedKnobs<keyof DeleteConfig<M, E>>);
   }
 }
 

@@ -96,6 +96,27 @@ export interface NormalizedEndpointConfig {
 }
 
 /**
+ * Compiler-enforced exhaustiveness guard for the flat 5-verb sugar factories
+ * (`functional/`, `builder/`). Applied via `satisfies` to the object a
+ * `create*()` / `.build()` forwards into `generateEndpointClass`, with `K`
+ * derived from that style's public config type (`keyof CreateConfig<M, E>`,
+ * `keyof ListConfig<M, E>`, ...):
+ *
+ * - `-?` makes every key in `K` REQUIRED, so a public knob the factory forgot
+ *   to forward fails to compile ("Property 'x' is missing"). This is the whole
+ *   point — a new knob can't be silently dropped by one of the sugar styles.
+ * - The explicit `| undefined` re-permits `undefined` values, so knobs that are
+ *   absent at runtime still forward cleanly (`before: config.before` etc.).
+ *
+ * Because `K extends keyof NormalizedEndpointConfig`, a public config key that
+ * has no matching normalized-config field is rejected at the `satisfies` site
+ * (TS2344), forcing the knob to be threaded through this factory first.
+ */
+export type ForwardedKnobs<K extends keyof NormalizedEndpointConfig> = {
+  [P in K]-?: NormalizedEndpointConfig[P] | undefined;
+};
+
+/**
  * Build a concrete endpoint class by extending `BaseClass` with the fields
  * and hook delegations in `config`. The single `@ts-expect-error` here
  * replaces 15 copies that previously lived in builder/functional/config.

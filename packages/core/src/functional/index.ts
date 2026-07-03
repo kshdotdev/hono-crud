@@ -28,7 +28,7 @@
 
 import type { Env, MiddlewareHandler } from 'hono';
 import type { ZodObject, ZodRawShape } from 'zod';
-import { generateEndpointClass } from '../core/generate-endpoint-class';
+import { type ForwardedKnobs, generateEndpointClass } from '../core/generate-endpoint-class';
 import type {
   AfterDeleteHook,
   AfterUpdateHook,
@@ -194,7 +194,7 @@ export function createCreate<
     afterHookMode: config.afterHookMode,
     allowNestedCreate: config.allowNestedCreate,
     bodySchema: config.bodySchema,
-  });
+  } satisfies ForwardedKnobs<keyof CreateConfig<M, E>>);
 }
 
 export function createList<
@@ -222,7 +222,7 @@ export function createList<
     blockedSelectFields: config.blockedSelectFields,
     alwaysIncludeFields: config.alwaysIncludeFields,
     defaultSelectFields: config.defaultSelectFields,
-  });
+  } satisfies ForwardedKnobs<keyof ListConfig<M, E>>);
 }
 
 export function createRead<
@@ -244,7 +244,7 @@ export function createRead<
     blockedSelectFields: config.blockedSelectFields,
     alwaysIncludeFields: config.alwaysIncludeFields,
     defaultSelectFields: config.defaultSelectFields,
-  });
+  } satisfies ForwardedKnobs<keyof ReadConfig<M, E>>);
 }
 
 export function createUpdate<
@@ -267,7 +267,7 @@ export function createUpdate<
     blockedUpdateFields: config.blockedUpdateFields,
     allowNestedWrites: config.allowNestedWrites,
     bodySchema: config.bodySchema,
-  });
+  } satisfies ForwardedKnobs<keyof UpdateConfig<M, E>>);
 }
 
 export function createDelete<
@@ -286,5 +286,5 @@ export function createDelete<
     lookupField: config.lookupField,
     additionalFilters: config.additionalFilters,
     includeCascadeResults: config.includeCascadeResults,
-  });
+  } satisfies ForwardedKnobs<keyof DeleteConfig<M, E>>);
 }
