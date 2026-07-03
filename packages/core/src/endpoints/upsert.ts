@@ -2,7 +2,7 @@ import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
-import { extractNestedData, isDirectNestedData } from '../core/nested-writes';
+import { getNestedWritableRelations, isDirectNestedData } from '../core/nested-writes';
 import { applyUpsertRestore } from '../core/soft-delete';
 import type {
   HookMode,
@@ -254,40 +254,12 @@ export abstract class UpsertEndpoint<
   }
 
   /**
-   * Gets the list of relations that allow nested writes.
+   * Gets the list of relations that allow nested writes. Update and Upsert
+   * share the same predicate (`allowNestedWrites` override, else any
+   * `nestedWrites` flag) via the shared helper.
    */
   protected getNestedWritableRelations(): string[] {
-    if (this.allowNestedWrites.length > 0) {
-      return this.allowNestedWrites;
-    }
-
-    const relations = this._meta.model.relations;
-    if (!relations) return [];
-
-    return Object.entries(relations)
-      .filter(([_, config]) => {
-        const nw = config.nestedWrites;
-        return (
-          nw &&
-          (nw.allowCreate ||
-            nw.allowUpdate ||
-            nw.allowDelete ||
-            nw.allowConnect ||
-            nw.allowDisconnect)
-        );
-      })
-      .map(([name]) => name);
-  }
-
-  /**
-   * Extracts nested relation data from the request body.
-   */
-  protected extractNestedData(data: Record<string, unknown>): {
-    mainData: Record<string, unknown>;
-    nestedData: Record<string, unknown>;
-  } {
-    const relationNames = this.getNestedWritableRelations();
-    return extractNestedData(data, relationNames);
+    return getNestedWritableRelations(this._meta.model.relations, this.allowNestedWrites);
   }
 
   /**
@@ -598,22 +570,7 @@ export abstract class UpsertEndpoint<
     }
 
     // Attach nested results to the response
-    if (Object.keys(nestedResults).length > 0) {
-      for (const [relationName, nestedResult] of Object.entries(nestedResults)) {
-        const relationConfig = this._meta.model.relations?.[relationName];
-        if (!relationConfig) continue;
-
-        if (relationConfig.type === 'hasMany') {
-          (obj as Record<string, unknown>)[relationName] = [
-            ...nestedResult.created,
-            ...nestedResult.updated,
-          ];
-        } else {
-          (obj as Record<string, unknown>)[relationName] =
-            nestedResult.created[0] || nestedResult.updated[0] || null;
-        }
-      }
-    }
+    this.attachNestedResults(obj as Record<string, unknown>, nestedResults);
 
     // Handle after hook
     if (this.afterHookMode === 'fire-and-forget') {

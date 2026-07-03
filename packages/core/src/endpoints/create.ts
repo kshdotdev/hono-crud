@@ -2,7 +2,6 @@ import type { Env } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { getLogger } from '../core/logger';
 import { getManagedInputExclusions, rethrowAsConstraintError } from '../core/managed-fields';
-import { extractNestedData } from '../core/nested-writes';
 import type {
   HookContext,
   HookMode,
@@ -168,17 +167,6 @@ export abstract class CreateEndpoint<
     return Object.entries(relations)
       .filter(([_, config]) => config.nestedWrites?.allowCreate === true)
       .map(([name]) => name);
-  }
-
-  /**
-   * Extracts nested relation data from the request body.
-   */
-  protected extractNestedData(data: Record<string, unknown>): {
-    mainData: Record<string, unknown>;
-    nestedData: Record<string, unknown>;
-  } {
-    const relationNames = this.getNestedWritableRelations();
-    return extractNestedData(data, relationNames);
   }
 
   /**
