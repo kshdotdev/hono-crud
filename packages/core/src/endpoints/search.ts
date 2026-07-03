@@ -168,30 +168,12 @@ export abstract class SearchEndpoint<
   protected maxPerPage = 100;
 
   // ============================================================================
-  // Relations Configuration
+  // Relation Include + Field Selection Configuration
+  //
+  // `allowedIncludes` plus the field-selection fields (fieldSelectionEnabled/
+  // allowedSelectFields/blockedSelectFields/alwaysIncludeFields/
+  // defaultSelectFields) live on CrudEndpoint, shared with Read / List.
   // ============================================================================
-
-  /** Allowed relation names that can be included via ?include=relation1,relation2 */
-  protected allowedIncludes: string[] = [];
-
-  // ============================================================================
-  // Field Selection Configuration
-  // ============================================================================
-
-  /** Enable field selection via ?fields=field1,field2 */
-  protected fieldSelectionEnabled = false;
-
-  /** Fields that are allowed to be selected */
-  protected allowedSelectFields: string[] = [];
-
-  /** Fields that are never returned */
-  protected blockedSelectFields: string[] = [];
-
-  /** Fields that are always included */
-  protected alwaysIncludeFields: string[] = [];
-
-  /** Default fields to return */
-  protected defaultSelectFields: string[] = [];
 
   // ============================================================================
   // Soft Delete
@@ -308,53 +290,12 @@ export abstract class SearchEndpoint<
       shape.onlyDeleted = z.enum(['true', 'false']).optional();
     }
 
-    // Include parameter for relations
-    if (this.allowedIncludes.length > 0) {
-      shape.include = z
-        .string()
-        .optional()
-        .meta({
-          description: `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
-        });
-    }
-
-    // Field selection
-    if (this.fieldSelectionEnabled) {
-      const availableFields = this.getAvailableSelectFields();
-      shape['fields'] = z
-        .string()
-        .optional()
-        .meta({
-          description: `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
-        });
-    }
+    // Add shared ?include= (relations) and ?fields= (field selection) params.
+    // The field-selection `fields` param overwrites the search `fields` param
+    // declared above (same key) when field selection is enabled — unchanged.
+    this.addRelationAndFieldSelectionParams(shape);
 
     return z.object(shape) as ZodObject<ZodRawShape>;
-  }
-
-  /**
-   * Gets the list of fields available for selection.
-   */
-  protected getAvailableSelectFields(): string[] {
-    const schemaFields = Object.keys(this.getModelSchema().shape);
-    const computedFields = this._meta.model.computedFields
-      ? Object.keys(this._meta.model.computedFields)
-      : [];
-    const relationFields = this._meta.model.relations
-      ? Object.keys(this._meta.model.relations)
-      : [];
-
-    let available = [...schemaFields, ...computedFields, ...relationFields];
-
-    if (this.allowedSelectFields.length > 0) {
-      available = available.filter((f) => this.allowedSelectFields.includes(f));
-    }
-
-    if (this.blockedSelectFields.length > 0) {
-      available = available.filter((f) => !this.blockedSelectFields.includes(f));
-    }
-
-    return available;
   }
 
   /**

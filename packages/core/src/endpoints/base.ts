@@ -530,6 +530,85 @@ export abstract class CrudEndpoint<
   }
 
   // ============================================================================
+  // Read query params: relation includes + field selection
+  //
+  // Shared by the three read-path verbs (Read / List / Search) that expose
+  // `?include=` and `?fields=`. The fields live here — not per-verb — so the
+  // query-schema fragment builder and `getAvailableSelectFields` below can read
+  // them, and so all three endpoints emit byte-identical OpenAPI for these
+  // params. Inert on the write verbs, which never call the helpers.
+  // ============================================================================
+
+  /** Allowed relation names that can be included via ?include=relation1,relation2 */
+  protected allowedIncludes: string[] = [];
+  /** Enable field selection via ?fields=field1,field2 */
+  protected fieldSelectionEnabled = false;
+  /** Fields that are allowed to be selected. If empty, all schema fields are allowed. */
+  protected allowedSelectFields: string[] = [];
+  /** Fields that are never returned, even if requested. */
+  protected blockedSelectFields: string[] = [];
+  /** Fields that are always included in the response. */
+  protected alwaysIncludeFields: string[] = [];
+  /** Default fields to return when no fields parameter is provided. */
+  protected defaultSelectFields: string[] = [];
+
+  /**
+   * Gets the list of fields available for selection.
+   */
+  protected getAvailableSelectFields(): string[] {
+    const schemaFields = Object.keys(this.getModelSchema().shape);
+    const computedFields = this._meta.model.computedFields
+      ? Object.keys(this._meta.model.computedFields)
+      : [];
+    const relationFields = this._meta.model.relations
+      ? Object.keys(this._meta.model.relations)
+      : [];
+
+    let available = [...schemaFields, ...computedFields, ...relationFields];
+
+    // Filter to allowed fields if specified
+    if (this.allowedSelectFields.length > 0) {
+      available = available.filter((f) => this.allowedSelectFields.includes(f));
+    }
+
+    // Remove blocked fields
+    if (this.blockedSelectFields.length > 0) {
+      available = available.filter((f) => !this.blockedSelectFields.includes(f));
+    }
+
+    return available;
+  }
+
+  /**
+   * Appends the shared `?include=` and `?fields=` query params to a query-schema
+   * `shape` when their respective features are enabled. Shared by Read / List /
+   * Search so the three endpoints' generated OpenAPI for these params stays
+   * byte-identical (same names, descriptions, optionality). Mutates `shape`.
+   */
+  protected addRelationAndFieldSelectionParams(shape: Record<string, z.ZodTypeAny>): void {
+    // Add include parameter for relations
+    if (this.allowedIncludes.length > 0) {
+      shape.include = z
+        .string()
+        .optional()
+        .meta({
+          description: `Comma-separated list of relations to include. Allowed: ${this.allowedIncludes.join(', ')}`,
+        });
+    }
+
+    // Add fields parameter for field selection
+    if (this.fieldSelectionEnabled) {
+      const availableFields = this.getAvailableSelectFields();
+      shape.fields = z
+        .string()
+        .optional()
+        .meta({
+          description: `Comma-separated list of fields to return. Available: ${availableFields.join(', ')}`,
+        });
+    }
+  }
+
+  // ============================================================================
   // Primary-key extraction
   // ============================================================================
 
