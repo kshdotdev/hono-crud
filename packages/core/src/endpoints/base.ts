@@ -35,6 +35,7 @@ import {
   assertIdStrategySupported,
   getTimestampsConfig,
 } from '../core/managed-fields';
+import { extractNestedData } from '../core/nested-writes';
 import { OpenAPIRoute } from '../core/route';
 import { getSoftDeleteConfig } from '../core/soft-delete';
 import {
@@ -43,6 +44,7 @@ import {
   type ListFilters,
   type MetaInput,
   type ModelPolicies,
+  type NestedWriteResult,
   type NormalizedAuditConfig,
   type NormalizedMultiTenantConfig,
   type NormalizedSoftDeleteConfig,
@@ -685,6 +687,64 @@ export abstract class CrudEndpoint<
    */
   protected getParentId(record: unknown): string | number | null {
     return this.getRecordId(record);
+  }
+
+  // ============================================================================
+  // Nested writes (create / update / upsert)
+  //
+  // Shared plumbing for the three write verbs that accept nested relation data
+  // in the request body. `getNestedWritableRelations()` returns none by default
+  // — Read/List/Delete never expose nested writes; the Create/Update/Upsert
+  // subclasses override it with their verb-specific predicate. `extractNestedData`
+  // then splits the body into main-record fields and nested-relation payloads
+  // against whatever that predicate returns, so it lives here once for all three.
+  // `attachNestedResults` is the Update/Upsert response-merge (create's result
+  // shape differs, so create keeps its own attach path).
+  // ============================================================================
+
+  /**
+   * Relations eligible for nested writes on this verb. Default: none.
+   * Overridden by Create (`allowNestedCreate` + `allowCreate`) and by
+   * Update / Upsert (`allowNestedWrites` + any nested-write flag).
+   */
+  protected getNestedWritableRelations(): string[] {
+    return [];
+  }
+
+  /**
+   * Split a request body into the main-record fields and the nested-relation
+   * payloads, keyed off {@link getNestedWritableRelations}. Shared verbatim by
+   * Create / Update / Upsert.
+   */
+  protected extractNestedData(data: Record<string, unknown>): {
+    mainData: Record<string, unknown>;
+    nestedData: Record<string, unknown>;
+  } {
+    const relationNames = this.getNestedWritableRelations();
+    return extractNestedData(data, relationNames);
+  }
+
+  /**
+   * Attach the results of Update / Upsert nested-write operations onto the
+   * parent response object, in place. Per relation: `hasMany` → the created and
+   * updated rows concatenated; otherwise the first created row, else the first
+   * updated row, else `null`. Shared by Update and Upsert; Create attaches a
+   * different result shape (plain `unknown[]` spread-merge) and keeps its own path.
+   */
+  protected attachNestedResults(
+    obj: Record<string, unknown>,
+    nestedResults: Record<string, NestedWriteResult>,
+  ): void {
+    for (const [relationName, result] of Object.entries(nestedResults)) {
+      const relationConfig = this._meta.model.relations?.[relationName];
+      if (!relationConfig) continue;
+
+      if (relationConfig.type === 'hasMany') {
+        obj[relationName] = [...result.created, ...result.updated];
+      } else {
+        obj[relationName] = result.created[0] || result.updated[0] || null;
+      }
+    }
   }
 
   // ============================================================================
