@@ -320,18 +320,33 @@ const endpointsFieldsBad: EndpointsConfig<typeof userMeta> = {
   },
 };
 
-// Aggregate endpoint class field is schema-checked when M is narrowed.
-import { AggregateEndpoint } from 'hono-crud';
-declare abstract class NarrowAggregate extends AggregateEndpoint<
-  import('hono').Env,
-  typeof userMeta
-> {}
-type NarrowAggregateConfig = NarrowAggregate['aggregateConfig'];
-const aggOk: NarrowAggregateConfig = { sumFields: ['id'] };
+// Aggregate allow-lists are schema-checked via explicit annotation (the
+// endpoint CLASS FIELD stays wide: property overrides get no contextual
+// typing, so narrowing it would reject the documented
+// `aggregateConfig = {...}` subclass pattern — pinned below).
+import type { AggregateConfig } from 'hono-crud';
+const aggOk: AggregateConfig<FieldsOf<typeof userMeta>> = { sumFields: ['id'] };
 // @ts-expect-error - 'total' is not a schema field
-const aggBad: NarrowAggregateConfig = { sumFields: ['total'] };
+const aggBad: AggregateConfig<FieldsOf<typeof userMeta>> = { sumFields: ['total'] };
+
+// The documented subclass pattern keeps compiling (regression guard for the
+// class-field revert).
+import { MemoryAggregateEndpoint } from '@hono-crud/memory';
+class SubclassAggregate extends MemoryAggregateEndpoint {
+  _meta = userMeta;
+  override aggregateConfig = { sumFields: ['name'] };
+}
+const subclassAggregate = new SubclassAggregate();
 
 // Wide meta stays permissive on every field surface.
 crud(wideMeta).list().filter('whatever').search('anything').sortable('x').defaultSort('y');
 
-export { listFieldsCfg, listFieldsBad, endpointsFieldsCfg, endpointsFieldsBad, aggOk, aggBad };
+export {
+  listFieldsCfg,
+  listFieldsBad,
+  endpointsFieldsCfg,
+  endpointsFieldsBad,
+  aggOk,
+  aggBad,
+  subclassAggregate,
+};

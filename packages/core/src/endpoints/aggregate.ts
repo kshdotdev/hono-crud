@@ -8,7 +8,6 @@ import type {
   AggregateOperation,
   AggregateOptions,
   AggregateResult,
-  FieldsOf,
   MetaInput,
   OpenAPIRouteSchema,
 } from '../core/types';
@@ -72,7 +71,14 @@ export abstract class AggregateEndpoint<
    * Configuration for allowed aggregations.
    * Override to restrict which fields can be aggregated.
    */
-  protected aggregateConfig: AggregateConfig<FieldsOf<M>> = {};
+  // Deliberately WIDE (not AggregateConfig<FieldsOf<M>>): class property
+  // overrides get no contextual typing from the base, so a subclass's
+  // `aggregateConfig = { sumFields: ['price'] }` would widen to string[] and
+  // fail against a narrowed field union — rejecting the documented authoring
+  // pattern. Schema-checked aggregate fields live on the config-API surface
+  // (AggregateEndpointConfig.fields) and on explicit annotations via
+  // AggregateConfig<FieldsOf<M>>.
+  protected aggregateConfig: AggregateConfig = {};
 
   /**
    * Maximum number of GROUP BY fields allowed per query.
