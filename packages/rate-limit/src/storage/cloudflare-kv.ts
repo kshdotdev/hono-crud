@@ -5,6 +5,7 @@ import type {
   RateLimitStorage,
   SlidingWindowEntry,
 } from '../types';
+import { isFixedWindowEntry, isSlidingWindowEntry } from './guards';
 
 /**
  * Options for Cloudflare KV rate limit storage.
@@ -102,21 +103,6 @@ export class KVRateLimitStorage implements RateLimitStorage {
     }
   }
 
-  private isFixedWindowEntry(value: unknown): value is FixedWindowEntry {
-    if (value === null || typeof value !== 'object') return false;
-    const record = value as Record<string, unknown>;
-    return typeof record.count === 'number' && typeof record.windowStart === 'number';
-  }
-
-  private isSlidingWindowEntry(value: unknown): value is SlidingWindowEntry {
-    if (value === null || typeof value !== 'object') return false;
-    const record = value as Record<string, unknown>;
-    return (
-      Array.isArray(record.timestamps) &&
-      record.timestamps.every((item) => typeof item === 'number')
-    );
-  }
-
   async increment(key: string, windowMs: number): Promise<FixedWindowEntry> {
     const fullKey = this.getKey(key);
     const now = Date.now();
@@ -129,7 +115,7 @@ export class KVRateLimitStorage implements RateLimitStorage {
 
       if (raw) {
         const parsed = this.parseJson(raw, 'increment', key);
-        if (this.isFixedWindowEntry(parsed) && now - parsed.windowStart < windowMs) {
+        if (isFixedWindowEntry(parsed) && now - parsed.windowStart < windowMs) {
           entry = { count: parsed.count + 1, windowStart: parsed.windowStart };
         } else {
           entry = fallback;
@@ -161,7 +147,7 @@ export class KVRateLimitStorage implements RateLimitStorage {
 
       if (raw) {
         const parsed = this.parseJson(raw, 'addTimestamp', key);
-        timestamps = this.isSlidingWindowEntry(parsed)
+        timestamps = isSlidingWindowEntry(parsed)
           ? parsed.timestamps.filter((t) => t > windowStart)
           : [];
         timestamps.push(currentTime);
@@ -186,7 +172,7 @@ export class KVRateLimitStorage implements RateLimitStorage {
       if (!raw) return null;
 
       const parsed = this.parseJson(raw, 'get', key);
-      if (this.isFixedWindowEntry(parsed) || this.isSlidingWindowEntry(parsed)) {
+      if (isFixedWindowEntry(parsed) || isSlidingWindowEntry(parsed)) {
         return parsed;
       }
       return null;

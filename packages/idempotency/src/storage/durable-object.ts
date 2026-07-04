@@ -99,9 +99,14 @@ export class IdempotencyDurableObject {
       }
 
       case 'set': {
+        if (!msg.entry) {
+          // Malformed message: reject loudly instead of persisting a corrupt
+          // entry blessed by a cast.
+          return json({ error: 'set requires entry' });
+        }
         const expiresAt = now + (msg.ttlMs ?? 0);
         await this.state.storage.put<StoredEntry>(ENTRY_KEY, {
-          entry: msg.entry as IdempotencyEntry,
+          entry: msg.entry,
           expiresAt,
         });
         // Self-clean once the entry expires (also clears any stale lock).

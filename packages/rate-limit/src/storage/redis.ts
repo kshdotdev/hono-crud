@@ -4,6 +4,7 @@ import type {
   RateLimitStorage,
   SlidingWindowEntry,
 } from '../types';
+import { isFixedWindowEntry, isSlidingWindowEntry } from './guards';
 
 /**
  * Redis client interface for rate limiting.
@@ -176,15 +177,19 @@ export class RedisRateLimitStorage implements RateLimitStorage {
     if (await this.checkLuaSupport()) {
       try {
         const result = await this.client.eval!(FIXED_WINDOW_LUA, [fullKey], [windowMs, now]);
-        const entry = typeof result === 'string' ? JSON.parse(result) : result;
-        return entry as FixedWindowEntry;
+        const parsed: unknown = typeof result === 'string' ? JSON.parse(result) : result;
+        if (isFixedWindowEntry(parsed)) {
+          return parsed;
+        }
+        // Malformed script output: fall through to the non-atomic path
+        // instead of blessing garbage into a window entry.
       } catch {
         // Fall through to non-atomic implementation
       }
     }
 
     // Fallback: non-atomic implementation
-    const existing = (await this.get(key)) as FixedWindowEntry | null;
+    const existing = await this.get(key);
 
     if (existing && 'count' in existing) {
       const windowEnd = existing.windowStart + windowMs;
@@ -228,10 +233,19 @@ export class RedisRateLimitStorage implements RateLimitStorage {
             [fullKey],
             [windowMs, currentTime],
           );
-          const entry = typeof result === 'string' ? JSON.parse(result) : result;
-          // Ensure timestamps are numbers
-          const timestamps = (entry.timestamps || []).map((t: string | number) => Number(t));
-          return { timestamps };
+          const raw: unknown = typeof result === 'string' ? JSON.parse(result) : result;
+          // Lua returns timestamps as strings; coerce before validating.
+          if (
+            raw !== null &&
+            typeof raw === 'object' &&
+            Array.isArray((raw as { timestamps?: unknown[] }).timestamps)
+          ) {
+            const timestamps = (raw as { timestamps: unknown[] }).timestamps.map((t) => Number(t));
+            if (timestamps.every((t) => Number.isFinite(t))) {
+              return { timestamps };
+            }
+          }
+          // Malformed script output: fall through to the non-atomic path.
         } catch {
           // Fall through to non-atomic implementation
         }
@@ -252,7 +266,7 @@ export class RedisRateLimitStorage implements RateLimitStorage {
     }
 
     // Fallback: use JSON storage (less efficient)
-    const existing = (await this.get(key)) as SlidingWindowEntry | null;
+    const existing = await this.get(key);
 
     let timestamps: number[];
     if (existing && 'timestamps' in existing) {
@@ -293,7 +307,12 @@ export class RedisRateLimitStorage implements RateLimitStorage {
     }
 
     try {
-      return JSON.parse(value) as RateLimitEntry;
+      const parsed: unknown = JSON.parse(value);
+      if (isFixedWindowEntry(parsed) || isSlidingWindowEntry(parsed)) {
+        return parsed;
+      }
+      // Malformed/foreign value in the keyspace: treat as absent.
+      return null;
     } catch {
       return null;
     }

@@ -1,5 +1,4 @@
-import type { Hono } from 'hono';
-import { CRUD_ROUTES } from 'hono-crud/internal';
+import { CRUD_ROUTES, ConfigurationException } from 'hono-crud/internal';
 import type { RequestPlan } from './schema';
 import type { OperationName } from './types';
 
@@ -21,9 +20,19 @@ const ROUTES = Object.fromEntries(
     name,
     { method: method.toUpperCase() as HttpMethod, subPath },
   ]),
-) as Record<OperationName, RouteSpec>;
+) as Partial<Record<OperationName, RouteSpec>>;
 
 type Args = Record<string, unknown>;
+
+/**
+ * The minimal surface re-dispatch needs. Structurally satisfied by any Hono
+ * app regardless of its Env/Schema/BasePath type params — avoids the
+ * `Hono<any, any, any>` erasure at this boundary while staying assignable
+ * from composed/routed apps (a plain `Hono<E>` parameter would not be).
+ */
+export interface Dispatchable {
+  request(input: string | Request, init?: RequestInit): Response | Promise<Response>;
+}
 
 /** Inbound request headers, as exposed by the MCP SDK's `extra.requestInfo.headers`. */
 export type ForwardHeaders = Record<string, string | string[] | undefined>;
@@ -119,15 +128,23 @@ function buildPath(subPath: string, args: Args): { path: string; consumed: strin
  * body-less endpoints send every remaining arg as query.
  */
 export async function dispatch(
-  // biome-ignore lint/suspicious/noExplicitAny: re-dispatch targets any Hono app.
-  app: Hono<any, any, any>,
+  app: Dispatchable,
   target: DispatchTarget,
   args: Args,
   headers?: ForwardHeaders,
   allowHeaders: readonly string[] = DEFAULT_FORWARD_HEADERS,
 ): Promise<Response> {
   const { operation, basePath, plan } = target;
-  const { method, subPath } = ROUTES[operation];
+  const spec = ROUTES[operation];
+  if (!spec) {
+    // Defensive: ROUTES derives from CRUD_ROUTES minus 'import'; an operation
+    // without a route entry is a wiring bug — fail loudly instead of crashing
+    // on a destructure of undefined.
+    throw new ConfigurationException(
+      `@hono-crud/mcp: no route mapping for operation "${operation}"`,
+    );
+  }
+  const { method, subPath } = spec;
 
   const requestHeaders = new Headers();
   applyForwardHeaders(headers, allowHeaders, requestHeaders);

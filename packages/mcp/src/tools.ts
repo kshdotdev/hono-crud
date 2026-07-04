@@ -94,7 +94,7 @@ export function registerResourceTools(
       instance = new (Endpoint as new () => EndpointInstance)();
     } catch (err) {
       throw new ConfigurationException(
-        `@hono-crud/mcp: failed to instantiate the "${operation}" endpoint for "${normalizedPath}". Endpoints must be constructible with no arguments. ${(err as Error).message}`,
+        `@hono-crud/mcp: failed to instantiate the "${operation}" endpoint for "${normalizedPath}". Endpoints must be constructible with no arguments. ${err instanceof Error ? err.message : String(err)}`,
       );
     }
 
@@ -124,12 +124,13 @@ export function registerResourceTools(
           const res = await dispatch(app, target, args ?? {}, headersFrom(extra), forwardHeaders);
           return await toToolResult(res);
         } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
           getLogger().error('@hono-crud/mcp tool dispatch failed', {
             tool: toolName,
-            error: err instanceof Error ? err.message : String(err),
+            error: message,
           });
           return {
-            content: [{ type: 'text', text: `Tool execution failed: ${(err as Error).message}` }],
+            content: [{ type: 'text', text: `Tool execution failed: ${message}` }],
             isError: true,
           };
         }
