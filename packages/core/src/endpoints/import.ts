@@ -14,14 +14,26 @@ import { type ModelObject, getSchemaFields } from './types';
 // ============================================================================
 
 /**
+ * Import modes. Single source of truth for both the `ImportMode` union and
+ * the query-schema validator.
+ */
+export const IMPORT_MODES = ['create', 'upsert'] as const;
+
+/**
  * Import mode: create only or upsert (create or update).
  */
-export type ImportMode = 'create' | 'upsert';
+export type ImportMode = (typeof IMPORT_MODES)[number];
+
+/**
+ * Per-row import statuses. Single source of truth for both the
+ * `ImportRowStatus` union and the response-schema validators.
+ */
+export const IMPORT_ROW_STATUSES = ['created', 'updated', 'skipped', 'failed'] as const;
 
 /**
  * Status of a single row import.
  */
-export type ImportRowStatus = 'created' | 'updated' | 'skipped' | 'failed';
+export type ImportRowStatus = (typeof IMPORT_ROW_STATUSES)[number];
 
 /**
  * Result for a single imported row.
@@ -223,7 +235,7 @@ export abstract class ImportEndpoint<
       {
         request: {
           query: z.object({
-            mode: z.enum(['create', 'upsert']).optional().meta({ description: 'Import mode' }),
+            mode: z.enum(IMPORT_MODES).optional().meta({ description: 'Import mode' }),
             skipInvalid: z
               .enum(['true', 'false'])
               .optional()
@@ -252,7 +264,7 @@ export abstract class ImportEndpoint<
                     results: z.array(
                       z.object({
                         rowNumber: z.number(),
-                        status: z.enum(['created', 'updated', 'skipped', 'failed']),
+                        status: z.enum(IMPORT_ROW_STATUSES),
                         data: z.unknown().optional(),
                         error: z.string().optional(),
                         code: z.string().optional(),
@@ -288,7 +300,7 @@ export abstract class ImportEndpoint<
                     results: z.array(
                       z.object({
                         rowNumber: z.number(),
-                        status: z.enum(['created', 'updated', 'skipped', 'failed']),
+                        status: z.enum(IMPORT_ROW_STATUSES),
                         data: z.unknown().optional(),
                         error: z.string().optional(),
                         code: z.string().optional(),
@@ -766,21 +778,10 @@ export abstract class ImportEndpoint<
       for (const result of batchResults) {
         results.push(result);
 
-        // Update summary
-        switch (result.status) {
-          case 'created':
-            summary.created++;
-            break;
-          case 'updated':
-            summary.updated++;
-            break;
-          case 'skipped':
-            summary.skipped++;
-            break;
-          case 'failed':
-            summary.failed++;
-            break;
-        }
+        // Update summary. Statuses are exactly the countable summary keys,
+        // so indexing is exhaustive by construction: a new ImportRowStatus
+        // member without a matching ImportSummary counter fails to compile.
+        summary[result.status]++;
 
         // Stop on error if configured
         if (options.stopOnError && result.status === 'failed') {

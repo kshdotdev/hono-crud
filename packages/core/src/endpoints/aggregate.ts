@@ -11,7 +11,7 @@ import type {
   MetaInput,
   OpenAPIRouteSchema,
 } from '../core/types';
-import { SORT_DIRECTIONS, assertNever } from '../core/types';
+import { SORT_DIRECTIONS } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
 
@@ -27,6 +27,27 @@ const DEFAULT_AGGREGATE_CONFIG: Required<AggregateConfig> = {
   defaultLimit: 100,
   maxLimit: 1000,
 };
+
+/**
+ * Per-operation field-restriction rules, exhaustive over `AggregateOperation`:
+ * a newly-added operation cannot silently skip field-restriction validation
+ * (a security gap) — it fails to compile here until given a rule. `null`
+ * means the operation has no per-field allow-list (COUNT).
+ */
+const AGG_FIELD_RULES = {
+  count: null,
+  sum: { field: 'sumFields', label: 'SUM' },
+  avg: { field: 'avgFields', label: 'AVG' },
+  min: { field: 'minMaxFields', label: 'MIN/MAX' },
+  max: { field: 'minMaxFields', label: 'MIN/MAX' },
+  countDistinct: { field: 'countDistinctFields', label: 'COUNT DISTINCT' },
+} satisfies Record<
+  AggregateOperation,
+  {
+    field: 'sumFields' | 'avgFields' | 'minMaxFields' | 'countDistinctFields';
+    label: string;
+  } | null
+>;
 
 /**
  * Base endpoint for aggregate queries.
@@ -166,48 +187,18 @@ export abstract class AggregateEndpoint<
         continue;
       }
 
-      // Check field restrictions based on operation.
-      // Exhaustive over AggregateOperation so a newly-added operation cannot
-      // silently skip field-restriction validation (a security gap): the
-      // `assertNever` default forces every operation to be handled here.
-      switch (agg.operation) {
-        case 'count':
-          // COUNT on a specific field is unrestricted (COUNT(*) handled above).
-          break;
-        case 'sum':
-          if (config.sumFields.length > 0 && !config.sumFields.includes(agg.field)) {
-            throw new AggregationException(
-              `Field '${agg.field}' is not allowed for SUM aggregation`,
-            );
-          }
-          break;
-        case 'avg':
-          if (config.avgFields.length > 0 && !config.avgFields.includes(agg.field)) {
-            throw new AggregationException(
-              `Field '${agg.field}' is not allowed for AVG aggregation`,
-            );
-          }
-          break;
-        case 'min':
-        case 'max':
-          if (config.minMaxFields.length > 0 && !config.minMaxFields.includes(agg.field)) {
-            throw new AggregationException(
-              `Field '${agg.field}' is not allowed for MIN/MAX aggregation`,
-            );
-          }
-          break;
-        case 'countDistinct':
-          if (
-            config.countDistinctFields.length > 0 &&
-            !config.countDistinctFields.includes(agg.field)
-          ) {
-            throw new AggregationException(
-              `Field '${agg.field}' is not allowed for COUNT DISTINCT aggregation`,
-            );
-          }
-          break;
-        default:
-          assertNever(agg.operation);
+      // Check field restrictions based on operation. AGG_FIELD_RULES is
+      // exhaustive over AggregateOperation, so a newly-added operation cannot
+      // silently skip field-restriction validation (a security gap).
+      // COUNT on a specific field is unrestricted (COUNT(*) handled above).
+      const rule = AGG_FIELD_RULES[agg.operation];
+      if (rule) {
+        const allowed = config[rule.field];
+        if (allowed.length > 0 && !allowed.includes(agg.field)) {
+          throw new AggregationException(
+            `Field '${agg.field}' is not allowed for ${rule.label} aggregation`,
+          );
+        }
       }
     }
 

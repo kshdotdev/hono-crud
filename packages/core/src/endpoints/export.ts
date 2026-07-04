@@ -12,9 +12,15 @@ import type { ModelObject } from './types';
 // ============================================================================
 
 /**
+ * Supported export formats. Single source of truth for both the
+ * `ExportFormat` union and the query/response schema validators.
+ */
+export const EXPORT_FORMATS = ['json', 'csv'] as const;
+
+/**
  * Supported export formats.
  */
-export type ExportFormat = 'json' | 'csv';
+export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 
 /**
  * Options for the export operation.
@@ -97,7 +103,7 @@ export abstract class ExportEndpoint<
   protected getExportQuerySchema() {
     const baseSchema = this.getQuerySchema();
     return baseSchema.extend({
-      format: z.enum(['json', 'csv']).optional().meta({ description: 'Export format' }),
+      format: z.enum(EXPORT_FORMATS).optional().meta({ description: 'Export format' }),
       stream: z.enum(['true', 'false']).optional().meta({
         description: 'Enable streaming for large exports',
       }),
@@ -123,7 +129,7 @@ export abstract class ExportEndpoint<
                   result: z.object({
                     data: z.array(this.getModelSchema()),
                     count: z.number(),
-                    format: z.enum(['json', 'csv']),
+                    format: z.enum(EXPORT_FORMATS),
                     exportedAt: z.string(),
                   }),
                 }),

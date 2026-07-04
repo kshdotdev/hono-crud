@@ -2,6 +2,17 @@ import { matchPath } from '../../utils/path-match';
 import type { LogEntry, LogQueryOptions, LoggingStorage, PathPattern } from '../types';
 
 /**
+ * Sort-key extractors, exhaustive over the closed `sort.field` union: adding
+ * a sort field to `LogQueryOptions` without an extractor fails to compile
+ * (the old switch's `default: return 0` silently disabled sorting instead).
+ */
+const LOG_SORT_EXTRACTORS = {
+  timestamp: (entry: LogEntry) => new Date(entry.timestamp).getTime(),
+  responseTimeMs: (entry: LogEntry) => entry.response.responseTimeMs,
+  statusCode: (entry: LogEntry) => entry.response.statusCode,
+} satisfies Record<NonNullable<LogQueryOptions['sort']>['field'], (entry: LogEntry) => number>;
+
+/**
  * Options for MemoryLoggingStorage.
  */
 export interface MemoryLoggingStorageOptions {
@@ -148,29 +159,10 @@ export class MemoryLoggingStorage implements LoggingStorage {
     // Sort
     if (options?.sort) {
       const { field, direction } = options.sort;
-      entries = entries.sort((a, b) => {
-        let aVal: number;
-        let bVal: number;
-
-        switch (field) {
-          case 'timestamp':
-            aVal = new Date(a.timestamp).getTime();
-            bVal = new Date(b.timestamp).getTime();
-            break;
-          case 'responseTimeMs':
-            aVal = a.response.responseTimeMs;
-            bVal = b.response.responseTimeMs;
-            break;
-          case 'statusCode':
-            aVal = a.response.statusCode;
-            bVal = b.response.statusCode;
-            break;
-          default:
-            return 0;
-        }
-
-        return direction === 'asc' ? aVal - bVal : bVal - aVal;
-      });
+      const extract = LOG_SORT_EXTRACTORS[field];
+      entries = entries.sort((a, b) =>
+        direction === 'asc' ? extract(a) - extract(b) : extract(b) - extract(a),
+      );
     }
 
     // Pagination
