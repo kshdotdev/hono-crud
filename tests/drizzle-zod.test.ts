@@ -6,7 +6,7 @@ import {
   isDrizzleZodAvailable,
 } from '@hono-crud/drizzle/schema-utils';
 import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 // ============================================================================
@@ -451,5 +451,29 @@ describe('Edge cases', () => {
       authorId: crypto.randomUUID(),
     });
     expect(postResult.success).toBe(true);
+  });
+});
+
+// ============================================================================
+// Loader concurrency
+// ============================================================================
+
+describe('ensureDrizzleZod loader', () => {
+  it('resolves concurrent first calls without returning null', async () => {
+    // Fresh module instance so the lazy-loader cache starts cold.
+    vi.resetModules();
+    const mod = await import('@hono-crud/drizzle/schema-utils');
+
+    // Both calls race the same in-flight dynamic import. Previously the
+    // second caller saw `_loadAttempted === true` with the cache still
+    // unpopulated, got `null` back, and crashed on the call sites'
+    // non-null assertions.
+    const [selectSchema, insertSchema] = await Promise.all([
+      mod.createSelectSchema(users),
+      mod.createInsertSchema(users),
+    ]);
+
+    expect(selectSchema.shape.id).toBeDefined();
+    expect(insertSchema.shape.name).toBeDefined();
   });
 });

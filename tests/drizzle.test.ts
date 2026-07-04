@@ -1042,3 +1042,44 @@ describe('Drizzle Transaction Support', () => {
     expect(transactionRolledBack).toBe(true);
   });
 });
+
+// ============================================================================
+// Misconfiguration envelope
+// ============================================================================
+
+describe('getTable misconfiguration', () => {
+  it('model without a table reference → 500 CONFIGURATION_ERROR envelope', async () => {
+    const NoTableModel = defineModel({
+      tableName: 'users_no_table',
+      schema: UserSchema,
+      primaryKeys: ['id'],
+      // deliberately no `table`
+    });
+
+    class NoTableList extends DrizzleListEndpoint {
+      _meta = { model: NoTableModel };
+      db = db as unknown as DrizzleDatabaseConstraint;
+    }
+
+    // Bare app without onError: the canonical envelope must come from
+    // ApiException.getResponse() (the ConfigurationException path), not a
+    // test-local error handler.
+    const app = fromHono(new Hono());
+    app.get('/no-table', NoTableList);
+
+    const res = await app.request('/no-table');
+
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as {
+      success: boolean;
+      error: { code: string; message: string };
+    };
+    expect(body).toEqual({
+      success: false,
+      error: {
+        code: 'CONFIGURATION_ERROR',
+        message: 'Model users_no_table does not have a table reference',
+      },
+    });
+  });
+});

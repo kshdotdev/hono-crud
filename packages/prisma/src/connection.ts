@@ -20,7 +20,7 @@ import type { PrismaClient } from './helpers';
 interface PrismaEndpointShape {
   _tx?: PrismaClient;
   prisma?: PrismaClient;
-  context?: { get?: (key: never) => unknown };
+  context?: { get?: (key: string) => unknown };
 }
 
 /**
@@ -33,7 +33,7 @@ export function getPrismaClient(self: unknown): PrismaClient {
   const s = self as PrismaEndpointShape;
   if (s._tx) return s._tx;
   if (s.prisma) return s.prisma;
-  const contextClient = s.context?.get?.(CONTEXT_KEYS.prismaClient as never);
+  const contextClient = s.context?.get?.(CONTEXT_KEYS.prismaClient);
   if (contextClient) return contextClient as PrismaClient;
   // Request-time misconfiguration — surface as 500 CONFIGURATION_ERROR.
   throw new ConfigurationException(

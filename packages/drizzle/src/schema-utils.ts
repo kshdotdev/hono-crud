@@ -43,23 +43,33 @@ type CreateUpdateSchema = <T extends DrizzleTable>(
   refine?: Record<string, z.ZodTypeAny>,
 ) => z.ZodObject<Record<string, z.ZodTypeAny>>;
 
-// Cached drizzle-zod module
-let _drizzleZod: {
+/** The subset of drizzle-zod this adapter consumes. */
+interface DrizzleZodModule {
   createSelectSchema: CreateSelectSchema;
   createInsertSchema: CreateInsertSchema;
+  /** Not available in older drizzle-zod versions. */
   createUpdateSchema?: CreateUpdateSchema;
-} | null = null;
+}
+
+// Cached drizzle-zod module
+let _drizzleZod: DrizzleZodModule | null = null;
 let _loadAttempted = false;
 let _loadError: Error | null = null;
 
 /**
  * Loads drizzle-zod using dynamic import (edge-compatible).
  * Returns the cached module if already loaded.
+ *
+ * The return type is non-null by construction: a concurrent caller that
+ * arrives while the first import is still in flight falls through to its own
+ * (idempotent) `import()` instead of returning the not-yet-populated cache —
+ * previously that window returned `null` and every call site papered over it
+ * with a non-null assertion.
  */
-async function ensureDrizzleZod(): Promise<typeof _drizzleZod> {
+async function ensureDrizzleZod(): Promise<DrizzleZodModule> {
   if (_loadAttempted) {
     if (_loadError) throw _loadError;
-    return _drizzleZod;
+    if (_drizzleZod) return _drizzleZod;
   }
 
   _loadAttempted = true;
@@ -97,7 +107,7 @@ export async function createSelectSchema<T extends DrizzleTable>(
   refine?: Record<string, z.ZodTypeAny>,
 ): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
   const drizzleZod = await ensureDrizzleZod();
-  return drizzleZod!.createSelectSchema(table, refine);
+  return drizzleZod.createSelectSchema(table, refine);
 }
 
 /**
@@ -122,7 +132,7 @@ export async function createInsertSchema<T extends DrizzleTable>(
   refine?: Record<string, z.ZodTypeAny>,
 ): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
   const drizzleZod = await ensureDrizzleZod();
-  return drizzleZod!.createInsertSchema(table, refine);
+  return drizzleZod.createInsertSchema(table, refine);
 }
 
 /**
@@ -151,12 +161,12 @@ export async function createUpdateSchema<T extends DrizzleTable>(
 ): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
   const drizzleZod = await ensureDrizzleZod();
 
-  if (drizzleZod!.createUpdateSchema) {
-    return drizzleZod!.createUpdateSchema(table, refine);
+  if (drizzleZod.createUpdateSchema) {
+    return drizzleZod.createUpdateSchema(table, refine);
   }
 
   // Fallback: use insert schema with all fields optional
-  const insertSchema = drizzleZod!.createInsertSchema(table, refine);
+  const insertSchema = drizzleZod.createInsertSchema(table, refine);
   return insertSchema.partial() as z.ZodObject<Record<string, z.ZodTypeAny>>;
 }
 
@@ -235,15 +245,15 @@ export async function createDrizzleSchemas<T extends DrizzleTable>(
   // Detect date columns for coercion
   const dateColumns = shouldCoerceDates ? getDateColumns(table) : new Set<string>();
 
-  const select = drizzleZod!.createSelectSchema(table, options?.selectRefine);
-  let insert = drizzleZod!.createInsertSchema(table, options?.insertRefine);
+  const select = drizzleZod.createSelectSchema(table, options?.selectRefine);
+  let insert = drizzleZod.createInsertSchema(table, options?.insertRefine);
 
   let update: z.ZodObject<Record<string, z.ZodTypeAny>>;
-  if (drizzleZod!.createUpdateSchema) {
-    update = drizzleZod!.createUpdateSchema(table, options?.updateRefine);
+  if (drizzleZod.createUpdateSchema) {
+    update = drizzleZod.createUpdateSchema(table, options?.updateRefine);
   } else {
     // Fallback for older drizzle-zod versions
-    update = drizzleZod!.createInsertSchema(table, options?.updateRefine).partial() as z.ZodObject<
+    update = drizzleZod.createInsertSchema(table, options?.updateRefine).partial() as z.ZodObject<
       Record<string, z.ZodTypeAny>
     >;
   }
