@@ -218,4 +218,35 @@ describe('DrizzleAuditLogStorage', () => {
     expect(await storage.getAll({ tableName: 'nope' })).toEqual([]);
     expect(await storage.getAll({ userId: 'ghost' })).toEqual([]);
   });
+
+  it('paginates same-millisecond ties deterministically (timestamp-then-id tiebreaker)', async () => {
+    // All four entries share an identical forced timestamp, so the secondary
+    // `id` ascending tiebreaker is the only thing that fixes their order.
+    // Without it SQLite would fall back to rowid and Postgres to unspecified
+    // order — LIMIT/OFFSET pages could then duplicate or skip rows between pages.
+    // Inserted out of id order (3,1,0,2) so rowid order differs from id order.
+    const sameTs = new Date(BASE_TS);
+    await storage.store(entry('T', 3, { timestamp: sameTs }));
+    await storage.store(entry('T', 1, { timestamp: sameTs }));
+    await storage.store(entry('T', 0, { timestamp: sameTs }));
+    await storage.store(entry('T', 2, { timestamp: sameTs }));
+
+    const expectedOrder = ['T-0', 'T-1', 'T-2', 'T-3'];
+
+    // Full-query order is deterministic (id-ascending, not insertion order) and
+    // stable across repeated reads — both getByRecordId and getAll.
+    const first = (await storage.getByRecordId('documents', 'T')).map((l) => l.id);
+    const second = (await storage.getByRecordId('documents', 'T')).map((l) => l.id);
+    expect(first).toEqual(expectedOrder);
+    expect(second).toEqual(expectedOrder);
+    expect((await storage.getAll()).map((l) => l.id)).toEqual(expectedOrder);
+
+    // Paging through in two limit/offset windows yields a complete,
+    // duplicate-free union with no rows skipped between pages.
+    const pageA = await storage.getByRecordId('documents', 'T', { limit: 2, offset: 0 });
+    const pageB = await storage.getByRecordId('documents', 'T', { limit: 2, offset: 2 });
+    const union = [...pageA, ...pageB].map((l) => l.id);
+    expect(union).toEqual(expectedOrder);
+    expect(new Set(union).size).toBe(union.length);
+  });
 });

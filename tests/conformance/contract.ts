@@ -115,11 +115,14 @@ export interface ConformanceCapabilities {
    * encrypted-consistency cells can assert that audit inputs, version-history
    * snapshots, and rollback-at-rest carry PLAINTEXT / valid historical
    * ciphertext under encryption. True on memory (cheap in-process version +
-   * audit stores + `inspectAudit`). False on drizzle/prisma — they wire neither
-   * an inspectable audit store nor version endpoints on their enc leg; the skip
-   * is named. The fix itself is core/adapter-agnostic (it lives in the core
-   * endpoint layer), so the memory leg is a sufficient conformance anchor and
-   * the core-level unit suite covers the behavior in full.
+   * audit stores + `inspectAudit`) and drizzle (its enc leg wires
+   * DrizzleVersioningStorage + DrizzleAuditLogStorage + the four version-history
+   * endpoints, with `inspectAudit` reading the durable audit store). False on
+   * prisma — it wires no version-history endpoints on its enc leg; the skip is
+   * named. The behavior under test is core/adapter-agnostic (it lives in the
+   * core endpoint layer), so the memory + drizzle legs are sufficient
+   * conformance anchors and the core-level unit suite covers the behavior in
+   * full.
    */
   encryptedHistoryAudit: boolean;
   /**

@@ -156,6 +156,25 @@ export { withIncludableRelations } from './relations/response-schema';
 export type { AdapterBundle, GeneratedEndpoints } from './config/index';
 
 // ============================================================================
+// Storage backend contracts (audit / versioning)
+// ============================================================================
+
+// The persistence contracts a durable audit/versioning backend implements
+// (e.g. @hono-crud/drizzle's DrizzleAuditLogStorage / DrizzleVersioningStorage),
+// plus the entry/action/field-change shapes those methods read and write. The
+// audit and versioning feature barrels remain the canonical public surface for
+// application code; these named re-exports are the first-party-satellite
+// entrypoint for the same contracts (satellites import from `hono-crud/internal`
+// only, never from a feature subpath).
+export type {
+  AuditLogStorage,
+  AuditLogEntry,
+  AuditAction,
+  AuditFieldChange,
+} from './audit/index';
+export type { VersioningStorage, VersionHistoryEntry } from './versioning/index';
+
+// ============================================================================
 // Exceptions & logging
 // ============================================================================
 

@@ -1,6 +1,6 @@
 import { and, desc, eq, lt } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { VersionHistoryEntry, VersioningStorage } from 'hono-crud/versioning';
+import type { VersionHistoryEntry, VersioningStorage } from 'hono-crud/internal';
 import {
   type DrizzleColumn,
   type DrizzleDatabaseConstraint,

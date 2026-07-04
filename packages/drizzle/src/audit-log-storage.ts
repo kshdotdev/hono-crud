@@ -1,10 +1,12 @@
-import { and, asc, eq, gte, lte } from 'drizzle-orm';
+import { asc, eq, gte, lte } from 'drizzle-orm';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { AuditAction, AuditLogEntry, AuditLogStorage } from 'hono-crud/audit';
+import type { AuditAction, AuditLogEntry, AuditLogStorage } from 'hono-crud/internal';
 import {
   type DrizzleColumn,
   type DrizzleDatabaseConstraint,
+  type DrizzleSql,
   type DrizzleTable,
+  and,
   cast,
   getColumn,
 } from './helpers';
@@ -68,9 +70,15 @@ export interface DrizzleAuditLogStorageOptions {
  * `<= endDate`); results are returned oldest-first; `limit`/`offset` slice the
  * result, and a falsy `limit` (0 or absent) means "all remaining". The one
  * documented divergence: memory returns strict insertion order, while this
- * store orders by `timestamp` ascending — identical whenever timestamps are
- * distinct (the common case, since entries are stamped at write time), but
- * same-millisecond ties are not further disambiguated.
+ * store orders by `timestamp` ascending with a secondary `id` ascending
+ * tiebreaker — identical to memory whenever timestamps are distinct (the common
+ * case, since entries are stamped at write time). For same-millisecond ties the
+ * two diverge: memory yields insertion order, this store yields timestamp-then-id
+ * (deterministic, not necessarily insertion order). The `id` tiebreaker is what
+ * makes it deterministic at all — SQLite would otherwise break ties by rowid but
+ * Postgres tie order is unspecified, so without a unique secondary key, LIMIT/
+ * OFFSET pagination across a same-millisecond batch could duplicate or skip rows
+ * between pages.
  *
  * @example
  * ```ts
@@ -138,7 +146,7 @@ export class DrizzleAuditLogStorage implements AuditLogStorage {
       .select()
       .from(this.table)
       .where(and(eq(this.col('tableName'), tableName), eq(this.col('recordId'), String(recordId))))
-      .orderBy(asc(this.col('timestamp')));
+      .orderBy(asc(this.col('timestamp')), asc(this.col('id')));
 
     // MemoryAuditLogStorage pagination: `slice(offset, offset + limit)` with a
     // falsy `limit` meaning "all remaining" and a falsy `offset` meaning 0.
@@ -170,7 +178,7 @@ export class DrizzleAuditLogStorage implements AuditLogStorage {
     // Every present filter is ANDed. Truthy checks mirror MemoryAuditLogStorage
     // (an empty-string userId/tableName is treated as "no filter"). Dates are
     // inclusive: `>= startDate`, `<= endDate`.
-    const conditions = [];
+    const conditions: DrizzleSql[] = [];
     if (options?.tableName) conditions.push(eq(this.col('tableName'), options.tableName));
     if (options?.action) conditions.push(eq(this.col('action'), options.action));
     if (options?.userId) conditions.push(eq(this.col('userId'), options.userId));
@@ -182,7 +190,7 @@ export class DrizzleAuditLogStorage implements AuditLogStorage {
       .select()
       .from(this.table)
       .where(where)
-      .orderBy(asc(this.col('timestamp')));
+      .orderBy(asc(this.col('timestamp')), asc(this.col('id')));
 
     // Same MemoryAuditLogStorage pagination as getByRecordId (see note above).
     const offset = options?.offset || 0;
