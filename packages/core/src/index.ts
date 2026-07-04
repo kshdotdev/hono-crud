@@ -83,6 +83,14 @@ export {
   errorEnvelopeSchema,
   successEnvelopeSchema,
 } from './core/types';
+export { defineModels } from './core/model-registry';
+export type {
+  DefineModelsConfig,
+  ModelSpec,
+  RelationSpec,
+  WiredModel,
+  WiredModels,
+} from './core/model-registry';
 export { encodeCursor, decodeCursor } from './core/cursor';
 export { applyComputedFields, applyComputedFieldsToArray } from './core/computed-fields';
 export { extractNestedData, isDirectNestedData } from './core/nested-writes';
