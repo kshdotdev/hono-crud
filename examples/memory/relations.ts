@@ -19,7 +19,7 @@ import {
 import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { defineMeta, defineModels, fromHono, registerCrud } from 'hono-crud';
 import { z } from 'zod';
 
 // Clear storage on start
@@ -60,89 +60,93 @@ const ProfileSchema = z.object({
 });
 
 // ============================================================================
-// Models with Relations
+// Models with Relations — one defineModels call
+//
+// Relations reference sibling registry keys, so the circular graph needs no
+// declaration ordering, and each relation's `schema` is auto-populated from
+// its target sibling — the OpenAPI response schemas document the `?include=`
+// shapes without hand-supplying relation schemas.
 // ============================================================================
 
-const UserModel = defineModel({
-  tableName: 'users',
-  schema: UserSchema,
-  primaryKeys: ['id'],
-  relations: {
-    // A user has many posts
-    posts: {
-      type: 'hasMany',
-      model: 'posts',
-      foreignKey: 'authorId',
-    },
-    // A user has one profile
-    profile: {
-      type: 'hasOne',
-      model: 'profiles',
-      foreignKey: 'userId',
-    },
-    // A user has many comments
-    comments: {
-      type: 'hasMany',
-      model: 'comments',
-      foreignKey: 'authorId',
-    },
-  },
-});
-
-const PostModel = defineModel({
-  tableName: 'posts',
-  schema: PostSchema,
-  primaryKeys: ['id'],
-  relations: {
-    // A post belongs to a user (author)
-    author: {
-      type: 'belongsTo',
-      model: 'users',
-      foreignKey: 'authorId',
-      localKey: 'id',
-    },
-    // A post has many comments
-    comments: {
-      type: 'hasMany',
-      model: 'comments',
-      foreignKey: 'postId',
+const models = defineModels({
+  users: {
+    tableName: 'users',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+    relations: {
+      // A user has many posts
+      posts: {
+        type: 'hasMany',
+        model: 'posts',
+        foreignKey: 'authorId',
+      },
+      // A user has one profile
+      profile: {
+        type: 'hasOne',
+        model: 'profiles',
+        foreignKey: 'userId',
+      },
+      // A user has many comments
+      comments: {
+        type: 'hasMany',
+        model: 'comments',
+        foreignKey: 'authorId',
+      },
     },
   },
-});
-
-const CommentModel = defineModel({
-  tableName: 'comments',
-  schema: CommentSchema,
-  primaryKeys: ['id'],
-  relations: {
-    // A comment belongs to a post
-    post: {
-      type: 'belongsTo',
-      model: 'posts',
-      foreignKey: 'postId',
-      localKey: 'id',
-    },
-    // A comment belongs to a user (author)
-    author: {
-      type: 'belongsTo',
-      model: 'users',
-      foreignKey: 'authorId',
-      localKey: 'id',
+  posts: {
+    tableName: 'posts',
+    schema: PostSchema,
+    primaryKeys: ['id'],
+    relations: {
+      // A post belongs to a user (author)
+      author: {
+        type: 'belongsTo',
+        model: 'users',
+        foreignKey: 'authorId',
+        localKey: 'id',
+      },
+      // A post has many comments
+      comments: {
+        type: 'hasMany',
+        model: 'comments',
+        foreignKey: 'postId',
+      },
     },
   },
-});
-
-const ProfileModel = defineModel({
-  tableName: 'profiles',
-  schema: ProfileSchema,
-  primaryKeys: ['id'],
-  relations: {
-    // A profile belongs to a user
-    user: {
-      type: 'belongsTo',
-      model: 'users',
-      foreignKey: 'userId',
-      localKey: 'id',
+  comments: {
+    tableName: 'comments',
+    schema: CommentSchema,
+    primaryKeys: ['id'],
+    relations: {
+      // A comment belongs to a post
+      post: {
+        type: 'belongsTo',
+        model: 'posts',
+        foreignKey: 'postId',
+        localKey: 'id',
+      },
+      // A comment belongs to a user (author)
+      author: {
+        type: 'belongsTo',
+        model: 'users',
+        foreignKey: 'authorId',
+        localKey: 'id',
+      },
+    },
+  },
+  profiles: {
+    tableName: 'profiles',
+    schema: ProfileSchema,
+    primaryKeys: ['id'],
+    relations: {
+      // A profile belongs to a user
+      user: {
+        type: 'belongsTo',
+        model: 'users',
+        foreignKey: 'userId',
+        localKey: 'id',
+      },
     },
   },
 });
@@ -151,10 +155,10 @@ const ProfileModel = defineModel({
 // Meta Definitions
 // ============================================================================
 
-const userMeta = defineMeta({ model: UserModel });
-const postMeta = defineMeta({ model: PostModel });
-const commentMeta = defineMeta({ model: CommentModel });
-const profileMeta = defineMeta({ model: ProfileModel });
+const userMeta = defineMeta({ model: models.users });
+const postMeta = defineMeta({ model: models.posts });
+const commentMeta = defineMeta({ model: models.comments });
+const profileMeta = defineMeta({ model: models.profiles });
 
 // ============================================================================
 // User Endpoints

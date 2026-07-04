@@ -2,6 +2,7 @@
 // response-schema.ts) — the helper that adds includable relations to a List/Read
 // OpenAPI response item schema so `?include=` shapes are documented + typed.
 import type { MetaInput, RelationsConfig } from 'hono-crud';
+import { defineModels } from 'hono-crud';
 import { withIncludableRelations } from 'hono-crud/internal';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -57,6 +58,28 @@ describe('withIncludableRelations', () => {
     const extended = withIncludableRelations(itemSchema, meta, ['post']);
     expect('post' in extended.shape).toBe(false);
     expect(extended).toBe(itemSchema);
+  });
+
+  // The raw defineModel path above stays skip-if-absent; the registry path
+  // closes the gap — defineModels auto-populates relation.schema from the
+  // sibling entry, so the same schema-less authoring now documents the
+  // include shape.
+  it('includes a schema-less relation once defineModels auto-populates its schema', () => {
+    const db = defineModels({
+      comments: {
+        tableName: 'comment',
+        schema: itemSchema,
+        primaryKeys: ['id'],
+        relations: { post: { type: 'belongsTo', model: 'posts', foreignKey: 'postId' } },
+      },
+      posts: { tableName: 'post', schema: postSchema, primaryKeys: ['id'] },
+    });
+    const extended = withIncludableRelations(itemSchema, { model: db.comments }, ['post']);
+    expect('post' in extended.shape).toBe(true);
+    expect(extended.parse({ id: 'c1', postId: null, post: null }).post).toBeNull();
+    expect(
+      extended.parse({ id: 'c1', postId: null, post: { id: 'p1', title: 'X' } }).post,
+    ).toMatchObject({ id: 'p1' });
   });
 
   it('returns the item schema unchanged when the model has no relations', () => {
