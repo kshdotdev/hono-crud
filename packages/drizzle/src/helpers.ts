@@ -27,6 +27,7 @@ import type {
   RelationLoaderAdapter,
 } from 'hono-crud/internal';
 import {
+  ConfigurationException,
   assertNever,
   batchLoadRelations,
   decodeCursor,
@@ -261,10 +262,16 @@ export type DrizzleEnv<DB = DrizzleDatabaseConstraint> = {
 
 /**
  * Gets the Drizzle table from the model.
+ *
+ * Every call site is a per-request endpoint method, so a missing `table` is
+ * request-time misconfiguration — per the error-split doctrine it surfaces as
+ * a 500 CONFIGURATION_ERROR envelope, not an unmapped plain Error.
  */
 export function getTable<M extends MetaInput>(meta: M): DrizzleTable {
   if (!meta.model.table) {
-    throw new Error(`Model ${meta.model.tableName} does not have a table reference`);
+    throw new ConfigurationException(
+      `Model ${meta.model.tableName} does not have a table reference`,
+    );
   }
   return meta.model.table as DrizzleTable;
 }

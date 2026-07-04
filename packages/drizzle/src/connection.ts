@@ -19,7 +19,7 @@ import type { DrizzleDatabaseConstraint } from './helpers';
 interface DrizzleEndpointShape {
   _tx?: DrizzleDatabaseConstraint;
   db?: DrizzleDatabaseConstraint;
-  context?: { get?: (key: never) => unknown };
+  context?: { get?: (key: string) => unknown };
 }
 
 /**
@@ -32,7 +32,7 @@ export function getDrizzleDb(self: unknown): DrizzleDatabaseConstraint {
   const s = self as DrizzleEndpointShape;
   if (s._tx) return s._tx;
   if (s.db) return s.db;
-  const contextDb = s.context?.get?.(CONTEXT_KEYS.db as never);
+  const contextDb = s.context?.get?.(CONTEXT_KEYS.db);
   if (contextDb) return contextDb as DrizzleDatabaseConstraint;
   // Request-time misconfiguration — surface as 500 CONFIGURATION_ERROR.
   throw new ConfigurationException(

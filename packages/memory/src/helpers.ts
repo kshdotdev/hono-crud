@@ -93,7 +93,7 @@ export function clearStorage(): void {
  *
  * The returned array's length is the query's total count.
  */
-export function queryMemoryStore<T>(
+export function queryMemoryStore<T extends Record<string, unknown>>(
   store: Map<string, T>,
   filters: ListFilters,
   searchFields: string[],
@@ -106,13 +106,13 @@ export function queryMemoryStore<T>(
     if (filters.options.onlyDeleted) {
       // Show only deleted records
       items = items.filter((item) => {
-        const deletedAt = (item as Record<string, unknown>)[softDeleteConfig.field];
+        const deletedAt = item[softDeleteConfig.field];
         return deletedAt !== null && deletedAt !== undefined;
       });
     } else if (!filters.options.withDeleted) {
       // Default: exclude deleted records
       items = items.filter((item) => {
-        const deletedAt = (item as Record<string, unknown>)[softDeleteConfig.field];
+        const deletedAt = item[softDeleteConfig.field];
         return deletedAt === null || deletedAt === undefined;
       });
     }
@@ -121,10 +121,7 @@ export function queryMemoryStore<T>(
 
   // Apply filters
   for (const filter of filters.filters) {
-    items = items.filter((item) => {
-      const value = (item as Record<string, unknown>)[filter.field];
-      return matchesFilter(value, filter);
-    });
+    items = items.filter((item) => matchesFilter(item[filter.field], filter));
   }
 
   // Apply search (literal substring, case-insensitive — see the like/ilike
@@ -132,10 +129,7 @@ export function queryMemoryStore<T>(
   if (filters.options.search && searchFields.length > 0) {
     const searchTerm = filters.options.search.toLowerCase();
     items = items.filter((item) =>
-      searchFields.some((field) => {
-        const value = (item as Record<string, unknown>)[field];
-        return String(value).toLowerCase().includes(searchTerm);
-      }),
+      searchFields.some((field) => String(item[field]).toLowerCase().includes(searchTerm)),
     );
   }
 
@@ -145,8 +139,8 @@ export function queryMemoryStore<T>(
     const direction = filters.options.order_by_direction === 'desc' ? -1 : 1;
 
     items.sort((a, b) => {
-      const aVal = (a as Record<string, unknown>)[orderBy] as string | number;
-      const bVal = (b as Record<string, unknown>)[orderBy] as string | number;
+      const aVal = a[orderBy] as string | number;
+      const bVal = b[orderBy] as string | number;
 
       if (aVal < bVal) return -1 * direction;
       if (aVal > bVal) return 1 * direction;
@@ -164,7 +158,7 @@ export function queryMemoryStore<T>(
  * update ("match-and-restore", see core's `applyUpsertRestore`). Shared by
  * Upsert, Import, and BatchUpsert so the matching semantics cannot drift.
  */
-export function findByUpsertKeys<T>(
+export function findByUpsertKeys<T extends Record<string, unknown>>(
   store: Map<string, T>,
   data: Record<string, unknown>,
   upsertKeys: string[],
@@ -175,7 +169,7 @@ export function findByUpsertKeys<T>(
   for (const existing of store.values()) {
     let allMatch = true;
     for (const key of upsertKeys) {
-      if (data[key] !== (existing as Record<string, unknown>)[key]) {
+      if (data[key] !== existing[key]) {
         allMatch = false;
         break;
       }
