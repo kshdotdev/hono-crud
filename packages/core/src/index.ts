@@ -121,6 +121,7 @@ export type {
   ComputedFieldFn,
   ComputedFieldConfig,
   ComputedFieldsConfig,
+  ComputedFieldReturns,
   AuditAction,
   AuditFieldChange,
   AuditLogEntry,

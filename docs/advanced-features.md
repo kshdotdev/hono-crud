@@ -767,10 +767,16 @@ declare const ENCRYPTION_KEY_BASE64: string;
 
 const keyProvider = new StaticKeyProvider(ENCRYPTION_KEY_BASE64);
 
-// Model-level config: encrypt/decrypt happens automatically in endpoints
+// Model-level config: encrypt/decrypt happens automatically in endpoints.
+// The listed fields are checked against the schema's keys at compile time.
+const SecureUserSchema = UserSchema.extend({
+  ssn: z.string(),
+  creditCard: z.string(),
+});
+
 const UserModel = defineModel({
   tableName: 'users',
-  schema: UserSchema,
+  schema: SecureUserSchema,
   primaryKeys: ['id'],
   fieldEncryption: {
     fields: ['ssn', 'creditCard'],
@@ -903,9 +909,12 @@ reads exactly what the middleware published, then filters every query by
 `field` and injects it on create.
 
 ```typescript
+// `field` must be a real column: checked against the schema's keys.
+const TenantUserSchema = UserSchema.extend({ tenantId: z.string() });
+
 const UserModel = defineModel({
   tableName: 'users',
-  schema: UserSchema,
+  schema: TenantUserSchema,
   primaryKeys: ['id'],
   multiTenant: {
     field: 'tenantId',        // column that stores the tenant ID (default 'tenantId')

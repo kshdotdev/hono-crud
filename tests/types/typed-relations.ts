@@ -168,3 +168,103 @@ const endpointsCfg: EndpointsConfig<typeof userMeta> = {
 };
 
 export { listCfg, readCfg, endpointsCfg };
+
+// ============================================================================
+// F3 — model field arrays are schema-key-checked on defineModel
+// ============================================================================
+
+import type { ComputedFieldReturns, ComputedFieldsConfig } from 'hono-crud';
+
+defineModel({
+  tableName: 'field_checks',
+  schema: UserSchema,
+  primaryKeys: ['id'],
+  softDelete: { field: 'email' }, // any real schema key is accepted
+  multiTenant: { field: 'id' },
+  timestamps: false,
+  audit: { excludeFields: ['email', 'name'] },
+  versioning: { field: 'id', excludeFields: ['email'], historyTable: 'anything_free' },
+  computedFields: {
+    displayName: {
+      compute: (u) => u.name.toUpperCase(),
+      dependsOn: ['name'],
+    },
+  },
+});
+
+defineModel({
+  tableName: 'field_checks_bad_softdelete',
+  schema: UserSchema,
+  primaryKeys: ['id'],
+  // @ts-expect-error - 'removedAt' is not a schema key
+  softDelete: { field: 'removedAt' },
+});
+
+defineModel({
+  tableName: 'field_checks_bad_audit',
+  schema: UserSchema,
+  primaryKeys: ['id'],
+  // @ts-expect-error - 'password' is not a schema key
+  audit: { excludeFields: ['password'] },
+});
+
+defineModel({
+  tableName: 'field_checks_bad_tenant',
+  schema: UserSchema,
+  primaryKeys: ['id'],
+  // @ts-expect-error - 'orgId' is not a schema key
+  multiTenant: { field: 'orgId' },
+});
+
+defineModel({
+  tableName: 'field_checks_bad_timestamps',
+  schema: UserSchema,
+  primaryKeys: ['id'],
+  // @ts-expect-error - 'created' is not a schema key
+  timestamps: { createdAt: 'created' },
+});
+
+defineModel({
+  tableName: 'field_checks_bad_depends',
+  schema: UserSchema,
+  primaryKeys: ['id'],
+  computedFields: {
+    displayName: {
+      compute: (u: { name: string }) => u.name,
+      // @ts-expect-error - 'fullName' is not a record key
+      dependsOn: ['fullName'],
+    },
+  },
+});
+
+// The documented reuse cliff: a bare-annotated sub-config widens to string
+// and no longer assigns into a model slot — inline it, or annotate with the
+// schema-key union.
+import type { SoftDeleteConfig } from 'hono-crud';
+const bareSoftDelete: SoftDeleteConfig = { field: 'deletedAt' };
+defineModel({
+  tableName: 'field_checks_cliff',
+  schema: UserSchema,
+  primaryKeys: ['id'],
+  // @ts-expect-error - bare SoftDeleteConfig widened to string; see JSDoc
+  softDelete: bareSoftDelete,
+});
+
+// The ComputedFieldsConfig<Row> reuse pattern from the repo's own examples
+// must KEEP compiling (row-typed, not key-generic).
+type UserRow = { id: string; name: string; email: string };
+const reusedComputed: ComputedFieldsConfig<UserRow> = {
+  displayName: { compute: (u) => u.name.toUpperCase(), dependsOn: ['name'] },
+};
+defineModel({
+  tableName: 'field_checks_reuse',
+  schema: UserSchema,
+  primaryKeys: ['id'],
+  computedFields: reusedComputed,
+});
+
+// Read-side helper maps computed names to awaited return types.
+type Computed = ComputedFieldReturns<typeof reusedComputed>;
+const computedName: Computed['displayName'] = 'X';
+
+export { bareSoftDelete, reusedComputed, computedName };
