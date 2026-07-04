@@ -16,6 +16,7 @@ import {
   createAPIKeyMiddleware,
   createAuthMiddleware,
   createJWTMiddleware,
+  decodeJWT,
   defaultHashAPIKey,
   generateAPIKey,
   hashAPIKey,
@@ -27,6 +28,7 @@ import {
   requireOwnershipOrRole,
   requirePermissions,
   requireRoles,
+  verifyJWT,
   withAuth,
 } from 'hono-crud/auth';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -56,8 +58,10 @@ function createTestApp<E extends AuthEnv = AuthEnv>(): Hono<E> {
 /**
  * Create a simple JWT for testing.
  * This is a simplified version - production code should use proper JWT libraries.
+ * Accepts any payload shape (not just valid JWTClaims) so tests can sign
+ * deliberately malformed claims and assert they are rejected.
  */
-async function createTestJWT(payload: JWTClaims, secret: string): Promise<string> {
+async function createTestJWT(payload: Record<string, unknown>, secret: string): Promise<string> {
   const header = { alg: 'HS256', typ: 'JWT' };
 
   const base64UrlEncode = (obj: unknown): string => {
@@ -986,5 +990,95 @@ describe('API Key Utilities', () => {
     expect(isValidAPIKeyFormat('invalidkey')).toBe(false);
     expect(isValidAPIKeyFormat('sk_short')).toBe(false);
     expect(isValidAPIKeyFormat('')).toBe(false);
+  });
+});
+
+// ============================================================================
+// verifyJWT / decodeJWT (manual verification helpers)
+// ============================================================================
+
+describe('verifyJWT', () => {
+  const secret = 'test-secret-key-that-is-at-least-32-bytes';
+
+  it('returns validated claims for a valid token', async () => {
+    const token = await createTestJWT(
+      {
+        sub: 'user-123',
+        email: 'test@example.com',
+        roles: ['admin'],
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      },
+      secret,
+    );
+
+    const claims = await verifyJWT(token, { secret });
+    expect(claims.sub).toBe('user-123');
+    expect(claims.email).toBe('test@example.com');
+    expect(claims.roles).toEqual(['admin']);
+  });
+
+  it('preserves custom (passthrough) claims', async () => {
+    const token = await createTestJWT(
+      {
+        sub: 'user-123',
+        tenantId: 'tenant-9',
+        featureFlags: { beta: true },
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      },
+      secret,
+    );
+
+    const claims = await verifyJWT(token, { secret });
+    expect(claims.tenantId).toBe('tenant-9');
+    expect(claims.featureFlags).toEqual({ beta: true });
+  });
+
+  it('rejects a validly-signed token with structurally invalid claims', async () => {
+    // Valid signature, but `sub` is a number and `roles` is an object —
+    // shapes JWTClaimsSchema rejects. Previously these were blessed into
+    // JWTClaims via a blind cast.
+    const token = await createTestJWT(
+      {
+        sub: 12345,
+        roles: { admin: true },
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      },
+      secret,
+    );
+
+    await expect(verifyJWT(token, { secret })).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+      message: 'Invalid token claims',
+    });
+  });
+
+  it('still rejects a bad signature before claim validation', async () => {
+    const token = await createTestJWT(
+      { sub: 'user-123', exp: Math.floor(Date.now() / 1000) + 3600 },
+      'a-completely-different-secret-key-32b',
+    );
+
+    await expect(verifyJWT(token, { secret })).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+    });
+  });
+});
+
+describe('decodeJWT', () => {
+  const secret = 'test-secret-key-that-is-at-least-32-bytes';
+
+  it('returns the raw unverified payload without throwing', async () => {
+    // decodeJWT does no signature or shape validation — it returns hono's
+    // raw JWTPayload; callers must narrow before trusting it.
+    const token = await createTestJWT({ sub: 12345, custom: 'x' }, secret);
+
+    const decoded = decodeJWT(token);
+    expect(decoded).not.toBeNull();
+    expect(decoded?.payload).toMatchObject({ sub: 12345, custom: 'x' });
+  });
+
+  it('returns null for garbage input', () => {
+    expect(decodeJWT('not-a-jwt')).toBeNull();
+    expect(decodeJWT('')).toBeNull();
   });
 });

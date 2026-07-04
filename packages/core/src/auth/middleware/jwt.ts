@@ -208,13 +208,20 @@ export async function verifyJWT(token: string, config: JWTConfig): Promise<JWTCl
   // Verify signature using Hono's verify function
   let payload: JWTPayload;
   try {
-    payload = await verify(token, config.secret as string, algorithm);
+    payload = await verify(token, config.secret, algorithm);
   } catch (error) {
     throw classifyVerifyError(error);
   }
 
-  // Convert payload to JWTClaims
-  const claims: JWTClaims = payload as unknown as JWTClaims;
+  // Validate the verified payload against the claims schema — the same
+  // rejection createJWTMiddleware applies. Hono's `verify` checks the
+  // signature and exp/nbf timing but not the *shape* of the claims, so a
+  // structurally malformed payload must not be blessed into JWTClaims.
+  const parsed = safeParseJWTClaims(payload);
+  if (!parsed.success) {
+    throw new UnauthorizedException('Invalid token claims');
+  }
+  const claims = parsed.data;
 
   // Validate additional claims using shared validator
   validateJWTClaims(claims, {
@@ -228,10 +235,12 @@ export async function verifyJWT(token: string, config: JWTConfig): Promise<JWTCl
 
 /**
  * Decodes a JWT token without verification.
- * WARNING: This does not verify the signature. Use only for debugging or
- * when you know the token has already been verified.
+ * WARNING: This does not verify the signature or validate claim shape. The
+ * payload is honestly typed as hono's raw `JWTPayload` — narrow it with
+ * `safeParseJWTClaims` (or run full `verifyJWT`) before trusting any claim.
+ * Use only for debugging or when the token has already been verified.
  */
-export function decodeJWT(token: string): { header: unknown; payload: JWTClaims } | null {
+export function decodeJWT(token: string): { header: unknown; payload: JWTPayload } | null {
   try {
     const decoded = decode(token);
     if (!decoded || !decoded.header || !decoded.payload) {
@@ -239,7 +248,7 @@ export function decodeJWT(token: string): { header: unknown; payload: JWTClaims 
     }
     return {
       header: decoded.header,
-      payload: decoded.payload as unknown as JWTClaims,
+      payload: decoded.payload,
     };
   } catch {
     return null;
