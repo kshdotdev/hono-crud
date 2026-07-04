@@ -239,6 +239,22 @@ function collectUnknownTargets(
 }
 
 /**
+ * Own-property sibling lookup (same-call siblings shadow base-map keys).
+ * `Object.hasOwn` guards both maps so an unresolved target that collides with
+ * an `Object.prototype` member (e.g. `'constructor'` under
+ * `onUnknownModel: 'ignore'`) is never wired against the prototype.
+ */
+function lookupSibling(
+  key: string,
+  wired: Record<string, Model>,
+  base: Record<string, Model>,
+): Model | undefined {
+  if (Object.hasOwn(wired, key)) return wired[key];
+  if (Object.hasOwn(base, key)) return base[key];
+  return undefined;
+}
+
+/**
  * Wire one relation: fresh object (author input never mutated), sibling
  * auto-population, and the registry-key → tableName rewrite. Same-call
  * siblings shadow base-map keys. External relations pass through untouched
@@ -251,7 +267,7 @@ function wireRelation(
   config: ResolvedDefineModelsConfig,
 ): RelationConfig {
   const { external, ...relation } = authored;
-  const sibling = external === true ? undefined : (wired[relation.model] ?? base[relation.model]);
+  const sibling = external === true ? undefined : lookupSibling(relation.model, wired, base);
   if (!sibling) return relation;
   if (config.autoPopulateSchema && (config.overwriteExplicit || relation.schema == null)) {
     relation.schema = sibling.schema;

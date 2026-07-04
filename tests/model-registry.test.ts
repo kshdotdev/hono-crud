@@ -220,6 +220,28 @@ describe('defineModels', () => {
     expect(db.users.relations?.posts.schema).toBeUndefined();
   });
 
+  it("onUnknownModel: 'ignore' never resolves Object.prototype members as siblings", () => {
+    const db = defineModels(
+      {
+        users: {
+          tableName: 'users',
+          schema: UserSchema,
+          primaryKeys: ['id'],
+          relations: {
+            // @ts-expect-error - not a sibling key; collides with an Object.prototype member
+            weird: { type: 'belongsTo', model: 'constructor', foreignKey: 'x' },
+          },
+        },
+      },
+      { onUnknownModel: 'ignore' },
+    );
+
+    // Left exactly as authored — never wired against Object.prototype.constructor.
+    expect(db.users.relations?.weird.model).toBe('constructor');
+    expect(db.users.relations?.weird.schema).toBeUndefined();
+    expect(db.users.relations?.weird.table).toBeUndefined();
+  });
+
   it('external: true skips sibling checking + auto-population and strips the marker', () => {
     const OrgSchema = z.object({ id: z.string(), name: z.string() });
     const db = defineModels({
