@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.examples.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "hono-crud": ["packages/core/src/index.ts"],
+      "hono-crud/*": ["packages/core/src/*"],
+      "@hono-crud/memory": ["packages/memory/src/index.ts"],
+      "@hono-crud/drizzle": ["packages/drizzle/src/index.ts"],
+      "@hono-crud/prisma": ["packages/prisma/src/index.ts"],
+      "zod": ["packages/core/node_modules/zod"],
+      "zod/*": ["packages/core/node_modules/zod/*"],
+      "hono": ["packages/core/node_modules/hono"],
+      "hono/*": ["packages/core/node_modules/hono/*"],
+      "@hono/zod-openapi": ["packages/core/node_modules/@hono/zod-openapi"]
+    }
+  },
+  "include": ["./**/*.ts"]
+}

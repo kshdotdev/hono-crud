@@ -158,6 +158,8 @@ export type {
   InferMeta,
   InferSchema,
   SchemaKeys,
+  RelationNamesOf,
+  FieldsOf,
   ModelTable,
   PartialBy,
   RequiredBy,

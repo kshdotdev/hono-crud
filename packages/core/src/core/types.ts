@@ -17,6 +17,34 @@ export type InferSchema<T extends ZodType> = z.infer<T>;
  */
 export type SchemaKeys<T extends ZodObject<ZodRawShape>> = keyof z.infer<T>;
 
+/**
+ * Relation names declared on a MetaInput's model, as a literal union.
+ *
+ * For a model authored through {@link defineModel} with a `relations` map,
+ * this is the union of its relation names (`'posts' | 'profile'`), so
+ * authoring surfaces (builder `.include(...)`, functional `includes`) reject
+ * typos at compile time. For an un-narrowed `MetaInput` (generic wrapper
+ * code) it degrades to `string` — permissive by design: wide code keeps
+ * compiling, it just gets no autocomplete or rejection.
+ */
+export type RelationNamesOf<M extends MetaInput> = NonNullable<
+  M['model']['relations']
+> extends infer R
+  ? [R] extends [never]
+    ? never
+    : Extract<keyof R, string>
+  : never;
+
+/**
+ * Schema (column) field names of a MetaInput's model, as a literal union.
+ *
+ * The MetaInput-level companion of {@link SchemaKeys}: gives authoring
+ * surfaces (builder `.filter`/`.search`/`.sortable`, functional field
+ * arrays) a literal union of the model's schema keys. Degrades to `string`
+ * for an un-narrowed `MetaInput`, like {@link RelationNamesOf}.
+ */
+export type FieldsOf<M extends MetaInput> = Extract<SchemaKeys<M['model']['schema']>, string>;
+
 // ============================================================================
 // Filter Types
 // ============================================================================
@@ -871,10 +899,19 @@ export type IdStrategy = 'uuid' | 'database' | (() => string | number);
  * Model definition with strong typing.
  * @template T - The Zod schema type for this model
  * @template TTable - Optional ORM table type (Drizzle Table, Prisma model, etc.)
+ * @template TRelations - This model's relations map with its relation names
+ *   preserved as literal keys, inferred by {@link defineModel} from the
+ *   `relations` object. Defaulted to the wide `RelationsConfig` so every
+ *   existing `Model` / `Model<T>` / `Model<T, TTable>` reference and
+ *   heterogeneous collection keeps compiling (the narrowed map stays
+ *   assignable to the default — the parameter sits in covariant property
+ *   position). Downstream authoring surfaces read the name union back via
+ *   {@link RelationNamesOf}.
  */
 export interface Model<
   T extends ZodObject<ZodRawShape> = ZodObject<ZodRawShape>,
   TTable = unknown,
+  TRelations extends RelationsConfig = RelationsConfig,
 > {
   /** Database table name */
   tableName: string;
@@ -968,7 +1005,7 @@ export interface Model<
    * });
    * ```
    */
-  relations?: RelationsConfig;
+  relations?: TRelations;
 
   /**
    * Define computed fields for this model.
@@ -1221,13 +1258,17 @@ export interface PolicyContext {
  * Meta input configuration for endpoints.
  * @template T - The Zod schema type for the model
  * @template TTable - Optional ORM table type
+ * @template TRelations - The model's literal-keyed relations map (see
+ *   {@link Model}); carried here so `M extends MetaInput` surfaces can read
+ *   the relation-name union back via {@link RelationNamesOf}.
  */
 export interface MetaInput<
   T extends ZodObject<ZodRawShape> = ZodObject<ZodRawShape>,
   TTable = unknown,
+  TRelations extends RelationsConfig = RelationsConfig,
 > {
   /** The model configuration */
-  model: Model<T, TTable>;
+  model: Model<T, TTable, TRelations>;
   /** Override schema fields for request body validation */
   fields?: ZodObject<ZodRawShape>;
   /** URL path parameters (e.g., ['id', 'tenantId']) */
@@ -1252,9 +1293,17 @@ export interface MetaInput<
  * });
  * ```
  */
-export function defineModel<T extends ZodObject<ZodRawShape>, TTable = unknown>(
-  config: Model<T, TTable>,
-): Model<T, TTable> {
+export function defineModel<
+  T extends ZodObject<ZodRawShape>,
+  TTable = unknown,
+  TRelations extends RelationsConfig = RelationsConfig,
+>(
+  config: Model<T, TTable, TRelations>,
+): Model<T, TTable, { [K in keyof TRelations & string]: RelationConfig }> {
+  // The mapped return type normalizes each relation's VALUE to the named
+  // `RelationConfig` reference (keeping hovers and declaration emit flat)
+  // while preserving the literal relation-name KEYS the authoring surfaces
+  // consume via `RelationNamesOf`.
   return config;
 }
 
@@ -1268,9 +1317,11 @@ export function defineModel<T extends ZodObject<ZodRawShape>, TTable = unknown>(
  * });
  * ```
  */
-export function defineMeta<T extends ZodObject<ZodRawShape>, TTable = unknown>(
-  config: MetaInput<T, TTable>,
-): MetaInput<T, TTable> {
+export function defineMeta<
+  T extends ZodObject<ZodRawShape>,
+  TTable = unknown,
+  TRelations extends RelationsConfig = RelationsConfig,
+>(config: MetaInput<T, TTable, TRelations>): MetaInput<T, TTable, TRelations> {
   return config;
 }
 
