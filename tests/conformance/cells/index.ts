@@ -17,6 +17,7 @@ import { registerExtendedVerbTenantScopingCells } from './extended-verb-tenant-s
 import { registerFilterOperatorCells } from './filter-operators';
 import { registerFinalizePipelineCells } from './finalize-pipeline';
 import { registerManagedFieldCells } from './managed-fields';
+import { registerModelRegistryCells } from './model-registry';
 import { registerPaginationCells } from './pagination';
 import { registerRelationScopingCells } from './relation-scoping';
 import { registerSoftDeleteLifecycleCells } from './soft-delete-lifecycle';
@@ -55,6 +56,7 @@ export function registerConformanceCells(descriptor: AdapterDescriptor): void {
   registerUniqueConflictCells(descriptor, ctx);
   registerTenantScopingCells(descriptor, ctx);
   registerRelationScopingCells(descriptor, ctx);
+  registerModelRegistryCells(descriptor, ctx);
   registerBatchTenantScopingCells(descriptor, ctx);
   registerExtendedVerbTenantScopingCells(descriptor, ctx);
   registerFinalizePipelineCells(descriptor, ctx);
