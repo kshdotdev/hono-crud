@@ -217,17 +217,20 @@ interface ResolvedDefineModelsConfig {
 type AuthoredRelation = RelationConfig & { external?: boolean };
 
 /**
- * Validation sweep: every internal relation target that is not a sibling key.
- * Runs to completion BEFORE any wiring so a bad map never yields a half-wired
- * graph and every miss surfaces in one error.
+ * Validation sweep: every internal relation target that is neither a same-call
+ * sibling key nor a base-map key. Runs to completion BEFORE any wiring so a
+ * bad map never yields a half-wired graph and every miss surfaces in one error.
  */
-function collectUnknownTargets(wired: Record<string, Model>): UnknownTarget[] {
+function collectUnknownTargets(
+  wired: Record<string, Model>,
+  base: Record<string, Model>,
+): UnknownTarget[] {
   const misses: UnknownTarget[] = [];
   for (const [modelKey, model] of Object.entries(wired)) {
     for (const [relationName, authored] of Object.entries(model.relations ?? {})) {
       const spec = authored as AuthoredRelation;
       if (spec.external === true) continue;
-      if (!Object.hasOwn(wired, spec.model)) {
+      if (!Object.hasOwn(wired, spec.model) && !Object.hasOwn(base, spec.model)) {
         misses.push({ modelKey, relationName, target: spec.model });
       }
     }
@@ -237,16 +240,18 @@ function collectUnknownTargets(wired: Record<string, Model>): UnknownTarget[] {
 
 /**
  * Wire one relation: fresh object (author input never mutated), sibling
- * auto-population, and the registry-key → tableName rewrite. External
- * relations pass through untouched apart from the stripped marker.
+ * auto-population, and the registry-key → tableName rewrite. Same-call
+ * siblings shadow base-map keys. External relations pass through untouched
+ * apart from the stripped marker.
  */
 function wireRelation(
   authored: AuthoredRelation,
   wired: Record<string, Model>,
+  base: Record<string, Model>,
   config: ResolvedDefineModelsConfig,
 ): RelationConfig {
   const { external, ...relation } = authored;
-  const sibling = external === true ? undefined : wired[relation.model];
+  const sibling = external === true ? undefined : (wired[relation.model] ?? base[relation.model]);
   if (!sibling) return relation;
   if (config.autoPopulateSchema && (config.overwriteExplicit || relation.schema == null)) {
     relation.schema = sibling.schema;
@@ -301,14 +306,74 @@ export function defineModels<
     [K in keyof TMap]: ModelSpec<Extract<keyof TMap, string>, SchemaOf<TMap[K]>, TableOf<TMap[K]>>;
   },
 >(map: TMap, config: DefineModelsConfig = {}): WiredModels<TMap> {
-  const resolved: ResolvedDefineModelsConfig = {
+  return wireModelMap(map, {}, resolveDefineModelsConfig(config)) as WiredModels<TMap>;
+}
+
+/**
+ * Setup bag for {@link defineModelsExtending} — the {@link DefineModelsConfig}
+ * knobs plus the base map whose keys become referenceable siblings.
+ */
+export interface DefineModelsExtendConfig<TBase extends Record<string, Model>>
+  extends DefineModelsConfig {
+  /** A previously-wired map whose keys become referenceable siblings. */
+  extends: TBase;
+}
+
+/**
+ * Incremental adoption: wire a new map whose relations may also target the
+ * keys of an ALREADY-WIRED base map — composing registries acyclically across
+ * files/calls (a true cycle must be co-located in one {@link defineModels}
+ * call, which is the point of the mechanism). Same-call siblings shadow base
+ * keys; the returned map exposes base entries alongside the new ones, and the
+ * base models are never re-wired, mutated, or frozen by this call.
+ *
+ * @example
+ * ```ts
+ * const core = defineModels({ users: { ... } });
+ * const billing = defineModelsExtending(
+ *   { invoices: { ..., relations: { owner: { type: 'belongsTo', model: 'users', foreignKey: 'userId' } } } },
+ *   { extends: core },
+ * );
+ * // billing.invoices.relations.owner.schema === core.users.schema (auto-populated)
+ * ```
+ */
+export function defineModelsExtending<
+  TBase extends Record<string, Model>,
+  TMap extends {
+    [K in keyof TMap]: ModelSpec<
+      Extract<keyof TMap | keyof TBase, string>,
+      SchemaOf<TMap[K]>,
+      TableOf<TMap[K]>
+    >;
+  },
+>(map: TMap, config: DefineModelsExtendConfig<TBase>): WiredModels<TMap> & TBase {
+  const { extends: base, ...knobs } = config;
+  const wired = wireModelMap(map, base, resolveDefineModelsConfig(knobs));
+  return { ...base, ...wired } as WiredModels<TMap> & TBase;
+}
+
+/** Apply the {@link DefineModelsConfig} defaults. */
+function resolveDefineModelsConfig(config: DefineModelsConfig): ResolvedDefineModelsConfig {
+  return {
     autoPopulateSchema: config.autoPopulateSchema ?? true,
     autoPopulateTable: config.autoPopulateTable ?? true,
     overwriteExplicit: config.overwriteExplicit ?? false,
     onUnknownModel: config.onUnknownModel ?? 'throw',
     freeze: config.freeze ?? false,
   };
+}
 
+/**
+ * The shared wiring core behind {@link defineModels} (empty base) and
+ * {@link defineModelsExtending}: copy, validate everything, then wire.
+ * Only the NEW map's models are wired (and, with `freeze`, frozen) — base
+ * models were already wired by their own producing call.
+ */
+function wireModelMap(
+  map: object,
+  base: Record<string, Model>,
+  resolved: ResolvedDefineModelsConfig,
+): Record<string, Model> {
   // Pass 1 — shallow-copy every entry so author inputs are never mutated.
   // (Runtime parity with defineModel, which is an identity function.)
   const wired: Record<string, Model> = {};
@@ -317,9 +382,9 @@ export function defineModels<
   }
 
   // Pass 2a — validate EVERY internal relation target before wiring anything.
-  const misses = collectUnknownTargets(wired);
+  const misses = collectUnknownTargets(wired, base);
   if (misses.length > 0 && resolved.onUnknownModel === 'throw') {
-    throw new Error(formatUnknownTargets(misses, Object.keys(wired)));
+    throw new Error(formatUnknownTargets(misses, [...Object.keys(base), ...Object.keys(wired)]));
   }
 
   // Pass 2b — wire: fresh relation objects, auto-population from the sibling,
@@ -328,12 +393,12 @@ export function defineModels<
     if (!model.relations) continue;
     const rewired: Record<string, RelationConfig> = {};
     for (const [relationName, authored] of Object.entries(model.relations)) {
-      rewired[relationName] = wireRelation(authored as AuthoredRelation, wired, resolved);
+      rewired[relationName] = wireRelation(authored as AuthoredRelation, wired, base, resolved);
     }
     model.relations = rewired;
   }
 
   if (resolved.freeze) freezeWiredModels(wired);
 
-  return wired as WiredModels<TMap>;
+  return wired;
 }
