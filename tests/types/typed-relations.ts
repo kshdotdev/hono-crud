@@ -113,3 +113,58 @@ export {
   modelT,
   modelTT,
 };
+
+// ============================================================================
+// F2 — authoring surfaces constrain relation names (builder / functional /
+// config). Parameter positions only; nothing narrows past `.build()`.
+// ============================================================================
+
+import { crud } from 'hono-crud/builder';
+import type { EndpointsConfig } from 'hono-crud/config';
+import type { ListConfig, ReadConfig } from 'hono-crud/functional';
+
+// Builder: declared relation names accepted, typos rejected.
+crud(userMeta).list().include('posts', 'profile');
+crud(userMeta).read().include('profile');
+crud(userMeta).create().nestedCreate('posts');
+crud(userMeta).update().nestedWrites('posts');
+
+// @ts-expect-error - 'psots' is not a declared relation name
+crud(userMeta).list().include('psots');
+// @ts-expect-error - 'author' is not declared on UserModel
+crud(userMeta).read().include('author');
+// @ts-expect-error - typo'd nested-create relation
+crud(userMeta).create().nestedCreate('psots');
+// @ts-expect-error - typo'd nested-writes relation
+crud(userMeta).update().nestedWrites('profiel');
+
+// Wide meta stays permissive through the builder.
+crud(wideMeta).list().include('anything-goes');
+
+// Functional config bags.
+const listCfg: ListConfig<typeof userMeta> = {
+  meta: userMeta,
+  allowedIncludes: ['posts'],
+};
+const readCfg: ReadConfig<typeof userMeta> = {
+  meta: userMeta,
+  // @ts-expect-error - typo'd include in functional config
+  allowedIncludes: ['psots'],
+};
+
+// Config-object API.
+const endpointsCfg: EndpointsConfig<typeof userMeta> = {
+  meta: userMeta,
+  list: { includes: ['posts', 'profile'] },
+  read: {
+    // @ts-expect-error - typo'd include in config API
+    includes: ['profil'],
+  },
+  create: { nestedCreate: ['posts'] },
+  update: {
+    // @ts-expect-error - typo'd nested-writes relation in config API
+    nestedWrites: ['psots'],
+  },
+};
+
+export { listCfg, readCfg, endpointsCfg };

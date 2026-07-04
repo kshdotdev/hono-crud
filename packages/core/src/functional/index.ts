@@ -37,6 +37,7 @@ import type {
   HookMode,
   MetaInput,
   OpenAPIRouteSchema,
+  RelationNamesOf,
   SortSpec,
 } from '../core/types';
 import type { ModelObject } from '../endpoints/types';
@@ -65,7 +66,7 @@ export interface CreateConfig<M extends MetaInput, E extends Env = Env> {
     data: ModelObject<M['model']>,
     ctx?: HookContext,
   ) => Promise<ModelObject<M['model']>> | ModelObject<M['model']>;
-  allowNestedCreate?: string[];
+  allowNestedCreate?: RelationNamesOf<M>[];
   beforeHookMode?: HookMode;
   afterHookMode?: HookMode;
   /**
@@ -87,7 +88,7 @@ export interface ListConfig<M extends MetaInput, E extends Env = Env> {
   defaultSort?: SortSpec;
   defaultPerPage?: number;
   maxPerPage?: number;
-  allowedIncludes?: string[];
+  allowedIncludes?: RelationNamesOf<M>[];
   fieldSelectionEnabled?: boolean;
   allowedSelectFields?: string[];
   blockedSelectFields?: string[];
@@ -105,7 +106,7 @@ export interface ReadConfig<M extends MetaInput, E extends Env = Env> {
   schema?: OpenAPISchema;
   lookupField?: string;
   additionalFilters?: string[];
-  allowedIncludes?: string[];
+  allowedIncludes?: RelationNamesOf<M>[];
   fieldSelectionEnabled?: boolean;
   allowedSelectFields?: string[];
   blockedSelectFields?: string[];
@@ -125,7 +126,7 @@ export interface UpdateConfig<M extends MetaInput, E extends Env = Env> {
   additionalFilters?: string[];
   allowedUpdateFields?: string[];
   blockedUpdateFields?: string[];
-  allowNestedWrites?: string[];
+  allowNestedWrites?: RelationNamesOf<M>[];
   /** The optional second argument is the engine-built `HookContext`. */
   before?: (
     data: Partial<ModelObject<M['model']>>,

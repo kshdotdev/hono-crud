@@ -45,6 +45,7 @@ import type {
   HookMode,
   MetaInput,
   OpenAPIRouteSchema,
+  RelationNamesOf,
   SortDirection,
   SortSpec,
 } from '../core/types';
@@ -157,7 +158,7 @@ export class CreateBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set relations that allow nested creates */
-  nestedCreate(...relations: string[]): this {
+  nestedCreate(...relations: RelationNamesOf<M>[]): this {
     this._allowNestedCreate = relations;
     return this;
   }
@@ -307,7 +308,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set allowed includes */
-  include(...relations: string[]): this {
+  include(...relations: RelationNamesOf<M>[]): this {
     this._allowedIncludes = relations;
     return this;
   }
@@ -446,7 +447,7 @@ export class ReadBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set allowed includes */
-  include(...relations: string[]): this {
+  include(...relations: RelationNamesOf<M>[]): this {
     this._allowedIncludes = relations;
     return this;
   }
@@ -593,7 +594,7 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set relations that allow nested writes */
-  nestedWrites(...relations: string[]): this {
+  nestedWrites(...relations: RelationNamesOf<M>[]): this {
     this._allowNestedWrites = relations;
     return this;
   }
