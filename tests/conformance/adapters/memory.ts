@@ -475,6 +475,9 @@ export const memoryConformance: AdapterDescriptor = {
     extendedVerbTenantScoping: true,
     fieldEncryption: true,
     encryptedHistoryAudit: true,
+    // Memory bulk-patch re-reads and returns the patched rows, so returnRecords,
+    // decrypt-on-return, and per-record `bulk_patched` events all work.
+    bulkPatchReturnsRecords: true,
   },
   tenant: {
     field: 'tenantId',

@@ -124,3 +124,29 @@ model Category {
 
   @@map("categories")
 }
+
+// ============================================================================
+// Conformance Encryption Model (tests/conformance/adapters/prisma.ts)
+//
+// Mirrors the drizzle leg's `conformance_enc` table so the field-encryption and
+// event conformance cells can run against real Postgres. `secret` is a `Json?`
+// column: the hono-crud field-encryption layer serializes the `{ ct, iv, v }`
+// envelope (an object) into it — the JSON/serialized column shape a SQL adapter
+// needs to hold an encrypted field. A `String` column would reject the object
+// bind, which is exactly why the field-encryption cell demands a JSON-capable
+// column (see docs/advanced-features.md storage note). Not used by any example.
+// ============================================================================
+
+model EncItem {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  name      String
+  role      UserRole  @default(user)
+  age       Int?
+  secret    Json?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("enc_items")
+}
