@@ -1,7 +1,9 @@
 /**
  * Example: Relations with Drizzle + PostgreSQL
  *
- * Demonstrates relation loading via ?include= parameter:
+ * Demonstrates relation loading via ?include= parameter, with the whole
+ * circular model graph authored in ONE `defineModels` call — relation
+ * `schema`/`table` are auto-populated from the sibling entries:
  * - hasMany: Users -> Posts, Posts -> Comments
  * - hasOne: Users -> Profiles
  * - belongsTo: Posts -> Users (author), Comments -> Users/Posts
@@ -20,7 +22,7 @@ import {
 import { swaggerUI } from '@hono-crud/swagger';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { defineMeta, defineModels, fromHono, registerCrud } from 'hono-crud';
 import { CommentSchema, PostSchema, ProfileSchema, UserSchema } from '../shared/schemas.js';
 import { db, initDb, pool } from './db.js';
 import { comments, posts, profiles, users } from './schema.js';
@@ -28,93 +30,99 @@ import { comments, posts, profiles, users } from './schema.js';
 const typedDb = db as unknown as DrizzleDatabaseConstraint;
 
 // ============================================================================
-// Models with Relations
+// Models with Relations — one defineModels call
+//
+// Relations reference sibling registry keys, so the circular graph
+// (users↔posts↔comments) needs no declaration ordering. Each relation's
+// `schema` and `table` are auto-populated from its target sibling: includes
+// resolve without hand-copying table refs (previously they silently no-op'd
+// without a relation-level `table`), and the OpenAPI documents the
+// `?include=` response shapes without hand-supplying relation schemas.
 // ============================================================================
 
-const UserModel = defineModel({
-  tableName: 'users',
-  schema: UserSchema,
-  primaryKeys: ['id'],
-  table: users,
-  relations: {
-    posts: {
-      type: 'hasMany',
-      model: 'posts',
-      foreignKey: 'authorId',
+const models = defineModels({
+  users: {
+    tableName: 'users',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+    table: users,
+    relations: {
+      posts: {
+        type: 'hasMany',
+        model: 'posts',
+        foreignKey: 'authorId',
+      },
+      profile: {
+        type: 'hasOne',
+        model: 'profiles',
+        foreignKey: 'userId',
+      },
+      comments: {
+        type: 'hasMany',
+        model: 'comments',
+        foreignKey: 'authorId',
+      },
     },
-    profile: {
-      type: 'hasOne',
-      model: 'profiles',
-      foreignKey: 'userId',
+  },
+  posts: {
+    tableName: 'posts',
+    schema: PostSchema,
+    primaryKeys: ['id'],
+    table: posts,
+    relations: {
+      author: {
+        type: 'belongsTo',
+        model: 'users',
+        foreignKey: 'authorId',
+        localKey: 'id',
+      },
+      comments: {
+        type: 'hasMany',
+        model: 'comments',
+        foreignKey: 'postId',
+      },
     },
-    comments: {
-      type: 'hasMany',
-      model: 'comments',
-      foreignKey: 'authorId',
+  },
+  profiles: {
+    tableName: 'profiles',
+    schema: ProfileSchema,
+    primaryKeys: ['id'],
+    table: profiles,
+    relations: {
+      user: {
+        type: 'belongsTo',
+        model: 'users',
+        foreignKey: 'userId',
+        localKey: 'id',
+      },
+    },
+  },
+  comments: {
+    tableName: 'comments',
+    schema: CommentSchema,
+    primaryKeys: ['id'],
+    table: comments,
+    relations: {
+      post: {
+        type: 'belongsTo',
+        model: 'posts',
+        foreignKey: 'postId',
+        localKey: 'id',
+      },
+      author: {
+        type: 'belongsTo',
+        model: 'users',
+        foreignKey: 'authorId',
+        localKey: 'id',
+      },
     },
   },
 });
 
-const PostModel = defineModel({
-  tableName: 'posts',
-  schema: PostSchema,
-  primaryKeys: ['id'],
-  table: posts,
-  relations: {
-    author: {
-      type: 'belongsTo',
-      model: 'users',
-      foreignKey: 'authorId',
-      localKey: 'id',
-    },
-    comments: {
-      type: 'hasMany',
-      model: 'comments',
-      foreignKey: 'postId',
-    },
-  },
-});
-
-const ProfileModel = defineModel({
-  tableName: 'profiles',
-  schema: ProfileSchema,
-  primaryKeys: ['id'],
-  table: profiles,
-  relations: {
-    user: {
-      type: 'belongsTo',
-      model: 'users',
-      foreignKey: 'userId',
-      localKey: 'id',
-    },
-  },
-});
-
-const CommentModel = defineModel({
-  tableName: 'comments',
-  schema: CommentSchema,
-  primaryKeys: ['id'],
-  table: comments,
-  relations: {
-    post: {
-      type: 'belongsTo',
-      model: 'posts',
-      foreignKey: 'postId',
-      localKey: 'id',
-    },
-    author: {
-      type: 'belongsTo',
-      model: 'users',
-      foreignKey: 'authorId',
-      localKey: 'id',
-    },
-  },
-});
-
-const userMeta = defineMeta({ model: UserModel });
-const postMeta = defineMeta({ model: PostModel });
-const profileMeta = defineMeta({ model: ProfileModel });
-const commentMeta = defineMeta({ model: CommentModel });
+const userMeta = defineMeta({ model: models.users });
+const postMeta = defineMeta({ model: models.posts });
+const profileMeta = defineMeta({ model: models.profiles });
+const commentMeta = defineMeta({ model: models.comments });
 
 // ============================================================================
 // User Endpoints
