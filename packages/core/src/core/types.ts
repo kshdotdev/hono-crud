@@ -694,17 +694,17 @@ export interface AggregateResult {
 /**
  * Configuration for which fields can be aggregated.
  */
-export interface AggregateConfig {
+export interface AggregateConfig<TField extends string = string> {
   /** Fields that can be used with SUM */
-  sumFields?: string[];
+  sumFields?: TField[];
   /** Fields that can be used with AVG */
-  avgFields?: string[];
+  avgFields?: TField[];
   /** Fields that can be used with MIN/MAX */
-  minMaxFields?: string[];
+  minMaxFields?: TField[];
   /** Fields that can be used with COUNT DISTINCT */
-  countDistinctFields?: string[];
+  countDistinctFields?: TField[];
   /** Fields that can be used for GROUP BY */
-  groupByFields?: string[];
+  groupByFields?: TField[];
   /** Default limit for grouped results */
   defaultLimit?: number;
   /** Maximum limit for grouped results */

@@ -8,6 +8,7 @@ import type {
   AggregateOperation,
   AggregateOptions,
   AggregateResult,
+  FieldsOf,
   MetaInput,
   OpenAPIRouteSchema,
 } from '../core/types';
@@ -71,7 +72,7 @@ export abstract class AggregateEndpoint<
    * Configuration for allowed aggregations.
    * Override to restrict which fields can be aggregated.
    */
-  protected aggregateConfig: AggregateConfig = {};
+  protected aggregateConfig: AggregateConfig<FieldsOf<M>> = {};
 
   /**
    * Maximum number of GROUP BY fields allowed per query.
