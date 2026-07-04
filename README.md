@@ -479,7 +479,7 @@ When `responseEnvelope` is omitted (the default), the response body is byte-iden
 ## Advanced Features
 
 - **Soft Delete & Restore** - `softDelete: true` in model, `?withDeleted=true`, restore endpoint
-- **Relations** - `hasOne`, `hasMany`, `belongsTo` with `?include=posts,profile`
+- **Relations** - `hasOne`, `hasMany`, `belongsTo` with `?include=posts,profile`; author circular graphs in one `defineModels` call with auto-populated relation schemas/tables and compile-checked sibling references
 - **Nested Writes** - Create/update related records in a single request
 - **Batch Operations** - Batch create, update, delete, restore, upsert
 - **Upsert** - Create or update by unique keys

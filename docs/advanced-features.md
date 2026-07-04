@@ -8,7 +8,7 @@ The samples below share this setup — an in-memory `users` resource:
 ```typescript
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { defineMeta, defineModel, defineModels, fromHono, registerCrud } from 'hono-crud';
 import {
   MemoryCreateEndpoint,
   MemoryListEndpoint,
@@ -84,20 +84,12 @@ registerCrud(app, '/users', {
 
 ## Relations
 
-Define relationships between models and load them with `?include=`.
+Define relationships between models and load them with `?include=`. Author every
+cross-referencing model in ONE `defineModels` call — relations reference sibling
+registry keys, so a circular graph (users↔posts) needs no declaration ordering:
 
+<!-- docs-typecheck:prelude -->
 ```typescript
-const UserModel = defineModel({
-  tableName: 'users',
-  schema: UserSchema,
-  primaryKeys: ['id'],
-  relations: {
-    posts: { type: 'hasMany', model: 'posts', foreignKey: 'authorId' },
-    profile: { type: 'hasOne', model: 'profiles', foreignKey: 'userId' },
-    comments: { type: 'hasMany', model: 'comments', foreignKey: 'authorId' },
-  },
-});
-
 const PostSchema = z.object({
   id: z.uuid(),
   title: z.string(),
@@ -105,28 +97,64 @@ const PostSchema = z.object({
   authorId: z.uuid(),
 });
 
-const PostModel = defineModel({
-  tableName: 'posts',
-  schema: PostSchema,
-  primaryKeys: ['id'],
-  relations: {
-    author: { type: 'belongsTo', model: 'users', foreignKey: 'authorId', localKey: 'id' },
-    comments: { type: 'hasMany', model: 'comments', foreignKey: 'postId' },
+const models = defineModels({
+  users: {
+    tableName: 'users',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+    relations: {
+      posts: { type: 'hasMany', model: 'posts', foreignKey: 'authorId' },
+    },
+  },
+  posts: {
+    tableName: 'posts',
+    schema: PostSchema,
+    primaryKeys: ['id'],
+    relations: {
+      author: { type: 'belongsTo', model: 'users', foreignKey: 'authorId', localKey: 'id' },
+    },
   },
 });
+
+const relationUserMeta = defineMeta({ model: models.users });
+const relationPostMeta = defineMeta({ model: models.posts });
 ```
+
+`defineModels` eagerly wires the graph at the call site:
+
+- **`relation.schema` is auto-populated** from the target sibling's schema, so
+  the emitted OpenAPI documents every allow-listed `?include=` response shape
+  (and nested-write bodies validate against it) without hand-supplying schemas.
+- **`relation.table` is auto-populated** from the sibling's model-level `table`
+  (what the Drizzle adapter resolves includes with) — no more hand-copying
+  table refs per relation. Explicitly-authored `schema`/`table` always win.
+- **`model` is checked against the sibling keys at compile time** — a typo like
+  `model: 'postz'` is a compile error, and dynamically-built maps that escape
+  static checking fail fast at setup with one aggregated `Error` (with a
+  did-you-mean suggestion).
+- **Off-registry targets** (another package's model, polymorphic tables) opt
+  out per relation with `external: true` and author a raw `RelationConfig`.
+
+The knobs live on the optional second argument (`DefineModelsConfig`):
+`autoPopulateSchema` / `autoPopulateTable` (default `true`),
+`overwriteExplicit` (default `false`), `onUnknownModel: 'throw' | 'ignore'`,
+and `freeze`. To compose registries across files, `defineModelsExtending`
+wires a new map against an already-wired base map (acyclic across calls; a
+true cycle belongs in one `defineModels` call). Standalone `defineModel`
+remains for single models — there you supply `relation.schema`/`table` by
+hand when you want documented includes.
 
 **Enable on endpoints:**
 
 ```typescript
 class UserList extends MemoryListEndpoint {
-  _meta = userMeta;
-  allowedIncludes = ['posts', 'profile', 'comments'];
+  _meta = relationUserMeta;
+  allowedIncludes = ['posts'];
 }
 
 class UserRead extends MemoryReadEndpoint {
-  _meta = userMeta;
-  allowedIncludes = ['posts', 'profile'];
+  _meta = relationUserMeta;
+  allowedIncludes = ['posts'];
 }
 ```
 
@@ -138,13 +166,13 @@ GET /users/123?include=posts
 
 ### Typed relation names
 
-Relation names declared through `defineModel` are captured as literal types,
-so the authoring surfaces reject typos at compile time:
+Relation names declared through `defineModel` or `defineModels` are captured
+as literal types, so the authoring surfaces reject typos at compile time:
 
 <!-- docs-typecheck:skip intentionally-broken sample demonstrating the compile error; the rejection itself is pinned by tests/types -->
 ```typescript
-crud(userMeta).list().include('posts', 'profile'); // ✅
-crud(userMeta).list().include('psots');            // ❌ compile error
+crud(relationUserMeta).list().include('posts'); // ✅
+crud(relationUserMeta).list().include('psots'); // ❌ compile error
 ```
 
 The same applies to the functional API's `allowedIncludes`, the config API's
@@ -156,8 +184,12 @@ Two boundaries to know about:
 
 - **Checking stops at the authoring surface.** Response objects are not
   relation-aware on the server side (`data.posts` does not statically type) —
-  the runtime Zod response schema and the emitted OpenAPI spec already carry
-  the included relation shapes, so generated API clients see them.
+  the runtime Zod response schema and the emitted OpenAPI spec carry the
+  included relation shapes instead, so generated API clients see them. That
+  holds automatically for `defineModels` graphs (auto-populated `schema`);
+  with standalone `defineModel` it requires the hand-supplied
+  `relation.schema` — a relation without one is omitted from the documented
+  response shape.
 - **Generic wrapper code degrades gracefully.** In a helper typed against
   bare `MetaInput`, the unions collapse to `string`: every name is accepted
   (and none autocomplete), exactly like before. Runtime `?include=` handling
