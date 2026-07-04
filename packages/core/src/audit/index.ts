@@ -87,10 +87,12 @@ export class MemoryAuditLogStorage implements AuditLogStorage {
       filtered = filtered.filter((log) => log.userId === options.userId);
     }
     if (options?.startDate) {
-      filtered = filtered.filter((log) => log.timestamp >= options.startDate!);
+      const startDate = options.startDate;
+      filtered = filtered.filter((log) => log.timestamp >= startDate);
     }
     if (options?.endDate) {
-      filtered = filtered.filter((log) => log.timestamp <= options.endDate!);
+      const endDate = options.endDate;
+      filtered = filtered.filter((log) => log.timestamp <= endDate);
     }
 
     const offset = options?.offset || 0;

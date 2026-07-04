@@ -285,12 +285,12 @@ export function createLoggingMiddleware<E extends Env = Env>(
           if (bodyText) {
             // Try to parse as JSON
             try {
-              let parsed = JSON.parse(bodyText);
+              const parsed: unknown = JSON.parse(bodyText);
               // Redact sensitive fields
-              parsed = redactObject(parsed, redactBodyPatterns);
+              const redacted = redactObject(parsed, redactBodyPatterns);
               // Truncate if needed
               const maxSize = requestBodyConfig.maxSize ?? 10240;
-              requestBody = truncateBody(parsed, maxSize);
+              requestBody = truncateBody(redacted, maxSize);
             } catch {
               // Not JSON, store as string (truncated)
               const maxSize = requestBodyConfig.maxSize ?? 10240;
@@ -345,10 +345,10 @@ export function createLoggingMiddleware<E extends Env = Env>(
 
             if (bodyText) {
               try {
-                let parsed = JSON.parse(bodyText);
-                parsed = redactObject(parsed, redactBodyPatterns);
+                const parsed: unknown = JSON.parse(bodyText);
+                const redacted = redactObject(parsed, redactBodyPatterns);
                 const maxSize = responseBodyConfig.maxSize ?? 10240;
-                responseBody = truncateBody(parsed, maxSize);
+                responseBody = truncateBody(redacted, maxSize);
               } catch {
                 const maxSize = responseBodyConfig.maxSize ?? 10240;
                 responseBody = truncateBody(bodyText, maxSize);

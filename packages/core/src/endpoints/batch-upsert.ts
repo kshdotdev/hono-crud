@@ -521,14 +521,16 @@ export abstract class BatchUpsertEndpoint<
     // Apply afterBatch hook
     result = await this.afterBatch(result);
 
-    // Apply computed fields if defined
-    if (this._meta.model.computedFields) {
+    // Apply computed fields if defined (const capture carries the narrowing
+    // into the async map closure — the deep property access would not).
+    const computedFields = this._meta.model.computedFields;
+    if (computedFields) {
       result.items = await Promise.all(
         result.items.map(async (item) => ({
           ...item,
           data: (await applyComputedFields(
             item.data as Record<string, unknown>,
-            this._meta.model.computedFields!,
+            computedFields,
           )) as ModelObject<M['model']>,
         })),
       );

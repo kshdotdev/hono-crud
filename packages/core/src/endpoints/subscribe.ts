@@ -88,7 +88,9 @@ function stripSensitiveFields(data: unknown, excludeFields: string[]): unknown {
  * }));
  * ```
  */
-export function createSubscribeHandler(config: SubscribeEndpointConfig) {
+export function createSubscribeHandler(
+  config: SubscribeEndpointConfig,
+): (ctx: Context<Env>) => Response {
   const {
     table,
     events: eventFilter,

@@ -1451,6 +1451,25 @@ export const validationIssueSchema = z.object({
 export type ValidationIssue = z.infer<typeof validationIssueSchema>;
 
 /**
+ * Error codes emitted by the built-in exception classes and the error
+ * handler itself. Consuming positions pair this with an open
+ * `(string & {})` tail so custom endpoint/satellite codes (e.g.
+ * `'RATE_LIMIT_EXCEEDED'`, `'IDEMPOTENCY_KEY_REQUIRED'`) stay valid while
+ * the known set gets autocomplete and typo protection.
+ */
+export type ApiErrorCode =
+  | 'INTERNAL_ERROR'
+  | 'VALIDATION_ERROR'
+  | 'NOT_FOUND'
+  | 'CONFLICT'
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'AGGREGATION_ERROR'
+  | 'CACHE_ERROR'
+  | 'CONFIGURATION_ERROR'
+  | 'HTTP_ERROR';
+
+/**
  * Canonical schema for the structured error object passed to
  * `ResponseEnvelope.error` — the single source of truth for the
  * `{ code, message, details?, … }` shape produced by `ApiException.toJSON()`,
@@ -1487,13 +1506,8 @@ export const errorEnvelopeSchema = z.object({
  * a given result schema. Pairs with {@link errorEnvelopeSchema} so both halves
  * of the response contract come from one place.
  */
-export function successEnvelopeSchema<T extends ZodType>(
-  result: T,
-): ZodObject<{ success: ZodType; result: T }> {
-  return z.object({ success: z.literal(true), result }) as unknown as ZodObject<{
-    success: ZodType;
-    result: T;
-  }>;
+export function successEnvelopeSchema<T extends ZodType>(result: T) {
+  return z.object({ success: z.literal(true), result });
 }
 
 /**
@@ -1504,6 +1518,8 @@ export function successEnvelopeSchema<T extends ZodType>(
  * that format it into RFC 7807, JSON:API, a house standard, etc.
  */
 export type StructuredError = z.infer<typeof structuredErrorSchema> & {
+  /** Narrowed over the schema's plain `string` for known-code autocomplete. */
+  code: ApiErrorCode | (string & {});
   [key: string]: unknown;
 };
 

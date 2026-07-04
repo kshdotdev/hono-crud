@@ -73,7 +73,10 @@ export function errorResponseZodSchema(): ZodObject<{
  * A complete OpenAPI response object for the error envelope — drop straight
  * into a `responses` map: `400: errorResponseSchema('Validation error')`.
  */
-export function errorResponseSchema(description?: string) {
+export function errorResponseSchema(description?: string): {
+  description: string;
+  content: { 'application/json': { schema: ReturnType<typeof errorResponseZodSchema> } };
+} {
   return {
     description: description ?? 'Error',
     content: {

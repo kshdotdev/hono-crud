@@ -133,16 +133,14 @@ export abstract class DeleteEndpoint<
     const relations = this._meta.model.relations;
     if (!relations) return [];
 
-    return Object.entries(relations)
-      .filter(([_, config]) => {
-        const action = config.cascade?.[actionType];
-        return action && action !== 'noAction';
-      })
-      .map(([name, config]) => ({
-        name,
-        config,
-        action: config.cascade![actionType]!,
-      }));
+    // Single-pass flatMap so the narrowed `action` stays captured — the
+    // previous filter+map pair lost the narrowing across closures and
+    // needed double non-null assertions.
+    return Object.entries(relations).flatMap(([name, config]) => {
+      const action = config.cascade?.[actionType];
+      if (!action || action === 'noAction') return [];
+      return [{ name, config, action }];
+    });
   }
 
   /**

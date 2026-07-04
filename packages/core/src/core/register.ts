@@ -253,7 +253,7 @@ export function registerCrud<E extends Env = Env>(
 /**
  * Creates a JSON content type helper for OpenAPI schemas.
  */
-export function contentJson<T>(schema: T) {
+export function contentJson<T>(schema: T): { content: { 'application/json': { schema: T } } } {
   return {
     content: {
       'application/json': {

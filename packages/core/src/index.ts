@@ -143,6 +143,7 @@ export type {
   ResponseEnvelope,
   ResponseEnvelopeInfo,
   StructuredError,
+  ApiErrorCode,
   ValidationIssue,
   SchemaResolveContext,
   ModelPolicies,

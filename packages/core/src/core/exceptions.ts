@@ -1,7 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { ZodError } from 'zod';
-import type { ErrorResponse, StructuredError, ValidationIssue } from './types';
+import type { ApiErrorCode, ErrorResponse, StructuredError, ValidationIssue } from './types';
 
 /**
  * Valid HTTP status codes for API exceptions.
@@ -20,13 +20,13 @@ export type ApiStatusCode = ContentfulStatusCode;
  * ```
  */
 export class ApiException extends HTTPException {
-  public readonly code: string;
+  public readonly code: ApiErrorCode | (string & {});
   public readonly details?: unknown;
 
   constructor(
     message: string,
     status: ApiStatusCode = 500,
-    code = 'INTERNAL_ERROR',
+    code: ApiErrorCode | (string & {}) = 'INTERNAL_ERROR',
     details?: unknown,
   ) {
     super(status, { message });
