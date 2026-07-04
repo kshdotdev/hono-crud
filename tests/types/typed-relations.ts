@@ -350,3 +350,172 @@ export {
   aggBad,
   subclassAggregate,
 };
+
+// ============================================================================
+// F5 — defineModels registry factory: sibling-key constraint, literal-key
+// survival, variance guards, and the `external` escape hatch
+// ============================================================================
+
+import type { RelationConfig } from 'hono-crud';
+import { defineModels } from 'hono-crud';
+
+const RegistryPostSchema = z.object({ id: z.uuid(), title: z.string(), authorId: z.uuid() });
+
+// Circular User↔Post inside ONE call — cross-references are sibling keys, so
+// the cycle is inert data (no ordering, no thunks, no standalone-const games).
+const registryDb = defineModels({
+  users: {
+    tableName: 'users',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+    relations: {
+      posts: { type: 'hasMany', model: 'posts', foreignKey: 'authorId' },
+    },
+  },
+  posts: {
+    tableName: 'posts',
+    schema: RegistryPostSchema,
+    primaryKeys: ['id'],
+    relations: {
+      author: { type: 'belongsTo', model: 'users', foreignKey: 'authorId' },
+    },
+  },
+});
+
+const registryUserMeta = defineMeta({ model: registryDb.users });
+const registryPostMeta = defineMeta({ model: registryDb.posts });
+
+// P1 — literal relation-name keys survive the factory.
+const registryRelOk: RelationNamesOf<typeof registryUserMeta> = 'posts';
+const registryRelOk2: RelationNamesOf<typeof registryPostMeta> = 'author';
+// @ts-expect-error - 'psots' is not a declared relation name
+const registryRelBad: RelationNamesOf<typeof registryUserMeta> = 'psots';
+
+// P4a — relation `model` is constrained to the sibling registry keys.
+defineModels({
+  solo: {
+    tableName: 'solo',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+    relations: {
+      // @ts-expect-error - 'nonexistent' is not a sibling registry key
+      bad: { type: 'belongsTo', model: 'nonexistent', foreignKey: 'x' },
+    },
+  },
+});
+
+// P3 — concrete schema survives → FieldsOf literal union + primaryKeys check.
+const registryFieldOk: FieldsOf<typeof registryUserMeta> = 'email';
+// @ts-expect-error - 'nope' is not a schema field
+const registryFieldBad: FieldsOf<typeof registryUserMeta> = 'nope';
+
+defineModels({
+  pkCheck: {
+    tableName: 'pk_check',
+    schema: UserSchema,
+    // @ts-expect-error - 'bogus' is not a schema key
+    primaryKeys: ['bogus'],
+  },
+});
+
+// P2 — wired output stays assignable to the wide existential forms (the pinned
+// B1 variance guard): heterogeneous collections mixing registry-wired and
+// defineModel-produced models, plus Model<T> partial applications.
+const registryModels: Model[] = [registryDb.users, registryDb.posts, UserModel, BareModel];
+const registryMetas: MetaInput[] = [
+  registryUserMeta,
+  userMeta,
+  defineMeta({ model: registryDb.posts }),
+];
+const registryModelT: Model<typeof UserSchema> = registryDb.users;
+const registryModelTT: Model<typeof UserSchema, unknown> = registryDb.users;
+
+// A relation-less registry entry stays permissive, like a bare defineModel.
+const registryBareDb = defineModels({
+  bare: { tableName: 'bare', schema: UserSchema, primaryKeys: ['id'] },
+});
+const registryBareMeta = defineMeta({ model: registryBareDb.bare });
+const registryBareRel: RelationNamesOf<typeof registryBareMeta> = 'any-name-compiles';
+
+// ============================================================================
+// F5b — the `external: true` escape hatch (off-registry targets)
+// ============================================================================
+
+// Accepted: external target with author-supplied schema, exactly as a raw
+// RelationConfig — sibling-key constraint and auto-population are off.
+const externalDb = defineModels({
+  users: {
+    tableName: 'users',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+    relations: {
+      posts: { type: 'hasMany', model: 'posts', foreignKey: 'authorId' },
+      org: {
+        type: 'belongsTo',
+        model: 'organizations',
+        foreignKey: 'orgId',
+        external: true,
+        schema: RegistryPostSchema,
+      },
+    },
+  },
+  posts: { tableName: 'posts', schema: RegistryPostSchema, primaryKeys: ['id'] },
+});
+
+// The escape is explicit: a non-sibling target WITHOUT the marker stays rejected.
+defineModels({
+  users: {
+    tableName: 'users',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+    relations: {
+      // @ts-expect-error - non-sibling target without `external: true` is rejected
+      org: { type: 'belongsTo', model: 'organizations', foreignKey: 'orgId' },
+    },
+  },
+});
+
+// A mixed internal+external map still assigns wide (B1 guard holds with the
+// escape-hatch union present in the input type).
+const externalModels: Model[] = [externalDb.users, externalDb.posts];
+const externalRelOk: RelationNamesOf<
+  ReturnType<
+    typeof defineMeta<
+      typeof externalDb.users.schema,
+      unknown,
+      NonNullable<typeof externalDb.users.relations>
+    >
+  >
+> = 'org';
+
+// ============================================================================
+// F5c — D7 drop pin: cross-model response typing stays ERASED. The wired
+// relation value is the bare RelationConfig — assignable BOTH ways — so the
+// sibling's concrete schema type does NOT flow into the output (recovering it
+// would need the rejected key-union generic; see the typed-relations memory).
+// ============================================================================
+
+type WiredAuthorRelation = NonNullable<typeof registryDb.posts.relations>['author'];
+const wiredToBare: RelationConfig = {} as WiredAuthorRelation;
+const bareToWired: WiredAuthorRelation = {} as RelationConfig;
+
+export {
+  registryDb,
+  registryUserMeta,
+  registryPostMeta,
+  registryRelOk,
+  registryRelOk2,
+  registryRelBad,
+  registryFieldOk,
+  registryFieldBad,
+  registryModels,
+  registryMetas,
+  registryModelT,
+  registryModelTT,
+  registryBareRel,
+  externalDb,
+  externalModels,
+  externalRelOk,
+  wiredToBare,
+  bareToWired,
+};
