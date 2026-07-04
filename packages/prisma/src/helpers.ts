@@ -50,13 +50,27 @@ export interface PrismaModelOperations<Row = Record<string, unknown>> {
   upsert: (args: { where: unknown; create: unknown; update: unknown }) => Promise<Row>;
   createMany: (args: { data: unknown[]; skipDuplicates?: boolean }) => Promise<{ count: number }>;
   /**
-   * Native Prisma aggregate. The result shape (`_count`/`_sum`/`_avg`/...) is
-   * delegate- and args-specific, so it is typed as a generic record the caller
-   * narrows.
+   * Native Prisma aggregate. Typed with the structural result row shared by
+   * aggregate/groupBy so consumers read `_count`/`_sum`/... without casts.
    */
-  aggregate: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
-  /** Native Prisma groupBy. Returns one record per group (caller narrows). */
-  groupBy: (args: Record<string, unknown>) => Promise<Record<string, unknown>[]>;
+  aggregate: (args: Record<string, unknown>) => Promise<PrismaAggregateRow>;
+  /** Native Prisma groupBy. Returns one aggregate row per group. */
+  groupBy: (args: Record<string, unknown>) => Promise<PrismaAggregateRow[]>;
+}
+
+/**
+ * Structural shape of a native Prisma aggregate/groupBy result row:
+ * `_count` is a number (or `{ _all }` object depending on args), the
+ * per-operation maps hold `number | null` per selected field, and groupBy
+ * rows additionally carry the group-key columns (the index signature).
+ */
+export interface PrismaAggregateRow {
+  _count?: number | { _all?: number };
+  _sum?: Record<string, number | null>;
+  _avg?: Record<string, number | null>;
+  _min?: Record<string, number | null>;
+  _max?: Record<string, number | null>;
+  [groupKey: string]: unknown;
 }
 
 // Public Prisma clients do not expose a string index signature, even though
@@ -404,7 +418,10 @@ export async function getPrismaModel<Row = Record<string, unknown>>(
 
     errorMessage += `You can set an explicit delegate name on the model meta: defineModel({ tableName: '${model.tableName}', table: '<prismaDelegateName>', ... })`;
 
-    throw new Error(errorMessage);
+    // Request-time misconfiguration (called per-request from getModel()) —
+    // surface as the 500 CONFIGURATION_ERROR envelope per the error-split
+    // doctrine, matching drizzle's getTable.
+    throw new ConfigurationException(errorMessage);
   }
 
   return delegate;
