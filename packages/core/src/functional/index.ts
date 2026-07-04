@@ -32,6 +32,7 @@ import { type ForwardedKnobs, generateEndpointClass } from '../core/generate-end
 import type {
   AfterDeleteHook,
   AfterUpdateHook,
+  FieldsOf,
   FilterConfig,
   HookContext,
   HookMode,
@@ -80,11 +81,11 @@ export interface CreateConfig<M extends MetaInput, E extends Env = Env> {
 export interface ListConfig<M extends MetaInput, E extends Env = Env> {
   meta: M;
   schema?: OpenAPISchema;
-  filterFields?: string[];
+  filterFields?: FieldsOf<M>[];
   filterConfig?: FilterConfig;
-  searchFields?: string[];
+  searchFields?: FieldsOf<M>[];
   searchParamName?: string;
-  sortFields?: string[];
+  sortFields?: FieldsOf<M>[];
   defaultSort?: SortSpec;
   defaultPerPage?: number;
   maxPerPage?: number;
@@ -124,8 +125,8 @@ export interface UpdateConfig<M extends MetaInput, E extends Env = Env> {
   schema?: OpenAPISchema;
   lookupField?: string;
   additionalFilters?: string[];
-  allowedUpdateFields?: string[];
-  blockedUpdateFields?: string[];
+  allowedUpdateFields?: FieldsOf<M>[];
+  blockedUpdateFields?: FieldsOf<M>[];
   allowNestedWrites?: RelationNamesOf<M>[];
   /** The optional second argument is the engine-built `HookContext`. */
   before?: (

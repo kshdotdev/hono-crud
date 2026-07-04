@@ -43,6 +43,7 @@ import type {
   AfterDeleteHook,
   AfterUpdateHook,
   AggregateResult,
+  FieldsOf,
   HookContext,
   HookMode,
   MetaInput,
@@ -143,16 +144,16 @@ export interface CreateEndpointConfig<M extends MetaInput, E extends Env = Env>
 /**
  * List endpoint filtering configuration.
  */
-interface FilteringConfig {
-  fields?: string[];
+interface FilteringConfig<M extends MetaInput> {
+  fields?: FieldsOf<M>[];
   config?: FilterConfig;
 }
 
 /**
  * List endpoint search configuration.
  */
-interface SearchConfig {
-  fields?: string[];
+interface SearchConfig<M extends MetaInput> {
+  fields?: FieldsOf<M>[];
   /**
    * Query parameter name carrying the inline-search string. Defaults to
    * `'search'` (maps to `ListEndpoint.searchParamName`). Note the dedicated
@@ -164,11 +165,11 @@ interface SearchConfig {
 /**
  * List endpoint sorting configuration.
  */
-interface SortingConfig {
+interface SortingConfig<M extends MetaInput> {
   /** Fields that can be used for sorting. Use with ?sort=fieldName */
-  fields?: string[];
+  fields?: FieldsOf<M>[];
   /** Default sort field */
-  default?: string;
+  default?: FieldsOf<M>;
   /** Default sort direction */
   defaultOrder?: SortDirection;
 }
@@ -266,9 +267,9 @@ export interface MutationCacheConfig {
  */
 export interface ListEndpointConfig<M extends MetaInput, E extends Env = Env>
   extends BaseEndpointConfig<E> {
-  filtering?: FilteringConfig;
-  search?: SearchConfig;
-  sorting?: SortingConfig;
+  filtering?: FilteringConfig<M>;
+  search?: SearchConfig<M>;
+  sorting?: SortingConfig<M>;
   pagination?: PaginationConfig;
   includes?: RelationNamesOf<M>[];
   fieldSelection?: FieldSelectionConfig;
@@ -302,9 +303,9 @@ export interface ReadEndpointConfig<M extends MetaInput, E extends Env = Env>
 /**
  * Update endpoint field configuration.
  */
-interface UpdateFieldConfig {
-  allowed?: string[];
-  blocked?: string[];
+interface UpdateFieldConfig<M extends MetaInput> {
+  allowed?: FieldsOf<M>[];
+  blocked?: FieldsOf<M>[];
 }
 
 /**
@@ -332,7 +333,7 @@ export interface UpdateEndpointConfig<M extends MetaInput, E extends Env = Env>
   extends BaseEndpointConfig<E> {
   lookupField?: string;
   additionalFilters?: string[];
-  fields?: UpdateFieldConfig;
+  fields?: UpdateFieldConfig<M>;
   nestedWrites?: RelationNamesOf<M>[];
   /** Invalidate cached list/read entries after a successful update. */
   cache?: MutationCacheConfig;
@@ -404,7 +405,7 @@ interface SearchHooks<M extends MetaInput> {
 export interface SearchEndpointConfig<M extends MetaInput, E extends Env = Env>
   extends BaseEndpointConfig<E> {
   /** Fields included in the search index (maps to SearchEndpoint.searchFields). */
-  fields?: string[];
+  fields?: FieldsOf<M>[];
   /**
    * Query parameter name carrying the search string. Defaults to `'q'`.
    * Maps to `SearchEndpoint.searchParamName`. Set e.g. `'query'` to expose
@@ -426,10 +427,10 @@ interface AggregateHooks {
 /**
  * Aggregate endpoint configuration.
  */
-export interface AggregateEndpointConfig<_M extends MetaInput, E extends Env = Env>
+export interface AggregateEndpointConfig<M extends MetaInput, E extends Env = Env>
   extends BaseEndpointConfig<E> {
   /** Fields the client may filter aggregations by (maps to AggregateEndpoint.filterFields). */
-  fields?: string[];
+  fields?: FieldsOf<M>[];
   hooks?: AggregateHooks;
 }
 

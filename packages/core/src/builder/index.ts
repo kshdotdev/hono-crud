@@ -40,6 +40,7 @@ import { type ForwardedKnobs, generateEndpointClass } from '../core/generate-end
 import type {
   AfterDeleteHook,
   AfterUpdateHook,
+  FieldsOf,
   FilterConfig,
   HookContext,
   HookMode,
@@ -263,7 +264,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set filter fields */
-  filter(...fields: string[]): this {
+  filter(...fields: FieldsOf<M>[]): this {
     this._filterFields = fields;
     return this;
   }
@@ -275,7 +276,7 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set search fields */
-  search(...fields: string[]): this {
+  search(...fields: FieldsOf<M>[]): this {
     this._searchFields = fields;
     return this;
   }
@@ -287,13 +288,13 @@ export class ListBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set sortable fields. Use with ?sort=fieldName&order=asc|desc */
-  sortable(...fields: string[]): this {
+  sortable(...fields: FieldsOf<M>[]): this {
     this._sortFields = fields;
     return this;
   }
 
   /** Set default sort */
-  defaultSort(field: string, order: SortDirection = 'asc'): this {
+  defaultSort(field: FieldsOf<M>, order: SortDirection = 'asc'): this {
     this._defaultSort = { field, order };
     return this;
   }
@@ -582,13 +583,13 @@ export class UpdateBuilder<M extends MetaInput, E extends Env = Env> {
   }
 
   /** Set allowed update fields */
-  allowedFields(...fields: string[]): this {
+  allowedFields(...fields: FieldsOf<M>[]): this {
     this._allowedUpdateFields = fields;
     return this;
   }
 
   /** Set blocked update fields */
-  blockedFields(...fields: string[]): this {
+  blockedFields(...fields: FieldsOf<M>[]): this {
     this._blockedUpdateFields = fields;
     return this;
   }

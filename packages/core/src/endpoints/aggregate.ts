@@ -71,6 +71,13 @@ export abstract class AggregateEndpoint<
    * Configuration for allowed aggregations.
    * Override to restrict which fields can be aggregated.
    */
+  // Deliberately WIDE (not AggregateConfig<FieldsOf<M>>): class property
+  // overrides get no contextual typing from the base, so a subclass's
+  // `aggregateConfig = { sumFields: ['price'] }` would widen to string[] and
+  // fail against a narrowed field union — rejecting the documented authoring
+  // pattern. Schema-checked aggregate fields live on the config-API surface
+  // (AggregateEndpointConfig.fields) and on explicit annotations via
+  // AggregateConfig<FieldsOf<M>>.
   protected aggregateConfig: AggregateConfig = {};
 
   /**

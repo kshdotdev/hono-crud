@@ -268,3 +268,85 @@ type Computed = ComputedFieldReturns<typeof reusedComputed>;
 const computedName: Computed['displayName'] = 'X';
 
 export { bareSoftDelete, reusedComputed, computedName };
+
+// ============================================================================
+// F4 — schema-field authoring params (builder / functional / config /
+// aggregate class field)
+// ============================================================================
+
+crud(userMeta).list().filter('name', 'email').search('name').sortable('id').defaultSort('name');
+crud(userMeta).update().allowedFields('name').blockedFields('email');
+
+// @ts-expect-error - 'nope' is not a schema field
+crud(userMeta).list().filter('nope');
+// @ts-expect-error - typo'd search field
+crud(userMeta).list().search('emial');
+// @ts-expect-error - typo'd sortable field
+crud(userMeta).list().sortable('nmae');
+// @ts-expect-error - typo'd default-sort field
+crud(userMeta).list().defaultSort('nmae');
+// @ts-expect-error - typo'd allowed update field
+crud(userMeta).update().allowedFields('nope');
+
+// Functional list config field arrays.
+const listFieldsCfg: ListConfig<typeof userMeta> = {
+  meta: userMeta,
+  filterFields: ['name'],
+  searchFields: ['email'],
+  sortFields: ['id'],
+};
+const listFieldsBad: ListConfig<typeof userMeta> = {
+  meta: userMeta,
+  // @ts-expect-error - typo'd filter field in functional config
+  filterFields: ['nope'],
+};
+
+// Config-object API field bags.
+const endpointsFieldsCfg: EndpointsConfig<typeof userMeta> = {
+  meta: userMeta,
+  list: {
+    filtering: { fields: ['name'] },
+    search: { fields: ['email'] },
+    sorting: { fields: ['name'], default: 'name' },
+  },
+  update: { fields: { allowed: ['name'], blocked: ['email'] } },
+  aggregate: { fields: ['id'] },
+};
+const endpointsFieldsBad: EndpointsConfig<typeof userMeta> = {
+  meta: userMeta,
+  list: {
+    // @ts-expect-error - typo'd filtering field in config API
+    filtering: { fields: ['nope'] },
+  },
+};
+
+// Aggregate allow-lists are schema-checked via explicit annotation (the
+// endpoint CLASS FIELD stays wide: property overrides get no contextual
+// typing, so narrowing it would reject the documented
+// `aggregateConfig = {...}` subclass pattern — pinned below).
+import type { AggregateConfig } from 'hono-crud';
+const aggOk: AggregateConfig<FieldsOf<typeof userMeta>> = { sumFields: ['id'] };
+// @ts-expect-error - 'total' is not a schema field
+const aggBad: AggregateConfig<FieldsOf<typeof userMeta>> = { sumFields: ['total'] };
+
+// The documented subclass pattern keeps compiling (regression guard for the
+// class-field revert).
+import { MemoryAggregateEndpoint } from '@hono-crud/memory';
+class SubclassAggregate extends MemoryAggregateEndpoint {
+  _meta = userMeta;
+  override aggregateConfig = { sumFields: ['name'] };
+}
+const subclassAggregate = new SubclassAggregate();
+
+// Wide meta stays permissive on every field surface.
+crud(wideMeta).list().filter('whatever').search('anything').sortable('x').defaultSort('y');
+
+export {
+  listFieldsCfg,
+  listFieldsBad,
+  endpointsFieldsCfg,
+  endpointsFieldsBad,
+  aggOk,
+  aggBad,
+  subclassAggregate,
+};
