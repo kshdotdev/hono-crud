@@ -251,6 +251,40 @@ describe('error-shape unification', () => {
       });
     });
 
+    // The AVG / MIN-MAX / COUNT DISTINCT denial messages are load-bearing
+    // (asserted by clients); AGG_FIELD_RULES must keep emitting them verbatim.
+    class RestrictedAggregate extends MemoryAggregateEndpoint {
+      _meta = productMeta;
+      aggregateConfig = {
+        sumFields: ['price'],
+        avgFields: ['price'],
+        minMaxFields: ['price'],
+        countDistinctFields: ['category'],
+      };
+    }
+
+    function buildRestrictedApp() {
+      const app = fromHono(new OpenAPIHono());
+      app.get('/products/aggregate', RestrictedAggregate);
+      return app;
+    }
+
+    it.each([
+      ['avg=name', "Field 'name' is not allowed for AVG aggregation"],
+      ['min=name', "Field 'name' is not allowed for MIN/MAX aggregation"],
+      ['max=name', "Field 'name' is not allowed for MIN/MAX aggregation"],
+      ['countDistinct=name', "Field 'name' is not allowed for COUNT DISTINCT aggregation"],
+    ])('disallowed field via ?%s → 400 with exact message', async (query, message) => {
+      const res = await buildRestrictedApp().request(`/products/aggregate?${query}`);
+
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as ErrorBody;
+      expect(body).toEqual({
+        success: false,
+        error: { code: 'AGGREGATION_ERROR', message },
+      });
+    });
+
     it('groupBy over the max → 400 AGGREGATION_ERROR (was VALIDATION_ERROR)', async () => {
       const res = await buildApp().request(
         '/products/aggregate?count=*&groupBy=a,b,c,d,e,f', // 6 > default max of 5

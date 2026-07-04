@@ -475,16 +475,36 @@ export interface EndpointAuthConfig {
 // ============================================================================
 
 /**
+ * Origins of an action that triggered an approval request. Single source of
+ * truth for both the `ActionSource` union and the `PendingActionSchema`
+ * validator.
+ */
+export const ACTION_SOURCES = [
+  'http',
+  'agent-mcp',
+  'agent-code-mode',
+  'workflow',
+  'job',
+  'system',
+] as const;
+
+/**
  * Origin of an action that triggered an approval request. Distinguishes
  * "human user via HTTP" from "agent acting on behalf of a user via MCP",
  * etc., so audit logs and approver UIs can render the right context.
  */
-export type ActionSource = 'http' | 'agent-mcp' | 'agent-code-mode' | 'workflow' | 'job' | 'system';
+export type ActionSource = (typeof ACTION_SOURCES)[number];
+
+/**
+ * Lifecycle states of a pending action. Single source of truth for both the
+ * `PendingActionStatus` union and the `PendingActionSchema` validator.
+ */
+export const PENDING_ACTION_STATUSES = ['pending', 'approved', 'rejected', 'expired'] as const;
 
 /**
  * Lifecycle state of a pending action.
  */
-export type PendingActionStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+export type PendingActionStatus = (typeof PENDING_ACTION_STATUSES)[number];
 
 /**
  * A deferred-execution record written by `requireApproval(...)` on the
@@ -526,13 +546,13 @@ export const PendingActionSchema = z.object({
   /** MCP tool-call identifier, when the action came through MCP. */
   toolCallId: z.string().optional(),
   /** Origin of the action (HTTP, agent, workflow, …). */
-  source: z.enum(['http', 'agent-mcp', 'agent-code-mode', 'workflow', 'job', 'system']),
+  source: z.enum(ACTION_SOURCES),
   /** Endpoint or tool name being approved. */
   toolName: z.string(),
   /** Original request input — varies per tool, replayed verbatim on resume. */
   input: z.unknown(),
   /** Lifecycle state. */
-  status: z.enum(['pending', 'approved', 'rejected', 'expired']),
+  status: z.enum(PENDING_ACTION_STATUSES),
   /** ISO 8601 — when the request was logged. */
   createdAt: z.iso.datetime(),
   /** ISO 8601 — when the request expires. After this it should not be replayed. */
