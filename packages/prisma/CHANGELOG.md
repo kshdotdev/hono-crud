@@ -1,5 +1,12 @@
 # @hono-crud/prisma
 
+## 0.1.19
+
+### Patch Changes
+
+- ee9989e: Adapter tightening: drizzle's lazy drizzle-zod loader now has a non-null return type — the 10 caller-side `!` assertions are gone, and a concurrent first call no longer crashes on a not-yet-populated cache (it re-imports idempotently); `getTable` throws `ConfigurationException` (500 `CONFIGURATION_ERROR` envelope) instead of a plain `Error` for a model without a table reference, per the error-split doctrine; the drizzle/prisma connection duck-types use an honest `(key: string)` context getter instead of `(key: never)` + `as never` casts; memory's `queryMemoryStore`/`findByUpsertKeys` are bounded `<T extends Record<string, unknown>>`, removing seven internal widening casts.
+- 07c1336: Prisma adapter tightening: the delegate's `aggregate`/`groupBy` now return a structural `PrismaAggregateRow` (`_count`/`_sum`/`_avg`/`_min`/`_max` + group-key index signature), removing all fourteen result-reading double-casts and eight args-building casts in the aggregate paths; `groupAggregationsByOperation` is an exhaustive `Record<AggregateField['operation'], string[]>` lookup (a new aggregate operation fails to compile until it gets a bucket); the `options.groupBy!` assertion is replaced by a captured local; and `getPrismaModel` / the batch transaction lookups throw `ConfigurationException` (500 `CONFIGURATION_ERROR` envelope) instead of plain `Error` for unknown delegates, per the error-split doctrine.
+
 ## 0.1.18
 
 ### Patch Changes
