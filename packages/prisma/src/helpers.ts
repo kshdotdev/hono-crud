@@ -506,8 +506,6 @@ export interface PrismaQueryResult<Row = Record<string, unknown>> {
   page: number;
   /** Items per page */
   perPage: number;
-  /** Total number of pages */
-  totalPages: number;
   /**
    * Present when the native cursor window ran instead of offset pagination.
    * The offset fields above are then not meaningful — build the envelope
@@ -615,7 +613,6 @@ export async function executePrismaQuery<Row = Record<string, unknown>>(
       totalCount,
       page: 0,
       perPage: limit,
-      totalPages: 0,
       cursor: { limit, applied: decoded !== null },
     };
   }
@@ -632,15 +629,15 @@ export async function executePrismaQuery<Row = Record<string, unknown>>(
     take: perPage,
   });
 
-  const totalPages = Math.ceil(totalCount / perPage);
-
+  // NOTE: total_pages is NOT computed here — the envelope builder
+  // `buildOffsetPageInfo({ page, perPage, totalCount })` derives it at every
+  // call site (List/Export), so a second computation here would be dead.
   return {
     records,
     where,
     totalCount,
     page,
     perPage,
-    totalPages,
   };
 }
 

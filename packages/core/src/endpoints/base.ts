@@ -57,7 +57,7 @@ import {
   type ValidatedData,
 } from '../core/types';
 import { decryptFields, encryptFields } from '../encryption/crypto';
-import { resolveEventEmitter } from '../events/emitter';
+import { type CrudEventEmitter, resolveEventEmitter } from '../events/emitter';
 import type { CrudEventType } from '../events/types';
 import { extractTenantId, getMultiTenantConfig } from '../multi-tenant/config';
 import { applyProfile, applyProfileToArray } from '../serialization/serialize';
@@ -218,13 +218,21 @@ export abstract class CrudEndpoint<
     records: ReadonlyArray<unknown>,
     options?: { as?: 'data' | 'previousData' },
   ): void {
+    // Resolve the emitter ONCE per request — same rules as the single-verb
+    // `emitEvent` (explicit > context > configured global), and never cached on
+    // the instance across requests. With no emitter configured, return WITHOUT
+    // scheduling anything: the previous code called `emitEvent` per record,
+    // which re-resolved the (absent) emitter and queued a `runAfterResponse`
+    // no-op for every record.
+    const emitter = resolveEventEmitter(this.context ?? undefined);
+    if (!emitter) return;
     const slot = options?.as ?? 'data';
     for (const record of records) {
       const recordId = this.getRecordId(record);
       if (recordId === null) continue;
       const payload =
         slot === 'previousData' ? { recordId, previousData: record } : { recordId, data: record };
-      this.runAfterResponse(this.emitEvent(type, payload));
+      this.runAfterResponse(this.dispatchEvent(emitter, type, payload));
     }
   }
 
@@ -471,6 +479,28 @@ export abstract class CrudEndpoint<
   ): Promise<void> {
     const emitter = resolveEventEmitter(this.context ?? undefined);
     if (!emitter) return;
+    await this.dispatchEvent(emitter, type, payload);
+  }
+
+  /**
+   * Build the canonical `CrudEventPayload` for `type`/`payload` and dispatch it
+   * on an ALREADY-RESOLVED emitter. Extracted from {@link emitEvent} so batch
+   * emission ({@link emitBatchEvents}) can resolve the emitter ONCE per request
+   * and reuse it for every record — the per-record payload is byte-identical to
+   * the single-verb path (same fields, same `new Date().toISOString()` capture
+   * timing inside the synchronous loop). Never resolves or caches an emitter
+   * itself; the caller owns resolution.
+   */
+  private async dispatchEvent(
+    emitter: CrudEventEmitter,
+    type: CrudEventType,
+    payload: {
+      recordId: string | number;
+      data?: unknown;
+      previousData?: unknown;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<void> {
     await emitter.emit({
       type,
       table: this._meta.model.tableName,

@@ -500,8 +500,6 @@ export interface DrizzleListQueryResult<Row = Record<string, unknown>> {
   page: number;
   /** Items per page. */
   perPage: number;
-  /** Total number of pages. */
-  totalPages: number;
   /**
    * Present when the keyset (cursor) window ran instead of offset
    * pagination. The offset fields above are then not meaningful — build the
@@ -623,7 +621,6 @@ export async function executeDrizzleListQuery<Row = Record<string, unknown>>(
       totalCount,
       page: 0,
       perPage: limit,
-      totalPages: 0,
       cursor: { limit, applied: cursorApplied },
     };
   }
@@ -633,14 +630,15 @@ export async function executeDrizzleListQuery<Row = Record<string, unknown>>(
   const perPage = filters.options.per_page || defaultPerPage;
   const records = await query.limit(perPage).offset((page - 1) * perPage);
 
-  const totalPages = Math.ceil(totalCount / perPage);
-
+  // NOTE: total_pages is NOT computed here — the envelope builder
+  // `buildOffsetPageInfo({ page, perPage, totalCount })` derives it at every
+  // call site (List/Search/Export), so a second computation here would be
+  // dead. See CLAUDE.md upsert/pagination single-source rules.
   return {
     records,
     totalCount,
     page,
     perPage,
-    totalPages,
   };
 }
 

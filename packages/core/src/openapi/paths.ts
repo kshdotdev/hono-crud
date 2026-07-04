@@ -30,6 +30,7 @@ import { z } from 'zod';
 
 import type { GeneratedEndpoints } from '../config/index';
 import { CRUD_ROUTES, type CrudEndpointName } from '../core/crud-routes';
+import { resolveInstanceSchemaTags } from '../core/generate-endpoint-class';
 import type { OpenAPIRouteSchema } from '../core/types';
 import { toOpenApiPath } from './utils';
 
@@ -127,8 +128,14 @@ export function toOpenApiPaths(
     // Instantiate purely to read the authoritative schema. No
     // setContext()/resolveModelSchema() — for a static model this yields
     // fully-populated request/response schemas (see module docstring).
+    //
+    // Route through the shared emit-time choke point so the model-group tag
+    // default (`tag` ?? `tableName`) is applied here exactly as it is by
+    // `registerRoute`/`buildPerTenantOpenApi` — the sugar path no longer bakes
+    // default tags into the raw `.schema` field, so reading `getSchema()`
+    // directly would drop them. An explicit per-endpoint tag still wins.
     const instance = new EndpointClass();
-    const schema = instance.getSchema();
+    const schema = resolveInstanceSchemaTags(instance);
 
     const effectiveSchema: OpenAPIRouteSchema =
       tagOverride !== undefined ? { ...schema, tags: [tagOverride] } : schema;

@@ -1,5 +1,10 @@
 import { MemoryAdapters } from '@hono-crud/memory';
 import { defineEndpoints, defineMeta, defineModel, toOpenApiPaths } from 'hono-crud';
+// Deep import: the emit-time tag-defaulting choke point (the same helper
+// `registerRoute` / `buildPerTenantOpenApi` / `toOpenApiPaths` use). Not part
+// of the public surface — imported here to prove the model-group default is
+// applied at emit, independently of `toOpenApiPaths`.
+import { resolveInstanceSchemaTags } from 'hono-crud/core/generate-endpoint-class';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -237,6 +242,26 @@ describe('toOpenApiPaths — tag resolution', () => {
     // Untagged sibling falls back to tableName.
     expect((paths['/'].post as { tags?: string[] }).tags).toEqual(['products']);
   });
+
+  it('applies the model-group default to every generated verb (single-source emit guard)', () => {
+    // Regression guard for the sugar-path baking removal: `toOpenApiPaths`
+    // reads `getSchema()` directly, so it must route through the shared
+    // tag-resolution helper — the raw `.schema` field no longer carries the
+    // model-group default. Assert the tableName default reaches a spread of
+    // verbs/paths (not just the collection root), proving every generated slot
+    // is routed through the helper.
+    const paths = toOpenApiPaths(fullEndpoints());
+    const tagsAt = (p: string, verb: string) =>
+      (paths[p]?.[verb] as { tags?: string[] } | undefined)?.tags;
+    expect(tagsAt('/', 'get')).toEqual(['products']); // list
+    expect(tagsAt('/', 'post')).toEqual(['products']); // create
+    expect(tagsAt('/{id}', 'get')).toEqual(['products']); // read
+    expect(tagsAt('/{id}', 'patch')).toEqual(['products']); // update
+    expect(tagsAt('/{id}', 'delete')).toEqual(['products']); // delete
+    expect(tagsAt('/search', 'get')).toEqual(['products']); // search
+    expect(tagsAt('/batch', 'post')).toEqual(['products']); // batchCreate
+    expect(tagsAt('/{id}/clone', 'post')).toEqual(['products']); // clone
+  });
 });
 
 // ============================================================================
@@ -258,17 +283,22 @@ describe('toOpenApiPaths — disabled endpoints', () => {
 });
 
 // ============================================================================
-// 5. Model tag flows into getSchema().tags for a registered endpoint
-//    (proves TASK-A independently of toOpenApiPaths).
+// 5. Model tag flows into the emit-time schema for a generated endpoint via
+//    the shared choke point `resolveInstanceSchemaTags` (the same helper
+//    `registerRoute`/`buildPerTenantOpenApi` use). Proves the default
+//    independently of `toOpenApiPaths`. NOTE: the sugar path no longer bakes
+//    the default tag into the raw `.schema` field — so `getSchema()` read in
+//    isolation carries only explicit tags, and the model-group default is
+//    applied only at emit.
 // ============================================================================
 
-describe('Model.tag flows into endpoint getSchema().tags', () => {
+describe('Model.tag flows into resolveInstanceSchemaTags output', () => {
   it('defaults endpoint tags to tableName when model.tag unset', () => {
     const endpoints = defineEndpoints({ meta: productMeta, create: {}, list: {} }, MemoryAdapters);
     const create = new endpoints.create!();
     const list = new endpoints.list!();
-    expect(create.getSchema().tags).toEqual(['products']);
-    expect(list.getSchema().tags).toEqual(['products']);
+    expect(resolveInstanceSchemaTags(create).tags).toEqual(['products']);
+    expect(resolveInstanceSchemaTags(list).tags).toEqual(['products']);
   });
 
   it('uses model.tag for every generated endpoint when set', () => {
@@ -282,8 +312,8 @@ describe('Model.tag flows into endpoint getSchema().tags', () => {
       { meta: defineMeta({ model: taggedModel }), create: {}, update: {} },
       MemoryAdapters,
     );
-    expect(new endpoints.create!().getSchema().tags).toEqual(['Inventory']);
-    expect(new endpoints.update!().getSchema().tags).toEqual(['Inventory']);
+    expect(resolveInstanceSchemaTags(new endpoints.create!()).tags).toEqual(['Inventory']);
+    expect(resolveInstanceSchemaTags(new endpoints.update!()).tags).toEqual(['Inventory']);
   });
 
   it('does not override an explicit per-endpoint openapi.tags', () => {
@@ -300,6 +330,18 @@ describe('Model.tag flows into endpoint getSchema().tags', () => {
       },
       MemoryAdapters,
     );
+    // Explicit tag wins in BOTH the raw `.schema` (via getSchema()) and emit.
     expect(new endpoints.create!().getSchema().tags).toEqual(['Special']);
+    expect(resolveInstanceSchemaTags(new endpoints.create!()).tags).toEqual(['Special']);
+  });
+
+  it('leaves the raw class `.schema` free of the default tag (single-source guard)', () => {
+    // The sugar path must NOT bake the model-group default back into the raw
+    // field — doing so would resurrect the dual source of truth this change
+    // removes. Only the emit-time helper adds the default.
+    const endpoints = defineEndpoints({ meta: productMeta, create: {} }, MemoryAdapters);
+    const create = new endpoints.create!();
+    expect(create.getSchema().tags).toBeUndefined();
+    expect(resolveInstanceSchemaTags(create).tags).toEqual(['products']);
   });
 });
