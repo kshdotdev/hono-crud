@@ -52,11 +52,12 @@ export type {
 export { OpenAPIRoute } from './core/route';
 export type { CrudEndpointName, CrudEndpoints } from './core/register';
 
-// Shared OpenAPI-tag defaulting: resolves an endpoint's `schema.tags` from the
-// model's `tag`/`tableName` (explicit tags always win). Consumed by the
-// satellite CRUD factories (createDrizzleCrud/createPrismaCrud/createMemoryCrud)
-// so their `getSchema()` override matches the core sugar path exactly.
-export { resolveSchemaTags } from './core/generate-endpoint-class';
+// NOTE: `resolveSchemaTags` is intentionally NOT re-exported. OpenAPI-tag
+// defaulting is applied at the single emit-time choke point
+// (`resolveInstanceSchemaTags`, used by registerRoute / buildPerTenantOpenApi /
+// toOpenApiPaths inside core); no satellite imports the raw helper anymore, so
+// keeping it on the curated `/internal` surface would be dead. The function
+// stays in `core/generate-endpoint-class.ts` for core's own use.
 
 // Canonical CRUD route table: [endpoint name, HTTP verb, sub-path] rows in
 // registration order — the single source of truth registerCrud iterates.

@@ -25,19 +25,17 @@ type AnyHook = (...args: unknown[]) => unknown;
  * tag inherit the resource-level group, which is the whole point of
  * `Model.tag`.
  *
- * Two callers reach this:
- *   1. The registration-time choke point ({@link resolveInstanceSchemaTags},
- *      used by `registerRoute` in `core/openapi.ts` and `buildPerTenantOpenApi`
- *      in `openapi/lazy.ts`) applies it to a live endpoint instance's
- *      already-merged `getSchema()` result, so EVERY endpoint style — factory,
- *      sugar, hand-written class — inherits the model group at emit time. This
- *      is why the adapter factories no longer need a per-class `getSchema()`
- *      override.
- *   2. The sugar path ({@link generateEndpointClass}) additionally bakes the
- *      result into the raw `schema` class field at class-generation time. This
- *      is idempotent with (1) — an explicit tag still wins — and is retained so
- *      `toOpenApiPaths(...)`, which reads `getSchema()` without going through
- *      registration, still emits the model group.
+ * The single caller is the emit-time choke point
+ * ({@link resolveInstanceSchemaTags}), used by `registerRoute`
+ * (`core/openapi.ts`), `buildPerTenantOpenApi` (`openapi/lazy.ts`), and
+ * `toOpenApiPaths` (`openapi/paths.ts`). It applies this helper to a live
+ * endpoint instance's already-merged `getSchema()` result, so EVERY endpoint
+ * style — factory, sugar, hand-written class — inherits the model group at
+ * emit time. This is the single source of truth: the sugar path
+ * ({@link generateEndpointClass}) NO LONGER bakes the default tag into the raw
+ * `schema` class field, so a generated class's raw `.schema` carries only the
+ * tags the caller explicitly supplied; the model-group default (`tag` ??
+ * `tableName`) is applied uniformly at emit by every path above.
  */
 export function resolveSchemaTags(
   schema: OpenAPIRouteSchema | Record<string, unknown> | undefined,
@@ -189,9 +187,13 @@ export function generateEndpointClass<B extends abstract new () => unknown>(
 
   const extras = config.extras;
 
-  // Resolve the effective OpenAPI schema for this endpoint, defaulting
-  // `tags` from the model's `tag` (or `tableName`). See resolveSchemaTags.
-  const resolvedSchema = resolveSchemaTags(config.schema, config.meta.model);
+  // Store the caller's OpenAPI schema on the class VERBATIM (coalescing a
+  // missing schema to `{}`). Default `tags` are intentionally NOT baked in
+  // here — the model-group default is applied at emit time by the single
+  // choke point `resolveInstanceSchemaTags` (registerRoute / lazy /
+  // toOpenApiPaths), so this raw `.schema` field carries only explicitly
+  // supplied tags. See resolveSchemaTags.
+  const rawSchema = (config.schema ?? {}) as OpenAPIRouteSchema;
 
   // @ts-expect-error - TS cannot resolve members of a dynamically-provided abstract base class (TS#4628)
   const Generated = class extends BaseClass {
@@ -223,7 +225,7 @@ export function generateEndpointClass<B extends abstract new () => unknown>(
     }
 
     _meta = config.meta;
-    schema = resolvedSchema;
+    schema = rawSchema;
 
     // Hook modes (Create / Update / Delete)
     protected beforeHookMode: HookMode = config.beforeHookMode ?? 'sequential';
