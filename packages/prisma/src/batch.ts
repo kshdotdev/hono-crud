@@ -7,6 +7,7 @@ import { BatchUpsertEndpoint } from 'hono-crud/internal';
 import { RestoreEndpoint } from 'hono-crud/internal';
 import type { MetaInput } from 'hono-crud/internal';
 import type { ModelObject } from 'hono-crud/internal';
+import { ConfigurationException } from 'hono-crud/internal';
 import { getPrismaClient } from './connection';
 import {
   type PrismaClient,
@@ -100,7 +101,7 @@ export abstract class PrismaBatchCreateEndpoint<
         await resolvePrismaDelegateName(this._meta.model),
       );
       if (!txModel) {
-        throw new Error(
+        throw new ConfigurationException(
           `Model '${this._meta.model.tableName}' not found in Prisma transaction client`,
         );
       }
@@ -435,7 +436,9 @@ export abstract class PrismaBatchUpsertEndpoint<
         await resolvePrismaDelegateName(this._meta.model),
       );
       if (!model) {
-        throw new Error(`Model '${this._meta.model.tableName}' not found in Prisma client`);
+        throw new ConfigurationException(
+          `Model '${this._meta.model.tableName}' not found in Prisma client`,
+        );
       }
       const results: Array<{ data: ModelObject<M['model']>; created: boolean; index: number }> = [];
       const errors: Array<{ index: number; error: string }> = [];

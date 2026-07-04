@@ -18,6 +18,7 @@ import {
 import {
   type PrismaClient as PrismaClientShape,
   getModelName,
+  getPrismaModel,
   resolvePrismaDelegateName,
 } from '@hono-crud/prisma/helpers';
 import { Hono } from 'hono';
@@ -1434,6 +1435,24 @@ describe('Prisma Delegate Name Resolution', () => {
 
       const result = (await response.json()) as { error: string };
       expect(result.error).toContain('not found');
+    });
+  });
+});
+
+// ============================================================================
+// Misconfiguration envelope
+// ============================================================================
+
+describe('getPrismaModel misconfiguration', () => {
+  it('unknown delegate rejects with ConfigurationException (500 CONFIGURATION_ERROR)', async () => {
+    // A client with no delegates at all: request-time misconfiguration must
+    // surface as the canonical envelope error, not an unmapped plain Error.
+    const emptyClient = {} as PrismaClientShape;
+
+    await expect(getPrismaModel(emptyClient, { tableName: 'ghosts' })).rejects.toMatchObject({
+      name: 'ConfigurationException',
+      code: 'CONFIGURATION_ERROR',
+      status: 500,
     });
   });
 });

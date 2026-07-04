@@ -657,44 +657,23 @@ export abstract class PrismaAggregateEndpoint<
   /**
    * Groups aggregation fields by operation type.
    */
-  protected groupAggregationsByOperation(aggregations: AggregateField[]): {
-    sum: string[];
-    avg: string[];
-    min: string[];
-    max: string[];
-    count: string[];
-    countDistinct: string[];
-  } {
-    const grouped = {
-      sum: [] as string[],
-      avg: [] as string[],
-      min: [] as string[],
-      max: [] as string[],
-      count: [] as string[],
-      countDistinct: [] as string[],
+  protected groupAggregationsByOperation(
+    aggregations: AggregateField[],
+  ): Record<AggregateField['operation'], string[]> {
+    // Bucket names equal the operation names, so a Record keyed by the closed
+    // operation union replaces the switch: adding a new AGGREGATE_OPERATIONS
+    // member fails to compile here until it gets a bucket.
+    const grouped: Record<AggregateField['operation'], string[]> = {
+      sum: [],
+      avg: [],
+      min: [],
+      max: [],
+      count: [],
+      countDistinct: [],
     };
 
     for (const agg of aggregations) {
-      switch (agg.operation) {
-        case 'sum':
-          grouped.sum.push(agg.field);
-          break;
-        case 'avg':
-          grouped.avg.push(agg.field);
-          break;
-        case 'min':
-          grouped.min.push(agg.field);
-          break;
-        case 'max':
-          grouped.max.push(agg.field);
-          break;
-        case 'count':
-          grouped.count.push(agg.field);
-          break;
-        case 'countDistinct':
-          grouped.countDistinct.push(agg.field);
-          break;
-      }
+      grouped[agg.operation].push(agg.field);
     }
 
     return grouped;
@@ -718,31 +697,18 @@ export abstract class PrismaAggregateEndpoint<
     aggregateArgs._count = true;
 
     // Build aggregation fields
-    if (grouped.sum.length) {
-      aggregateArgs._sum = {};
-      for (const field of grouped.sum) {
-        (aggregateArgs._sum as Record<string, boolean>)[field] = true;
-      }
-    }
-
-    if (grouped.avg.length) {
-      aggregateArgs._avg = {};
-      for (const field of grouped.avg) {
-        (aggregateArgs._avg as Record<string, boolean>)[field] = true;
-      }
-    }
-
-    if (grouped.min.length) {
-      aggregateArgs._min = {};
-      for (const field of grouped.min) {
-        (aggregateArgs._min as Record<string, boolean>)[field] = true;
-      }
-    }
-
-    if (grouped.max.length) {
-      aggregateArgs._max = {};
-      for (const field of grouped.max) {
-        (aggregateArgs._max as Record<string, boolean>)[field] = true;
+    for (const [op, fields] of [
+      ['_sum', grouped.sum],
+      ['_avg', grouped.avg],
+      ['_min', grouped.min],
+      ['_max', grouped.max],
+    ] as const) {
+      if (fields.length) {
+        const select: Record<string, boolean> = {};
+        for (const field of fields) {
+          select[field] = true;
+        }
+        aggregateArgs[op] = select;
       }
     }
 
@@ -754,42 +720,34 @@ export abstract class PrismaAggregateEndpoint<
       // Map results to our format
       if (result._count !== undefined) {
         values.count =
-          typeof result._count === 'object'
-            ? ((result._count as { _all?: number })._all ?? 0)
-            : (result._count as number);
+          typeof result._count === 'object' ? (result._count._all ?? 0) : result._count;
       }
 
       if (result._sum && grouped.sum.length) {
         for (const field of grouped.sum) {
           const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-          values[`sum${camelField}`] =
-            ((result._sum as Record<string, unknown>)[field] as number) ?? 0;
+          values[`sum${camelField}`] = result._sum[field] ?? 0;
         }
       }
 
       if (result._avg && grouped.avg.length) {
         for (const field of grouped.avg) {
           const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-          values[`avg${camelField}`] =
-            ((result._avg as Record<string, unknown>)[field] as number) ?? 0;
+          values[`avg${camelField}`] = result._avg[field] ?? 0;
         }
       }
 
       if (result._min && grouped.min.length) {
         for (const field of grouped.min) {
           const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-          values[`min${camelField}`] = (result._min as Record<string, unknown>)[field] as
-            | number
-            | null;
+          values[`min${camelField}`] = result._min[field];
         }
       }
 
       if (result._max && grouped.max.length) {
         for (const field of grouped.max) {
           const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-          values[`max${camelField}`] = (result._max as Record<string, unknown>)[field] as
-            | number
-            | null;
+          values[`max${camelField}`] = result._max[field];
         }
       }
 
@@ -809,8 +767,11 @@ export abstract class PrismaAggregateEndpoint<
     where: Record<string, unknown>,
     options: AggregateOptions,
   ): Promise<AggregateResult> {
+    // Capture once: the caller gates on options.groupBy?.length, but that
+    // narrowing does not survive into the map callback below.
+    const groupByFields = options.groupBy ?? [];
     const groupByArgs: Record<string, unknown> = {
-      by: options.groupBy,
+      by: groupByFields,
       where,
     };
 
@@ -820,31 +781,18 @@ export abstract class PrismaAggregateEndpoint<
     // Build aggregation fields
     groupByArgs._count = true;
 
-    if (grouped.sum.length) {
-      groupByArgs._sum = {};
-      for (const field of grouped.sum) {
-        (groupByArgs._sum as Record<string, boolean>)[field] = true;
-      }
-    }
-
-    if (grouped.avg.length) {
-      groupByArgs._avg = {};
-      for (const field of grouped.avg) {
-        (groupByArgs._avg as Record<string, boolean>)[field] = true;
-      }
-    }
-
-    if (grouped.min.length) {
-      groupByArgs._min = {};
-      for (const field of grouped.min) {
-        (groupByArgs._min as Record<string, boolean>)[field] = true;
-      }
-    }
-
-    if (grouped.max.length) {
-      groupByArgs._max = {};
-      for (const field of grouped.max) {
-        (groupByArgs._max as Record<string, boolean>)[field] = true;
+    for (const [op, fields] of [
+      ['_sum', grouped.sum],
+      ['_avg', grouped.avg],
+      ['_min', grouped.min],
+      ['_max', grouped.max],
+    ] as const) {
+      if (fields.length) {
+        const select: Record<string, boolean> = {};
+        for (const field of fields) {
+          select[field] = true;
+        }
+        groupByArgs[op] = select;
       }
     }
 
@@ -860,48 +808,40 @@ export abstract class PrismaAggregateEndpoint<
           const groupValues: Record<string, number | null> = {};
 
           // Add group key values
-          for (const field of options.groupBy!) {
+          for (const field of groupByFields) {
             key[field] = result[field];
           }
 
           // Add count
           groupValues.count =
-            typeof result._count === 'object'
-              ? ((result._count as { _all?: number })._all ?? 0)
-              : ((result._count as number) ?? 0);
+            typeof result._count === 'object' ? (result._count._all ?? 0) : (result._count ?? 0);
 
           // Add aggregations
           if (result._sum && grouped.sum.length) {
             for (const field of grouped.sum) {
               const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-              groupValues[`sum${camelField}`] =
-                ((result._sum as Record<string, unknown>)[field] as number) ?? 0;
+              groupValues[`sum${camelField}`] = result._sum[field] ?? 0;
             }
           }
 
           if (result._avg && grouped.avg.length) {
             for (const field of grouped.avg) {
               const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-              groupValues[`avg${camelField}`] =
-                ((result._avg as Record<string, unknown>)[field] as number) ?? 0;
+              groupValues[`avg${camelField}`] = result._avg[field] ?? 0;
             }
           }
 
           if (result._min && grouped.min.length) {
             for (const field of grouped.min) {
               const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-              groupValues[`min${camelField}`] = (result._min as Record<string, unknown>)[field] as
-                | number
-                | null;
+              groupValues[`min${camelField}`] = result._min[field];
             }
           }
 
           if (result._max && grouped.max.length) {
             for (const field of grouped.max) {
               const camelField = field.charAt(0).toUpperCase() + field.slice(1);
-              groupValues[`max${camelField}`] = (result._max as Record<string, unknown>)[field] as
-                | number
-                | null;
+              groupValues[`max${camelField}`] = result._max[field];
             }
           }
 
