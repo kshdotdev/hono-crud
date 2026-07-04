@@ -136,6 +136,34 @@ GET /users?include=posts,profile
 GET /users/123?include=posts
 ```
 
+### Typed relation names
+
+Relation names declared through `defineModel` are captured as literal types,
+so the authoring surfaces reject typos at compile time:
+
+<!-- docs-typecheck:skip intentionally-broken sample demonstrating the compile error; the rejection itself is pinned by tests/types -->
+```typescript
+crud(userMeta).list().include('posts', 'profile'); // ✅
+crud(userMeta).list().include('psots');            // ❌ compile error
+```
+
+The same applies to the functional API's `allowedIncludes`, the config API's
+`includes`, and the nested-write allow-lists (`nestedCreate`/`nestedWrites`).
+`RelationNamesOf<M>` and `FieldsOf<M>` (exported from `hono-crud`) expose the
+literal unions for your own generic code.
+
+Two boundaries to know about:
+
+- **Checking stops at the authoring surface.** Response objects are not
+  relation-aware on the server side (`data.posts` does not statically type) —
+  the runtime Zod response schema and the emitted OpenAPI spec already carry
+  the included relation shapes, so generated API clients see them.
+- **Generic wrapper code degrades gracefully.** In a helper typed against
+  bare `MetaInput`, the unions collapse to `string`: every name is accepted
+  (and none autocomplete), exactly like before. Runtime `?include=` handling
+  is unchanged either way — unknown names in the query string are silently
+  skipped, never a 400.
+
 ### Relation Types
 
 | Type | Description | Example |

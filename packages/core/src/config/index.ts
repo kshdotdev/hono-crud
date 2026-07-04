@@ -47,6 +47,7 @@ import type {
   HookMode,
   MetaInput,
   OpenAPIRouteSchema,
+  RelationNamesOf,
   SearchResultItem,
   SortDirection,
 } from '../core/types';
@@ -122,7 +123,7 @@ interface CreateHooks<M extends MetaInput> extends HookConfig {
 export interface CreateEndpointConfig<M extends MetaInput, E extends Env = Env>
   extends BaseEndpointConfig<E> {
   hooks?: CreateHooks<M>;
-  nestedCreate?: string[];
+  nestedCreate?: RelationNamesOf<M>[];
   /** Invalidate cached list/read entries after a successful create. */
   cache?: MutationCacheConfig;
   /**
@@ -269,7 +270,7 @@ export interface ListEndpointConfig<M extends MetaInput, E extends Env = Env>
   search?: SearchConfig;
   sorting?: SortingConfig;
   pagination?: PaginationConfig;
-  includes?: string[];
+  includes?: RelationNamesOf<M>[];
   fieldSelection?: FieldSelectionConfig;
   cache?: EndpointCacheConfig;
   hooks?: ListHooks<M>;
@@ -292,7 +293,7 @@ export interface ReadEndpointConfig<M extends MetaInput, E extends Env = Env>
   extends BaseEndpointConfig<E> {
   lookupField?: string;
   additionalFilters?: string[];
-  includes?: string[];
+  includes?: RelationNamesOf<M>[];
   fieldSelection?: FieldSelectionConfig;
   cache?: EndpointCacheConfig;
   hooks?: ReadHooks<M>;
@@ -332,7 +333,7 @@ export interface UpdateEndpointConfig<M extends MetaInput, E extends Env = Env>
   lookupField?: string;
   additionalFilters?: string[];
   fields?: UpdateFieldConfig;
-  nestedWrites?: string[];
+  nestedWrites?: RelationNamesOf<M>[];
   /** Invalidate cached list/read entries after a successful update. */
   cache?: MutationCacheConfig;
   hooks?: UpdateHooks<M>;
