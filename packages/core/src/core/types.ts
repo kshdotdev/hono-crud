@@ -504,7 +504,7 @@ export interface AuditLogEntry<T = Record<string, unknown>> {
 /**
  * Configuration for audit logging on a model.
  */
-export interface AuditConfig {
+export interface AuditConfig<TField extends string = string> {
   /**
    * Name of the audit log table/store.
    * @default 'audit_logs'
@@ -520,9 +520,14 @@ export interface AuditConfig {
   /**
    * Fields to exclude from change tracking.
    * Useful for sensitive fields like passwords.
+   *
+   * On `Model.audit` the entries are checked against the schema's keys.
+   * Reuse tip: a variable annotated with bare `AuditConfig` widens to
+   * `string[]` and will not assign into a model slot — inline the object,
+   * or annotate with your schema-key union.
    * @default []
    */
-  excludeFields?: string[];
+  excludeFields?: TField[];
 
   /**
    * Whether to store the full record in the audit log.
@@ -596,17 +601,17 @@ export interface VersionHistoryEntry<T = Record<string, unknown>> {
  * HTTP API version negotiation is configured separately via `ApiVersioningConfig`
  * (api-version).
  */
-export interface VersioningConfig {
+export interface VersioningConfig<TField extends string = string> {
   /** Field name for the version counter on the main table (default: 'version') */
-  field?: string;
-  /** Table name for storing version history (default: '{tableName}_history') */
+  field?: TField;
+  /** Table name for storing version history (default: '{tableName}_history') — a table name, not a schema column, so it stays `string`. */
   historyTable?: string;
   /** Maximum number of versions to keep per record (default: unlimited) */
   maxVersions?: number;
   /** Track who made each change */
   trackChangedBy?: boolean;
   /** Fields to exclude from version history */
-  excludeFields?: string[];
+  excludeFields?: TField[];
   /** Function to get user ID from context */
   getUserId?: (ctx: unknown) => string | undefined;
 }
@@ -739,11 +744,11 @@ export interface ComputedFieldConfig<T = Record<string, unknown>, R = unknown> {
   schema?: ZodType<R>;
 
   /**
-   * Fields that this computed field depends on.
-   * Used for optimization - if none of these fields are selected,
-   * the computed field won't be calculated.
+   * Schema fields this computed field reads. Checked against the record
+   * type's keys. Declarative documentation today — no engine code consumes
+   * it yet, so treat it as authoring metadata rather than a behavior guard.
    */
-  dependsOn?: string[];
+  dependsOn?: (keyof T & string)[];
 }
 
 /**
@@ -753,6 +758,17 @@ export type ComputedFieldsConfig<T = Record<string, unknown>> = Record<
   string,
   ComputedFieldConfig<T, unknown>
 >;
+
+/**
+ * Read-side shape added by a model's computed fields: maps each computed
+ * field name to its (awaited) return type. Use to type responses that carry
+ * computed fields. Deliberately NOT folded into `InferModel`/`ModelObject` —
+ * those type the stored row that write hooks and body schemas operate on,
+ * BEFORE computed fields are applied.
+ */
+export type ComputedFieldReturns<C> = {
+  [K in keyof C]: C[K] extends ComputedFieldConfig<never, infer R> ? Awaited<R> : never;
+};
 
 // Computed-field appliers (applyComputedFields / applyComputedFieldsToArray)
 // moved to ./computed-fields.ts.
@@ -773,12 +789,14 @@ export type TenantIdSource = 'header' | 'context' | 'path' | 'query' | 'jwt' | '
  * When enabled, all queries are automatically filtered by tenant ID,
  * and tenant ID is automatically injected on create operations.
  */
-export interface MultiTenantConfig {
+export interface MultiTenantConfig<TField extends string = string> {
   /**
-   * The field name that stores the tenant ID.
+   * The field name that stores the tenant ID. On `Model.multiTenant` this is
+   * checked against the schema's keys (`contextKey`/`pathParam`/`headerName`
+   * name context slots and HTTP surfaces, not columns — they stay `string`).
    * @default 'tenantId'
    */
-  field?: string;
+  field?: TField;
 
   /**
    * Where the DATA LAYER reads the tenant ID.
@@ -840,12 +858,13 @@ export interface MultiTenantConfig {
 /**
  * Configuration for soft delete behavior.
  */
-export interface SoftDeleteConfig {
+export interface SoftDeleteConfig<TField extends string = string> {
   /**
-   * The field name that stores the deletion timestamp.
+   * The field name that stores the deletion timestamp. On `Model.softDelete`
+   * this is checked against the schema's keys.
    * @default 'deletedAt'
    */
-  field?: string;
+  field?: TField;
 
   /**
    * Whether to allow querying deleted records via `?withDeleted=true`.
@@ -979,7 +998,7 @@ export interface Model<
    * }
    * ```
    */
-  softDelete?: boolean | SoftDeleteConfig;
+  softDelete?: boolean | SoftDeleteConfig<SchemaKeys<T> & string>;
   /**
    * Define relations for this model.
    * Relations allow loading nested data via `?include=relationName`.
@@ -1065,7 +1084,7 @@ export interface Model<
    * });
    * ```
    */
-  audit?: boolean | AuditConfig;
+  audit?: boolean | AuditConfig<SchemaKeys<T> & string>;
 
   /**
    * Configure versioning for this model.
@@ -1091,7 +1110,7 @@ export interface Model<
    * });
    * ```
    */
-  versioning?: boolean | VersioningConfig;
+  versioning?: boolean | VersioningConfig<SchemaKeys<T> & string>;
 
   /**
    * Configure multi-tenancy for this model.
@@ -1125,7 +1144,7 @@ export interface Model<
    * }
    * ```
    */
-  multiTenant?: boolean | MultiTenantConfig;
+  multiTenant?: boolean | MultiTenantConfig<SchemaKeys<T> & string>;
 
   /**
    * Configure field-level encryption for this model.
@@ -1140,7 +1159,7 @@ export interface Model<
    * }
    * ```
    */
-  fieldEncryption?: import('../encryption/types').FieldEncryptionConfig;
+  fieldEncryption?: import('../encryption/types').FieldEncryptionConfig<SchemaKeys<T> & string>;
 
   /**
    * Default serialization profile applied to read/list responses.
@@ -1213,7 +1232,7 @@ export interface Model<
    * });
    * ```
    */
-  timestamps?: boolean | { createdAt?: string; updatedAt?: string };
+  timestamps?: boolean | { createdAt?: SchemaKeys<T> & string; updatedAt?: SchemaKeys<T> & string };
 }
 
 /**

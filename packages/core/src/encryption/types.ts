@@ -16,9 +16,10 @@ export interface EncryptionKeyProvider {
 /**
  * Configuration for field-level encryption.
  */
-export interface FieldEncryptionConfig {
-  /** Fields to encrypt. */
-  fields: string[];
+export interface FieldEncryptionConfig<TField extends string = string> {
+  /** Fields to encrypt. On `Model.fieldEncryption` the entries are checked
+   * against the schema's keys. */
+  fields: TField[];
   /** Key provider for encryption keys. */
   keyProvider: EncryptionKeyProvider;
   /** Algorithm to use. @default 'AES-GCM' */
