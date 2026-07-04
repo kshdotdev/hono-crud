@@ -272,7 +272,7 @@ export function registerEncryptionCells(descriptor: AdapterDescriptor, ctx: CtxG
     expect(read.secret).toBe(PLAINTEXT);
   });
 
-  test('bulkPatch encrypts the patched secret at rest and returns plaintext', async () => {
+  test('bulkPatch encrypts the patched secret at rest (returns plaintext where the adapter surfaces patched rows)', async () => {
     const { app } = ctx();
     const seeded = await seedEncrypted(ctx, { role: 'guest', secret: 'old-secret' });
     const res = await app.request(
@@ -286,8 +286,16 @@ export function registerEncryptionCells(descriptor: AdapterDescriptor, ctx: CtxG
       records?: ConformanceRecord[];
     }>(res);
     expect(body.updated).toBe(1);
-    expect(body.records?.[0]?.secret).toBe(PLAINTEXT);
+    // Ciphertext-at-rest is the universal invariant: the patched value is
+    // encrypted BEFORE it is persisted on every leg (core encrypts the patch
+    // before `applyPatch`). The decrypted-on-return half only applies where the
+    // adapter surfaces the patched rows — prisma's count-only `updateMany`
+    // returns none (`bulkPatchReturnsRecords: false`), so `records` is absent
+    // there by design (pinned in cells/events.ts).
     await expectCiphertextAtRest(ctx, seeded.id);
+    if (descriptor.capabilities.bulkPatchReturnsRecords) {
+      expect(body.records?.[0]?.secret).toBe(PLAINTEXT);
+    }
   });
 
   // --------------------------------------------------------------------------

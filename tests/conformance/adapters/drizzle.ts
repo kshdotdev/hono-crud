@@ -563,6 +563,9 @@ export const drizzleConformance: AdapterDescriptor = {
     // encrypted-consistency cells skip loudly. The fix is core/adapter-agnostic
     // and anchored on the memory leg + the core unit suite.
     encryptedHistoryAudit: false,
+    // Drizzle bulk-patch returns the patched rows (returnRecords = true on the
+    // enc leg), so decrypt-on-return and per-record `bulk_patched` events work.
+    bulkPatchReturnsRecords: true,
   },
   tenant: {
     field: 'tenantId',

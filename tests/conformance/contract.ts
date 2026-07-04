@@ -122,6 +122,21 @@ export interface ConformanceCapabilities {
    * the core-level unit suite covers the behavior in full.
    */
   encryptedHistoryAudit: boolean;
+  /**
+   * Whether this leg's bulk-patch verb SURFACES the patched rows back to the
+   * core handler (so `returnRecords` works, the patched records are decrypted on
+   * return, AND one `bulk_patched` event fires per affected row). True on memory
+   * and drizzle — both re-read/return the mutated rows. False on prisma: its
+   * bulk-patch is a single count-only `updateMany`, which returns only a row
+   * count, never the rows. Core emits `bulk_patched` per record and can only do
+   * so when the adapter surfaces them (see core/src/endpoints/bulk-patch.ts —
+   * events fire off `decryptedRecords`), so prisma bulk-patch emits NO events.
+   * This is a confirmed, documented divergence, PINNED (never fixed) by the
+   * prisma-only zero-events cell in cells/events.ts; the encryption cell's
+   * bulk-patch return-plaintext assertion is likewise gated on this flag while
+   * its ciphertext-at-rest assertion still runs everywhere.
+   */
+  bulkPatchReturnsRecords: boolean;
 }
 
 /** A single audit-store entry as the conformance suite inspects it. */

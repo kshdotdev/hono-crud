@@ -21,13 +21,19 @@
 import {
   PrismaBatchCreateEndpoint,
   PrismaBatchDeleteEndpoint,
+  PrismaBatchRestoreEndpoint,
+  PrismaBatchUpdateEndpoint,
   PrismaBatchUpsertEndpoint,
   PrismaBulkPatchEndpoint,
+  PrismaCloneEndpoint,
   PrismaCreateEndpoint,
   PrismaDeleteEndpoint,
+  PrismaExportEndpoint,
+  PrismaImportEndpoint,
   PrismaListEndpoint,
   PrismaReadEndpoint,
   PrismaRestoreEndpoint,
+  PrismaSearchEndpoint,
   PrismaUpdateEndpoint,
   PrismaUpsertEndpoint,
   createPrismaCrud,
@@ -37,7 +43,12 @@ import { type HookContext, defineMeta, defineModel, fromHono, registerCrud } fro
 import { multiTenant } from 'hono-crud/multi-tenant';
 import { z } from 'zod';
 import type { AdapterContext, AdapterDescriptor, HookRecorder } from '../contract';
-import { CONFORMANCE_FILTER_CONFIG, buildConformanceSchema } from '../model';
+import {
+  CONFORMANCE_FILTER_CONFIG,
+  buildConformanceSchema,
+  buildEncryptionKeyProvider,
+  buildEncryptionSchema,
+} from '../model';
 
 /** Structural client type the @hono-crud/prisma endpoints accept. */
 type HonoPrismaClient = Parameters<typeof createPrismaCrud>[0];
@@ -49,6 +60,17 @@ interface ConformancePrismaDb {
   post: { deleteMany(): Promise<unknown> };
   profile: { deleteMany(): Promise<unknown> };
   comment: { deleteMany(): Promise<unknown> };
+  // Conformance encryption model (`enc_items`). `findUnique` reads the raw
+  // stored `secret` Json — the `{ ct, iv, v }` envelope AT REST — bypassing the
+  // hono-crud decrypt path (decrypt lives in the core endpoint layer, not in
+  // Prisma), so the encryption cell sees exactly what sits in the column.
+  encItem: {
+    deleteMany(): Promise<unknown>;
+    findUnique(args: {
+      where: { id: string };
+      select: { secret: true };
+    }): Promise<{ secret: unknown } | null>;
+  };
 }
 
 // ============================================================================
@@ -94,6 +116,24 @@ const finalizeModel = defineModel({
   },
 });
 const finalizeMeta = defineMeta({ model: finalizeModel });
+
+// Field-encryption model (examples/prisma/schema.prisma `enc_items` table).
+// `secret` is a `Json?` column: Prisma serializes the `{ ct, iv, v }` envelope
+// (an object) into it and returns it verbatim on read — the JSON-capable column
+// shape a SQL adapter needs to hold an encrypted field. Timestamps stay
+// DB-managed (@default(now()) / @updatedAt), matching the base prisma model.
+// Versioning + audit are NOT wired here (mirroring the drizzle leg): the
+// encrypted-consistency cells skip loudly via `encryptedHistoryAudit: false`.
+const ENC_TABLE = 'enc_items';
+const encSchema = buildEncryptionSchema('iso-datetime');
+const encModel = defineModel({
+  tableName: ENC_TABLE,
+  schema: encSchema,
+  primaryKeys: ['id'],
+  softDelete: { field: 'deletedAt' },
+  fieldEncryption: { fields: ['secret'], keyProvider: buildEncryptionKeyProvider() },
+});
+const encMeta = defineMeta({ model: encModel });
 
 // ============================================================================
 // Hook instrumentation
@@ -263,12 +303,94 @@ async function setup(): Promise<AdapterContext> {
     }
   }
 
+  // Encryption endpoint classes — mirror the drizzle enc leg's verb family
+  // (every write/returning verb) so the encryption + events cells run. No
+  // version endpoints (encryptedHistoryAudit is false, same as drizzle).
+  class EncCreate extends PrismaCreateEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncRead extends PrismaReadEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncList extends PrismaListEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncUpdate extends PrismaUpdateEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncDelete extends PrismaDeleteEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncRestore extends PrismaRestoreEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncUpsert extends PrismaUpsertEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+    protected override upsertKeys = ['email'];
+  }
+  class EncClone extends PrismaCloneEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncImport extends PrismaImportEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+    protected override upsertKeys = ['email'];
+  }
+  class EncBatchCreate extends PrismaBatchCreateEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncBatchUpdate extends PrismaBatchUpdateEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncBatchUpsert extends PrismaBatchUpsertEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+    protected override upsertKeys = ['email'];
+  }
+  class EncBatchDelete extends PrismaBatchDeleteEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncBatchRestore extends PrismaBatchRestoreEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  class EncSearch extends PrismaSearchEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+    protected override searchFields = ['name'];
+  }
+  class EncExport extends PrismaExportEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+  }
+  // Prisma bulk-patch is a count-only `updateMany`: it surfaces no rows, so
+  // `returnRecords` is unsupported and NO `bulk_patched` events fire. That
+  // divergence is PINNED by cells/events.ts (zero-events) and the
+  // `bulkPatchReturnsRecords: false` capability — never "fixed" here.
+  class EncBulkPatch extends PrismaBulkPatchEndpoint {
+    _meta = encMeta;
+    prisma = crudClient;
+    protected override filterFields = ['role'];
+  }
+
   const reset = async (): Promise<void> => {
     // Dependency order mirrors examples/prisma/db.ts clearDb().
     await db.comment.deleteMany();
     await db.post.deleteMany();
     await db.profile.deleteMany();
     await db.user.deleteMany();
+    await db.encItem.deleteMany();
     resetRecorder();
   };
   await reset();
@@ -309,6 +431,25 @@ async function setup(): Promise<AdapterContext> {
   });
   registerCrud(app, '/cursor-items', { create: ItemCreate, list: CursorItemList });
   registerCrud(app, '/hook-items', { create: HookItemCreate });
+  registerCrud(app, '/enc-items', {
+    create: EncCreate,
+    list: EncList,
+    read: EncRead,
+    update: EncUpdate,
+    delete: EncDelete,
+    restore: EncRestore,
+    upsert: EncUpsert,
+    clone: EncClone,
+    import: EncImport,
+    batchCreate: EncBatchCreate,
+    batchUpdate: EncBatchUpdate,
+    batchUpsert: EncBatchUpsert,
+    batchDelete: EncBatchDelete,
+    batchRestore: EncBatchRestore,
+    search: EncSearch,
+    export: EncExport,
+    bulkPatch: EncBulkPatch,
+  });
 
   return {
     app,
@@ -316,6 +457,18 @@ async function setup(): Promise<AdapterContext> {
     reset,
     teardown: async () => {
       await db.$disconnect();
+    },
+    // Raw read of the `secret` Json column via the Prisma client directly (never
+    // the hono-crud decrypt path): Postgres returns the stored `{ ct, iv, v }`
+    // envelope as a JS object, so the cell sees exactly what sits at rest.
+    inspectStoredField: async (id, field) => {
+      if (field !== 'secret') {
+        throw new Error(
+          `prisma conformance leg can only inspect the \`secret\` field, got ${field}`,
+        );
+      }
+      const row = await db.encItem.findUnique({ where: { id }, select: { secret: true } });
+      return row?.secret ?? undefined;
     },
   };
 }
@@ -336,14 +489,20 @@ export const prismaConformance: AdapterDescriptor = {
     // are not registered on the prisma tenant variant; the extended-verb
     // owner-scoping cell is a named skip here.
     extendedVerbTenantScoping: false,
-    // The prisma leg reuses the fixed examples `users` schema, which has no
-    // JSON column to hold the `{ ct, iv, v }` envelope an encrypted field
-    // serializes to (a `String` column rejects the object bind); the
-    // field-encryption cell is a named skip here.
-    fieldEncryption: false,
-    // No enc model at all on the prisma leg -> the encrypted-consistency cells
-    // (audit/version/rollback under encryption) skip loudly.
+    // The prisma leg wires a dedicated `enc_items` model whose `secret` is a
+    // `Json?` column — it holds the `{ ct, iv, v }` envelope an encrypted field
+    // serializes to — so the field-encryption + event cells RUN here (mirroring
+    // the drizzle leg). The raw at-rest value is read via `inspectStoredField`.
+    fieldEncryption: true,
+    // The enc leg wires no version endpoints / inspectable audit store (same as
+    // drizzle) -> the encrypted-consistency cells (audit/version/rollback under
+    // encryption) skip loudly. The fix is core/adapter-agnostic and anchored on
+    // the memory leg + the core unit suite.
     encryptedHistoryAudit: false,
+    // Prisma bulk-patch is a count-only `updateMany` that surfaces no rows, so
+    // no `bulk_patched` events fire and `returnRecords` is unsupported. Pinned
+    // by the prisma-only zero-events cell; never "fixed".
+    bulkPatchReturnsRecords: false,
   },
   tenant: {
     field: 'status',
