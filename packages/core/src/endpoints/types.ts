@@ -317,10 +317,10 @@ export function getSchemaFields<T extends ZodObject<ZodRawShape>>(
   schema: T,
   exclude: string[] = [],
 ): ZodObject<ZodRawShape> {
-  if (exclude.length === 0) return schema as ZodObject<ZodRawShape>;
+  if (exclude.length === 0) return schema;
   const present = new Set(Object.keys(schema.shape));
   const applicable = exclude.filter((k) => present.has(k));
-  if (applicable.length === 0) return schema as ZodObject<ZodRawShape>;
+  if (applicable.length === 0) return schema;
   const mask = Object.fromEntries(applicable.map((k) => [k, true as const]));
   return schema.omit(mask) as unknown as ZodObject<ZodRawShape>;
 }

@@ -619,8 +619,9 @@ export abstract class CrudEndpoint<
     if (model.computedFields) {
       items = await applyComputedFieldsToArray(items, model.computedFields);
     }
-    const serialized = model.serializer
-      ? items.map((i) => model.serializer!(i as ModelObject<M['model']>))
+    const serializer = model.serializer;
+    const serialized = serializer
+      ? items.map((i) => serializer(i as ModelObject<M['model']>))
       : items;
     const profiled = this.applyProfileToArray(serialized as Record<string, unknown>[]);
     const transformed = profiled.map((i) => this.transform(i as ModelObject<M['model']>));

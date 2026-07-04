@@ -45,8 +45,10 @@ export interface ErrorHandlerConfig<E extends Env = Env> {
   defaultErrorMessage?: string;
   /** Log unmapped errors to console (default: true) */
   logUnmappedErrors?: boolean;
-  /** Called when a hook throws an error */
-  onHookError?: (hookError: Error, originalError: Error, ctx: Context<E>) => void;
+  /** Called when a hook throws an error. `hookError` is whatever the hook
+   * threw or rejected with — not necessarily an `Error`; narrow via
+   * `instanceof Error` before touching `.message`/`.stack`. */
+  onHookError?: (hookError: unknown, originalError: Error, ctx: Context<E>) => void;
   /**
    * Default response envelope for error responses.
    *
@@ -180,7 +182,7 @@ export function createErrorHandler<E extends Env = Env>(
         }
       } catch (hookErr) {
         if (onHookError) {
-          onHookError(hookErr as Error, err, ctx);
+          onHookError(hookErr, err, ctx);
         }
       }
     }
