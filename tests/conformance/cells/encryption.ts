@@ -396,7 +396,7 @@ export function registerEncryptionCells(descriptor: AdapterDescriptor, ctx: CtxG
     expect((await app.request(`${BASE}/${seeded.id}`, { method: 'DELETE' })).status).toBe(200);
     await settle();
 
-    const del = inspectAudit().find((e) => e.action === 'delete' && e.recordId === seeded.id);
+    const del = (await inspectAudit()).find((e) => e.action === 'delete' && e.recordId === seeded.id);
     expect(del).toBeDefined();
     // The audited pre-mutation snapshot is plaintext, never the { ct, iv, v } envelope.
     expect(del?.previousRecord?.secret).toBe(PLAINTEXT);

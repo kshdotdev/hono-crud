@@ -180,9 +180,12 @@ export interface AdapterContext {
   /**
    * Returns the audit-store entries recorded so far, for the encrypted
    * consistency cells to assert audit inputs carry plaintext. Present only on
-   * legs whose `encryptedHistoryAudit` capability is true.
+   * legs whose `encryptedHistoryAudit` capability is true. May resolve
+   * asynchronously: the memory leg reads its in-process store synchronously,
+   * while a durable leg (drizzle) reads its rows back over SQL — callers must
+   * `await` the result.
    */
-  inspectAudit?(): ConformanceAuditEntry[];
+  inspectAudit?(): ConformanceAuditEntry[] | Promise<ConformanceAuditEntry[]>;
 }
 
 export interface AdapterDescriptor {
