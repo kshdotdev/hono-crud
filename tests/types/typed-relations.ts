@@ -499,6 +499,57 @@ type WiredAuthorRelation = NonNullable<typeof registryDb.posts.relations>['autho
 const wiredToBare: RelationConfig = {} as WiredAuthorRelation;
 const bareToWired: WiredAuthorRelation = {} as RelationConfig;
 
+// ============================================================================
+// F5d — defineModelsExtending: base keys become referenceable siblings; the
+// combined keyspace is typo-checked; output preserves both maps' narrow types.
+// ============================================================================
+
+import { defineModelsExtending } from 'hono-crud';
+
+const registryExtended = defineModelsExtending(
+  {
+    projects: {
+      tableName: 'projects',
+      schema: RegistryPostSchema,
+      primaryKeys: ['id'],
+      relations: {
+        // Targets a BASE key — accepted.
+        owner: { type: 'belongsTo', model: 'users', foreignKey: 'authorId' },
+        // Targets a same-call sibling — accepted.
+        labels: { type: 'hasMany', model: 'labels', foreignKey: 'authorId' },
+      },
+    },
+    labels: { tableName: 'labels', schema: RegistryPostSchema, primaryKeys: ['id'] },
+  },
+  { extends: registryDb },
+);
+
+const extendedProjectsMeta = defineMeta({ model: registryExtended.projects });
+const extendedRelOk: RelationNamesOf<typeof extendedProjectsMeta> = 'owner';
+// @ts-expect-error - 'ownr' is not a declared relation name
+const extendedRelBad: RelationNamesOf<typeof extendedProjectsMeta> = 'ownr';
+
+// Base entries survive on the combined output with their narrow types intact.
+const extendedBaseMeta = defineMeta({ model: registryExtended.users });
+const extendedBaseRel: RelationNamesOf<typeof extendedBaseMeta> = 'posts';
+const extendedModels: Model[] = [registryExtended.projects, registryExtended.users];
+
+// Unknown target across BOTH keyspaces stays rejected.
+defineModelsExtending(
+  {
+    bad: {
+      tableName: 'bad',
+      schema: UserSchema,
+      primaryKeys: ['id'],
+      relations: {
+        // @ts-expect-error - 'nonexistent' is neither a base key nor a same-call sibling
+        x: { type: 'belongsTo', model: 'nonexistent', foreignKey: 'x' },
+      },
+    },
+  },
+  { extends: registryDb },
+);
+
 export {
   registryDb,
   registryUserMeta,
@@ -518,4 +569,9 @@ export {
   externalRelOk,
   wiredToBare,
   bareToWired,
+  registryExtended,
+  extendedRelOk,
+  extendedRelBad,
+  extendedBaseRel,
+  extendedModels,
 };

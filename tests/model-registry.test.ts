@@ -4,7 +4,7 @@
 // `table` from its target sibling, and rewrites the authored registry key to
 // the target's `tableName` for the adapters.
 import type { MetaInput, Model, RelationConfig } from 'hono-crud';
-import { defineMeta, defineModels } from 'hono-crud';
+import { defineMeta, defineModels, defineModelsExtending } from 'hono-crud';
 import { withIncludableRelations } from 'hono-crud/internal';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -322,5 +322,136 @@ describe('defineModels', () => {
 
     expect(models).toHaveLength(2);
     expect(Object.keys(db.users.relations ?? {})).toEqual(['posts']);
+  });
+});
+
+describe('defineModelsExtending', () => {
+  it('resolves relations against the base map: schema/table auto-populated, key rewritten to the base tableName', () => {
+    const tenantsTable = { _: { name: 'tenant_rows', columns: {} } };
+    const base = defineModels({
+      tenants: {
+        // Friendly base key differing from the physical table name.
+        tableName: 'tenant_rows',
+        schema: UserSchema,
+        primaryKeys: ['id'],
+        table: tenantsTable,
+      },
+    });
+
+    const extended = defineModelsExtending(
+      {
+        projects: {
+          tableName: 'projects',
+          schema: PostSchema,
+          primaryKeys: ['id'],
+          relations: {
+            tenant: { type: 'belongsTo', model: 'tenants', foreignKey: 'authorId' },
+          },
+        },
+      },
+      { extends: base },
+    );
+
+    expect(extended.projects.relations?.tenant.schema).toBe(UserSchema);
+    expect(extended.projects.relations?.tenant.table).toBe(tenantsTable);
+    expect(extended.projects.relations?.tenant.model).toBe('tenant_rows');
+  });
+
+  it('returns the base entries alongside the new ones, without re-wiring or replacing them', () => {
+    const base = defineModels(circularInput());
+    const baseUsers = base.users;
+
+    const extended = defineModelsExtending(
+      {
+        tags: { tableName: 'tags', schema: PostSchema, primaryKeys: ['id'] },
+      },
+      { extends: base },
+    );
+
+    expect(extended.users).toBe(baseUsers);
+    expect(extended.tags.tableName).toBe('tags');
+  });
+
+  it('new entries can also reference each other (same-call siblings win over base keys)', () => {
+    const base = defineModels({
+      posts: { tableName: 'base_posts', schema: PostSchema, primaryKeys: ['id'] },
+    });
+
+    const extended = defineModelsExtending(
+      {
+        users: {
+          tableName: 'users',
+          schema: UserSchema,
+          primaryKeys: ['id'],
+          relations: { posts: { type: 'hasMany', model: 'posts', foreignKey: 'authorId' } },
+        },
+        posts: { tableName: 'new_posts', schema: PostSchema, primaryKeys: ['id'] },
+      },
+      { extends: base },
+    );
+
+    // The same-call sibling shadows the base entry of the same key.
+    expect(extended.users.relations?.posts.model).toBe('new_posts');
+  });
+
+  it('aggregates unknown targets across BOTH keyspaces into one plain Error', () => {
+    const base = defineModels({
+      tenants: { tableName: 'tenants', schema: UserSchema, primaryKeys: ['id'] },
+    });
+
+    let caught: unknown;
+    try {
+      defineModelsExtending(
+        {
+          projects: {
+            tableName: 'projects',
+            schema: PostSchema,
+            primaryKeys: ['id'],
+            relations: {
+              // @ts-expect-error - deliberately unknown key across both maps (runtime path)
+              tenant: { type: 'belongsTo', model: 'tenantz', foreignKey: 'authorId' },
+            },
+          },
+        },
+        { extends: base },
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).constructor).toBe(Error);
+    const message = (caught as Error).message;
+    expect(message).toContain("'tenantz'");
+    expect(message.toLowerCase()).toContain("did you mean 'tenants'");
+    // Known keys list spans base + new.
+    expect(message).toContain('tenants');
+    expect(message).toContain('projects');
+  });
+
+  it('honors the DefineModelsConfig knobs and freezes only the NEW models', () => {
+    const base = defineModels({
+      tenants: { tableName: 'tenants', schema: UserSchema, primaryKeys: ['id'] },
+    });
+
+    const extended = defineModelsExtending(
+      {
+        projects: {
+          tableName: 'projects',
+          schema: PostSchema,
+          primaryKeys: ['id'],
+          relations: {
+            tenant: { type: 'belongsTo', model: 'tenants', foreignKey: 'authorId' },
+          },
+        },
+      },
+      { extends: base, autoPopulateSchema: false, freeze: true },
+    );
+
+    expect(extended.projects.relations?.tenant.schema).toBeUndefined();
+    expect(extended.projects.relations?.tenant.model).toBe('tenants');
+    expect(Object.isFrozen(extended.projects)).toBe(true);
+    // The base map was returned to its own consumers unwired — never frozen here.
+    expect(Object.isFrozen(extended.tenants)).toBe(false);
   });
 });

@@ -83,9 +83,10 @@ export {
   errorEnvelopeSchema,
   successEnvelopeSchema,
 } from './core/types';
-export { defineModels } from './core/model-registry';
+export { defineModels, defineModelsExtending } from './core/model-registry';
 export type {
   DefineModelsConfig,
+  DefineModelsExtendConfig,
   ModelSpec,
   RelationSpec,
   WiredModel,
