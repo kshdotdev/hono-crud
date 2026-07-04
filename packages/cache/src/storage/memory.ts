@@ -78,10 +78,12 @@ export class MemoryCacheStorage implements CacheStorage {
   private addToTagIndex(key: string, tags: string[] | undefined): void {
     if (tags) {
       for (const tag of tags) {
-        if (!this.tagIndex.has(tag)) {
-          this.tagIndex.set(tag, new Set());
+        let bucket = this.tagIndex.get(tag);
+        if (!bucket) {
+          bucket = new Set();
+          this.tagIndex.set(tag, bucket);
         }
-        this.tagIndex.get(tag)!.add(key);
+        bucket.add(key);
       }
     }
   }

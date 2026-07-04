@@ -78,7 +78,7 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
     const now = Date.now();
     // peek: read the raw wrapper without expiry-deleting it mid-mutation.
     const wrapper = this.store.peek(key);
-    const existing = wrapper?.entry as FixedWindowEntry | undefined;
+    const existing = wrapper?.entry;
 
     // Check if we have a valid existing entry within the current window.
     if (existing && 'count' in existing && now < existing.windowStart + windowMs) {
@@ -110,7 +110,7 @@ export class MemoryRateLimitStorage implements RateLimitStorage {
 
     // peek: read the raw wrapper without expiry-deleting it mid-mutation.
     const wrapper = this.store.peek(key);
-    const existing = wrapper?.entry as SlidingWindowEntry | undefined;
+    const existing = wrapper?.entry;
 
     let timestamps: number[];
     if (existing && 'timestamps' in existing) {

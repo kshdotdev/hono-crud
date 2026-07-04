@@ -7,6 +7,7 @@ import type {
 } from 'hono-crud/internal';
 import {
   ConfigurationException,
+  assertNever,
   createInvalidationPattern,
   createRelatedPatterns,
   generateCacheKey,
@@ -445,6 +446,8 @@ export function withCacheInvalidation<
             }
           }
           break;
+        default:
+          return assertNever(strategy);
       }
 
       // Invalidate related models
