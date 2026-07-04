@@ -182,7 +182,8 @@ export class DrizzleAuditLogStorage implements AuditLogStorage {
     if (options?.tableName) conditions.push(eq(this.col('tableName'), options.tableName));
     if (options?.action) conditions.push(eq(this.col('action'), options.action));
     if (options?.userId) conditions.push(eq(this.col('userId'), options.userId));
-    if (options?.startDate) conditions.push(gte(this.col('timestamp'), options.startDate.getTime()));
+    if (options?.startDate)
+      conditions.push(gte(this.col('timestamp'), options.startDate.getTime()));
     if (options?.endDate) conditions.push(lte(this.col('timestamp'), options.endDate.getTime()));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
