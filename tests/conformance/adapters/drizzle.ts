@@ -15,6 +15,7 @@ import { join } from 'node:path';
  */
 import {
   DrizzleAggregateEndpoint,
+  DrizzleAuditLogStorage,
   DrizzleBatchCreateEndpoint,
   DrizzleBatchDeleteEndpoint,
   DrizzleBatchRestoreEndpoint,
@@ -33,6 +34,13 @@ import {
   DrizzleSearchEndpoint,
   DrizzleUpdateEndpoint,
   DrizzleUpsertEndpoint,
+  DrizzleVersionCompareEndpoint,
+  DrizzleVersionHistoryEndpoint,
+  DrizzleVersionReadEndpoint,
+  DrizzleVersionRollbackEndpoint,
+  DrizzleVersioningStorage,
+  sqliteAuditLogTable,
+  sqliteVersionHistoryTable,
 } from '@hono-crud/drizzle';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { createClient } from '@libsql/client';
@@ -40,9 +48,16 @@ import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { type HookContext, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import { setAuditStorage } from 'hono-crud/audit';
 import { multiTenant } from 'hono-crud/multi-tenant';
+import { setVersioningStorage } from 'hono-crud/versioning';
 import { z } from 'zod';
-import type { AdapterContext, AdapterDescriptor, HookRecorder } from '../contract';
+import type {
+  AdapterContext,
+  AdapterDescriptor,
+  ConformanceAuditEntry,
+  HookRecorder,
+} from '../contract';
 import {
   CONFORMANCE_FILTER_CONFIG,
   buildConformanceSchema,
@@ -93,10 +108,21 @@ const encItemsTable = sqliteTable('conformance_enc', {
   role: text('role').notNull().default('user'),
   age: integer('age'),
   secret: text('secret', { mode: 'json' }),
+  version: integer('version'),
   deletedAt: text('deletedAt'),
   createdAt: integer('createdAt'),
   updatedAt: integer('updatedAt'),
 });
+
+// Durable version-history + audit tables backing the encrypted-consistency
+// cells (encryptedHistoryAudit). Real SQL storages — DrizzleVersioningStorage
+// and DrizzleAuditLogStorage — persist the plaintext snapshots / audit inputs
+// that the cells read back, mirroring how the memory leg wires its in-process
+// stores. One shared table each; rows are discriminated by the model tableName.
+const versionHistoryTable = sqliteVersionHistoryTable();
+const auditLogTable = sqliteAuditLogTable();
+const versioningStore = new DrizzleVersioningStorage({ db: DB, table: versionHistoryTable });
+const auditStore = new DrizzleAuditLogStorage({ db: DB, table: auditLogTable });
 
 // ============================================================================
 // Schema + model variants
@@ -163,7 +189,13 @@ const finalizeModel = defineModel({
 const finalizeMeta = defineMeta({ model: finalizeModel });
 
 const ENC_TABLE = 'conformance_enc';
-const encSchema = buildEncryptionSchema('epoch-ms');
+// Versioning + audit ride on the SAME enc model (the `version` column is an enc
+// schema extension), mirroring the memory leg — so the encrypted-consistency
+// cells can assert audit inputs, version-history snapshots, and rollback-at-rest
+// all carry plaintext / valid historical ciphertext under field encryption.
+const encSchema = buildEncryptionSchema('epoch-ms').extend({
+  version: z.number().default(1),
+});
 const encModel = defineModel({
   tableName: ENC_TABLE,
   schema: encSchema,
@@ -171,6 +203,14 @@ const encModel = defineModel({
   table: encItemsTable,
   softDelete: { field: 'deletedAt' },
   timestamps: true,
+  versioning: { field: 'version', trackChangedBy: true, excludeFields: ['updatedAt'] },
+  audit: {
+    actions: ['create', 'update', 'delete', 'upsert'],
+    trackChanges: true,
+    storeRecord: true,
+    storePreviousRecord: true,
+    excludeFields: ['createdAt', 'updatedAt'],
+  },
   fieldEncryption: { fields: ['secret'], keyProvider: buildEncryptionKeyProvider() },
 });
 const encMeta = defineMeta({ model: encModel });
@@ -388,6 +428,22 @@ class EncBulkPatch extends DrizzleBulkPatchEndpoint {
   protected override filterFields = ['role'];
   protected override returnRecords = true;
 }
+class EncVersionHistory extends DrizzleVersionHistoryEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncVersionRead extends DrizzleVersionReadEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncVersionCompare extends DrizzleVersionCompareEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
+class EncVersionRollback extends DrizzleVersionRollbackEndpoint {
+  _meta = encMeta;
+  db = DB;
+}
 
 // ============================================================================
 // Hook instrumentation
@@ -452,13 +508,47 @@ async function setup(): Promise<AdapterContext> {
       role TEXT NOT NULL DEFAULT 'user',
       age INTEGER,
       secret TEXT,
+      version INTEGER,
       deletedAt TEXT,
       createdAt INTEGER,
       updatedAt INTEGER
     )
   `);
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS version_history (
+      id TEXT PRIMARY KEY,
+      resource_table TEXT NOT NULL,
+      record_id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      changed_by TEXT,
+      change_reason TEXT,
+      changes TEXT
+    )
+  `);
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      table_name TEXT NOT NULL,
+      record_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      timestamp INTEGER NOT NULL,
+      user_id TEXT,
+      record TEXT,
+      previous_record TEXT,
+      changes TEXT,
+      metadata TEXT
+    )
+  `);
   await db.delete(itemsTable);
   await db.delete(encItemsTable);
+  await db.delete(versionHistoryTable);
+  await db.delete(auditLogTable);
+  // Only the enc model enables versioning/audit, so nothing else emits to these
+  // durable stores; wire them globally and clear their rows per-cell in reset.
+  setVersioningStorage(versioningStore);
+  setAuditStorage(auditStore);
   resetRecorder();
 
   // NOTE: must be an OpenAPIHono — `fromHono(new Hono())` builds a fresh
@@ -522,6 +612,10 @@ async function setup(): Promise<AdapterContext> {
     search: EncSearch,
     export: EncExport,
     bulkPatch: EncBulkPatch,
+    versionHistory: EncVersionHistory,
+    versionRead: EncVersionRead,
+    versionCompare: EncVersionCompare,
+    versionRollback: EncVersionRollback,
   });
 
   return {
@@ -530,6 +624,8 @@ async function setup(): Promise<AdapterContext> {
     reset: async () => {
       await db.delete(itemsTable);
       await db.delete(encItemsTable);
+      await db.delete(versionHistoryTable);
+      await db.delete(auditLogTable);
       resetRecorder();
     },
     teardown: async () => {
@@ -546,6 +642,10 @@ async function setup(): Promise<AdapterContext> {
       });
       return row.rows[0]?.value ?? undefined;
     },
+    // Durable read-back: the audit rows are re-selected over SQL and rehydrated
+    // (JSON payloads parsed), so the cell asserts against exactly what the
+    // DrizzleAuditLogStorage persisted — not an in-memory mirror.
+    inspectAudit: async () => (await auditStore.getAll()) as ConformanceAuditEntry[],
   };
 }
 
@@ -559,10 +659,11 @@ export const drizzleConformance: AdapterDescriptor = {
     batchTenantScoping: true,
     extendedVerbTenantScoping: true,
     fieldEncryption: true,
-    // Enc leg wires no version endpoints / inspectable audit store; the
-    // encrypted-consistency cells skip loudly. The fix is core/adapter-agnostic
-    // and anchored on the memory leg + the core unit suite.
-    encryptedHistoryAudit: false,
+    // Enc leg wires DrizzleVersioningStorage + DrizzleAuditLogStorage (durable
+    // SQL) plus the four version endpoints, so the encrypted-consistency cells
+    // assert plaintext audit inputs / historical snapshots and valid
+    // ciphertext-at-rest after rollback — against real cross-request storage.
+    encryptedHistoryAudit: true,
     // Drizzle bulk-patch returns the patched rows (returnRecords = true on the
     // enc leg), so decrypt-on-return and per-record `bulk_patched` events work.
     bulkPatchReturnsRecords: true,

@@ -423,6 +423,12 @@ export function createAuditLogger(
   return new AuditLogger(config, storage, ctx);
 }
 
+// The audit-log entry shape (and its action/field-change types) an
+// AuditLogStorage persists — re-exported here so storage implementers (e.g.
+// @hono-crud/drizzle) can import them alongside the AuditLogStorage interface
+// from a single module.
+export type { AuditAction, AuditFieldChange, AuditLogEntry } from '../core/types';
+
 // Config normalization + change calculation — the audit barrel is the complete
 // canonical surface of the audit family.
 export { calculateChanges, getAuditConfig } from './config';

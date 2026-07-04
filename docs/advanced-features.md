@@ -395,6 +395,35 @@ const UserModel = defineModel({
 
 Audit entries include: action type, table, record ID, user ID, timestamp, and optionally the field-level changes.
 
+For a durable, cross-isolate audit log on Cloudflare D1 / any SQL database, swap `MemoryAuditLogStorage` for `DrizzleAuditLogStorage` from `@hono-crud/drizzle`. One shared table backs every audited model (rows discriminated by the model's `tableName`); `getAll` filters (tableName, action, userId, inclusive date range) run as real SQL `WHERE` clauses:
+
+```typescript
+import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { DrizzleAuditLogStorage } from '@hono-crud/drizzle';
+import { setAuditStorage } from 'hono-crud/audit';
+
+// The audit table DrizzleAuditLogStorage reads/writes. Property names are fixed;
+// the DB column names are free. `sqliteAuditLogTable()` returns exactly this —
+// mirror it for Postgres/MySQL.
+const auditLogs = sqliteTable('audit_logs', {
+  id: text('id').primaryKey(),
+  tableName: text('table_name').notNull(),
+  recordId: text('record_id').notNull(),
+  action: text('action').notNull(),
+  timestamp: integer('timestamp').notNull(),
+  userId: text('user_id'),
+  record: text('record'),
+  previousRecord: text('previous_record'),
+  changes: text('changes'),
+  metadata: text('metadata'),
+});
+
+const auditDb = drizzle(createClient({ url: ':memory:' }));
+setAuditStorage(new DrizzleAuditLogStorage({ db: auditDb, table: auditLogs }));
+```
+
 ---
 
 ## Full-Text Search

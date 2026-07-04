@@ -305,7 +305,8 @@ async function setup(): Promise<AdapterContext> {
 
   // Encryption endpoint classes — mirror the drizzle enc leg's verb family
   // (every write/returning verb) so the encryption + events cells run. No
-  // version endpoints (encryptedHistoryAudit is false, same as drizzle).
+  // version endpoints (encryptedHistoryAudit is false; drizzle now wires them
+  // and is true, so this prisma leg is the sole false leg).
   class EncCreate extends PrismaCreateEndpoint {
     _meta = encMeta;
     prisma = crudClient;
