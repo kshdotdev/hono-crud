@@ -37,7 +37,14 @@ import {
   getStore,
 } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { type HookContext, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import {
+  type HookContext,
+  defineMeta,
+  defineModel,
+  defineModels,
+  fromHono,
+  registerCrud,
+} from 'hono-crud';
 import { MemoryAuditLogStorage, setAuditStorage } from 'hono-crud/audit';
 import { multiTenant } from 'hono-crud/multi-tenant';
 import { MemoryVersioningStorage, setVersioningStorage } from 'hono-crud/versioning';
@@ -145,6 +152,50 @@ const encModel = defineModel({
 const encMeta = defineMeta({ model: encModel });
 
 // ============================================================================
+// Model-registry graph (defineModels): a circular authors↔articles pair with
+// NO hand-supplied relation `schema`/`table` — the factory auto-populates both
+// from the sibling entries and rewrites the friendly registry keys ('authors' /
+// 'articles') to the physical table names the store resolves by.
+// ============================================================================
+
+const registryAuthorSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+});
+const registryArticleSchema = z.object({
+  id: z.string(),
+  authorId: z.string(),
+  title: z.string(),
+});
+
+const registryDb = defineModels({
+  authors: {
+    tableName: 'registry_authors',
+    schema: registryAuthorSchema,
+    primaryKeys: ['id'],
+    relations: {
+      articles: {
+        type: 'hasMany',
+        model: 'articles',
+        foreignKey: 'authorId',
+        nestedWrites: { allowCreate: true },
+      },
+    },
+  },
+  articles: {
+    tableName: 'registry_articles',
+    schema: registryArticleSchema,
+    primaryKeys: ['id'],
+    relations: {
+      author: { type: 'belongsTo', model: 'authors', foreignKey: 'authorId' },
+    },
+  },
+});
+const registryAuthorMeta = defineMeta({ model: registryDb.authors });
+const registryArticleMeta = defineMeta({ model: registryDb.articles });
+
+// ============================================================================
 // Endpoint classes
 // ============================================================================
 
@@ -190,6 +241,26 @@ class CursorItemList extends MemoryListEndpoint {
   protected override cursorPaginationEnabled = true;
   protected override cursorField = 'id';
   protected override sortFields = ['email'];
+}
+
+class RegistryAuthorCreate extends MemoryCreateEndpoint {
+  _meta = registryAuthorMeta;
+  protected override allowNestedCreate = ['articles'];
+}
+class RegistryAuthorRead extends MemoryReadEndpoint {
+  _meta = registryAuthorMeta;
+  protected override allowedIncludes = ['articles'];
+}
+class RegistryAuthorList extends MemoryListEndpoint {
+  _meta = registryAuthorMeta;
+  protected override allowedIncludes = ['articles'];
+}
+class RegistryArticleCreate extends MemoryCreateEndpoint {
+  _meta = registryArticleMeta;
+}
+class RegistryArticleRead extends MemoryReadEndpoint {
+  _meta = registryArticleMeta;
+  protected override allowedIncludes = ['author'];
 }
 
 class TenantCreate extends MemoryCreateEndpoint {
@@ -443,6 +514,18 @@ async function setup(): Promise<AdapterContext> {
     versionCompare: EncVersionCompare,
     versionRollback: EncVersionRollback,
   });
+  registerCrud(app, '/registry-authors', {
+    create: RegistryAuthorCreate,
+    read: RegistryAuthorRead,
+    list: RegistryAuthorList,
+  });
+  registerCrud(app, '/registry-articles', {
+    create: RegistryArticleCreate,
+    read: RegistryArticleRead,
+  });
+  // Serve the OpenAPI document so the model-registry cell can assert the
+  // auto-populated include shapes through the HTTP surface.
+  app.doc('/openapi.json', { info: { title: 'conformance', version: '1.0.0' } });
 
   return {
     app,
@@ -471,6 +554,7 @@ export const memoryConformance: AdapterDescriptor = {
     timestampKind: 'epoch-ms',
     transactionalHooks: 'noop-sentinel',
     relationScoping: true,
+    modelRegistry: true,
     batchTenantScoping: true,
     extendedVerbTenantScoping: true,
     fieldEncryption: true,

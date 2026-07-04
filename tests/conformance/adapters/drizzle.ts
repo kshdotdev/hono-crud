@@ -47,7 +47,14 @@ import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/libsql';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { type HookContext, defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
+import {
+  type HookContext,
+  defineMeta,
+  defineModel,
+  defineModels,
+  fromHono,
+  registerCrud,
+} from 'hono-crud';
 import { setAuditStorage } from 'hono-crud/audit';
 import { multiTenant } from 'hono-crud/multi-tenant';
 import { setVersioningStorage } from 'hono-crud/versioning';
@@ -482,6 +489,89 @@ class HookItemCreate extends DrizzleCreateEndpoint {
 }
 
 // ============================================================================
+// Model-registry graph (defineModels): a circular authors↔articles pair. Only
+// the MODEL-level `table` is authored — the relation-level `table` each
+// include needs is auto-populated by the factory from the sibling entry (the
+// exact hand-duplication this leg previously required), and the friendly
+// registry keys are rewritten to the physical table names.
+// ============================================================================
+
+const registryAuthorsTable = sqliteTable('registry_authors', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+});
+const registryArticlesTable = sqliteTable('registry_articles', {
+  id: text('id').primaryKey(),
+  authorId: text('authorId').notNull(),
+  title: text('title').notNull(),
+});
+
+const registryAuthorSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+});
+const registryArticleSchema = z.object({
+  id: z.string(),
+  authorId: z.string(),
+  title: z.string(),
+});
+
+const registryDb = defineModels({
+  authors: {
+    tableName: 'registry_authors',
+    schema: registryAuthorSchema,
+    primaryKeys: ['id'],
+    table: registryAuthorsTable,
+    relations: {
+      articles: {
+        type: 'hasMany',
+        model: 'articles',
+        foreignKey: 'authorId',
+        nestedWrites: { allowCreate: true },
+      },
+    },
+  },
+  articles: {
+    tableName: 'registry_articles',
+    schema: registryArticleSchema,
+    primaryKeys: ['id'],
+    table: registryArticlesTable,
+    relations: {
+      author: { type: 'belongsTo', model: 'authors', foreignKey: 'authorId' },
+    },
+  },
+});
+const registryAuthorMeta = defineMeta({ model: registryDb.authors });
+const registryArticleMeta = defineMeta({ model: registryDb.articles });
+
+class RegistryAuthorCreate extends DrizzleCreateEndpoint {
+  _meta = registryAuthorMeta;
+  db = DB;
+  protected override allowNestedCreate = ['articles'];
+}
+class RegistryAuthorRead extends DrizzleReadEndpoint {
+  _meta = registryAuthorMeta;
+  db = DB;
+  protected override allowedIncludes = ['articles'];
+}
+class RegistryAuthorList extends DrizzleListEndpoint {
+  _meta = registryAuthorMeta;
+  db = DB;
+  protected override allowedIncludes = ['articles'];
+}
+class RegistryArticleCreate extends DrizzleCreateEndpoint {
+  _meta = registryArticleMeta;
+  db = DB;
+}
+class RegistryArticleRead extends DrizzleReadEndpoint {
+  _meta = registryArticleMeta;
+  db = DB;
+  protected override allowedIncludes = ['author'];
+}
+
+// ============================================================================
 // Descriptor
 // ============================================================================
 
@@ -541,10 +631,26 @@ async function setup(): Promise<AdapterContext> {
       metadata TEXT
     )
   `);
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS registry_authors (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL
+    )
+  `);
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS registry_articles (
+      id TEXT PRIMARY KEY,
+      authorId TEXT NOT NULL,
+      title TEXT NOT NULL
+    )
+  `);
   await db.delete(itemsTable);
   await db.delete(encItemsTable);
   await db.delete(versionHistoryTable);
   await db.delete(auditLogTable);
+  await db.delete(registryAuthorsTable);
+  await db.delete(registryArticlesTable);
   // Only the enc model enables versioning/audit, so nothing else emits to these
   // durable stores; wire them globally and clear their rows per-cell in reset.
   setVersioningStorage(versioningStore);
@@ -617,6 +723,18 @@ async function setup(): Promise<AdapterContext> {
     versionCompare: EncVersionCompare,
     versionRollback: EncVersionRollback,
   });
+  registerCrud(app, '/registry-authors', {
+    create: RegistryAuthorCreate,
+    read: RegistryAuthorRead,
+    list: RegistryAuthorList,
+  });
+  registerCrud(app, '/registry-articles', {
+    create: RegistryArticleCreate,
+    read: RegistryArticleRead,
+  });
+  // Serve the OpenAPI document so the model-registry cell can assert the
+  // auto-populated include shapes through the HTTP surface.
+  app.doc('/openapi.json', { info: { title: 'conformance', version: '1.0.0' } });
 
   return {
     app,
@@ -626,6 +744,8 @@ async function setup(): Promise<AdapterContext> {
       await db.delete(encItemsTable);
       await db.delete(versionHistoryTable);
       await db.delete(auditLogTable);
+      await db.delete(registryAuthorsTable);
+      await db.delete(registryArticlesTable);
       resetRecorder();
     },
     teardown: async () => {
@@ -656,6 +776,7 @@ export const drizzleConformance: AdapterDescriptor = {
     timestampKind: 'epoch-ms',
     transactionalHooks: 'rollback',
     relationScoping: true,
+    modelRegistry: true,
     batchTenantScoping: true,
     extendedVerbTenantScoping: true,
     fieldEncryption: true,

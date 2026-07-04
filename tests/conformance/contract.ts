@@ -76,6 +76,17 @@ export interface ConformanceCapabilities {
    */
   relationScoping: boolean;
   /**
+   * Whether this leg mounts the `defineModels` registry graph — a circular
+   * authors↔articles pair at `/registry-authors` + `/registry-articles`,
+   * authored with NO hand-supplied relation `schema`/`table` (both
+   * auto-populated by the factory from the sibling entries) — plus a served
+   * `/openapi.json` document, so the model-registry cells can assert include
+   * resolution, documented include shapes, and nested-write body validation.
+   * False on the prisma leg — it reuses the fixed examples schema, which has
+   * no registry tables; the skip is named.
+   */
+  modelRegistry: boolean;
+  /**
    * Whether this leg registers batch verbs (`batchDelete` / `batchUpdate` /
    * `batchRestore`) on the multi-tenant model, so the batch owner-scoping cell
    * can assert a tenant cannot batch-mutate another tenant's rows by id. False

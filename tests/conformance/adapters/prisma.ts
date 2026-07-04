@@ -483,6 +483,11 @@ export const prismaConformance: AdapterDescriptor = {
     // The prisma leg reuses the fixed examples `users` schema, which has no
     // self-relation column — the relation-scoping cell is a named skip here.
     relationScoping: false,
+    // Likewise no registry tables exist in the fixed examples schema, so the
+    // defineModels graph is not mounted; the model-registry cells are a named
+    // skip here. The factory itself is adapter-agnostic (covered by the core
+    // unit suite); what skips is only the prisma HTTP leg.
+    modelRegistry: false,
     // No batch verbs are registered on the prisma tenant variant; the
     // batch owner-scoping cell is a named skip here.
     batchTenantScoping: false,
