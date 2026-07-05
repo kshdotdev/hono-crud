@@ -23,54 +23,122 @@
  * per-isolate module-global registry is exactly what the prisma adapter once
  * had and deleted for silent Workers-isolate divergence).
  *
- * The compile-time sibling-key constraint on `relation.model` is the first
- * line of defence; the runtime validation catches dynamically-built maps that
- * escape static checking. Off-registry targets (cross-package, polymorphic)
- * opt out per relation via `external: true` and author a raw `RelationConfig`.
+ * The compile-time constraints — sibling keys on `relation.model`, and
+ * direction-aware schema keys on `foreignKey`/`localKey`/`scope` fields — are
+ * the first line of defence; the runtime validation catches dynamically-built
+ * maps that escape static checking (model targets only; field keys are
+ * compile-time only). Off-registry targets (cross-package, polymorphic) opt
+ * out per relation via `external: true` and author a raw `RelationConfig`.
  */
 
 import type { ZodObject, ZodRawShape } from 'zod';
-import type { Model, RelationConfig, RelationsConfig } from './types';
+import type { Model, RelationConfig, RelationsConfig, SchemaKeys } from './types';
+
+/** Registry key → its Zod schema; the value-map the field constraints read. */
+type RelationSchemaMap = Record<string, ZodObject<ZodRawShape>>;
+
+/** Schema keys of one member, degrading to `string` for a wide schema. */
+type FieldKeys<TSchemas extends RelationSchemaMap, K extends keyof TSchemas> = Extract<
+  SchemaKeys<TSchemas[K]>,
+  string
+>;
+
+/** Direction-aware `scope` bag: both fields name columns on the RELATED table (`M`). */
+type RelationScopeFor<TSchemas extends RelationSchemaMap, M extends keyof TSchemas> = {
+  tenantField?: FieldKeys<TSchemas, M>;
+  softDeleteField?: FieldKeys<TSchemas, M>;
+};
+
+/**
+ * Passthrough members shared by both internal arms (`nestedWrites`/`cascade`
+ * stay `string`-typed — they carry no cross-model column names), plus the
+ * schema/table overrides and the escape-hatch discriminant.
+ */
+type InternalRelationBase = Omit<
+  RelationConfig,
+  'type' | 'model' | 'foreignKey' | 'localKey' | 'schema' | 'table' | 'scope'
+> & {
+  /** Optional explicit schema override (else auto-populated from the sibling). */
+  schema?: ZodObject<ZodRawShape>;
+  /** Optional explicit table override (else auto-populated from the sibling). */
+  table?: unknown;
+  external?: false;
+};
+
+/**
+ * hasOne / hasMany: the FK lives on the RELATED table, so `foreignKey` is
+ * checked against the target sibling's (`M`) schema keys and `localKey`
+ * against the authoring model's (`TSelf`). Distributed over the sibling keys
+ * so each arm correlates `model: M` with its own key union.
+ */
+type InternalHasSpec<TSchemas extends RelationSchemaMap, TSelf extends keyof TSchemas> = {
+  [M in Extract<keyof TSchemas, string>]: InternalRelationBase & {
+    type: 'hasOne' | 'hasMany';
+    model: M;
+    foreignKey: FieldKeys<TSchemas, M>;
+    localKey?: FieldKeys<TSchemas, TSelf>;
+    scope?: RelationScopeFor<TSchemas, M>;
+  };
+}[Extract<keyof TSchemas, string>];
+
+/**
+ * belongsTo: the local row holds the FK, so the direction flips — `foreignKey`
+ * is checked against the authoring model's (`TSelf`) schema keys and
+ * `localKey` against the target sibling's (`M`).
+ */
+type InternalBelongsToSpec<TSchemas extends RelationSchemaMap, TSelf extends keyof TSchemas> = {
+  [M in Extract<keyof TSchemas, string>]: InternalRelationBase & {
+    type: 'belongsTo';
+    model: M;
+    foreignKey: FieldKeys<TSchemas, TSelf>;
+    localKey?: FieldKeys<TSchemas, M>;
+    scope?: RelationScopeFor<TSchemas, M>;
+  };
+}[Extract<keyof TSchemas, string>];
+
+/** Off-registry escape hatch: raw {@link RelationConfig}, no key checking. */
+type ExternalRelationSpec = RelationConfig & {
+  /** Opt out of sibling-key + field-key checking and auto-population. */
+  external: true;
+};
 
 /**
  * A relation authored inside a `defineModels({...})` entry.
  *
  * **Internal form (default):** `model` is constrained to the sibling registry
- * keys, so a typo is a compile error; `schema` and `table` are auto-populated
- * from the target sibling, so you normally omit them. Explicitly-authored
- * `schema`/`table` win (see {@link DefineModelsConfig.overwriteExplicit}).
+ * keys, and the column-name members are constrained to the direction-correct
+ * schema keys — hasOne/hasMany take `foreignKey` from the RELATED sibling and
+ * `localKey` from the authoring model; belongsTo flips both; `scope`'s
+ * `tenantField`/`softDeleteField` always name RELATED columns (they filter the
+ * related rows on `?include=`). A typo in any of them is a compile error.
+ * Wide (un-narrowed) schemas degrade every check to permissive `string`.
+ * `schema` and `table` are auto-populated from the target sibling, so you
+ * normally omit them. Explicitly-authored `schema`/`table` win (see
+ * {@link DefineModelsConfig.overwriteExplicit}).
  *
  * **External form (escape hatch):** set `external: true` to target a model
  * that is NOT a sibling in this call — cross-file, cross-package, or
- * polymorphic. The sibling-key constraint and auto-population are both
- * switched off; you author `model` (any string) and `schema`/`table` exactly
- * as a raw {@link RelationConfig}. The marker is stripped from the wired output.
+ * polymorphic. The sibling-key and field-key constraints and auto-population
+ * are all switched off; you author `model` (any string) and `schema`/`table`
+ * exactly as a raw {@link RelationConfig}. The marker is stripped from the
+ * wired output.
  */
-export type RelationSpec<TSiblingKeys extends string> =
-  | (Omit<RelationConfig, 'model' | 'schema' | 'table'> & {
-      /** Sibling registry key this relation targets (compile-time typo rejection). */
-      model: TSiblingKeys;
-      /** Optional explicit schema override (else auto-populated from the sibling). */
-      schema?: ZodObject<ZodRawShape>;
-      /** Optional explicit table override (else auto-populated from the sibling). */
-      table?: unknown;
-      external?: false;
-    })
-  | (RelationConfig & {
-      /** Opt out of sibling-key checking + auto-population for an off-registry target. */
-      external: true;
-    });
+export type RelationSpec<TSchemas extends RelationSchemaMap, TSelf extends keyof TSchemas> =
+  | InternalHasSpec<TSchemas, TSelf>
+  | InternalBelongsToSpec<TSchemas, TSelf>
+  | ExternalRelationSpec;
 
 /**
  * One registry entry as authored: the existing {@link Model} config, except
  * relation values reference siblings by key ({@link RelationSpec}).
  */
 export type ModelSpec<
-  TSiblingKeys extends string,
+  TSchemas extends RelationSchemaMap,
+  TSelf extends keyof TSchemas,
   T extends ZodObject<ZodRawShape> = ZodObject<ZodRawShape>,
   TTable = unknown,
 > = Omit<Model<T, TTable, RelationsConfig>, 'relations'> & {
-  relations?: Record<string, RelationSpec<TSiblingKeys>>;
+  relations?: Record<string, RelationSpec<TSchemas, TSelf>>;
 };
 
 /**
@@ -149,6 +217,9 @@ type SchemaOf<E> = E extends { schema: infer S extends ZodObject<ZodRawShape> }
 
 /** Re-extract an entry's own concrete table type for its override typing. */
 type TableOf<E> = E extends { table?: infer TTable } ? TTable : unknown;
+
+/** The value-self-referential schema map read by every entry's field constraints. */
+type SchemasOf<TMap> = { [K in keyof TMap]: SchemaOf<TMap[K]> };
 
 /** One unresolved internal relation target, for the aggregated setup error. */
 interface UnknownTarget {
@@ -319,7 +390,7 @@ function freezeWiredModels(wired: Record<string, Model>): void {
  */
 export function defineModels<
   TMap extends {
-    [K in keyof TMap]: ModelSpec<Extract<keyof TMap, string>, SchemaOf<TMap[K]>, TableOf<TMap[K]>>;
+    [K in keyof TMap]: ModelSpec<SchemasOf<TMap>, K, SchemaOf<TMap[K]>, TableOf<TMap[K]>>;
   },
 >(map: TMap, config: DefineModelsConfig = {}): WiredModels<TMap> {
   return wireModelMap(map, {}, resolveDefineModelsConfig(config)) as WiredModels<TMap>;
@@ -357,7 +428,8 @@ export function defineModelsExtending<
   TBase extends Record<string, Model>,
   TMap extends {
     [K in keyof TMap]: ModelSpec<
-      Extract<keyof TMap | keyof TBase, string>,
+      SchemasOf<TMap> & { [B in keyof TBase]: TBase[B]['schema'] },
+      K,
       SchemaOf<TMap[K]>,
       TableOf<TMap[K]>
     >;
