@@ -132,8 +132,17 @@ const relationPostMeta = defineMeta({ model: models.posts });
   `model: 'postz'` is a compile error, and dynamically-built maps that escape
   static checking fail fast at setup with one aggregated `Error` (with a
   did-you-mean suggestion).
+- **Column-name fields are checked against the direction-correct schema at
+  compile time**: for `hasOne`/`hasMany`, `foreignKey` must be a key of the
+  RELATED sibling's schema and `localKey` a key of the authoring model's; for
+  `belongsTo` both flip (the local row holds the FK); `scope.tenantField` /
+  `scope.softDeleteField` always name RELATED columns (they filter the related
+  rows on `?include=`). A typo'd FK column — which would otherwise silently
+  load empty includes at runtime — is now a compile error. Wide (un-narrowed)
+  schemas degrade to permissive `string`.
 - **Off-registry targets** (another package's model, polymorphic tables) opt
-  out per relation with `external: true` and author a raw `RelationConfig`.
+  out per relation with `external: true` and author a raw `RelationConfig` —
+  sibling-key and column-name checking are both off for that relation.
 
 The knobs live on the optional second argument (`DefineModelsConfig`):
 `autoPopulateSchema` / `autoPopulateTable` (default `true`),

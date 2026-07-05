@@ -575,3 +575,154 @@ export {
   extendedBaseRel,
   extendedModels,
 };
+
+// ============================================================================
+// F5e — direction-aware field-key checks inside defineModels: hasOne/hasMany
+// take `foreignKey` from the RELATED sibling's schema and `localKey` from the
+// LOCAL schema; belongsTo flips both; `scope.tenantField`/`scope.softDeleteField`
+// always name RELATED columns (the include-time filter side, per the batch
+// loader). Wide schemas degrade to `string`; `external: true` keeps raw strings.
+// ============================================================================
+
+import type { ZodObject, ZodRawShape } from 'zod';
+
+// Positive — every member checks its direction-correct side. The sharp probes
+// are the keys that exist on only ONE of the two schemas: `title`/`authorId`
+// are posts-only, `name`/`email` are users-only.
+const fieldKeyDb = defineModels({
+  users: {
+    tableName: 'users',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+    relations: {
+      posts: {
+        type: 'hasMany',
+        model: 'posts',
+        foreignKey: 'authorId', // ∈ posts (related holds the FK)
+        localKey: 'id', // ∈ users (local)
+        scope: { tenantField: 'authorId', softDeleteField: 'title' }, // ∈ posts
+      },
+      pinned: { type: 'hasOne', model: 'posts', foreignKey: 'authorId' },
+    },
+  },
+  posts: {
+    tableName: 'posts',
+    schema: RegistryPostSchema,
+    primaryKeys: ['id'],
+    relations: {
+      author: {
+        type: 'belongsTo',
+        model: 'users',
+        foreignKey: 'authorId', // ∈ posts (LOCAL holds the FK — direction flip)
+        localKey: 'name', // ∈ users (related)
+      },
+    },
+  },
+});
+
+// Negatives — one-liner relations so each rejection stays on its directive's line.
+defineModels({
+  users: {
+    tableName: 'users',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+    relations: {
+      // @ts-expect-error - hasMany foreignKey typo: 'authorIdd' is not a posts key
+      n1: { type: 'hasMany', model: 'posts', foreignKey: 'authorIdd' },
+      // @ts-expect-error - hasMany foreignKey must be a RELATED key; 'name' is users-only
+      n2: { type: 'hasMany', model: 'posts', foreignKey: 'name' },
+      // @ts-expect-error - hasMany localKey must be a LOCAL key; 'title' is posts-only
+      n4: { type: 'hasMany', model: 'posts', foreignKey: 'authorId', localKey: 'title' },
+      // @ts-expect-error - scope.tenantField must be a RELATED key; 'nope' is nowhere
+      n6: {
+        type: 'hasMany',
+        model: 'posts',
+        foreignKey: 'authorId',
+        scope: { tenantField: 'nope' },
+      },
+    },
+  },
+  posts: {
+    tableName: 'posts',
+    schema: RegistryPostSchema,
+    primaryKeys: ['id'],
+    relations: {
+      // @ts-expect-error - belongsTo foreignKey must be a LOCAL key; 'email' is users-only
+      n3: { type: 'belongsTo', model: 'users', foreignKey: 'email' },
+      // @ts-expect-error - belongsTo localKey must be a RELATED key; 'title' is posts-only
+      n5: { type: 'belongsTo', model: 'users', foreignKey: 'authorId', localKey: 'title' },
+    },
+  },
+});
+
+// defineModelsExtending — field checks resolve against the BASE sibling's schema.
+const fieldKeyExtended = defineModelsExtending(
+  {
+    projects: {
+      tableName: 'projects',
+      schema: RegistryPostSchema,
+      primaryKeys: ['id'],
+      relations: {
+        owner: { type: 'belongsTo', model: 'users', foreignKey: 'authorId', localKey: 'email' },
+      },
+    },
+  },
+  { extends: registryDb },
+);
+
+defineModelsExtending(
+  {
+    projects: {
+      tableName: 'projects',
+      schema: RegistryPostSchema,
+      primaryKeys: ['id'],
+      relations: {
+        // @ts-expect-error - belongsTo localKey checks the BASE users schema; 'title' is not a users key
+        owner: { type: 'belongsTo', model: 'users', foreignKey: 'authorId', localKey: 'title' },
+      },
+    },
+  },
+  { extends: registryDb },
+);
+
+// `external: true` keeps RAW strings on every field member (off-registry target).
+const fieldKeyExternal = defineModels({
+  users: {
+    tableName: 'users',
+    schema: UserSchema,
+    primaryKeys: ['id'],
+    relations: {
+      org: {
+        type: 'belongsTo',
+        model: 'organizations',
+        foreignKey: 'orgId',
+        localKey: 'org_pk',
+        scope: { tenantField: 'tenant_col', softDeleteField: 'deleted_col' },
+        external: true,
+        schema: RegistryPostSchema,
+      },
+    },
+  },
+});
+
+// Wide (un-narrowed) schemas degrade every field member to permissive `string`.
+declare const wideRegistrySchema: ZodObject<ZodRawShape>;
+const wideRegistryDb = defineModels({
+  a: {
+    tableName: 'a',
+    schema: wideRegistrySchema,
+    primaryKeys: ['id'],
+    relations: {
+      b: {
+        type: 'hasMany',
+        model: 'b',
+        foreignKey: 'anything-goes',
+        localKey: 'whatever',
+        scope: { tenantField: 'x', softDeleteField: 'y' },
+      },
+    },
+  },
+  b: { tableName: 'b', schema: wideRegistrySchema, primaryKeys: ['id'] },
+});
+
+export { fieldKeyDb, fieldKeyExtended, fieldKeyExternal, wideRegistryDb };
