@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.13.29
+
+### Patch Changes
+
+- f1a2856: Add `defineModelsExtending` — compose `defineModels` registries acyclically across files/calls: a previously-wired base map's keys become referenceable siblings for a new map (compile-time checked across the combined keyspace), with the same auto-population, key→tableName rewrite, aggregated loud unknown-target error, and config knobs. Same-call siblings shadow base keys; base models are never re-wired, mutated, or frozen by the extending call.
+- 22eedb3: Add `defineModels` — an eager model-registry factory where cross-referencing models are authored in one call and reference each other by sibling registry key. Circular graphs (User↔Post) become inert data with no declaration-ordering games; each relation's `schema`/`table` is auto-populated from its target sibling (closing the silent OpenAPI-include and drizzle-include gaps), the authored registry key is rewritten to the target's `tableName` for the adapters, and unknown targets fail fast with one aggregated setup-time error carrying a did-you-mean suggestion. Relation `model` references are compile-time constrained to the sibling keys; off-registry targets opt out per relation via `external: true`. Configurable via `DefineModelsConfig` (`autoPopulateSchema`, `autoPopulateTable`, `overwriteExplicit`, `onUnknownModel`, `freeze`).
+- 052d14b: Relation-spec column-name members in `defineModels`/`defineModelsExtending` are now
+  compile-checked against the direction-correct model's schema keys: `hasOne`/`hasMany`
+  take `foreignKey` from the RELATED sibling's schema and `localKey` from the local
+  model's; `belongsTo` flips both (the local row holds the FK); `scope.tenantField` /
+  `scope.softDeleteField` always name RELATED columns. A typo'd FK column — which
+  previously loaded silently-empty includes at runtime — is now a compile error at the
+  authoring site. Wide (un-narrowed) schemas degrade to permissive `string`, and
+  `external: true` relations keep raw strings. Authoring-surface typing only — runtime
+  behavior, wired output, and `RelationConfig` are unchanged. (`RelationSpec`/`ModelSpec`
+  generic parameters changed: they now take the sibling schema-map plus the authoring
+  entry's key instead of a sibling key-union.)
+- cfd4872: Harden `defineModels`/`defineModelsExtending` sibling lookup to own properties only: under `onUnknownModel: 'ignore'`, an unresolved relation target colliding with an `Object.prototype` member (e.g. `'constructor'`) is now left unresolved as authored instead of being wired against the prototype member.
+
 ## 0.13.28
 
 ### Patch Changes
