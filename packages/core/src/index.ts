@@ -263,15 +263,44 @@ export type {
 } from './endpoints/types';
 
 // Utility exports
-export { registerCrud, contentJson } from './core/register';
+export { registerCrud, registerCrudResources, contentJson } from './core/register';
 export type {
   CrudEndpoints,
   EndpointClass,
   HonoOpenAPIApp,
   CrudEndpointName,
   EndpointMiddlewares,
+  EnvelopeKindOf,
   RegisterCrudOptions,
 } from './core/register';
+
+// Typed RPC client (`hc<typeof app>`) support
+export { defineRouteSchema } from './core/route';
+export type {
+  CrudCreateInput,
+  CrudDeleteResult,
+  CrudListQuery,
+  CrudMetaOf,
+  CrudReadQuery,
+  CrudResourcesSchema,
+  CrudRow,
+  CrudSchema,
+  CrudSearchQuery,
+  CrudSearchResultInfo,
+  CrudSearchResultItem,
+  CrudUpdateInput,
+  ErrorEnvelope,
+  PaginatedEnvelope,
+  ResultInfo,
+  RouteClassEntry,
+  RouteClassSchema,
+  RouteSchemaInput,
+  RouteSchemaOutput,
+  SearchEnvelope,
+  SuccessEnvelope,
+  ToHonoPath,
+  UntypedRouteResponse,
+} from './core/rpc-types';
 
 // CSV utility exports
 export {

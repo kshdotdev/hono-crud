@@ -89,14 +89,16 @@ export function errorResponseSchema(description?: string): {
  * Build several error responses at once from a `{ status: description }` map:
  * `...errorResponses({ 400: 'Validation error', 404: 'Not found' })`.
  */
-export function errorResponses(
-  map: Record<number, string>,
-): Record<number, ReturnType<typeof errorResponseSchema>> {
+export function errorResponses<const M extends Record<number, string>>(
+  map: M,
+): { [K in keyof M]: ReturnType<typeof errorResponseSchema> } {
   const out: Record<number, ReturnType<typeof errorResponseSchema>> = {};
   for (const [status, description] of Object.entries(map)) {
     out[Number(status)] = errorResponseSchema(description);
   }
-  return out;
+  // Keyed by the literal statuses of `map`, so the typed RPC client sees
+  // `ClientResponse<ErrorEnvelope, 404>` rather than a `number` status.
+  return out as { [K in keyof M]: ReturnType<typeof errorResponseSchema> };
 }
 
 /**

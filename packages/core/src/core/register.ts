@@ -1,11 +1,22 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import type { Env, MiddlewareHandler } from 'hono';
+import type { MergePath, Schema } from 'hono/types';
 import { setContextVar } from '../utils/context';
 import { CRUD_ROUTES, type CrudEndpointName } from './crud-routes';
 import type { HonoOpenAPIApp } from './openapi';
 import { recordCrudResource } from './resource-registry';
 import type { OpenAPIRoute } from './route';
+import type { CrudResourcesSchema, CrudSchema, ToHonoPath } from './rpc-types';
 import { RESPONSE_ENVELOPE_CONTEXT_KEY, type ResponseEnvelope } from './types';
+
+/**
+ * Which envelope shape a `registerCrud` call produces for the typed client:
+ * a custom `responseEnvelope` reshapes every body, so its outputs degrade to
+ * `unknown`; the default envelope is typed precisely.
+ */
+export type EnvelopeKindOf<O> = O extends { responseEnvelope: ResponseEnvelope }
+  ? 'custom'
+  : 'default';
 
 /**
  * Type for an OpenAPIRoute class constructor.
@@ -165,17 +176,36 @@ type RouteRegistrar<E extends Env> = {
  *     delete: [adminOnlyMiddleware],
  *   },
  * });
+ *
+ * // Typed RPC client: the returned app carries the registered routes
+ * const routes = registerCrud(app, '/users', endpoints);
+ * const client = hc<typeof routes>('http://localhost');
  * ```
+ *
+ * Returns the same app (the proxy is mutated in place), typed with the CRUD
+ * routes it just registered so `hc<typeof app>` can see them. The return
+ * value may be ignored when the typed client is not needed.
  */
-export function registerCrud<E extends Env = Env>(
-  app: HonoOpenAPIApp<E> | OpenAPIHono<E>,
-  basePath: string,
-  endpoints: CrudEndpoints<E>,
-  options: RegisterCrudOptions<E> = {},
-): void {
+export function registerCrud<
+  E extends Env,
+  S extends Schema,
+  BasePath extends string,
+  P extends string,
+  EP extends CrudEndpoints<E>,
+  O extends RegisterCrudOptions<E> = RegisterCrudOptions<E>,
+>(
+  app: HonoOpenAPIApp<E, S, BasePath> | OpenAPIHono<E, S, BasePath>,
+  basePath: P,
+  endpoints: EP,
+  options?: O,
+): HonoOpenAPIApp<
+  E,
+  S & CrudSchema<MergePath<BasePath, ToHonoPath<P>>, EP, EnvelopeKindOf<O>>,
+  BasePath
+> {
   const normalizedPath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
   const typedApp = app as HonoOpenAPIApp<E>;
-  const { middlewares = [], endpointMiddlewares = {}, responseEnvelope } = options;
+  const { middlewares = [], endpointMiddlewares = {}, responseEnvelope } = options ?? {};
 
   /**
    * Stash the configured `ResponseEnvelope` on the request context so the
@@ -248,6 +278,49 @@ export function registerCrud<E extends Env = Env>(
   // Record this registration on the app so addons (e.g. @hono-crud/mcp) can
   // enumerate registered resources. App-scoped, startup-time — edge-safe.
   recordCrudResource(app, normalizedPath, endpoints);
+
+  // Same object, narrower type: the schema entries were folded in above.
+  return app as unknown as HonoOpenAPIApp<
+    E,
+    S & CrudSchema<MergePath<BasePath, ToHonoPath<P>>, EP, EnvelopeKindOf<O>>,
+    BasePath
+  >;
+}
+
+/**
+ * Registers several CRUD resources at once and returns the app typed with
+ * all of them — the ergonomic way to build a typed RPC client for an API
+ * with many resources (statement-style `registerCrud` calls cannot
+ * accumulate types across statements).
+ *
+ * @example
+ * ```ts
+ * const routes = registerCrudResources(app, {
+ *   '/users': { list: UserList, read: UserRead },
+ *   '/posts': { list: PostList, create: PostCreate },
+ * });
+ * export type AppType = typeof routes;
+ * ```
+ */
+export function registerCrudResources<
+  E extends Env,
+  S extends Schema,
+  BasePath extends string,
+  R extends Record<string, CrudEndpoints<E>>,
+  O extends RegisterCrudOptions<E> = RegisterCrudOptions<E>,
+>(
+  app: HonoOpenAPIApp<E, S, BasePath> | OpenAPIHono<E, S, BasePath>,
+  resources: R,
+  options?: O,
+): HonoOpenAPIApp<E, S & CrudResourcesSchema<BasePath, R, EnvelopeKindOf<O>>, BasePath> {
+  for (const [path, endpoints] of Object.entries(resources)) {
+    registerCrud(app, path, endpoints, options);
+  }
+  return app as unknown as HonoOpenAPIApp<
+    E,
+    S & CrudResourcesSchema<BasePath, R, EnvelopeKindOf<O>>,
+    BasePath
+  >;
 }
 
 /**

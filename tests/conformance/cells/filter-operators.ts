@@ -17,7 +17,7 @@
  */
 import { expect, test } from 'vitest';
 import type { AdapterDescriptor, CtxGetter } from '../contract';
-import { expectList } from '../contract';
+import { expectError, expectList } from '../contract';
 import { seedFilterRows } from '../model';
 
 interface FilterCase {
@@ -95,4 +95,13 @@ export function registerFilterOperatorCells(_descriptor: AdapterDescriptor, ctx:
       expect(got).toEqual([...filterCase.expectEmails].sort());
     });
   }
+  test('filter: a non-numeric value for a numeric field is rejected with 400 VALIDATION_ERROR', async () => {
+    const { app } = ctx();
+    await seedFilterRows(app, '/items');
+    // `age` is `z.number()` in the conformance model: the raw query string is
+    // coerced by the model's zod kind before it reaches the adapter, so garbage
+    // fails loudly instead of silently matching nothing (or, on drivers with
+    // typed column modes, matching the wrong rows).
+    await expectError(await app.request('/items?age[gte]=abc'), 400, 'VALIDATION_ERROR');
+  });
 }

@@ -71,6 +71,25 @@ export interface KVNamespace {
 export { getWaitUntil } from '../utils/wait-until';
 
 /**
+ * Background work that outlives the response, on every runtime: hands the
+ * promise to `executionCtx.waitUntil` on Workers (the only way pending work
+ * survives the response there) and runs it in-band with logged rejections
+ * elsewhere. `createAfterResponse(c)` binds it to a request context.
+ *
+ * @example
+ * ```ts
+ * import { createAfterResponse } from 'hono-crud/cloudflare';
+ *
+ * app.use('*', async (c, next) => {
+ *   const afterResponse = createAfterResponse(c);
+ *   await next();
+ *   afterResponse(c.env.FILES.delete(staleKey));
+ * });
+ * ```
+ */
+export { createAfterResponse, runAfterResponse } from '../utils/wait-until';
+
+/**
  * Type of the `waitUntil` function available on Workers execution context.
  * Extends the lifetime of the event past the response. Re-exported from
  * `utils/wait-until`, the single source of truth.

@@ -1,40 +1,49 @@
 /**
  * Example: Drizzle + Cloudflare D1 CRUD on Workers
  *
- * Demonstrates hono-crud running on Cloudflare Workers with D1 (SQLite).
+ * Demonstrates hono-crud running on Cloudflare Workers with D1 (SQLite) and a
+ * KV-backed response cache.
  *
  * Endpoints:
  * - POST /tasks - Create a task
- * - GET /tasks - List tasks (filter, search, paginate)
+ * - GET /tasks - List tasks (filter, search, paginate; cached in KV)
  * - GET /tasks/:id - Get a task by ID
  * - PATCH /tasks/:id - Update a task
  * - DELETE /tasks/:id - Delete a task
  *
  * Setup:
  * 1. Create a D1 database: wrangler d1 create hono-crud-demo
- * 2. Add the binding to wrangler.toml:
+ * 2. Add the bindings to wrangler.toml:
  *      [[d1_databases]]
  *      binding = "DB"
  *      database_name = "hono-crud-demo"
  *      database_id = "<your-database-id>"
+ *      [[kv_namespaces]]
+ *      binding = "CACHE_KV"
+ *      id = "<your-kv-namespace-id>"
  * 3. Run migrations: wrangler d1 execute hono-crud-demo --file=./schema.sql
  * 4. Deploy: wrangler deploy
  *
- * D1 Caveats:
- * - No `gen_random_uuid()` — use `crypto.randomUUID()` in application code
- * - The `ilike` filter operator is unsupported on SQLite — use `like` instead
- *   (SQLite `LIKE` is case-insensitive for ASCII by default)
- * - Max 5 MB per query response / 100k rows
- * - No nested transactions or savepoints
- * - `db` must be created per-request from `c.env.DB` (not a module-level singleton)
+ * Workers/D1 notes:
+ * - Bindings only exist per request: create the Drizzle instance from
+ *   `c.env.DB` in middleware and inject it with `c.set('db', db)`; the
+ *   endpoints resolve it from the context (never a module-level singleton).
+ * - Build the app with `new OpenAPIHono<Env>()`. `fromHono` cannot adopt a
+ *   plain `Hono`, so middleware registered on one would be lost.
+ * - No `gen_random_uuid()` — generate ids with `crypto.randomUUID()`.
+ * - No interactive transactions: keep `useTransaction` at its default
+ *   (`false`) and use `db.batch([...])` for multi-statement atomic writes.
+ * - `ilike` works on SQLite (implemented with `INSTR(LOWER(...))`); note that
+ *   SQLite's `LOWER()` only folds ASCII characters.
+ * - Max 5 MB per query response / 100k rows; ~100 bound parameters per query.
  */
 
 import { KVCacheStorage } from '@hono-crud/cache';
 import { type DrizzleDatabaseConstraint, createDrizzleCrud } from '@hono-crud/drizzle';
 import { swaggerUI } from '@hono-crud/swagger';
+import { OpenAPIHono } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import { Hono } from 'hono';
 import { defineMeta, defineModel, fromHono, registerCrud } from 'hono-crud';
 import { type StorageEnv, createStorageMiddleware } from 'hono-crud/storage';
 import { z } from 'zod';
@@ -108,11 +117,10 @@ type Env = StorageEnv & { Bindings: Bindings };
 // ============================================================================
 
 /**
- * Create endpoints using the factory pattern.
- * The `db` is set per-request in the middleware below,
- * so we use a placeholder here and override in `before()`.
+ * Create endpoints using the factory pattern. No database is passed here:
+ * the per-request middleware below injects it into the context, and the
+ * Drizzle endpoints resolve it from there.
  */
-
 const TaskCrud = createDrizzleCrud<typeof taskMeta, Env>(
   undefined as unknown as DrizzleDatabaseConstraint,
   taskMeta,
@@ -123,10 +131,6 @@ class TaskCreate extends TaskCrud.Create {
     tags: ['Tasks'],
     summary: 'Create a task',
   };
-
-  protected override getDb(): DrizzleDatabaseConstraint {
-    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabaseConstraint;
-  }
 
   /**
    * Generate UUID and timestamps since D1/SQLite lacks gen_random_uuid().
@@ -148,7 +152,6 @@ class TaskList extends TaskCrud.List {
     summary: 'List tasks',
   };
 
-  // Use `like` instead of `ilike` — SQLite LIKE is case-insensitive for ASCII
   filterFields = ['status'];
   filterConfig = {
     priority: ['eq', 'gt', 'gte', 'lt', 'lte'] as const,
@@ -161,9 +164,10 @@ class TaskList extends TaskCrud.List {
   defaultPerPage = 20;
   maxPerPage = 100;
 
-  protected override getDb(): DrizzleDatabaseConstraint {
-    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabaseConstraint;
-  }
+  // Cache list responses in KV (the mutation verbs invalidate the table's
+  // entries automatically). KV floors TTLs at 60 seconds.
+  protected override cacheEnabled = true;
+  protected override cacheTtlSeconds = 60;
 }
 
 class TaskRead extends TaskCrud.Read {
@@ -171,10 +175,6 @@ class TaskRead extends TaskCrud.Read {
     tags: ['Tasks'],
     summary: 'Get a task by ID',
   };
-
-  protected override getDb(): DrizzleDatabaseConstraint {
-    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabaseConstraint;
-  }
 }
 
 class TaskUpdate extends TaskCrud.Update {
@@ -184,10 +184,6 @@ class TaskUpdate extends TaskCrud.Update {
   };
 
   allowedUpdateFields = ['title', 'description', 'status', 'priority'];
-
-  protected override getDb(): DrizzleDatabaseConstraint {
-    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabaseConstraint;
-  }
 
   async before(data: Partial<Task>): Promise<Partial<Task>> {
     return {
@@ -202,17 +198,14 @@ class TaskDelete extends TaskCrud.Delete {
     tags: ['Tasks'],
     summary: 'Delete a task',
   };
-
-  protected override getDb(): DrizzleDatabaseConstraint {
-    return drizzle(this.getContext().env.DB) as unknown as DrizzleDatabaseConstraint;
-  }
 }
 
 // ============================================================================
 // App Setup
 // ============================================================================
 
-const app = new Hono<Env>();
+// Must be an OpenAPIHono: middleware registered here survives `fromHono`.
+const app = new OpenAPIHono<Env>();
 
 /**
  * Per-request middleware: create Drizzle instance from D1 binding
@@ -226,7 +219,7 @@ app.use('*', async (c, next) => {
   c.set('db' as never, db as never);
 
   // Optional: inject KV-backed cache if binding exists. createStorageMiddleware
-  // writes the `cacheStorage` context var that the cache mixin resolves from.
+  // writes the `cacheStorage` context var that the cached endpoints read.
   if (c.env.CACHE_KV) {
     const cache = new KVCacheStorage({ kv: c.env.CACHE_KV });
     return createStorageMiddleware<Env>({ cacheStorage: cache })(c, next);

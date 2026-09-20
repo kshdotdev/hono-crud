@@ -1,10 +1,12 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { Context, Env, Hono, MiddlewareHandler } from 'hono';
+import type { BlankSchema, Schema } from 'hono/types';
 import { openApiValidationHook, toOpenApiPath } from '../openapi/utils';
 import { ApiException } from './exceptions';
 import { resolveInstanceSchemaTags } from './generate-endpoint-class';
 import type { OpenAPIRoute } from './route';
 import { isRouteClass, jsonResponse } from './route';
+import type { RouteClassEntry } from './rpc-types';
 import { type OpenAPIRouteSchema, readResponseEnvelope } from './types';
 
 export interface OpenAPIConfig {
@@ -29,12 +31,16 @@ type OpenAPIRouteConstructor = new () => OpenAPIRoute<Env>;
 
 /**
  * Type for any class that extends OpenAPIRoute.
- * This uses a duck-typed approach to allow subclasses with different generic parameters.
+ * This uses a duck-typed approach to allow subclasses with different generic
+ * parameters. `setContext` takes `never` on purpose: it is the one parameter
+ * type every `Context<E>` is assignable to, so a route class written against
+ * a custom `Env` (bindings + variables) registers on the matching app without
+ * the constraint pinning it to the default `Env`.
  */
 type OpenAPIRouteClass = new () => {
   getSchema(): OpenAPIRouteSchema;
   handle(): Promise<Response>;
-  setContext(ctx: Context<Env>): void;
+  setContext(ctx: never): void;
 };
 
 /**
@@ -73,60 +79,51 @@ export function getHandlerForApp<E extends Env = Env>(
 }
 
 /**
- * Type for the proxied Hono app that accepts both regular handlers and OpenAPIRoute classes.
- * This extends OpenAPIHono with method overloads for class-based routing.
+ * Class-route registration signatures for one HTTP verb. Each call folds the
+ * route's schema entry (derived from the class's `schema` property, see
+ * `rpc-types.ts`) into the app's accumulated `Schema` generic, so
+ * `hc<typeof app>` sees the route exactly like a natively registered one.
  */
-export type HonoOpenAPIApp<E extends Env = Env> = OpenAPIHono<E> & {
-  /**
-   * Register a GET route with an OpenAPIRoute class.
-   */
-  get(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
-  get(path: string, ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]): HonoOpenAPIApp<E>;
-  /**
-   * Register a POST route with an OpenAPIRoute class.
-   */
-  post(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
-  post(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
-  ): HonoOpenAPIApp<E>;
-  /**
-   * Register a PUT route with an OpenAPIRoute class.
-   */
-  put(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
-  put(path: string, ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]): HonoOpenAPIApp<E>;
-  /**
-   * Register a PATCH route with an OpenAPIRoute class.
-   */
-  patch(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
-  patch(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
-  ): HonoOpenAPIApp<E>;
-  /**
-   * Register a DELETE route with an OpenAPIRoute class.
-   */
-  delete(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
-  delete(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
-  ): HonoOpenAPIApp<E>;
-  /**
-   * Register an OPTIONS route with an OpenAPIRoute class.
-   */
-  options(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
-  options(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
-  ): HonoOpenAPIApp<E>;
-  /**
-   * Register a HEAD route with an OpenAPIRoute class.
-   */
-  head(path: string, RouteClass: OpenAPIRouteClass): HonoOpenAPIApp<E>;
-  head(
-    path: string,
-    ...handlers: [...MiddlewareHandler<E>[], OpenAPIRouteClass]
-  ): HonoOpenAPIApp<E>;
+type ClassRouteVerb<
+  M extends RouteMethod,
+  E extends Env,
+  S extends Schema,
+  BasePath extends string,
+> = {
+  /** Register a route with an OpenAPIRoute class. */
+  <P extends string, C extends OpenAPIRouteClass>(
+    path: P,
+    RouteClass: C,
+  ): HonoOpenAPIApp<E, S & RouteClassEntry<M, P, BasePath, C>, BasePath>;
+  /** Register a route with middleware followed by an OpenAPIRoute class. */
+  <P extends string, C extends OpenAPIRouteClass>(
+    path: P,
+    ...handlers: [...MiddlewareHandler<E>[], C]
+  ): HonoOpenAPIApp<E, S & RouteClassEntry<M, P, BasePath, C>, BasePath>;
+};
+
+/**
+ * Type for the proxied Hono app that accepts both regular handlers and OpenAPIRoute classes.
+ * This extends OpenAPIHono with overloads for class-based routing.
+ *
+ * `S` is the accumulated route schema: it grows with every class route and
+ * every `registerCrud(...)` call, which is what makes `hc<typeof app>` work.
+ * Hono's own verb overloads (plain handlers) are matched first and return
+ * Hono's type, so register class routes / CRUD resources before plain
+ * handlers when chaining, or keep them in separate statements.
+ */
+export type HonoOpenAPIApp<
+  E extends Env = Env,
+  S extends Schema = BlankSchema,
+  BasePath extends string = '/',
+> = OpenAPIHono<E, S, BasePath> & {
+  get: ClassRouteVerb<'get', E, S, BasePath>;
+  post: ClassRouteVerb<'post', E, S, BasePath>;
+  put: ClassRouteVerb<'put', E, S, BasePath>;
+  patch: ClassRouteVerb<'patch', E, S, BasePath>;
+  delete: ClassRouteVerb<'delete', E, S, BasePath>;
+  options: ClassRouteVerb<'options', E, S, BasePath>;
+  head: ClassRouteVerb<'head', E, S, BasePath>;
   /**
    * Set up OpenAPI documentation endpoint.
    */
@@ -291,6 +288,12 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
  * Pass an OpenAPIHono instance to use middleware with your routes.
  * Middleware should be applied directly to the app using `app.use()`.
  *
+ * Passing a plain `Hono` is deprecated: it cannot be adopted (class routes
+ * need `OpenAPIHono.openapi`), so a fresh `OpenAPIHono` is created in its
+ * place. If the plain instance already carries registrations (`.use()`
+ * middleware or routes) `fromHono` throws at setup time rather than
+ * silently dropping them.
+ *
  * Installs the canonical validation hook (`openApiValidationHook`) as the
  * app's `defaultHook` when none is set, so request-schema failures emit the
  * canonical 400 `VALIDATION_ERROR` envelope. To override, pass a
@@ -315,12 +318,44 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
  * app.get('/users', UserList);
  * ```
  */
+export function fromHono<E extends Env = Env>(): HonoOpenAPIApp<E, BlankSchema, '/'>;
+export function fromHono<E extends Env, S extends Schema, BasePath extends string>(
+  router: OpenAPIHono<E, S, BasePath>,
+  options?: RouterOptions,
+): HonoOpenAPIApp<E, S, BasePath>;
+/**
+ * @deprecated Pass an `OpenAPIHono` (`new OpenAPIHono<Env>()`). A plain `Hono`
+ * cannot be adopted, so a fresh `OpenAPIHono` replaces it; anything already
+ * registered on it throws at setup time.
+ */
+export function fromHono<E extends Env, S extends Schema, BasePath extends string>(
+  router: Hono<E, S, BasePath>,
+  options?: RouterOptions,
+): HonoOpenAPIApp<E, S, BasePath>;
 export function fromHono<E extends Env = Env>(
-  router: Hono<E> | OpenAPIHono<E> = new OpenAPIHono<E>(),
+  router: Hono<E, Schema, string> | OpenAPIHono<E, Schema, string> = new OpenAPIHono<E>(),
   options: RouterOptions = {},
-): HonoOpenAPIApp<E> {
-  // Use the router directly if it's an OpenAPIHono, otherwise create one
-  const app = 'openAPIRegistry' in router ? (router as OpenAPIHono<E>) : new OpenAPIHono<E>();
+): HonoOpenAPIApp<E, Schema, string> {
+  // Use the router directly if it's an OpenAPIHono, otherwise create one.
+  // A plain `Hono` cannot be adopted (class routes need `OpenAPIHono.openapi`),
+  // so anything already registered on it — `.use()` middleware included —
+  // would be silently discarded. Fail loudly at setup time instead.
+  const isOpenApiHono = 'openAPIRegistry' in router;
+  if (!isOpenApiHono && router.routes.length > 0) {
+    const lost = router.routes
+      .slice(0, 5)
+      .map((route) => `${route.method} ${route.path}`)
+      .join(', ');
+    const more = router.routes.length > 5 ? ', …' : '';
+    const count = `${router.routes.length} registration(s)`;
+    const advice =
+      'Construct the app with `new OpenAPIHono<Env>()` from `@hono/zod-openapi` and register ' +
+      'middleware on it (or on the app returned by fromHono) instead.';
+    throw new Error(
+      `fromHono(): the plain Hono instance already has ${count} (${lost}${more}) that would be discarded. ${advice}`,
+    );
+  }
+  const app = isOpenApiHono ? (router as OpenAPIHono<E>) : new OpenAPIHono<E>();
 
   // Install the canonical validation hook unless the caller pre-configured
   // one (`new OpenAPIHono({ defaultHook })`) — a user-supplied hook always
@@ -346,11 +381,14 @@ export function fromHono<E extends Env = Env>(
             return proxy;
           }
 
-          // Otherwise, use normal Hono routing
-          return (target[prop as keyof typeof target] as (...args: unknown[]) => unknown)(
+          // Otherwise, use normal Hono routing. Hono returns the app itself for
+          // chaining; hand back the proxy so a later `.get(path, RouteClass)` in
+          // the same chain still goes through class-route registration.
+          const result = (target[prop as keyof typeof target] as (...args: unknown[]) => unknown)(
             path,
             ...handlers,
           );
+          return result === target ? proxy : result;
         };
       }
 
@@ -377,5 +415,5 @@ export function fromHono<E extends Env = Env>(
   });
 
   HANDLER_REGISTRY.set(proxy, handler as unknown as HonoOpenAPIHandler<Env>);
-  return proxy as HonoOpenAPIApp<E>;
+  return proxy as HonoOpenAPIApp<E, Schema, string>;
 }

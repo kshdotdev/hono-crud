@@ -1,5 +1,11 @@
-import { asc, eq, gte, lte } from 'drizzle-orm';
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { type BuildColumns, asc, eq, gte, lte } from 'drizzle-orm';
+import {
+  type SQLiteTableExtraConfigValue,
+  index,
+  integer,
+  sqliteTable,
+  text,
+} from 'drizzle-orm/sqlite-core';
 import type { AuditAction, AuditLogEntry, AuditLogStorage } from 'hono-crud/internal';
 import {
   type DrizzleColumn,
@@ -209,16 +215,9 @@ export class DrizzleAuditLogStorage implements AuditLogStorage {
   }
 }
 
-/**
- * Build a SQLite/D1 audit table with the columns {@link DrizzleAuditLogStorage}
- * expects. `tableName`/`recordId`/`timestamp` back the per-record lookups and
- * the `getAll` filters the storage performs.
- *
- * @param name - Table name. Default `audit_logs` (matches `AuditConfig`'s
- *   default `tableName`).
- */
-export function sqliteAuditLogTable(name = 'audit_logs') {
-  return sqliteTable(name, {
+/** Column builders of {@link sqliteAuditLogTable} (fresh per call — builders are single-use). */
+function auditLogColumns() {
+  return {
     id: text('id').primaryKey(),
     tableName: text('table_name').notNull(),
     recordId: text('record_id').notNull(),
@@ -229,5 +228,35 @@ export function sqliteAuditLogTable(name = 'audit_logs') {
     previousRecord: text('previous_record'),
     changes: text('changes'),
     metadata: text('metadata'),
-  });
+  };
+}
+
+/** The built columns handed to an `extraConfig` callback of {@link sqliteAuditLogTable}. */
+export type SqliteAuditLogColumns = BuildColumns<
+  string,
+  ReturnType<typeof auditLogColumns>,
+  'sqlite'
+>;
+
+/**
+ * Build a SQLite/D1 audit table with the columns {@link DrizzleAuditLogStorage}
+ * expects. `tableName`/`recordId`/`timestamp` back the per-record lookups and
+ * the `getAll` filters the storage performs, so the table ships with indexes
+ * on `(table_name, record_id)` and `(timestamp)` — D1 charges per row
+ * scanned, and an unindexed audit table grows without bound.
+ *
+ * @param name - Table name. Default `audit_logs` (matches `AuditConfig`'s
+ *   default `tableName`).
+ * @param extraConfig - Additional indexes/constraints, appended to the
+ *   defaults (`(t) => [index('audit_user_idx').on(t.userId)]`).
+ */
+export function sqliteAuditLogTable(
+  name = 'audit_logs',
+  extraConfig?: (table: SqliteAuditLogColumns) => SQLiteTableExtraConfigValue[],
+) {
+  return sqliteTable(name, auditLogColumns(), (table) => [
+    index(`${name}_record_idx`).on(table.tableName, table.recordId),
+    index(`${name}_timestamp_idx`).on(table.timestamp),
+    ...(extraConfig?.(table) ?? []),
+  ]);
 }

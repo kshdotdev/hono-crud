@@ -274,6 +274,8 @@ export abstract class ListEndpoint<
       blockedSelectFields: this.blockedSelectFields,
       alwaysIncludeFields: this.alwaysIncludeFields,
       defaultSelectFields: this.defaultSelectFields,
+      // Coerce query-string filter values to the model's declared field types.
+      fieldSchemas: this.getModelSchema().shape,
     };
 
     return parseListFilters(query || {}, config);

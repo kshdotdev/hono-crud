@@ -79,6 +79,13 @@ export function registerSoftDeleteLifecycleCells(
     const onlyDeleted = await expectList(await app.request('/items?onlyDeleted=true'));
     expect(onlyDeleted.result.map((record) => record.id)).toEqual([victim.id]);
 
+    // The soft-delete marker is a real timestamp in whatever representation
+    // the column declares (epoch ms or an ISO string), never an unbound object.
+    const marker = onlyDeleted.result[0]?.deletedAt;
+    const markerMillis = typeof marker === 'number' ? marker : Date.parse(String(marker));
+    expect(Number.isNaN(markerMillis)).toBe(false);
+    expect(markerMillis).toBeGreaterThan(Date.parse('2020-01-01T00:00:00Z'));
+
     // Restore → 200 with the record, soft-delete marker cleared.
     const restoreResponse = await app.request(`/items/${victim.id}/restore`, {
       method: 'POST',

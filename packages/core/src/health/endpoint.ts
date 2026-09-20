@@ -1,11 +1,15 @@
 import { Hono } from 'hono';
-import type { Env } from 'hono';
+import type { Context, Env } from 'hono';
 import type { HealthCheck, HealthCheckResult, HealthConfig, HealthResponse } from './types';
 
 /**
  * Run a single health check with timeout.
  */
-async function runCheck(check: HealthCheck, defaultTimeoutMs: number): Promise<HealthCheckResult> {
+async function runCheck<E extends Env>(
+  check: HealthCheck<E>,
+  defaultTimeoutMs: number,
+  ctx: Context<E>,
+): Promise<HealthCheckResult> {
   const timeoutMs = check.timeoutMs ?? defaultTimeoutMs;
   const start = Date.now();
 
@@ -18,7 +22,7 @@ async function runCheck(check: HealthCheck, defaultTimeoutMs: number): Promise<H
   });
 
   try {
-    const result = await Promise.race([check.check(), timeoutPromise]);
+    const result = await Promise.race([check.check(ctx), timeoutPromise]);
     return {
       name: check.name,
       healthy: true,
@@ -40,11 +44,12 @@ async function runCheck(check: HealthCheck, defaultTimeoutMs: number): Promise<H
 /**
  * Run all health checks and compute overall status.
  */
-async function runAllChecks(
-  checks: HealthCheck[],
+async function runAllChecks<E extends Env>(
+  checks: HealthCheck<E>[],
   defaultTimeoutMs: number,
+  ctx: Context<E>,
 ): Promise<{ results: HealthCheckResult[]; status: HealthResponse['status'] }> {
-  const results = await Promise.all(checks.map((c) => runCheck(c, defaultTimeoutMs)));
+  const results = await Promise.all(checks.map((check) => runCheck(check, defaultTimeoutMs, ctx)));
 
   const criticalFailed = results.some((r, i) => !r.healthy && (checks[i].critical ?? true));
   const anyFailed = results.some((r) => !r.healthy);
@@ -84,11 +89,16 @@ async function runAllChecks(
  *       check: async () => { await redis.ping(); },
  *       critical: false, // degraded, not unhealthy
  *     },
+ *     {
+ *       name: 'd1',
+ *       // Checks receive the request context — bindings are per request on Workers.
+ *       check: async (c) => { await c.env.DB.prepare('select 1').first(); },
+ *     },
  *   ],
  * }));
  * ```
  */
-export function createHealthRoutes<E extends Env = Env>(config: HealthConfig = {}): Hono<E> {
+export function createHealthRoutes<E extends Env = Env>(config: HealthConfig<E> = {}): Hono<E> {
   const {
     checks = [],
     version,
@@ -115,7 +125,7 @@ export function createHealthRoutes<E extends Env = Env>(config: HealthConfig = {
   // Readiness — runs all checks
   app.get(readyPath, async (c) => {
     const start = Date.now();
-    const { results, status } = await runAllChecks(checks, defaultTimeoutMs);
+    const { results, status } = await runAllChecks(checks, defaultTimeoutMs, c as Context<E>);
     const totalLatency = Date.now() - start;
 
     const response: HealthResponse = {

@@ -58,4 +58,43 @@ describe('drizzle d1 worker example', () => {
     });
     expect(response.status).toBe(200);
   });
+
+  it('serves the list from the KV cache and invalidates it on mutation', async () => {
+    const seed = async (title: string) => {
+      const id = crypto.randomUUID();
+      await env.DB.prepare(
+        'INSERT INTO tasks (id, title, status, priority, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+        .bind(id, title, 'todo', 1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')
+        .run();
+      return id;
+    };
+    const listTitles = async () => {
+      const response = await request('/tasks');
+      expect(response.status).toBe(200);
+      const body = await json<{ success: true; result: Array<{ title: string }> }>(response);
+      return body.result.map((task) => task.title);
+    };
+    const cacheKeys = async () => (await env.CACHE_KV.list({ prefix: 'cache:' })).keys.length;
+
+    const first = await seed('cached task');
+    expect(await listTitles()).toEqual(['cached task']);
+    // The middleware injected KVCacheStorage, so the list is now in KV.
+    expect(await cacheKeys()).toBeGreaterThan(0);
+
+    // A row written behind the app's back is invisible while the cache holds.
+    await seed('written behind the cache');
+    expect(await listTitles()).toEqual(['cached task']);
+
+    // A mutation through the app invalidates the table's cache entries.
+    const response = await request(`/tasks/${first}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done' }),
+    });
+    expect(response.status).toBe(200);
+    expect(await cacheKeys()).toBe(0);
+
+    expect((await listTitles()).sort()).toEqual(['cached task', 'written behind the cache']);
+  });
 });
