@@ -482,6 +482,12 @@ export interface DrizzleListQueryOptions {
   /** Default items per page. */
   defaultPerPage?: number;
   /**
+   * The model's primary-key fields. Appended to ORDER BY after `order_by`
+   * (same direction) as a tie-breaker, so rows equal on the sort column keep
+   * one order across the separate LIMIT/OFFSET statements of a page walk.
+   */
+  primaryKeys: string[];
+  /**
    * Pre-built conditions ANDed into the WHERE clause — the search endpoint's
    * custom search SQL (tsvector or substring-position) plugs in here.
    */
@@ -540,6 +546,7 @@ export async function executeDrizzleListQuery<Row = Record<string, unknown>>(
     searchFields = [],
     softDeleteConfig,
     defaultPerPage = 20,
+    primaryKeys,
     extraConditions = [],
     cursorField,
   } = options;
@@ -613,11 +620,15 @@ export async function executeDrizzleListQuery<Row = Record<string, unknown>>(
   // Build main query
   let query = cast<Row>(db).select().from(table).where(fetchWhere);
 
-  // Apply sorting (cursor mode arrives here already forced to cursorField asc)
-  if (filters.options.order_by) {
-    const orderColumn = getColumn(table, filters.options.order_by);
+  // Apply sorting (cursor mode arrives here already forced to cursorField asc).
+  // The engine orders rows that tie on `order_by` arbitrarily, and may do so
+  // differently per statement, so the primary key breaks ties (same
+  // direction) — otherwise an offset walk can repeat a row and skip another.
+  const orderBy = filters.options.order_by;
+  if (orderBy) {
     const orderFn = filters.options.order_by_direction === 'desc' ? desc : asc;
-    query = query.orderBy(orderFn(orderColumn));
+    const orderFields = [orderBy, ...primaryKeys.filter((key) => key !== orderBy)];
+    query = query.orderBy(...orderFields.map((field) => orderFn(getColumn(table, field))));
   }
 
   if (cursorMode) {

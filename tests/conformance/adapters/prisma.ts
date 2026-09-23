@@ -207,7 +207,18 @@ async function setup(): Promise<AdapterContext> {
     _meta = baseMeta;
     prisma = crudClient;
     protected override filterConfig = CONFORMANCE_FILTER_CONFIG;
-    protected override sortFields = ['email'];
+    protected override sortFields = ['email', 'age'];
+  }
+  class ItemSearch extends PrismaSearchEndpoint {
+    _meta = baseMeta;
+    prisma = crudClient;
+    protected override searchFields = ['name'];
+    protected override sortFields = ['age'];
+  }
+  class ItemExport extends PrismaExportEndpoint {
+    _meta = baseMeta;
+    prisma = crudClient;
+    protected override sortFields = ['age'];
   }
   class ItemUpsert extends PrismaUpsertEndpoint {
     _meta = baseMeta;
@@ -415,6 +426,8 @@ async function setup(): Promise<AdapterContext> {
     batchCreate: ItemBatchCreate,
     batchUpsert: ItemBatchUpsert,
     bulkPatch: ItemBulkPatch,
+    search: ItemSearch,
+    export: ItemExport,
   });
   registerCrud(app, '/tenant-items', {
     create: TenantCreate,

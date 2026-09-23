@@ -788,6 +788,7 @@ export abstract class DrizzleListEndpoint<
       searchFields: this.searchFields,
       softDeleteConfig: this.getSoftDeleteConfig(),
       defaultPerPage: this.defaultPerPage,
+      primaryKeys: this._meta.model.primaryKeys,
       cursorField: this.isCursorPaginationActive() ? this.cursorField || 'id' : undefined,
     });
 

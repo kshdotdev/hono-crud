@@ -21,6 +21,7 @@ import { registerModelRegistryCells } from './model-registry';
 import { registerPaginationCells } from './pagination';
 import { registerRelationScopingCells } from './relation-scoping';
 import { registerSoftDeleteLifecycleCells } from './soft-delete-lifecycle';
+import { registerSortTieBreakCells } from './sort-tie-break';
 import { registerTenantScopingCells } from './tenant-scoping';
 import { registerTransactionalHookCells } from './transactional-hooks';
 import { registerUniqueConflictCells } from './unique-conflict';
@@ -51,6 +52,7 @@ export function registerConformanceCells(descriptor: AdapterDescriptor): void {
   registerSoftDeleteLifecycleCells(descriptor, ctx);
   registerFilterOperatorCells(descriptor, ctx);
   registerPaginationCells(descriptor, ctx);
+  registerSortTieBreakCells(descriptor, ctx);
   registerEtagConcurrencyCells(descriptor, ctx);
   registerManagedFieldCells(descriptor, ctx);
   registerUniqueConflictCells(descriptor, ctx);

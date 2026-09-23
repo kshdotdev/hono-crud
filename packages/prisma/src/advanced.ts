@@ -33,6 +33,7 @@ import {
   type PrismaModelOperations,
   applySoftDeleteExclusion,
   batchLoadPrismaRelations,
+  buildPrismaOrderBy,
   buildPrismaWhere,
   escapeLikeWildcards,
   executePrismaQuery,
@@ -134,10 +135,7 @@ export abstract class PrismaSearchEndpoint<
     // Get total count
     const totalCount = await model.count({ where });
 
-    // Build orderBy (common pattern)
-    const orderBy = filters.options.order_by
-      ? { [filters.options.order_by]: filters.options.order_by_direction || 'asc' }
-      : undefined;
+    const orderBy = buildPrismaOrderBy(filters, this._meta.model.primaryKeys);
 
     // Pagination (common pattern)
     const page = filters.options.page || 1;
@@ -212,6 +210,7 @@ export abstract class PrismaExportEndpoint<
       searchFields: this.searchFields,
       softDeleteConfig: this.getSoftDeleteConfig(),
       defaultPerPage: this.defaultPerPage,
+      primaryKeys: this._meta.model.primaryKeys,
     });
 
     // Load relations if requested using batch loading to avoid N+1 queries.

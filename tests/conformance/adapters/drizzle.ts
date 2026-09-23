@@ -252,7 +252,18 @@ class ItemList extends DrizzleListEndpoint {
   _meta = baseMeta;
   db = DB;
   protected override filterConfig = CONFORMANCE_FILTER_CONFIG;
-  protected override sortFields = ['email'];
+  protected override sortFields = ['email', 'age'];
+}
+class ItemSearch extends DrizzleSearchEndpoint {
+  _meta = baseMeta;
+  db = DB;
+  protected override searchFields = ['name'];
+  protected override sortFields = ['age'];
+}
+class ItemExport extends DrizzleExportEndpoint {
+  _meta = baseMeta;
+  db = DB;
+  protected override sortFields = ['age'];
 }
 class ItemUpsert extends DrizzleUpsertEndpoint {
   _meta = baseMeta;
@@ -676,6 +687,8 @@ async function setup(): Promise<AdapterContext> {
     batchCreate: ItemBatchCreate,
     batchUpsert: ItemBatchUpsert,
     bulkPatch: ItemBulkPatch,
+    search: ItemSearch,
+    export: ItemExport,
   });
   registerCrud(app, '/tenant-items', {
     create: TenantCreate,

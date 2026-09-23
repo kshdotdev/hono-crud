@@ -485,6 +485,24 @@ export async function batchLoadPrismaRelations<
 }
 
 /**
+ * Builds the `orderBy` for a sorted list-family read: `order_by`, then the
+ * primary key(s) in the same direction as a tie-breaker. The database orders
+ * rows that tie on the sort column arbitrarily, and may do so differently per
+ * query, so without the tie-breaker an offset walk can repeat a row and skip
+ * another. Returns `undefined` when the request is unsorted.
+ */
+export function buildPrismaOrderBy(
+  filters: ListFilters,
+  primaryKeys: string[],
+): Array<Record<string, 'asc' | 'desc'>> | undefined {
+  const orderBy = filters.options.order_by;
+  if (!orderBy) return undefined;
+  const direction = filters.options.order_by_direction || 'asc';
+  const orderFields = [orderBy, ...primaryKeys.filter((key) => key !== orderBy)];
+  return orderFields.map((field) => ({ [field]: direction }));
+}
+
+/**
  * Options for executing a Prisma list query.
  */
 export interface PrismaQueryOptions<Row = Record<string, unknown>> {
@@ -498,6 +516,8 @@ export interface PrismaQueryOptions<Row = Record<string, unknown>> {
   softDeleteConfig?: { enabled: boolean; field: string };
   /** Default items per page */
   defaultPerPage?: number;
+  /** The model's primary-key fields — the ORDER BY tie-breaker ({@link buildPrismaOrderBy}). */
+  primaryKeys: string[];
   /** Additional WHERE conditions to merge (optional) */
   additionalWhere?: Record<string, unknown>;
   /**
@@ -561,6 +581,7 @@ export async function executePrismaQuery<Row = Record<string, unknown>>(
     searchFields = [],
     softDeleteConfig,
     defaultPerPage = 20,
+    primaryKeys,
     additionalWhere = {},
     cursorField,
   } = options;
@@ -599,12 +620,7 @@ export async function executePrismaQuery<Row = Record<string, unknown>>(
   const totalCount = await model.count({ where });
 
   // Build orderBy (cursor mode arrives here already forced to cursorField asc)
-  let orderBy: Record<string, string> | undefined;
-  if (filters.options.order_by) {
-    orderBy = {
-      [filters.options.order_by]: filters.options.order_by_direction || 'asc',
-    };
-  }
+  const orderBy = buildPrismaOrderBy(filters, primaryKeys);
 
   // Native cursor (keyset) window
   const cursorMode =
