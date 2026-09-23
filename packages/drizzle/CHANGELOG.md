@@ -1,5 +1,19 @@
 # @hono-crud/drizzle
 
+## 0.1.23
+
+### Patch Changes
+
+- fabc720: Cloudflare ergonomics:
+
+  - `hono-crud/cloudflare` exports `runAfterResponse(ctx, promise)` and `createAfterResponse(ctx)` — background work that outlives the response on every runtime (`executionCtx.waitUntil` on Workers, in-band with logged rejections elsewhere). `OpenAPIRoute.runAfterResponse` now delegates to the same implementation.
+  - Health checks receive the request context (`check: async (c) => …`), so a readiness probe can reach `c.env` bindings; `createHealthRoutes<Env>` is generic over the app's Env. Zero-argument checks keep working.
+  - `AuthType` gains `'session'` for sessions resolved by an external auth library and mapped with `setAuthContext`.
+  - `sqliteAuditLogTable()` and `sqliteVersionHistoryTable()` now ship the indexes their storages' lookups need (`(table_name, record_id)` + `(timestamp)`; `(resource_table, record_id, version)`) and accept an `extraConfig` callback for more.
+  - New `docs/cloudflare.md`: wrangler template, per-request binding injection, column conventions that keep D1 happy, and the D1/KV limits to design around.
+
+- fabc720: Engine-managed timestamps are now written in the representation each column declares, which makes soft delete and `Model.timestamps` safe on Cloudflare D1 (whose `bind()` rejects objects). Core gains a `managedTimestampValue(field)` hook on `CrudEndpoint` (default `Date.now()`, unchanged for the memory and Prisma adapters) that `applyManagedInsertFields` / `applyManagedUpdateFields` call for `createdAt` / `updatedAt`. The Drizzle adapter overrides it on every write verb — and uses the same rule for the soft-delete marker, which used to bind `new Date()` unconditionally — reading the Drizzle column's `dataType`: `date` columns (`timestamp()`, `integer({ mode: 'timestamp' | 'timestamp_ms' })`) get a `Date`, `number` columns get epoch milliseconds, `string` columns get an ISO-8601 string. New exports: `resolveTimestampValue`, `resolveTimestampRepresentation`, `TimestampRepresentation`.
+
 ## 0.1.22
 
 ### Patch Changes
