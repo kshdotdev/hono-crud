@@ -28,13 +28,26 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+
+      # npm trusted publishing (OIDC) needs npm >= 11.5.1; Node 22 bundles
+      # npm 10. `pnpm publish` hands the tarball to this npm.
+      - run: npm install -g npm@11
 
       - run: pnpm install --frozen-lockfile
 
       # Opens/updates a "Version Packages" PR when changesets are pending,
       # and publishes to npm once that PR is merged. Replaces the previous
       # hand-rolled single-package version-bump script.
+      #
+      # Publishing authenticates with npm trusted publishing: no NPM_TOKEN is
+      # set, so the action leaves ~/.npmrc alone and npm exchanges this job's
+      # OIDC token (`id-token: write` above) for a short-lived publish token.
+      # Every published package needs this workflow registered as its trusted
+      # publisher (once per package, by an npm owner; npm >= 12):
+      #   npm trust github <package> --repo kshdotdev/hono-crud \
+      #     --file release.yml --allow-publish
+      # A brand-new package must be published once by hand before it can
+      # be registered.
       - name: Create Release PR or Publish
         uses: changesets/action@v1
         with:
@@ -44,6 +57,4 @@ jobs:
           title: 'chore: release packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
