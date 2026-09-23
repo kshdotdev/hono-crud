@@ -136,6 +136,13 @@ export function applyManagedInsertFields<T extends Record<string, unknown>>(
    * Omitted ⇒ `crypto.randomUUID()` (the historical default).
    */
   defaultIdFactory?: () => string | number,
+  /**
+   * Produces the value stamped into a managed timestamp field. Defaults to
+   * epoch milliseconds (`Date.now()`); adapters whose columns expect another
+   * representation (a `Date`, an ISO string) supply their own — see
+   * `CrudEndpoint.managedTimestampValue`.
+   */
+  timestampValue: (field: string) => unknown = () => Date.now(),
 ): T {
   const out: Record<string, unknown> = { ...record };
   const pk = model.primaryKeys[0];
@@ -161,12 +168,11 @@ export function applyManagedInsertFields<T extends Record<string, unknown>>(
 
   const ts = getTimestampsConfig(model.timestamps);
   if (ts.enabled) {
-    const now = Date.now();
     if (!(ts.createdAt in record)) {
-      out[ts.createdAt] = now;
+      out[ts.createdAt] = timestampValue(ts.createdAt);
     }
     if (!(ts.updatedAt in record)) {
-      out[ts.updatedAt] = now;
+      out[ts.updatedAt] = timestampValue(ts.updatedAt);
     }
   }
 
@@ -185,12 +191,14 @@ export function applyManagedInsertFields<T extends Record<string, unknown>>(
 export function applyManagedUpdateFields<T extends Record<string, unknown>>(
   data: T,
   model: Pick<Model, 'timestamps'>,
+  /** See {@link applyManagedInsertFields}. */
+  timestampValue: (field: string) => unknown = () => Date.now(),
 ): T {
   const ts = getTimestampsConfig(model.timestamps);
   if (!ts.enabled) {
     return { ...data } as T;
   }
-  return { ...data, [ts.updatedAt]: Date.now() } as T;
+  return { ...data, [ts.updatedAt]: timestampValue(ts.updatedAt) } as T;
 }
 
 /**

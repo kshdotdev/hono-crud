@@ -204,6 +204,30 @@ registerCrud(app, '/people', endpoints);
 
 See [docs/alternative-api-patterns.md](./docs/alternative-api-patterns.md) for the full reference.
 
+## Typed RPC Client
+
+Apps built with `fromHono` accumulate Hono's route schema, so Hono's typed fetch client works out of the box — no generated SDK:
+
+<!-- docs-typecheck:skip continuation of the Quick Start app; the full sample lives in docs/typed-client.md -->
+```ts
+import { hc } from 'hono/client';
+
+const routes = registerCrud(app, '/users', { list: UserList, create: UserCreate, read: UserRead });
+export type AppType = typeof routes;
+
+const client = hc<AppType>('https://api.example.com');
+const res = await client.users[':id'].$get({ param: { id: 'u1' } });
+if (res.status === 200) {
+  const { result } = await res.json(); // typed row
+}
+```
+
+Class routes contribute their `schema` (declare it with `satisfies OpenAPIRouteSchema`), CRUD verbs contribute the envelope they document, and `registerCrudResources` folds several resources into one type. See [docs/typed-client.md](./docs/typed-client.md).
+
+## Cloudflare Workers (D1, KV, R2)
+
+Bindings are injected per request (`c.set('db', drizzle(c.env.DB))` + `createStorageMiddleware` with `KVCacheStorage` / `KVRateLimitStorage` / `DrizzleAuditLogStorage`), managed timestamps and filter values follow each column's declared representation, and background work goes through `waitUntil`. See [docs/cloudflare.md](./docs/cloudflare.md) for the wrangler template, the column conventions and the D1 limits.
+
 ## Database Adapters
 
 ### Memory

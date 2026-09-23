@@ -147,6 +147,8 @@ export abstract class BulkPatchEndpoint<
         filterFields: this.filterFields,
         defaultPerPage: this.maxBulkSize,
         maxPerPage: this.maxBulkSize,
+        // Coerce query-string filter values to the model's declared field types.
+        fieldSchemas: this.getModelSchema().shape,
       } as ListFilterParseOptions,
     );
 

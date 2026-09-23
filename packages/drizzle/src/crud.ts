@@ -40,6 +40,7 @@ import {
   readCount,
   runInTransaction,
 } from './helpers';
+import { resolveTimestampValue } from './timestamps';
 
 /**
  * Drizzle Create endpoint.
@@ -105,6 +106,11 @@ export abstract class DrizzleCreateEndpoint<
 
   protected getTable(): DrizzleTable {
     return getTable(this._meta);
+  }
+
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
   }
 
   /**
@@ -289,6 +295,11 @@ export abstract class DrizzleUpdateEndpoint<
 
   protected getTable(): DrizzleTable {
     return getTable(this._meta);
+  }
+
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
   }
 
   protected getColumn(field: string): DrizzleColumn {
@@ -547,6 +558,11 @@ export abstract class DrizzleDeleteEndpoint<
     return getTable(this._meta);
   }
 
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
+  }
+
   protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
@@ -618,7 +634,9 @@ export abstract class DrizzleDeleteEndpoint<
       // Soft delete: set the deletion timestamp
       const result = await cast<ModelObject<M['model']>>(db)
         .update(table)
-        .set({ [softDeleteConfig.field]: new Date() } as Record<string, unknown>)
+        .set({
+          [softDeleteConfig.field]: this.managedTimestampValue(softDeleteConfig.field),
+        } as Record<string, unknown>)
         .where(and(...conditions))
         .returning();
 

@@ -23,9 +23,11 @@ export interface AuthUser {
 }
 
 /**
- * Type of authentication used.
+ * Type of authentication used. `'session'` is for cookie/bearer sessions
+ * resolved by an external auth library (e.g. Better Auth) and mapped onto
+ * the auth context with `setAuthContext`.
  */
-export type AuthType = 'jwt' | 'api-key' | 'none';
+export type AuthType = 'jwt' | 'api-key' | 'session' | 'none';
 
 // ============================================================================
 // Environment Types

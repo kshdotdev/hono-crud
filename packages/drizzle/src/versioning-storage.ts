@@ -1,5 +1,11 @@
-import { and, desc, eq, lt } from 'drizzle-orm';
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { type BuildColumns, and, desc, eq, lt } from 'drizzle-orm';
+import {
+  type SQLiteTableExtraConfigValue,
+  index,
+  integer,
+  sqliteTable,
+  text,
+} from 'drizzle-orm/sqlite-core';
 import type { VersionHistoryEntry, VersioningStorage } from 'hono-crud/internal';
 import {
   type DrizzleColumn,
@@ -204,15 +210,9 @@ export class DrizzleVersioningStorage implements VersioningStorage {
   }
 }
 
-/**
- * Build a SQLite/D1 history table with the columns
- * {@link DrizzleVersioningStorage} expects. `recordId`/`resourceTable`/`version`
- * are indexed for the per-record lookups the storage performs.
- *
- * @param name - Table name. Default `version_history`.
- */
-export function sqliteVersionHistoryTable(name = 'version_history') {
-  return sqliteTable(name, {
+/** Column builders of {@link sqliteVersionHistoryTable} (fresh per call — builders are single-use). */
+function versionHistoryColumns() {
+  return {
     id: text('id').primaryKey(),
     resourceTable: text('resource_table').notNull(),
     recordId: text('record_id').notNull(),
@@ -222,5 +222,31 @@ export function sqliteVersionHistoryTable(name = 'version_history') {
     changedBy: text('changed_by'),
     changeReason: text('change_reason'),
     changes: text('changes'),
-  });
+  };
+}
+
+/** The built columns handed to an `extraConfig` callback of {@link sqliteVersionHistoryTable}. */
+export type SqliteVersionHistoryColumns = BuildColumns<
+  string,
+  ReturnType<typeof versionHistoryColumns>,
+  'sqlite'
+>;
+
+/**
+ * Build a SQLite/D1 history table with the columns
+ * {@link DrizzleVersioningStorage} expects. Ships with an index on
+ * `(resource_table, record_id, version)`, which backs every per-record
+ * lookup the storage performs.
+ *
+ * @param name - Table name. Default `version_history`.
+ * @param extraConfig - Additional indexes/constraints, appended to the default.
+ */
+export function sqliteVersionHistoryTable(
+  name = 'version_history',
+  extraConfig?: (table: SqliteVersionHistoryColumns) => SQLiteTableExtraConfigValue[],
+) {
+  return sqliteTable(name, versionHistoryColumns(), (table) => [
+    index(`${name}_record_version_idx`).on(table.resourceTable, table.recordId, table.version),
+    ...(extraConfig?.(table) ?? []),
+  ]);
 }

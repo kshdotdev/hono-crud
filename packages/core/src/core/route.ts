@@ -1,8 +1,7 @@
 import type { Context, Env } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { ZodObject, ZodRawShape } from 'zod';
-import { getWaitUntil } from '../utils/wait-until';
-import { getLogger } from './logger';
+import { runAfterResponse as runAfterResponseWithContext } from '../utils/wait-until';
 import {
   type OpenAPIRouteSchema,
   type ResponseEnvelope,
@@ -12,7 +11,18 @@ import {
   readResponseEnvelope,
 } from './types';
 
-type ValidationTarget = 'json' | 'query' | 'param';
+type ValidationTarget = 'json' | 'form' | 'query' | 'param';
+
+/** Media types zod-openapi validates under the `form` target (not `json`). */
+function declaresFormBody(body: NonNullable<OpenAPIRouteSchema['request']>['body']): boolean {
+  const content = body?.content;
+  if (!content) return false;
+  return Object.keys(content).some(
+    (mediaType) =>
+      mediaType.startsWith('multipart/form-data') ||
+      mediaType.startsWith('application/x-www-form-urlencoded'),
+  );
+}
 
 /**
  * Read a validated value from `ctx.req` if zod-openapi exposed one.
@@ -96,14 +106,18 @@ export abstract class OpenAPIRoute<
     const schema = this.getSchema();
     const data: ValidatedData<T> = {};
 
-    // Body
+    // Body. zod-openapi validates JSON bodies under the `json` target and
+    // multipart / URL-encoded bodies under `form`; read whichever ran, then
+    // fall back to parsing the raw request the same way.
     if (schema.request?.body) {
-      let body = readValidated(ctx, 'json');
+      let body = readValidated(ctx, 'json') ?? readValidated(ctx, 'form');
       if (body === undefined) {
         try {
-          body = await ctx.req.json();
+          body = declaresFormBody(schema.request.body)
+            ? await ctx.req.parseBody()
+            : await ctx.req.json();
         } catch {
-          // No body or invalid JSON — expected for non-JSON requests
+          // No body, or a body that does not match the declared media type
         }
       }
       if (body !== undefined) {
@@ -210,16 +224,7 @@ export abstract class OpenAPIRoute<
    * otherwise falls back to fire-and-forget with error logging.
    */
   protected runAfterResponse(promise: Promise<unknown>): void {
-    const waitUntil = getWaitUntil(this.getContext());
-    if (waitUntil) {
-      waitUntil(promise);
-    } else {
-      promise.catch((err) => {
-        getLogger().error('Background task failed', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-    }
+    runAfterResponseWithContext(this.getContext(), promise);
   }
 
   /**
@@ -249,6 +254,20 @@ export abstract class OpenAPIRoute<
     const body = envelope ? envelope.error(errorObj) : { success: false, error: errorObj };
     return jsonResponse(this.getContext(), body, status);
   }
+}
+
+/**
+ * Identity helper that keeps a route schema's literal shape (status-code
+ * keys, zod schema identities) so the typed RPC client can read request and
+ * response types back out of it. Equivalent to writing
+ * `schema = { … } satisfies OpenAPIRouteSchema` on the class; useful where a
+ * schema object is built outside the class body.
+ *
+ * Do not add `as const`: it would make `tags` a readonly tuple, which the
+ * `tags?: string[]` field of `OpenAPIRouteSchema` rejects.
+ */
+export function defineRouteSchema<S extends OpenAPIRouteSchema>(schema: S): S {
+  return schema;
 }
 
 /**

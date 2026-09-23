@@ -10,7 +10,6 @@
  */
 
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import type { Context } from 'hono';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 
 import { resolveInstanceSchemaTags } from '../core/generate-endpoint-class';
@@ -96,7 +95,9 @@ export async function buildPerTenantOpenApi(
     };
     const instance: RuntimeRoute = new Ctor();
     const synthCtx = makeSyntheticContext(ctx);
-    instance.setContext(synthCtx as unknown as Context);
+    // `OpenAPIRouteClass.setContext` takes `never` so classes typed against any
+    // `Env` register; the synthetic context is a real `Context` at runtime.
+    instance.setContext(synthCtx as never);
     if (typeof instance.resolveModelSchema === 'function') {
       await instance.resolveModelSchema();
     }

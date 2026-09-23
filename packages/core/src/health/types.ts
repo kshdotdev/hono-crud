@@ -1,3 +1,5 @@
+import type { Context, Env } from 'hono';
+
 /**
  * Result of a single health check.
  */
@@ -18,17 +20,23 @@ export interface HealthCheckResult {
  * A health check function.
  * Returns true/message for healthy, throws/returns false for unhealthy.
  * Checks that resolve with nothing (`Promise<void>`) count as healthy.
+ *
+ * Receives the readiness request's context, so a probe can reach
+ * per-request resources such as `c.env` bindings on Cloudflare Workers.
+ * Zero-argument checks are of course still valid.
  */
-export type HealthCheckFn = () => Promise<boolean | string> | Promise<void>;
+export type HealthCheckFn<E extends Env = Env> = (
+  ctx: Context<E>,
+) => Promise<boolean | string> | Promise<void>;
 
 /**
  * Named health check registration.
  */
-export interface HealthCheck {
+export interface HealthCheck<E extends Env = Env> {
   /** Unique name for this check */
   name: string;
   /** The check function to execute */
-  check: HealthCheckFn;
+  check: HealthCheckFn<E>;
   /** Whether this check is critical (affects overall status). @default true */
   critical?: boolean;
   /** Timeout in milliseconds for this check. @default 5000 */
@@ -54,9 +62,9 @@ export interface HealthResponse {
 /**
  * Configuration for health endpoints.
  */
-export interface HealthConfig {
+export interface HealthConfig<E extends Env = Env> {
   /** Health checks to run */
-  checks?: HealthCheck[];
+  checks?: HealthCheck<E>[];
   /** Application version string */
   version?: string;
   /** Path for the liveness endpoint. @default '/health' */

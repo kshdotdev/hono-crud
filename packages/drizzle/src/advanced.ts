@@ -46,6 +46,7 @@ import {
   readCount,
   substringMatch,
 } from './helpers';
+import { resolveTimestampValue } from './timestamps';
 
 export { substringMatch } from './helpers';
 
@@ -93,6 +94,11 @@ export abstract class DrizzleUpsertEndpoint<
 
   protected getTable(): DrizzleTable {
     return getTable(this._meta);
+  }
+
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
   }
 
   protected getColumn(field: string): DrizzleColumn {
@@ -254,6 +260,11 @@ export abstract class DrizzleBatchUpsertEndpoint<
 
   protected getTable(): DrizzleTable {
     return getTable(this._meta);
+  }
+
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
   }
 
   protected getColumn(field: string): DrizzleColumn {
@@ -430,6 +441,11 @@ export abstract class DrizzleBulkPatchEndpoint<
 
   protected getTable(): DrizzleTable {
     return getTable(this._meta);
+  }
+
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
   }
 
   protected getColumn(field: string): DrizzleColumn {
@@ -1085,6 +1101,11 @@ export abstract class DrizzleImportEndpoint<
     return getTable(this._meta);
   }
 
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
+  }
+
   protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
@@ -1175,6 +1196,11 @@ export abstract class DrizzleCloneEndpoint<
 
   protected getTable(): DrizzleTable {
     return getTable(this._meta);
+  }
+
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
   }
 
   protected getColumn(field: string): DrizzleColumn {

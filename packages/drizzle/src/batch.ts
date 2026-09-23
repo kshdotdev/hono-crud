@@ -18,6 +18,7 @@ import {
   getTable,
   pushSoftDeleteExclusion,
 } from './helpers';
+import { resolveTimestampValue } from './timestamps';
 
 /**
  * Drizzle Batch Create endpoint.
@@ -38,6 +39,11 @@ export abstract class DrizzleBatchCreateEndpoint<
 
   protected getTable(): DrizzleTable {
     return getTable(this._meta);
+  }
+
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
   }
 
   override async batchCreate(
@@ -80,6 +86,11 @@ export abstract class DrizzleBatchUpdateEndpoint<
 
   protected getTable(): DrizzleTable {
     return getTable(this._meta);
+  }
+
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
   }
 
   protected getColumn(field: string): DrizzleColumn {
@@ -149,6 +160,11 @@ export abstract class DrizzleBatchDeleteEndpoint<
     return getTable(this._meta);
   }
 
+  /** Column-aware managed timestamp (Date / epoch ms / ISO string) — see `timestamps.ts`. */
+  protected override managedTimestampValue(field: string): unknown {
+    return resolveTimestampValue(getColumn(this.getTable(), field));
+  }
+
   protected getColumn(field: string): DrizzleColumn {
     return getColumn(this.getTable(), field);
   }
@@ -178,7 +194,9 @@ export abstract class DrizzleBatchDeleteEndpoint<
       // Soft delete: set the deletion timestamp
       result = await cast<ModelObject<M['model']>>(this.getDb())
         .update(table)
-        .set({ [softDeleteConfig.field]: new Date() } as Record<string, unknown>)
+        .set({
+          [softDeleteConfig.field]: this.managedTimestampValue(softDeleteConfig.field),
+        } as Record<string, unknown>)
         .where(and(...conditions))
         .returning();
     } else {

@@ -1,4 +1,5 @@
 import type { ZodObject, ZodRawShape } from 'zod';
+import { InputValidationException } from '../core/exceptions';
 import type {
   FilterCondition,
   FilterConfig,
@@ -68,6 +69,17 @@ export interface ListFilterParseOptions {
   blockedSelectFields?: string[];
   alwaysIncludeFields?: string[];
   defaultSelectFields?: string[];
+
+  /**
+   * The model's zod shape (`schema.shape`), keyed by field. When present,
+   * query-string filter values are coerced to the field's declared type
+   * before they reach the adapter: `z.number()` → number, `z.boolean()` →
+   * boolean, `z.date()` → `Date` (array operators elementwise). Without it
+   * every value stays a raw string, which SQL drivers with typed column
+   * modes (Drizzle `integer({ mode: 'boolean' | 'timestamp' })`) misread —
+   * `"false"` is truthy, and a string is not a `Date`.
+   */
+  fieldSchemas?: Readonly<Record<string, unknown>>;
 }
 
 // Read/Update/Delete endpoint configuration
@@ -83,18 +95,100 @@ export interface UpdateEndpointConfig extends SingleEndpointConfig {
   blockedUpdateFields?: string[];
 }
 
+/** The zod kinds a query-string filter value is coerced to. */
+type FilterValueKind = 'number' | 'boolean' | 'date' | 'other';
+
+/** Zod wrappers whose `def.innerType` carries the meaningful schema. */
+const ZOD_WRAPPER_TYPES = new Set([
+  'optional',
+  'nullable',
+  'default',
+  'prefault',
+  'catch',
+  'readonly',
+  'nonoptional',
+]);
+
 /**
- * Coerce a raw filter value string based on operator type.
- * Array operators (in, nin, between) split on commas; null operator coerces to boolean.
+ * Resolve the coercion kind of a zod schema, structurally (zod v4 `def.type`,
+ * with the `_def.type` alias as a fallback) so no zod internals are imported.
+ * Wrappers are unwrapped; a `pipe` (`z.preprocess`, `.transform`) is read
+ * through its output side.
  */
-function coerceFilterValue(operator: FilterOperator, raw: string): unknown {
-  if (operator === 'in' || operator === 'nin' || operator === 'between') {
-    return raw.split(',').map((v) => v.trim());
+function resolveFilterValueKind(schema: unknown, depth = 0): FilterValueKind {
+  if (!schema || typeof schema !== 'object' || depth > 8) return 'other';
+  const holder = schema as { def?: { type?: unknown }; _def?: { type?: unknown } };
+  const def = (holder.def ?? holder._def) as
+    | { type?: unknown; innerType?: unknown; out?: unknown }
+    | undefined;
+  const type = typeof def?.type === 'string' ? def.type : undefined;
+  if (!type) return 'other';
+  if (ZOD_WRAPPER_TYPES.has(type)) return resolveFilterValueKind(def?.innerType, depth + 1);
+  if (type === 'pipe') return resolveFilterValueKind(def?.out, depth + 1);
+  if (type === 'number' || type === 'int') return 'number';
+  if (type === 'boolean') return 'boolean';
+  if (type === 'date') return 'date';
+  return 'other';
+}
+
+/**
+ * Coerce ONE raw query-string value to the field's declared kind. Garbage
+ * (a non-numeric string for a number field, an unrecognised boolean token,
+ * an unparseable date) is a client error — 400, never a silent no-match.
+ */
+function coerceScalarFilterValue(field: string, raw: string, kind: FilterValueKind): unknown {
+  switch (kind) {
+    case 'number': {
+      const trimmed = raw.trim();
+      const parsed = trimmed === '' ? Number.NaN : Number(trimmed);
+      if (Number.isNaN(parsed)) {
+        throw new InputValidationException(`Filter '${field}' expects a number, got '${raw}'`);
+      }
+      return parsed;
+    }
+    case 'boolean': {
+      const token = raw.trim().toLowerCase();
+      if (token === 'true' || token === '1') return true;
+      if (token === 'false' || token === '0') return false;
+      throw new InputValidationException(`Filter '${field}' expects a boolean, got '${raw}'`);
+    }
+    case 'date': {
+      const parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new InputValidationException(`Filter '${field}' expects a date, got '${raw}'`);
+      }
+      return parsed;
+    }
+    default:
+      return raw;
   }
+}
+
+/**
+ * Coerce a raw filter value string based on operator type and, when the
+ * field's zod schema is known, the field's declared kind.
+ *
+ * Array operators (in, nin, between) split on commas and coerce elementwise;
+ * the null operator coerces to boolean; substring operators (like, ilike)
+ * always keep the raw string.
+ */
+function coerceFilterValue(
+  operator: FilterOperator,
+  raw: string,
+  field = '',
+  fieldSchema?: unknown,
+): unknown {
   if (operator === 'null') {
     return raw.toLowerCase() === 'true';
   }
-  return raw;
+  if (operator === 'like' || operator === 'ilike') {
+    return raw;
+  }
+  const kind = fieldSchema === undefined ? 'other' : resolveFilterValueKind(fieldSchema);
+  if (operator === 'in' || operator === 'nin' || operator === 'between') {
+    return raw.split(',').map((v) => coerceScalarFilterValue(field, v.trim(), kind));
+  }
+  return coerceScalarFilterValue(field, raw, kind);
 }
 
 // Parse query string filter syntax
@@ -141,6 +235,7 @@ export function parseListFilters(
     blockedSelectFields = [],
     alwaysIncludeFields = [],
     defaultSelectFields = [],
+    fieldSchemas,
   } = config;
 
   // Build allowed filters map
@@ -260,14 +355,22 @@ export function parseListFilters(
       const operator = bracketMatch[2] as FilterOperator;
 
       if (allowedFilters[field]?.includes(operator)) {
-        filters.push({ field, operator, value: coerceFilterValue(operator, value) });
+        filters.push({
+          field,
+          operator,
+          value: coerceFilterValue(operator, value, field, fieldSchemas?.[field]),
+        });
       }
       continue;
     }
 
     // Handle simple field=value filters
     if (allowedFilters[key]) {
-      filters.push({ field: key, operator: 'eq', value });
+      filters.push({
+        field: key,
+        operator: 'eq',
+        value: coerceFilterValue('eq', value, key, fieldSchemas?.[key]),
+      });
     }
   }
 

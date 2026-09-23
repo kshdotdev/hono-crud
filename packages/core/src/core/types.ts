@@ -1329,6 +1329,10 @@ export function defineModel<
 /**
  * Helper to create a typed MetaInput configuration.
  *
+ * When `fields` is given, its zod type is kept on the result (`{ fields: F }`)
+ * so the typed RPC client can derive a precise create/update body; without
+ * it the body degrades to a partial of the model row.
+ *
  * @example
  * ```ts
  * const userMeta = defineMeta({
@@ -1340,9 +1344,29 @@ export function defineMeta<
   T extends ZodObject<ZodRawShape>,
   TTable = unknown,
   TRelations extends RelationsConfig = RelationsConfig,
->(config: MetaInput<T, TTable, TRelations>): MetaInput<T, TTable, TRelations> {
-  return config;
+  F extends ZodObject<ZodRawShape> | undefined = undefined,
+>(
+  config: MetaInput<T, TTable, TRelations> & { fields?: F },
+): DefinedMeta<T, TTable, TRelations, F> {
+  // The conditional only narrows the declared `fields` type; the object
+  // itself is returned untouched.
+  return config as DefinedMeta<T, TTable, TRelations, F>;
 }
+
+/**
+ * Return type of {@link defineMeta}: the plain `MetaInput` when no `fields`
+ * schema is given, otherwise the same meta with `fields` narrowed to the
+ * declared zod object (replacing, not intersecting, the wide `fields?`
+ * member so its input type keeps no index signature).
+ */
+export type DefinedMeta<
+  T extends ZodObject<ZodRawShape>,
+  TTable,
+  TRelations extends RelationsConfig,
+  F extends ZodObject<ZodRawShape> | undefined,
+> = F extends ZodObject<ZodRawShape>
+  ? Omit<MetaInput<T, TTable, TRelations>, 'fields'> & { fields: F }
+  : MetaInput<T, TTable, TRelations>;
 
 // ============================================================================
 // Soft Delete Helpers

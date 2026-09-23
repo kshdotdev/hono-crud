@@ -312,7 +312,9 @@ export abstract class CrudEndpoint<
     adapter: AdapterKind,
     defaultIdFactory?: () => string | number,
   ): T {
-    return applyManagedInsertFields(record, this._meta.model, adapter, defaultIdFactory);
+    return applyManagedInsertFields(record, this._meta.model, adapter, defaultIdFactory, (field) =>
+      this.managedTimestampValue(field),
+    );
   }
 
   /**
@@ -321,7 +323,21 @@ export abstract class CrudEndpoint<
    * `createdAt`. See {@link applyManagedUpdateFields}.
    */
   protected applyManagedUpdateFields<T extends Record<string, unknown>>(data: T): T {
-    return applyManagedUpdateFields(data, this._meta.model);
+    return applyManagedUpdateFields(data, this._meta.model, (field) =>
+      this.managedTimestampValue(field),
+    );
+  }
+
+  /**
+   * The value stamped into an engine-managed timestamp field (`createdAt`,
+   * `updatedAt`, and — for adapters that reuse it — the soft-delete marker).
+   * Defaults to epoch milliseconds. SQL adapters override it to match the
+   * column's declared representation (a `Date`, epoch ms, or an ISO string),
+   * which is what keeps writes valid on drivers such as Cloudflare D1 that
+   * refuse to bind objects.
+   */
+  protected managedTimestampValue(_field: string): unknown {
+    return Date.now();
   }
 
   /**
