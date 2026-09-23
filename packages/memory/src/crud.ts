@@ -463,7 +463,13 @@ export abstract class MemoryListEndpoint<
 
   async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
-    const items = queryMemoryStore(store, filters, this.searchFields, this.getSoftDeleteConfig());
+    const items = queryMemoryStore(
+      store,
+      filters,
+      this.searchFields,
+      this.getSoftDeleteConfig(),
+      this._meta.model.primaryKeys,
+    );
     const totalCount = items.length;
     // Scope included related rows to the caller (owner-scope + soft-delete),
     // honoring `?withDeleted` for the related soft-delete filter.

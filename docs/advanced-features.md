@@ -1177,9 +1177,16 @@ class UserList extends MemoryListEndpoint {
 
 **Query:**
 ```
-GET /users?order_by=name&order_by_direction=asc
+GET /users?sort=name&order=asc
 GET /users?page=2&per_page=50
 ```
+
+Rows that tie on the sort field are ordered by the primary key in the same
+direction (`ORDER BY name ASC, id ASC`), so a page walk never repeats or skips
+a row, and `order=desc` returns the exact reverse of `order=asc`. Without a
+`sort` or `defaultSort`, the SQL adapters return rows in the database's natural
+order, which is not guaranteed to stay the same from one page to the next. Set
+`defaultSort` on paged lists.
 
 **Response includes pagination metadata** (nested under `result_info`; with
 cursor pagination it carries a `next_cursor` instead of page counts — cursor

@@ -964,6 +964,7 @@ export abstract class DrizzleSearchEndpoint<
       dialect: this.dialect,
       softDeleteConfig: this.getSoftDeleteConfig(),
       defaultPerPage: this.defaultPerPage,
+      primaryKeys: this._meta.model.primaryKeys,
       extraConditions: conditions,
     });
 
@@ -1052,6 +1053,7 @@ export abstract class DrizzleExportEndpoint<
       searchFields: this.searchFields,
       softDeleteConfig: this.getSoftDeleteConfig(),
       defaultPerPage: this.defaultPerPage,
+      primaryKeys: this._meta.model.primaryKeys,
     });
 
     // Load relations if requested using batch loading to avoid N+1 queries.

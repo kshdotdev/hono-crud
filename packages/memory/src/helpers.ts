@@ -87,9 +87,10 @@ export function clearStorage(): void {
 /**
  * Runs the shared list-query block against a per-table store: soft-delete
  * visibility (`withDeleted`/`onlyDeleted`), the `matchesFilter` filter loop,
- * the generic `?search=` substring needle, and `order_by` sorting. Shared by
- * the List and Export endpoints so the query semantics cannot drift;
- * pagination (offset slice or keyset cursor window) stays with the caller.
+ * the generic `?search=` substring needle, and `order_by` sorting (primary-key
+ * tie-break, see {@link compareByOrderThenKeys}). Shared by the List and Export
+ * endpoints so the query semantics cannot drift; pagination (offset slice or
+ * keyset cursor window) stays with the caller.
  *
  * The returned array's length is the query's total count.
  */
@@ -98,6 +99,7 @@ export function queryMemoryStore<T extends Record<string, unknown>>(
   filters: ListFilters,
   searchFields: string[],
   softDeleteConfig: { enabled: boolean; field: string },
+  primaryKeys: string[],
 ): T[] {
   let items = Array.from(store.values());
 
@@ -133,22 +135,39 @@ export function queryMemoryStore<T extends Record<string, unknown>>(
     );
   }
 
-  // Apply sorting
-  if (filters.options.order_by) {
-    const orderBy = filters.options.order_by;
-    const direction = filters.options.order_by_direction === 'desc' ? -1 : 1;
-
-    items.sort((a, b) => {
-      const aVal = a[orderBy] as string | number;
-      const bVal = b[orderBy] as string | number;
-
-      if (aVal < bVal) return -1 * direction;
-      if (aVal > bVal) return 1 * direction;
-      return 0;
-    });
+  const compare = compareByOrderThenKeys(filters, primaryKeys);
+  if (compare) {
+    items.sort(compare);
   }
 
   return items;
+}
+
+/**
+ * Builds the record comparator for a sorted list-family read: `order_by`, then
+ * the primary key(s) in the same direction — the same total order the SQL
+ * adapters emit (`ORDER BY order_by, pk`), so rows that tie on the sort column
+ * land in primary-key order rather than insertion order. Returns `undefined`
+ * when the request is unsorted.
+ */
+export function compareByOrderThenKeys(
+  filters: ListFilters,
+  primaryKeys: string[],
+): ((a: Record<string, unknown>, b: Record<string, unknown>) => number) | undefined {
+  const orderBy = filters.options.order_by;
+  if (!orderBy) return undefined;
+  const direction = filters.options.order_by_direction === 'desc' ? -1 : 1;
+  const orderFields = [orderBy, ...primaryKeys.filter((key) => key !== orderBy)];
+
+  return (a, b) => {
+    for (const field of orderFields) {
+      const aVal = a[field] as string | number;
+      const bVal = b[field] as string | number;
+      if (aVal < bVal) return -1 * direction;
+      if (aVal > bVal) return 1 * direction;
+    }
+    return 0;
+  };
 }
 
 /**

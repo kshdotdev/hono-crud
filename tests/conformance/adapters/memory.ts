@@ -219,7 +219,16 @@ class ItemRestore extends MemoryRestoreEndpoint {
 class ItemList extends MemoryListEndpoint {
   _meta = baseMeta;
   protected override filterConfig = CONFORMANCE_FILTER_CONFIG;
-  protected override sortFields = ['email'];
+  protected override sortFields = ['email', 'age'];
+}
+class ItemSearch extends MemorySearchEndpoint {
+  _meta = baseMeta;
+  protected override searchFields = ['name'];
+  protected override sortFields = ['age'];
+}
+class ItemExport extends MemoryExportEndpoint {
+  _meta = baseMeta;
+  protected override sortFields = ['age'];
 }
 class ItemUpsert extends MemoryUpsertEndpoint {
   _meta = baseMeta;
@@ -467,6 +476,8 @@ async function setup(): Promise<AdapterContext> {
     batchCreate: ItemBatchCreate,
     batchUpsert: ItemBatchUpsert,
     bulkPatch: ItemBulkPatch,
+    search: ItemSearch,
+    export: ItemExport,
   });
   registerCrud(app, '/tenant-items', {
     create: TenantCreate,

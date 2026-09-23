@@ -28,7 +28,13 @@ import type {
 import type { ModelObject } from 'hono-crud/internal';
 import { applyUpsertRestore, isFilterOperator } from 'hono-crud/internal';
 import { matchesFilter } from './filter';
-import { findByUpsertKeys, getStore, loadRelations, queryMemoryStore } from './helpers';
+import {
+  compareByOrderThenKeys,
+  findByUpsertKeys,
+  getStore,
+  loadRelations,
+  queryMemoryStore,
+} from './helpers';
 import { isVisible } from './visibility';
 
 /**
@@ -568,18 +574,11 @@ export abstract class MemorySearchEndpoint<
     const totalCount = searchResults.length;
 
     // Apply sorting (by score by default, or by specified field)
-    if (filters.options.order_by) {
-      const orderBy = filters.options.order_by;
-      const direction = filters.options.order_by_direction === 'desc' ? -1 : 1;
-
-      searchResults.sort((a, b) => {
-        const aVal = (a.item as Record<string, unknown>)[orderBy] as string | number;
-        const bVal = (b.item as Record<string, unknown>)[orderBy] as string | number;
-
-        if (aVal < bVal) return -1 * direction;
-        if (aVal > bVal) return 1 * direction;
-        return 0;
-      });
+    const compare = compareByOrderThenKeys(filters, this._meta.model.primaryKeys);
+    if (compare) {
+      searchResults.sort((a, b) =>
+        compare(a.item as Record<string, unknown>, b.item as Record<string, unknown>),
+      );
     }
     // Note: searchInMemory already sorts by score if no order_by
 
@@ -623,7 +622,13 @@ export abstract class MemoryExportEndpoint<
 > extends ExportEndpoint<E, M> {
   async list(filters: ListFilters): Promise<PaginatedResult<ModelObject<M['model']>>> {
     const store = getStore<ModelObject<M['model']>>(this._meta.model.tableName);
-    const items = queryMemoryStore(store, filters, this.searchFields, this.getSoftDeleteConfig());
+    const items = queryMemoryStore(
+      store,
+      filters,
+      this.searchFields,
+      this.getSoftDeleteConfig(),
+      this._meta.model.primaryKeys,
+    );
     const totalCount = items.length;
 
     // Apply pagination

@@ -158,7 +158,7 @@ function createMockModel(storage: unknown[], tableName: string) {
     findMany: vi.fn(
       async (args?: {
         where?: Record<string, unknown>;
-        orderBy?: Record<string, string>;
+        orderBy?: Record<string, string> | Array<Record<string, string>>;
         skip?: number;
         take?: number;
       }) => {
@@ -169,14 +169,19 @@ function createMockModel(storage: unknown[], tableName: string) {
         }
 
         if (args?.orderBy) {
-          const [field, direction] = Object.entries(args.orderBy)[0];
-          results.sort((a, b) => {
-            const aVal = a[field];
-            const bVal = b[field];
-            if (aVal === bVal) return 0;
-            const comparison = (aVal as string) > (bVal as string) ? 1 : -1;
+          // Prisma accepts one `{ field: direction }` or an array of them
+          // (compared in sequence, later entries breaking ties).
+          const clauses = (Array.isArray(args.orderBy) ? args.orderBy : [args.orderBy]).map(
+            (clause) => Object.entries(clause)[0],
+          );
+          const compareBy = (a: MockRecord, b: MockRecord, [field, direction]: string[]) => {
+            if (a[field] === b[field]) return 0;
+            const comparison = (a[field] as string) > (b[field] as string) ? 1 : -1;
             return direction === 'desc' ? -comparison : comparison;
-          });
+          };
+          results.sort((a, b) =>
+            clauses.reduce((order, clause) => order || compareBy(a, b, clause), 0),
+          );
         }
 
         if (args?.skip) {
