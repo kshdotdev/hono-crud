@@ -247,6 +247,20 @@ describe('tool generation', () => {
     expect(Object.keys(read?.inputSchema?.properties ?? {})).toContain('id');
   });
 
+  it('types an enum filter param with its members on the list tool', async () => {
+    const app = buildApp();
+    const server = new McpServer(serverInfo);
+    registerResourceTools(server, app, '/users', endpoints, serverInfo);
+    const client = await connectClient(server);
+
+    const { tools } = await client.listTools();
+    const list = tools.find((t) => t.name === 'users_list');
+    expect(list?.inputSchema?.properties?.role).toMatchObject({
+      type: 'string',
+      enum: ['admin', 'user'],
+    });
+  });
+
   it('respects the operations allow-list, disabled tools, and name/description overrides', async () => {
     const app = buildApp();
     const server = new McpServer(serverInfo);

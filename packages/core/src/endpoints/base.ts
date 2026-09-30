@@ -41,6 +41,8 @@ import { getSoftDeleteConfig } from '../core/soft-delete';
 import {
   type AuditAction,
   type FilterCondition,
+  type FilterConfig,
+  type FilterOperator,
   type HookContext,
   type HookMode,
   type ListFilters,
@@ -69,6 +71,7 @@ import {
   type ModelObject,
   applyFieldSelection,
   applyFieldSelectionToArray,
+  filterEnumValues,
 } from './types';
 
 /**
@@ -775,6 +778,45 @@ export abstract class CrudEndpoint<
     }
 
     return available;
+  }
+
+  /**
+   * Appends the `?field=` / `?field[op]=` filter params to a query-schema
+   * `shape`. Shared by List / Search / Aggregate. Values stay strings on the
+   * wire; an operator taking a single value (`eq`, `ne`, `gt`, `gte`, `lt`,
+   * `lte`) on a string enum field is typed as that enum, so the doc (and any
+   * client generated from it) lists the members and the validator rejects a
+   * typo before the handler runs. Other operators stay strings: `in`/`nin`/
+   * `between` carry comma lists, `like`/`ilike` a partial needle, and `null`
+   * a boolean flag.
+   *
+   * The enum is rebuilt from its members instead of reusing the field schema,
+   * so the field's `.default()` (which zod would apply to an absent param,
+   * silently filtering every request), description, and component id never
+   * reach the param. The validator sees the static `Model.schema`: with
+   * `resolveSchema`, members only a tenant's schema adds are rejected here.
+   */
+  protected addFilterParams(
+    shape: Record<string, z.ZodTypeAny>,
+    filterFields: readonly string[],
+    filterConfig?: FilterConfig,
+  ): void {
+    const modelShape: Record<string, unknown> = this.getModelSchema().shape;
+    const param = (field: string, operator: FilterOperator): z.ZodTypeAny => {
+      const members = filterEnumValues(operator, modelShape[field]);
+      return members ? z.enum(members).optional() : z.string().optional();
+    };
+
+    for (const field of filterFields) {
+      shape[field] = param(field, 'eq');
+    }
+    for (const [field, operators] of Object.entries(filterConfig ?? {})) {
+      for (const operator of operators) {
+        shape[`${field}[${operator}]`] = param(field, operator);
+      }
+      // Bare `?field=value` is equality for every configured field.
+      shape[field] = param(field, 'eq');
+    }
   }
 
   /**

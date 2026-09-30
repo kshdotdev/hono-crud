@@ -1161,6 +1161,18 @@ GET /users?age[null]=true
 `like`/`ilike` values are literal needles: `%` is stripped and `_` is inert —
 they are never live SQL wildcards.
 
+Other filter values are checked against the model field's type before they
+reach the database: numbers, booleans, and dates are converted, and a string
+`z.enum` / `z.literal` field only accepts its members (`in`, `nin`, and
+`between` check every item). A value that doesn't fit, such as
+`?status=publised` for `z.enum(['draft', 'published'])`, returns
+`400 VALIDATION_ERROR` instead of an empty page.
+
+The OpenAPI document types the params the same way: the single-value params
+(`?status=` and `?status[ne]=`, plus `gt`, `gte`, `lt`, and `lte`) list the
+enum members (so a generated client types them as the union), while `in`,
+`nin`, `between`, `like`, `ilike`, and `null` params stay strings.
+
 ---
 
 ## Sorting & Pagination

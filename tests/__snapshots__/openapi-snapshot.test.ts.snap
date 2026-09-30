@@ -27,6 +27,11 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           "name": "status",
           "required": false,
           "schema": {
+            "enum": [
+              "draft",
+              "published",
+              "archived",
+            ],
             "type": "string",
           },
         },
