@@ -13,6 +13,7 @@ import type {
   SortSpec,
 } from '../core/types';
 import { SEARCH_MODES, SORT_DIRECTIONS } from '../core/types';
+import { withIncludableRelations } from '../relations/response-schema';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
 import {
@@ -303,7 +304,7 @@ export abstract class SearchEndpoint<
    */
   getSchema(): OpenAPIRouteSchema {
     const searchResultItemSchema = z.object({
-      item: this.getModelSchema(),
+      item: withIncludableRelations(this.getModelSchema(), this._meta, this.allowedIncludes),
       score: z.number().min(0).max(1),
       highlights: z.record(z.string(), z.array(z.string())).optional(),
       matchedFields: z.array(z.string()),
