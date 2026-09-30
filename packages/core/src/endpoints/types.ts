@@ -74,7 +74,8 @@ export interface ListFilterParseOptions {
    * The model's zod shape (`schema.shape`), keyed by field. When present,
    * query-string filter values are coerced to the field's declared type
    * before they reach the adapter: `z.number()` → number, `z.boolean()` →
-   * boolean, `z.date()` → `Date` (array operators elementwise). Without it
+   * boolean, `z.date()` → `Date`, and a string `z.enum` / `z.literal` value
+   * must be one of its members (array operators elementwise). Without it
    * every value stays a raw string, which SQL drivers with typed column
    * modes (Drizzle `integer({ mode: 'boolean' | 'timestamp' })`) misread —
    * `"false"` is truthy, and a string is not a `Date`.
@@ -95,8 +96,15 @@ export interface UpdateEndpointConfig extends SingleEndpointConfig {
   blockedUpdateFields?: string[];
 }
 
-/** The zod kinds a query-string filter value is coerced to. */
-type FilterValueKind = 'number' | 'boolean' | 'date' | 'other';
+/**
+ * The zod kind a query-string filter value is coerced to. `enum` covers
+ * string `z.enum` / `z.literal` fields and carries the allowed values.
+ */
+type FilterValueKind =
+  | { kind: 'number' | 'boolean' | 'date' | 'other' }
+  | { kind: 'enum'; values: readonly string[] };
+
+const OTHER_KIND: FilterValueKind = { kind: 'other' };
 
 /** Zod wrappers whose `def.innerType` carries the meaningful schema. */
 const ZOD_WRAPPER_TYPES = new Set([
@@ -113,31 +121,79 @@ const ZOD_WRAPPER_TYPES = new Set([
  * Resolve the coercion kind of a zod schema, structurally (zod v4 `def.type`,
  * with the `_def.type` alias as a fallback) so no zod internals are imported.
  * Wrappers are unwrapped; a `pipe` (`z.preprocess`, `.transform`) is read
- * through its output side.
+ * through its output side. Enums and literals resolve to `enum` only when
+ * every value is a string; a non-string member (number, boolean, null)
+ * leaves them `other` (raw pass-through).
  */
 function resolveFilterValueKind(schema: unknown, depth = 0): FilterValueKind {
-  if (!schema || typeof schema !== 'object' || depth > 8) return 'other';
+  if (!schema || typeof schema !== 'object' || depth > 8) return OTHER_KIND;
   const holder = schema as { def?: { type?: unknown }; _def?: { type?: unknown } };
   const def = (holder.def ?? holder._def) as
-    | { type?: unknown; innerType?: unknown; out?: unknown }
+    | {
+        type?: unknown;
+        innerType?: unknown;
+        out?: unknown;
+        entries?: Record<string, unknown>;
+        values?: unknown[];
+      }
     | undefined;
   const type = typeof def?.type === 'string' ? def.type : undefined;
-  if (!type) return 'other';
+  if (!type) return OTHER_KIND;
   if (ZOD_WRAPPER_TYPES.has(type)) return resolveFilterValueKind(def?.innerType, depth + 1);
   if (type === 'pipe') return resolveFilterValueKind(def?.out, depth + 1);
-  if (type === 'number' || type === 'int') return 'number';
-  if (type === 'boolean') return 'boolean';
-  if (type === 'date') return 'date';
-  return 'other';
+  if (type === 'number' || type === 'int') return { kind: 'number' };
+  if (type === 'boolean') return { kind: 'boolean' };
+  if (type === 'date') return { kind: 'date' };
+  if (type === 'enum') return enumKind(Object.values(def?.entries ?? {}));
+  if (type === 'literal') return enumKind(def?.values ?? []);
+  return OTHER_KIND;
+}
+
+/** `enum` when every member is a string; any non-string member makes it `other`. */
+function enumKind(values: unknown[]): FilterValueKind {
+  return values.length > 0 && values.every((v): v is string => typeof v === 'string')
+    ? { kind: 'enum', values }
+    : OTHER_KIND;
+}
+
+/**
+ * How a raw `?field[operator]=` value is read: `null` takes a boolean flag,
+ * `like` / `ilike` a raw substring needle, `in` / `nin` / `between` a comma
+ * list, and every other operator a single value of the field's kind.
+ */
+type FilterValueForm = 'flag' | 'needle' | 'list' | 'single';
+
+function filterValueForm(operator: FilterOperator): FilterValueForm {
+  if (operator === 'null') return 'flag';
+  if (operator === 'like' || operator === 'ilike') return 'needle';
+  if (operator === 'in' || operator === 'nin' || operator === 'between') return 'list';
+  return 'single';
+}
+
+/**
+ * The members a `?field[operator]=` value must be one of: a string `z.enum` /
+ * `z.literal` field's members when the operator takes a single value, else
+ * `undefined`. Shares the operator split and the resolver the filter
+ * coercion uses, so a documented enum param and the runtime membership check
+ * can never disagree.
+ */
+export function filterEnumValues(
+  operator: FilterOperator,
+  fieldSchema: unknown,
+): readonly string[] | undefined {
+  if (filterValueForm(operator) !== 'single') return undefined;
+  const kind = resolveFilterValueKind(fieldSchema);
+  return kind.kind === 'enum' ? kind.values : undefined;
 }
 
 /**
  * Coerce ONE raw query-string value to the field's declared kind. Garbage
  * (a non-numeric string for a number field, an unrecognised boolean token,
- * an unparseable date) is a client error — 400, never a silent no-match.
+ * an unparseable date, a value outside an enum) is a client error — 400,
+ * never a silent no-match.
  */
 function coerceScalarFilterValue(field: string, raw: string, kind: FilterValueKind): unknown {
-  switch (kind) {
+  switch (kind.kind) {
     case 'number': {
       const trimmed = raw.trim();
       const parsed = trimmed === '' ? Number.NaN : Number(trimmed);
@@ -159,6 +215,14 @@ function coerceScalarFilterValue(field: string, raw: string, kind: FilterValueKi
       }
       return parsed;
     }
+    case 'enum': {
+      if (!kind.values.includes(raw)) {
+        throw new InputValidationException(
+          `Filter '${field}' expects one of ${kind.values.join(', ')}, got '${raw}'`,
+        );
+      }
+      return raw;
+    }
     default:
       return raw;
   }
@@ -172,20 +236,21 @@ function coerceScalarFilterValue(field: string, raw: string, kind: FilterValueKi
  * the null operator coerces to boolean; substring operators (like, ilike)
  * always keep the raw string.
  */
-function coerceFilterValue(
+export function coerceFilterValue(
   operator: FilterOperator,
   raw: string,
   field = '',
   fieldSchema?: unknown,
 ): unknown {
-  if (operator === 'null') {
+  const form = filterValueForm(operator);
+  if (form === 'flag') {
     return raw.toLowerCase() === 'true';
   }
-  if (operator === 'like' || operator === 'ilike') {
+  if (form === 'needle') {
     return raw;
   }
-  const kind = fieldSchema === undefined ? 'other' : resolveFilterValueKind(fieldSchema);
-  if (operator === 'in' || operator === 'nin' || operator === 'between') {
+  const kind = fieldSchema === undefined ? OTHER_KIND : resolveFilterValueKind(fieldSchema);
+  if (form === 'list') {
     return raw.split(',').map((v) => coerceScalarFilterValue(field, v.trim(), kind));
   }
   return coerceScalarFilterValue(field, raw, kind);

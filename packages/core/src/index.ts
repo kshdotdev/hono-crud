@@ -96,6 +96,7 @@ export { encodeCursor, decodeCursor } from './core/cursor';
 export { applyComputedFields, applyComputedFieldsToArray } from './core/computed-fields';
 export { extractNestedData, isDirectNestedData } from './core/nested-writes';
 export { parseAggregateField, parseAggregateQuery } from './core/aggregate';
+export type { AggregateQueryParseOptions } from './core/aggregate';
 export { applyUpsertRestore, getSoftDeleteConfig } from './core/soft-delete';
 export { parseSearchMode } from './endpoints/search-utils';
 export type {

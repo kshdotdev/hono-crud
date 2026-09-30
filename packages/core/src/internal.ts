@@ -102,7 +102,11 @@ export { BatchUpsertEndpoint } from './endpoints/batch-upsert';
 export type { BatchUpsertItemResult, BatchUpsertResult } from './endpoints/batch-upsert';
 export { BulkPatchEndpoint } from './endpoints/bulk-patch';
 export type { BulkPatchResult } from './endpoints/bulk-patch';
-export { AggregateEndpoint, computeAggregations } from './endpoints/aggregate';
+export {
+  AggregateEndpoint,
+  computeAggregations,
+  orderAndPageGroups,
+} from './endpoints/aggregate';
 export { SearchEndpoint, searchInMemory } from './endpoints/search';
 export { ExportEndpoint } from './endpoints/export';
 export type { ExportFormat, ExportOptions, ExportResult } from './endpoints/export';

@@ -265,6 +265,10 @@ class ItemExport extends DrizzleExportEndpoint {
   db = DB;
   protected override sortFields = ['age'];
 }
+class ItemAggregate extends DrizzleAggregateEndpoint {
+  _meta = baseMeta;
+  db = DB;
+}
 class ItemUpsert extends DrizzleUpsertEndpoint {
   _meta = baseMeta;
   db = DB;
@@ -689,6 +693,7 @@ async function setup(): Promise<AdapterContext> {
     bulkPatch: ItemBulkPatch,
     search: ItemSearch,
     export: ItemExport,
+    aggregate: ItemAggregate,
   });
   registerCrud(app, '/tenant-items', {
     create: TenantCreate,

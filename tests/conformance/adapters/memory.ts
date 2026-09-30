@@ -230,6 +230,9 @@ class ItemExport extends MemoryExportEndpoint {
   _meta = baseMeta;
   protected override sortFields = ['age'];
 }
+class ItemAggregate extends MemoryAggregateEndpoint {
+  _meta = baseMeta;
+}
 class ItemUpsert extends MemoryUpsertEndpoint {
   _meta = baseMeta;
   protected override upsertKeys = ['email'];
@@ -478,6 +481,7 @@ async function setup(): Promise<AdapterContext> {
     bulkPatch: ItemBulkPatch,
     search: ItemSearch,
     export: ItemExport,
+    aggregate: ItemAggregate,
   });
   registerCrud(app, '/tenant-items', {
     create: TenantCreate,

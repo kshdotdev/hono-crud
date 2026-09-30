@@ -1,10 +1,14 @@
 import { MemoryAggregateEndpoint, clearStorage, getStore } from '@hono-crud/memory';
+import { OpenAPIHono } from '@hono/zod-openapi';
 import { Hono } from 'hono';
 import {
   computeAggregations,
+  createErrorHandler,
   defineModel,
+  fromHono,
   parseAggregateField,
   parseAggregateQuery,
+  registerCrud,
 } from 'hono-crud';
 /**
  * Tests for aggregation functionality.
@@ -163,6 +167,13 @@ describe('Aggregations', () => {
       });
       expect(result.limit).toBe(10);
       expect(result.offset).toBe(5);
+    });
+
+    it('should reject a zero limit but accept a zero offset', () => {
+      expect(() => parseAggregateQuery({ count: '*', limit: '0' })).toThrow(
+        "'limit' expects an integer >= 1, got '0'",
+      );
+      expect(parseAggregateQuery({ count: '*', offset: '0' }).offset).toBe(0);
     });
 
     it('should collect filters', () => {
@@ -493,6 +504,112 @@ describe('Aggregations', () => {
       const result = (await response.json()) as { result: { values: Record<string, number> } };
       // Only the 3 furniture rows remain.
       expect(result.result.values.count).toBe(3);
+    });
+  });
+
+  // The endpoint tests above call `handle()` on a bare Hono app, which skips
+  // the OpenAPI query validator. These go through `registerCrud` so the query
+  // schema runs exactly as in production.
+  describe('through the OpenAPI query validator', () => {
+    const LockedProductModel = defineModel({
+      tableName: 'products',
+      schema: ProductSchema,
+      primaryKeys: ['id'],
+      softDelete: { field: 'deletedAt', allowQueryDeleted: false },
+    });
+    class LockedProductAggregate extends MemoryAggregateEndpoint {
+      _meta = { model: LockedProductModel };
+    }
+
+    const app = fromHono(new OpenAPIHono());
+    app.onError(createErrorHandler());
+    registerCrud(app, '/products', { aggregate: ProductAggregate });
+    registerCrud(app, '/locked-products', { aggregate: LockedProductAggregate });
+
+    async function aggregate(path: string) {
+      const response = await app.request(path);
+      const body = (await response.json()) as {
+        result: { values?: Record<string, number>; groups?: unknown[]; totalGroups?: number };
+        error?: { code: string; message: string };
+      };
+      return { status: response.status, body };
+    }
+
+    beforeEach(() => {
+      const store = getStore<Record<string, unknown>>('products');
+      store.set('8', { ...(store.get('8') as Record<string, unknown>), deletedAt: new Date() });
+    });
+
+    it('applies ?limit and ?offset to grouped results', async () => {
+      const limited = await aggregate('/products/aggregate?count=*&groupBy=category&limit=1');
+      expect(limited.status).toBe(200);
+      expect(limited.body.result.groups).toHaveLength(1);
+      expect(limited.body.result.totalGroups).toBe(3);
+
+      const paged = await aggregate(
+        '/products/aggregate?count=*&groupBy=category&limit=2&offset=2',
+      );
+      expect(paged.body.result.groups).toHaveLength(1);
+    });
+
+    it('rejects a malformed, zero or oversized limit with 400', async () => {
+      // A zero limit would page as "no limit", skipping defaultLimit and maxLimit.
+      for (const limit of ['abc', '', '-1', '0']) {
+        const { status, body } = await aggregate(`/products/aggregate?count=*&limit=${limit}`);
+        expect(status, limit).toBe(400);
+        expect(body.error?.code).toBe('VALIDATION_ERROR');
+      }
+      const oversized = await aggregate('/products/aggregate?count=*&groupBy=category&limit=5000');
+      expect(oversized.status).toBe(400);
+      expect(oversized.body.error?.code).toBe('AGGREGATION_ERROR');
+    });
+
+    it('honors ?withDeleted=true and =false instead of treating it as a filter', async () => {
+      expect((await aggregate('/products/aggregate?count=*')).body.result.values?.count).toBe(7);
+      expect(
+        (await aggregate('/products/aggregate?count=*&withDeleted=false')).body.result.values
+          ?.count,
+      ).toBe(7);
+      expect(
+        (await aggregate('/products/aggregate?count=*&withDeleted=true')).body.result.values?.count,
+      ).toBe(8);
+    });
+
+    it('only filters by filterFields when they are set', async () => {
+      class CategoryOnlyAggregate extends MemoryAggregateEndpoint {
+        _meta = { model: ProductModel };
+        filterFields = ['category'];
+      }
+      const scoped = fromHono(new OpenAPIHono());
+      scoped.onError(createErrorHandler());
+      registerCrud(scoped, '/products', { aggregate: CategoryOnlyAggregate });
+
+      const response = await scoped.request(
+        '/products/aggregate?count=*&category=furniture&isActive=false',
+      );
+      const body = (await response.json()) as { result: { values: { count: number } } };
+      // isActive is not filterable here, so only category applies: 3 furniture rows.
+      expect(body.result.values.count).toBe(3);
+    });
+
+    it('filters a date field by equality instead of matching every row', async () => {
+      const deletedAt = new Date('2026-01-02T03:04:05.000Z');
+      const store = getStore<Record<string, unknown>>('products');
+      store.set('8', { ...(store.get('8') as Record<string, unknown>), deletedAt });
+
+      const { status, body } = await aggregate(
+        `/products/aggregate?count=*&withDeleted=true&deletedAt=${deletedAt.toISOString()}`,
+      );
+      expect(status).toBe(200);
+      expect(body.result.values?.count).toBe(1);
+    });
+
+    it('ignores ?withDeleted when the model disallows querying deleted rows', async () => {
+      const { status, body } = await aggregate(
+        '/locked-products/aggregate?count=*&withDeleted=true',
+      );
+      expect(status).toBe(200);
+      expect(body.result.values?.count).toBe(7);
     });
   });
 });

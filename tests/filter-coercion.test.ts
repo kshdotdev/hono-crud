@@ -5,7 +5,11 @@
  * used to select the `true` rows, and `integer({ mode: 'timestamp' })` calls
  * `.getTime()` on the bound value, so a raw string threw a TypeError.
  */
-import { type DrizzleDatabaseConstraint, createDrizzleCrud } from '@hono-crud/drizzle';
+import {
+  DrizzleAggregateEndpoint,
+  type DrizzleDatabaseConstraint,
+  createDrizzleCrud,
+} from '@hono-crud/drizzle';
 import { clearStorage, createMemoryCrud } from '@hono-crud/memory';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { createClient } from '@libsql/client';
@@ -33,6 +37,7 @@ const ItemSchema = z.object({
   title: z.string(),
   active: z.boolean(),
   score: z.number().int().nullable().optional(),
+  status: z.enum(['draft', 'published']).default('draft'),
 });
 
 const itemMeta = defineMeta({
@@ -41,8 +46,11 @@ const itemMeta = defineMeta({
 const Items = createMemoryCrud(itemMeta);
 
 class ItemList extends Items.List {
-  filterFields = ['active'];
-  filterConfig = { score: ['gte', 'lte', 'in'] as const };
+  filterFields = ['active', 'status'];
+  filterConfig = {
+    score: ['gte', 'lte', 'in'] as const,
+    status: ['ne', 'in', 'like'] as const,
+  };
 }
 
 describe('filter coercion (memory adapter)', () => {
@@ -52,7 +60,7 @@ describe('filter coercion (memory adapter)', () => {
   beforeEach(async () => {
     clearStorage();
     for (const item of [
-      { title: 'on-high', active: true, score: 90 },
+      { title: 'on-high', active: true, score: 90, status: 'published' },
       { title: 'on-low', active: true, score: 10 },
       { title: 'off', active: false, score: 50 },
     ]) {
@@ -87,6 +95,29 @@ describe('filter coercion (memory adapter)', () => {
       expect(body.error.code).toBe('VALIDATION_ERROR');
       expect(body.error.message).toMatch(/expects a (boolean|number)/);
     }
+  });
+
+  it('matches enum fields by member and never applies the field default as a filter', async () => {
+    expect(await titles(await app.request('/items'))).toEqual(['off', 'on-high', 'on-low']);
+    expect(await titles(await app.request('/items?status=published'))).toEqual(['on-high']);
+    expect(await titles(await app.request('/items?status[in]=draft,published'))).toHaveLength(3);
+    // Substring operators keep the raw needle: a partial value is not an enum member.
+    expect(await titles(await app.request('/items?status[like]=pub'))).toEqual(['on-high']);
+  });
+
+  it('rejects a value outside the enum with 400 VALIDATION_ERROR instead of an empty page', async () => {
+    // eq/ne are enum-typed query params, so the OpenAPI validator rejects them
+    // first; comma-list operators stay strings and the parser checks each item.
+    for (const query of ['status=publised', 'status[ne]=publised', 'status[in]=draft,publised']) {
+      const res = await app.request(`/items?${query}`);
+      expect(res.status, query).toBe(400);
+      const body = (await res.json()) as ErrorBody;
+      expect(body.error.code).toBe('VALIDATION_ERROR');
+    }
+    const res = await app.request('/items?status[in]=draft,publised');
+    expect(((await res.json()) as ErrorBody).error.message).toBe(
+      "Filter 'status' expects one of draft, published, got 'publised'",
+    );
   });
 });
 
@@ -130,9 +161,14 @@ class TodoList extends Todos.List {
   filterConfig = { due: ['gte', 'lt'] as const, priority: ['gte'] as const };
 }
 
+class TodoAggregate extends DrizzleAggregateEndpoint {
+  _meta = todoMeta;
+  db = db as unknown as DrizzleDatabaseConstraint;
+}
+
 describe('filter coercion (drizzle + typed sqlite column modes)', () => {
   const app = fromHono(new OpenAPIHono());
-  registerCrud(app, '/todos', { list: TodoList });
+  registerCrud(app, '/todos', { list: TodoList, aggregate: TodoAggregate });
 
   beforeAll(async () => {
     await client.execute(`
@@ -159,6 +195,13 @@ describe('filter coercion (drizzle + typed sqlite column modes)', () => {
   it('date filters on a timestamp-mode column bind a Date instead of throwing', async () => {
     expect(await titles(await app.request('/todos?due[gte]=2026-06-01'))).toEqual(['write']);
     expect(await titles(await app.request('/todos?due[lt]=2026-06-01'))).toEqual(['ship']);
+  });
+
+  it('aggregate date equality binds a Date instead of matching every row', async () => {
+    const res = await app.request('/todos/aggregate?count=*&due=2026-05-01T00:00:00.000Z');
+    expect(res.status, await res.clone().text()).toBe(200);
+    const body = (await res.json()) as { result: { values: { count: number } } };
+    expect(body.result.values.count).toBe(1);
   });
 
   it('numeric filters still work on plain integer columns', async () => {

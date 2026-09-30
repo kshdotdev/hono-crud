@@ -14,6 +14,7 @@ import type {
 import { SORT_DIRECTIONS } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
+import { coerceFilterValue } from './types';
 
 /**
  * Default aggregate configuration.
@@ -87,10 +88,19 @@ export abstract class AggregateEndpoint<
   protected maxGroupByFields = 5;
 
   /**
-   * Fields that can be used for filtering.
-   * Empty array means all fields are allowed.
+   * Fields clients may filter by (`?field=value`, equality only). Empty means
+   * every model field. Other query keys are ignored, and values are converted
+   * and checked against the field type exactly like list filters (a value
+   * outside an enum is 400).
    */
   protected filterFields: string[] = [];
+
+  /** `filterFields`, or every model field when it is empty. */
+  protected getFilterableFields(): string[] {
+    return this.filterFields.length > 0
+      ? this.filterFields
+      : Object.keys(this.getModelSchema().shape);
+  }
 
   /**
    * Get the soft delete configuration for this model.
@@ -114,27 +124,37 @@ export abstract class AggregateEndpoint<
    * Returns the query parameter schema for aggregations.
    */
   protected getQuerySchema(): ZodObject<ZodRawShape> {
-    return z
-      .object({
-        // Aggregation operations
-        count: z.union([z.string(), z.array(z.string())]).optional(),
-        sum: z.union([z.string(), z.array(z.string())]).optional(),
-        avg: z.union([z.string(), z.array(z.string())]).optional(),
-        min: z.union([z.string(), z.array(z.string())]).optional(),
-        max: z.union([z.string(), z.array(z.string())]).optional(),
-        countDistinct: z.union([z.string(), z.array(z.string())]).optional(),
-        // Grouping
-        groupBy: z.string().optional(),
-        // Ordering
-        orderBy: z.string().optional(),
-        orderDirection: z.enum(SORT_DIRECTIONS).optional(),
-        // Pagination
-        limit: z.coerce.number().optional(),
-        offset: z.coerce.number().optional(),
-        // Include soft-deleted records
-        withDeleted: z.coerce.boolean().optional(),
-      })
-      .passthrough() as unknown as ZodObject<ZodRawShape>;
+    const shape: Record<string, z.ZodTypeAny> = {
+      // Aggregation operations
+      count: z.union([z.string(), z.array(z.string())]).optional(),
+      sum: z.union([z.string(), z.array(z.string())]).optional(),
+      avg: z.union([z.string(), z.array(z.string())]).optional(),
+      min: z.union([z.string(), z.array(z.string())]).optional(),
+      max: z.union([z.string(), z.array(z.string())]).optional(),
+      countDistinct: z.union([z.string(), z.array(z.string())]).optional(),
+      // Grouping
+      groupBy: z.string().optional(),
+      // Ordering
+      orderBy: z.string().optional(),
+      orderDirection: z.enum(SORT_DIRECTIONS).optional(),
+      // Pagination. Strings, like list's page/per_page: `parseAggregateQuery`
+      // parses them (a coercing schema here hid them from the parser).
+      limit: z.string().optional(),
+      offset: z.string().optional(),
+    };
+
+    // Same gate as list: only advertised when clients may ask for deleted rows.
+    const softDeleteConfig = this.getSoftDeleteConfig();
+    if (softDeleteConfig.enabled && softDeleteConfig.allowQueryDeleted) {
+      shape[softDeleteConfig.queryParam] = z.enum(['true', 'false']).optional();
+    }
+
+    // Reserved params win over a model field of the same name (the parser
+    // consumes them before filters are collected).
+    const filterFields = this.getFilterableFields().filter((field) => !(field in shape));
+    this.addFilterParams(shape, filterFields);
+
+    return z.object(shape).passthrough() as unknown as ZodObject<ZodRawShape>;
   }
 
   /**
@@ -179,7 +199,35 @@ export abstract class AggregateEndpoint<
    */
   protected async getAggregateOptions(): Promise<AggregateOptions> {
     const { query } = await this.getValidatedData();
-    return parseAggregateQuery(query || {});
+    const softDeleteConfig = this.getSoftDeleteConfig();
+    const options = parseAggregateQuery(query || {}, {
+      softDeleteQueryParam: softDeleteConfig.queryParam,
+      allowQueryDeleted: softDeleteConfig.enabled && softDeleteConfig.allowQueryDeleted,
+    });
+    options.filters = this.toAllowedFilters(options.filters);
+    return options;
+  }
+
+  /**
+   * Keep only filterable fields and convert each value by the field's type.
+   * The parser hands over every unreserved query key, and the adapter would
+   * look any other key (`?page=1`, a typo) up as a column.
+   */
+  private toAllowedFilters(
+    filters: Record<string, unknown> | undefined,
+  ): Record<string, unknown> | undefined {
+    if (!filters) return undefined;
+    const allowed = this.getFilterableFields();
+    const modelShape: Record<string, unknown> = this.getModelSchema().shape;
+    const kept: Record<string, unknown> = {};
+    for (const [field, raw] of Object.entries(filters)) {
+      if (!allowed.includes(field)) continue;
+      const value = coerceFilterValue('eq', String(raw), field, modelShape[field]);
+      // Adapters read an object filter value as `{ operator: value }`, so a
+      // bare `Date` (a date field) would match every row; spell it as `eq`.
+      kept[field] = typeof value === 'object' && value !== null ? { eq: value } : value;
+    }
+    return Object.keys(kept).length > 0 ? kept : undefined;
   }
 
   /**
@@ -326,7 +374,7 @@ export function computeAggregations<T extends Record<string, unknown>>(
   records: T[],
   options: AggregateOptions,
 ): AggregateResult {
-  const { aggregations, groupBy, having, orderBy, orderDirection, limit, offset } = options;
+  const { aggregations, groupBy, having } = options;
 
   // If no groupBy, compute single set of aggregations
   if (!groupBy || groupBy.length === 0) {
@@ -389,39 +437,7 @@ export function computeAggregations<T extends Record<string, unknown>>(
     });
   }
 
-  const totalGroups = groupResults.length;
-
-  // Apply ordering
-  if (orderBy) {
-    const direction = orderDirection === 'desc' ? -1 : 1;
-    groupResults.sort((a, b) => {
-      // Check if ordering by an aggregated value
-      if (orderBy in a.values) {
-        const aVal = a.values[orderBy] ?? 0;
-        const bVal = b.values[orderBy] ?? 0;
-        return (aVal - bVal) * direction;
-      }
-      // Otherwise order by group key
-      if (orderBy in a.key) {
-        const aVal = String(a.key[orderBy] ?? '');
-        const bVal = String(b.key[orderBy] ?? '');
-        return aVal.localeCompare(bVal) * direction;
-      }
-      return 0;
-    });
-  }
-
-  // Apply pagination
-  if (offset !== undefined || limit !== undefined) {
-    const start = offset || 0;
-    const end = limit ? start + limit : undefined;
-    groupResults = groupResults.slice(start, end);
-  }
-
-  return {
-    groups: groupResults,
-    totalGroups,
-  };
+  return orderAndPageGroups(groupResults, options);
 }
 
 // ============================================================================
@@ -529,4 +545,55 @@ function getAggregateAlias(agg: AggregateField): string {
     return agg.operation;
   }
   return `${agg.operation}${agg.field.charAt(0).toUpperCase()}${agg.field.slice(1)}`;
+}
+
+/** One grouped aggregation row: the GROUP BY key and its aggregated values. */
+type AggregateGroup = NonNullable<AggregateResult['groups']>[number];
+
+/**
+ * Order and page grouped aggregation results (`orderBy` / `orderDirection` /
+ * `limit` / `offset`), reporting `totalGroups` before paging. Shared by the
+ * in-memory path and adapters that group natively (prisma `groupBy`), so
+ * `?limit=` means the same thing on every adapter.
+ */
+export function orderAndPageGroups(
+  groups: AggregateGroup[],
+  options: Pick<AggregateOptions, 'orderBy' | 'orderDirection' | 'limit' | 'offset'>,
+): { groups: AggregateGroup[]; totalGroups: number } {
+  const { orderBy, orderDirection, limit, offset } = options;
+  let groupResults = [...groups];
+
+  const totalGroups = groupResults.length;
+
+  // Apply ordering
+  if (orderBy) {
+    const direction = orderDirection === 'desc' ? -1 : 1;
+    groupResults.sort((a, b) => {
+      // Check if ordering by an aggregated value
+      if (orderBy in a.values) {
+        const aVal = a.values[orderBy] ?? 0;
+        const bVal = b.values[orderBy] ?? 0;
+        return (aVal - bVal) * direction;
+      }
+      // Otherwise order by group key
+      if (orderBy in a.key) {
+        const aVal = String(a.key[orderBy] ?? '');
+        const bVal = String(b.key[orderBy] ?? '');
+        return aVal.localeCompare(bVal) * direction;
+      }
+      return 0;
+    });
+  }
+
+  // Apply pagination
+  if (offset !== undefined || limit !== undefined) {
+    const start = offset || 0;
+    const end = limit ? start + limit : undefined;
+    groupResults = groupResults.slice(start, end);
+  }
+
+  return {
+    groups: groupResults,
+    totalGroups,
+  };
 }

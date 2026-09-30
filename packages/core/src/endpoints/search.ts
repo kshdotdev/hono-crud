@@ -268,20 +268,7 @@ export abstract class SearchEndpoint<
       });
     }
 
-    // Filter fields
-    for (const field of this.filterFields) {
-      shape[field] = z.string().optional();
-    }
-
-    // Operator-based filter fields
-    if (this.filterConfig) {
-      for (const [field, operators] of Object.entries(this.filterConfig)) {
-        for (const op of operators) {
-          shape[`${field}[${op}]`] = z.string().optional();
-        }
-        shape[field] = z.string().optional();
-      }
-    }
+    this.addFilterParams(shape, this.filterFields, this.filterConfig);
 
     // Soft delete query parameters
     const softDeleteConfig = this.getSoftDeleteConfig();

@@ -17,8 +17,8 @@
  */
 import { expect, test } from 'vitest';
 import type { AdapterDescriptor, CtxGetter } from '../contract';
-import { expectError, expectList } from '../contract';
-import { seedFilterRows } from '../model';
+import { expectError, expectList, jsonInit } from '../contract';
+import { SEED_EMAILS_SORTED, seedFilterRows } from '../model';
 
 interface FilterCase {
   title: string;
@@ -103,5 +103,28 @@ export function registerFilterOperatorCells(_descriptor: AdapterDescriptor, ctx:
     // fails loudly instead of silently matching nothing (or, on drivers with
     // typed column modes, matching the wrong rows).
     await expectError(await app.request('/items?age[gte]=abc'), 400, 'VALIDATION_ERROR');
+  });
+  test('filter: a value outside an enum field is rejected with 400 VALIDATION_ERROR', async () => {
+    const { app } = ctx();
+    await seedFilterRows(app, '/items');
+    // `role` is `z.enum(CONFORMANCE_ROLES)`: a typo used to reach the adapter
+    // as a raw string and return an empty page. Array operators check every
+    // element, and bulk patch (which parses the raw query string, not the
+    // validated one) gets the same check.
+    await expectError(await app.request('/items?role=admn'), 400, 'VALIDATION_ERROR');
+    await expectError(await app.request('/items?role[ne]=admn'), 400, 'VALIDATION_ERROR');
+    await expectError(await app.request('/items?role[in]=admin,gust'), 400, 'VALIDATION_ERROR');
+    await expectError(
+      await app.request('/items/bulk?role=gust', jsonInit('PATCH', { age: 99 })),
+      400,
+      'VALIDATION_ERROR',
+    );
+  });
+  test('filter: an enum field default is never applied as an implicit filter', async () => {
+    const { app } = ctx();
+    await seedFilterRows(app, '/items');
+    // `role` defaults to 'user'; an unfiltered list still returns every role.
+    const body = await expectList(await app.request('/items'));
+    expect(body.result.map((record) => record.email).sort()).toEqual([...SEED_EMAILS_SORTED]);
   });
 }

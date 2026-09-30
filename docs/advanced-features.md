@@ -553,7 +553,23 @@ registerCrud(app, '/users', {
 **Query** (one query param per operation: `count`, `sum`, `avg`, `min`, `max`, `countDistinct`):
 ```
 GET /users/aggregate?count=id&avg=age&groupBy=role
+GET /users/aggregate?count=*&groupBy=role&orderBy=count&orderDirection=desc&limit=10&offset=10
+GET /users/aggregate?count=*&withDeleted=true
 ```
+
+`limit` and `offset` page grouped results (`totalGroups` reports the count
+before paging); `limit` must be a positive integer and `offset` a
+non-negative one (`400 VALIDATION_ERROR` otherwise), and a `limit`
+above `maxLimit` (default 1000) is `400 AGGREGATION_ERROR`. On a soft-delete
+model, `?withDeleted=true` (the model's `softDelete.queryParam`) includes
+deleted rows, unless the model sets `allowQueryDeleted: false`.
+
+Other query params filter by equality (`?role=admin`). By default every model
+field is filterable; set `filterFields` (or `aggregate: { fields }` with
+`defineEndpoints`) to narrow it. Values are converted and checked against the
+field type like list filters, so `?role=admn` on an enum field is
+`400 VALIDATION_ERROR`, and query keys that aren't filterable fields are
+ignored.
 
 ---
 
@@ -1160,6 +1176,18 @@ GET /users?age[null]=true
 
 `like`/`ilike` values are literal needles: `%` is stripped and `_` is inert —
 they are never live SQL wildcards.
+
+Other filter values are checked against the model field's type before they
+reach the database: numbers, booleans, and dates are converted, and a string
+`z.enum` / `z.literal` field only accepts its members (`in`, `nin`, and
+`between` check every item). A value that doesn't fit, such as
+`?status=publised` for `z.enum(['draft', 'published'])`, returns
+`400 VALIDATION_ERROR` instead of an empty page.
+
+The OpenAPI document types the params the same way: the single-value params
+(`?status=` and `?status[ne]=`, plus `gt`, `gte`, `lt`, and `lte`) list the
+enum members (so a generated client types them as the union), while `in`,
+`nin`, `between`, `like`, `ilike`, and `null` params stay strings.
 
 ---
 
