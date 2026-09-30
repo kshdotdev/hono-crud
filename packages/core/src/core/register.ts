@@ -3,7 +3,8 @@ import type { Env, MiddlewareHandler } from 'hono';
 import type { MergePath, Schema } from 'hono/types';
 import { setContextVar } from '../utils/context';
 import { CRUD_ROUTES, type CrudEndpointName } from './crud-routes';
-import type { HonoOpenAPIApp } from './openapi';
+import { type HonoOpenAPIApp, getHandlerForApp } from './openapi';
+import { assertNoBasePathParamClash } from './path-params';
 import { recordCrudResource } from './resource-registry';
 import type { OpenAPIRoute } from './route';
 import type { CrudResourcesSchema, CrudSchema, ToHonoPath } from './rpc-types';
@@ -206,6 +207,11 @@ export function registerCrud<
   const normalizedPath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
   const typedApp = app as HonoOpenAPIApp<E>;
   const { middlewares = [], endpointMiddlewares = {}, responseEnvelope } = options ?? {};
+  assertNoBasePathParamClash(
+    'registerCrud()',
+    normalizedPath,
+    CRUD_ROUTES.map(([name]) => name).filter((name) => endpoints[name]),
+  );
 
   /**
    * Stash the configured `ResponseEnvelope` on the request context so the
@@ -244,6 +250,11 @@ export function registerCrud<
     ];
   };
 
+  // Register through the `fromHono` handler directly (rather than the proxied
+  // verb) so the route carries its slot and base path for the default
+  // `operationId`. Apps without a handler keep the plain verb call.
+  const handler = getHandlerForApp(typedApp);
+
   // Helper to register route with middleware
   const registerRoute = (
     method: 'get' | 'post' | 'patch' | 'delete',
@@ -252,6 +263,16 @@ export function registerCrud<
     endpoint: EndpointClass<E>,
   ): void => {
     const mw = getMiddleware(name);
+    if (handler) {
+      handler.registerRoute(
+        method,
+        path,
+        endpoint as unknown as Parameters<typeof handler.registerRoute>[2],
+        mw as unknown as MiddlewareHandler[],
+        { operation: name, basePath: normalizedPath },
+      );
+      return;
+    }
     // Re-type Hono's broadly-overloaded handler method down to the narrow
     // CRUD registrar shape we actually invoke. The `fromHono` Proxy guarantees
     // the runtime contract; the two overload sets don't structurally overlap

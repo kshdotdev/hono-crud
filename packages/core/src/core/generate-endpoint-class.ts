@@ -64,9 +64,16 @@ export function resolveInstanceSchemaTags(instance: {
   getSchema(): OpenAPIRouteSchema;
 }): OpenAPIRouteSchema {
   const schema = instance.getSchema();
-  const model = (instance as { _meta?: { model?: { tag?: string; tableName: string } } })._meta
-    ?.model;
+  const model = instanceModel(instance);
   return model ? resolveSchemaTags(schema, model) : schema;
+}
+
+/**
+ * The model an endpoint instance serves, read structurally from `_meta`
+ * (`OpenAPIRoute` doesn't declare it; every `CrudEndpoint` subclass sets it).
+ */
+export function instanceModel(instance: object): { tag?: string; tableName: string } | undefined {
+  return (instance as { _meta?: { model?: { tag?: string; tableName: string } } })._meta?.model;
 }
 
 /**

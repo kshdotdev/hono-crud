@@ -3,7 +3,13 @@ import type { Context, Env, Hono, MiddlewareHandler } from 'hono';
 import type { BlankSchema, Schema } from 'hono/types';
 import { openApiValidationHook, toOpenApiPath } from '../openapi/utils';
 import { ApiException } from './exceptions';
-import { resolveInstanceSchemaTags } from './generate-endpoint-class';
+import { instanceModel, resolveInstanceSchemaTags } from './generate-endpoint-class';
+import {
+  type CrudRouteHint,
+  type OperationIdsOption,
+  applyDefaultOperationId,
+} from './operation-id';
+import { declareBasePathParams } from './path-params';
 import type { OpenAPIRoute } from './route';
 import { isRouteClass, jsonResponse } from './route';
 import type { RouteClassEntry } from './rpc-types';
@@ -22,6 +28,14 @@ export interface OpenAPIConfig {
 
 export interface RouterOptions {
   openapi_url?: string;
+  /**
+   * Default `operationId` generation for `registerCrud` routes
+   * (`listComments`, `getComment`, `listNoteComments`, ...). On by default;
+   * `false` emits no default, so only explicit `schema.operationId`s appear;
+   * a function replaces the built-in naming. An explicit `schema.operationId`
+   * always wins. See `core/operation-id.ts` for the naming rules.
+   */
+  operationIds?: OperationIdsOption;
 }
 
 type RouteMethod = 'get' | 'post' | 'put' | 'patch' | 'delete' | 'options' | 'head';
@@ -53,6 +67,8 @@ export interface RegisteredRoute {
   path: string;
   schema: OpenAPIRouteSchema;
   routeClass: OpenAPIRouteClass;
+  /** Set for routes registered by `registerCrud`: the slot and base path. */
+  crud?: CrudRouteHint;
 }
 
 /**
@@ -137,6 +153,8 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
   private app: OpenAPIHono<E>;
   private options: RouterOptions;
   protected routes: Map<string, RegisteredRoute> = new Map();
+  /** operationId → the route that holds it, and whether it was generated. */
+  private operationIds: Map<string, { routeKey: string; generated: boolean }> = new Map();
 
   constructor(app: OpenAPIHono<E>, options: RouterOptions = {}) {
     this.app = app;
@@ -147,13 +165,15 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
   }
 
   /**
-   * Registers an OpenAPIRoute class as a route.
+   * Registers an OpenAPIRoute class as a route. `crud` is passed by
+   * `registerCrud` so the route gets a default `operationId`.
    */
   registerRoute(
     method: RouteMethod,
     path: string,
     RouteClass: typeof OpenAPIRoute,
     middlewares: MiddlewareHandler<E>[] = [],
+    crud?: CrudRouteHint,
   ): void {
     const routeKey = `${method.toUpperCase()} ${path}`;
 
@@ -167,13 +187,20 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
     // declared once and honored everywhere; an explicit `schema.tags` still
     // wins, and instances with no `_meta` pass through untouched. Doc-only:
     // the validation path (`getValidatedData`) is unaffected.
-    const schema = resolveInstanceSchemaTags(instance);
+    const tagged = resolveInstanceSchemaTags(instance);
+    const named = crud
+      ? applyDefaultOperationId(tagged, crud, instanceModel(instance), this.options.operationIds)
+      : tagged;
+    // Any id the endpoint didn't set explicitly was generated (default or naming function).
+    this.claimOperationId(routeKey, named.operationId, tagged.operationId === undefined);
+    const schema = crud ? declareBasePathParams(named, crud.basePath) : named;
 
     this.routes.set(routeKey, {
       method,
       path,
       schema,
       routeClass: RouteClass as unknown as OpenAPIRouteClass,
+      crud,
     });
 
     // Create the zod-openapi route config
@@ -239,6 +266,27 @@ export class HonoOpenAPIHandler<E extends Env = Env> {
         throw error;
       }
     });
+  }
+
+  /**
+   * Fail at setup when a generated `operationId` duplicates another one in
+   * this app — the OpenAPI spec requires ids to be unique, and generators
+   * either reject the doc or suffix the name by registration order.
+   * Duplicates between two explicit ids are left alone, as before defaults.
+   */
+  private claimOperationId(routeKey: string, id: string | undefined, generated: boolean): void {
+    if (id === undefined) return;
+    const holder = this.operationIds.get(id);
+    if (!holder) {
+      this.operationIds.set(id, { routeKey, generated });
+      return;
+    }
+    if (holder.routeKey === routeKey || !(holder.generated || generated)) return;
+    const fix =
+      'Set `schema.operationId` on one of the endpoints, or pass `operationIds: false` to fromHono().';
+    throw new Error(
+      `fromHono(): operationId "${id}" is used by both ${holder.routeKey} and ${routeKey}. ${fix}`,
+    );
   }
 
   /**

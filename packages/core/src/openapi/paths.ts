@@ -30,7 +30,9 @@ import { z } from 'zod';
 
 import type { GeneratedEndpoints } from '../config/index';
 import { CRUD_ROUTES, type CrudEndpointName } from '../core/crud-routes';
-import { resolveInstanceSchemaTags } from '../core/generate-endpoint-class';
+import { instanceModel, resolveInstanceSchemaTags } from '../core/generate-endpoint-class';
+import { type OperationIdsOption, applyDefaultOperationId } from '../core/operation-id';
+import { assertNoBasePathParamClash, declareBasePathParams } from '../core/path-params';
 import type { OpenAPIRouteSchema } from '../core/types';
 import { toOpenApiPath } from './utils';
 
@@ -50,7 +52,8 @@ export interface ToOpenApiPathsOptions {
   /**
    * Prefix prepended to every emitted path key (e.g. `'/api/v1/users'`).
    * Slash-normalized: leading slash is ensured, duplicate slashes are
-   * collapsed, a trailing slash is dropped. Defaults to `''` (paths are
+   * collapsed, a trailing slash is dropped. Hono params (`:noteId`) are
+   * emitted in OpenAPI form (`{noteId}`). Defaults to `''` (paths are
    * emitted relative to the resource root, e.g. `/`, `/{id}`).
    */
   basePath?: string;
@@ -61,6 +64,14 @@ export interface ToOpenApiPathsOptions {
    * per-endpoint tags are preserved as-is.
    */
   tag?: string;
+  /**
+   * Default `operationId` generation — the same ids `registerCrud` emits for
+   * a resource registered at `basePath` (`listUsers`, `getUser`, ...). With
+   * no `basePath`, the resource name comes from the model's `tableName`.
+   * `false` emits no default; a function replaces the built-in naming. An
+   * explicit `openapi.operationId` always wins.
+   */
+  operationIds?: OperationIdsOption;
 }
 
 /**
@@ -120,6 +131,11 @@ export function toOpenApiPaths(
   const app = new OpenAPIHono();
   let registered = 0;
   const endpointSlots: EndpointSlots = endpoints;
+  assertNoBasePathParamClash(
+    'toOpenApiPaths()',
+    basePath,
+    CRUD_ROUTES.map(([name]) => name).filter((name) => endpointSlots[name]),
+  );
 
   for (const [name, method, subPath] of CRUD_ROUTES) {
     const EndpointClass = endpointSlots[name];
@@ -135,12 +151,22 @@ export function toOpenApiPaths(
     // default tags into the raw `.schema` field, so reading `getSchema()`
     // directly would drop them. An explicit per-endpoint tag still wins.
     const instance = new EndpointClass();
-    const schema = resolveInstanceSchemaTags(instance);
+    const schema = declareBasePathParams(
+      applyDefaultOperationId(
+        resolveInstanceSchemaTags(instance),
+        { operation: name, basePath },
+        instanceModel(instance),
+        options.operationIds,
+      ),
+      basePath,
+    );
 
     const effectiveSchema: OpenAPIRouteSchema =
       tagOverride !== undefined ? { ...schema, tags: [tagOverride] } : schema;
 
-    const path = normalizePath(basePath, toOpenApiPath(subPath));
+    // Convert the base path too: the declared base-path params only match a
+    // `{noteId}` template, never a literal `:noteId` segment.
+    const path = toOpenApiPath(normalizePath(basePath, subPath));
 
     const routeConfig = createRoute({
       // `OpenAPIRouteSchema` is a structural subset of zod-openapi's

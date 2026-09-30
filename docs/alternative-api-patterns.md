@@ -219,7 +219,7 @@ registerCrud(app, '/users', {
 | Option | Type | Description |
 |--------|------|-------------|
 | `meta` | `MetaInput` | Model metadata (required) |
-| `schema` | `Partial<OpenAPIRouteSchema>` | OpenAPI schema — tags/summary/description, plus `responses`/`request`/`security`/`operationId` overrides merged over the generated blocks |
+| `schema` | `Partial<OpenAPIRouteSchema>` | OpenAPI schema — tags/summary/description, plus `responses`/`request`/`security`/`operationId` overrides merged over the generated blocks (an explicit `operationId` replaces the `registerCrud` default) |
 | `before` | `function` | Hook called before create — `(data, ctx?: HookContext)` |
 | `after` | `function` | Hook called after create — `(data, ctx?: HookContext)` |
 | `allowNestedCreate` | `string[]` | Relations allowing nested creates |
@@ -448,7 +448,7 @@ builder.delete(); // Returns DeleteBuilder
 
 Single declarative object defining all endpoints at once. Every `registerCrud` verb has a config slot — the 5 basic verbs plus `search`, `aggregate`, `restore`, `batchCreate`, `batchUpdate`, `batchDelete`, `batchRestore`, `batchUpsert`, `export`, `import`, `upsert`, `clone`, `bulkPatch`, `versionHistory`, `versionRead`, `versionCompare` and `versionRollback`.
 
-Each endpoint's `openapi` accepts the full `Partial<OpenAPIRouteSchema>`: user-supplied `responses`/`request`/`security`/`operationId` blocks are merged over the generated schema.
+Each endpoint's `openapi` accepts the full `Partial<OpenAPIRouteSchema>`: user-supplied `responses`/`request`/`security`/`operationId` blocks are merged over the generated schema. An explicit `operationId` replaces the default `registerCrud` assigns (see [Operation IDs](../README.md#operation-ids)).
 
 Configuring a verb whose adapter bundle does not ship the matching base class throws at definition time — explicit configuration never degrades to a silently missing route.
 
