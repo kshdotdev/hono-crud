@@ -16,7 +16,9 @@
  * - user `sort`/`order` are IGNORED during a cursor walk (ORDER BY is forced
  *   to the cursor field — keyset pagination is only correct on that order);
  * - plain page/per_page requests on a cursor-enabled endpoint still use
- *   offset pagination with the canonical 6-field result_info.
+ *   offset pagination with the canonical 6-field result_info;
+ * - `limit` is an integer from 1 up to `maxPerPage`; outside that it answers
+ *   400 VALIDATION_ERROR, never clamped.
  *
  * The companion loud-failure contract (ConfigurationException when
  * `cursorPaginationEnabled` is set on an adapter without support) is pinned
@@ -32,7 +34,7 @@ import type {
   CursorListEnvelope,
   CursorResultInfo,
 } from '../contract';
-import { createRecord, expectList, readJson } from '../contract';
+import { createRecord, expectError, expectList, readJson } from '../contract';
 
 const BASE = '/cursor-items';
 
@@ -69,7 +71,10 @@ function cursorQuery(info: CursorResultInfo, extra = ''): string {
   return `cursor=${encodeURIComponent(info.next_cursor as string)}&limit=3${extra}`;
 }
 
-export function registerCursorPaginationCells(_descriptor: AdapterDescriptor, ctx: CtxGetter): void {
+export function registerCursorPaginationCells(
+  _descriptor: AdapterDescriptor,
+  ctx: CtxGetter,
+): void {
   test('cursor pagination: next-only walk visits every record in cursor-field order with exact result_info', async () => {
     const { app } = ctx();
     const idsSorted = await seedCursorRows(app);
@@ -100,9 +105,7 @@ export function registerCursorPaginationCells(_descriptor: AdapterDescriptor, ct
     expect('prev_cursor' in page3.result_info).toBe(false);
 
     // The walk covers every record exactly once, in cursor-field order.
-    const walked = [...page1.result, ...page2.result, ...page3.result].map(
-      (record) => record.id,
-    );
+    const walked = [...page1.result, ...page2.result, ...page3.result].map((record) => record.id);
     expect(walked).toEqual(idsSorted);
   });
 
@@ -116,7 +119,10 @@ export function registerCursorPaginationCells(_descriptor: AdapterDescriptor, ct
     const page1 = await fetchCursorPage(app, 'limit=3&sort=email&order=desc');
     expect(page1.result.map((record) => record.id)).toEqual(idsSorted.slice(0, 3));
 
-    const page2 = await fetchCursorPage(app, cursorQuery(page1.result_info, '&sort=email&order=desc'));
+    const page2 = await fetchCursorPage(
+      app,
+      cursorQuery(page1.result_info, '&sort=email&order=desc'),
+    );
     expect(page2.result.map((record) => record.id)).toEqual(idsSorted.slice(3, 6));
   });
 
@@ -136,5 +142,13 @@ export function registerCursorPaginationCells(_descriptor: AdapterDescriptor, ct
     });
     expect('next_cursor' in offset.result_info).toBe(false);
     expect('prev_cursor' in offset.result_info).toBe(false);
+  });
+
+  test('cursor pagination: limit outside the documented bounds is refused, never clamped', async () => {
+    const { app } = ctx();
+
+    for (const query of ['limit=101', 'limit=0', 'limit=abc', 'limit=2.5', 'limit=']) {
+      await expectError(await app.request(`${BASE}?${query}`), 400, 'VALIDATION_ERROR');
+    }
   });
 }

@@ -98,16 +98,29 @@ export abstract class ExportEndpoint<
 
   /**
    * Returns the query parameter schema for export.
-   * Extends the ListEndpoint schema with format and stream parameters.
+   * Extends the ListEndpoint schema with format and stream parameters, minus
+   * `page` / `per_page`: an export reads every record up to
+   * `maxExportRecords`, so offset paging is neither honored nor advertised.
    */
   protected getExportQuerySchema() {
-    const baseSchema = this.getQuerySchema();
+    const baseSchema = this.getQuerySchema().omit({ page: true, per_page: true });
     return baseSchema.extend({
       format: z.enum(EXPORT_FORMATS).optional().meta({ description: 'Export format' }),
       stream: z.enum(['true', 'false']).optional().meta({
         description: 'Enable streaming for large exports',
       }),
     });
+  }
+
+  /**
+   * Drops `page` / `per_page` before the list parser validates them. The
+   * registered route's schema already strips them, but an export mounted
+   * without the route validator hands over the raw query, and a param the
+   * endpoint ignores must not be able to refuse it.
+   */
+  protected override async getFilterQuery(): Promise<Record<string, unknown>> {
+    const { page: _page, per_page: _perPage, ...query } = await super.getFilterQuery();
+    return query;
   }
 
   /**

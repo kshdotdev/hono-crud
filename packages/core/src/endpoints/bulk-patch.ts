@@ -4,7 +4,7 @@ import { getManagedInputExclusions } from '../core/managed-fields';
 import type { HookMode, ListFilters, MetaInput, OpenAPIRouteSchema } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
-import type { ListFilterParseOptions, ModelObject } from './types';
+import type { ModelObject } from './types';
 import { getSchemaFields, parseListFilters } from './types';
 
 /**
@@ -140,17 +140,15 @@ export abstract class BulkPatchEndpoint<
     const dryRunParam = ctx.req.query('dryRun');
     const dryRun = dryRunParam === 'true' || dryRunParam === '1';
 
-    // Parse filters from query params
-    const filters = parseListFilters(
-      ctx.req.query() as Record<string, string>,
-      {
-        filterFields: this.filterFields,
-        defaultPerPage: this.maxBulkSize,
-        maxPerPage: this.maxBulkSize,
-        // Coerce query-string filter values to the model's declared field types.
-        fieldSchemas: this.getModelSchema().shape,
-      } as ListFilterParseOptions,
-    );
+    // A bulk patch never pages (adapters read only `filters.filters`), so
+    // paging params are dropped rather than validated: a param the endpoint
+    // ignores must not be able to refuse it.
+    const { page: _page, per_page: _perPage, ...filterQuery } = ctx.req.query();
+    const filters = parseListFilters(filterQuery, {
+      filterFields: this.filterFields,
+      // Coerce query-string filter values to the model's declared field types.
+      fieldSchemas: this.getModelSchema().shape,
+    });
 
     // Constrain the matched set to the caller's tenant BEFORE counting or
     // patching — both countMatching and applyPatch receive these filters, so a

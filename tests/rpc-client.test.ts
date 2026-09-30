@@ -94,6 +94,12 @@ describe('typed RPC client (hc) over hono-crud apps', () => {
     expect(listBody.result).toHaveLength(1);
     expect(listBody.result_info.page).toBe(1);
 
+    const paged = await client.widgets.$get({ query: { page: 1, per_page: 5 } });
+    expect(paged.status).toBe(200);
+    const pagedBody = await paged.json();
+    if (!pagedBody.success) throw new Error('expected success');
+    expect(pagedBody.result_info.per_page).toBe(5);
+
     const read = await client.widgets[':id'].$get({ param: { id: createdBody.result.id } });
     expect(read.status).toBe(200);
 

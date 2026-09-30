@@ -9,7 +9,6 @@ import type {
   PaginatedResult,
   SortSpec,
 } from '../core/types';
-import { SORT_DIRECTIONS } from '../core/types';
 import { withIncludableRelations } from '../relations/response-schema';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
@@ -17,7 +16,10 @@ import {
   type ListFilterParseOptions,
   type ListFilters,
   type ModelObject,
+  boundedPageSize,
+  pagingQueryShape,
   parseListFilters,
+  sortQueryShape,
 } from './types';
 
 /**
@@ -139,18 +141,11 @@ export abstract class ListEndpoint<
   protected getQuerySchema(): ZodObject<ZodRawShape> {
     // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4)
     const shape: Record<string, z.ZodTypeAny> = {
-      page: z.string().optional(),
-      per_page: z.string().optional(),
+      ...pagingQueryShape(this.defaultPerPage, this.maxPerPage),
     };
 
     if (this.sortFields.length > 0) {
-      shape.sort = z
-        .enum(this.sortFields as [string, ...string[]])
-        .optional()
-        .meta({ description: 'Field to sort by' });
-      shape.order = z.enum(SORT_DIRECTIONS).optional().meta({
-        description: 'Sort direction (asc or desc)',
-      });
+      Object.assign(shape, sortQueryShape(this.sortFields, this.defaultSort));
     }
 
     if (this.searchFields.length > 0) {
@@ -190,9 +185,12 @@ export abstract class ListEndpoint<
         description:
           'Opaque cursor for fetching the next page. During a cursor walk, results are ordered by the cursor field ascending and sort/order are ignored.',
       });
-      shape.limit = z.string().optional().meta({
-        description: 'Number of items to return (cursor pagination)',
-      });
+      // Bounded like `per_page`, but never defaulted: a present `limit` is
+      // what starts a cursor walk (`parseListFilters`), so a default would
+      // turn every request into one.
+      shape.limit = boundedPageSize(this.maxPerPage)
+        .optional()
+        .meta({ description: 'Number of items to return (cursor pagination)' });
     }
 
     return z.object(shape) as ZodObject<ZodRawShape>;
@@ -249,10 +247,19 @@ export abstract class ListEndpoint<
   }
 
   /**
+   * The query `getFilters` parses. Export narrows it to drop the paging
+   * params it ignores.
+   */
+  protected async getFilterQuery(): Promise<Record<string, unknown>> {
+    const { query } = await this.getValidatedData();
+    return query ?? {};
+  }
+
+  /**
    * Parses query parameters into list filters.
    */
   protected async getFilters(): Promise<ListFilters> {
-    const { query } = await this.getValidatedData();
+    const query = await this.getFilterQuery();
     const softDeleteConfig = this.getSoftDeleteConfig();
 
     const config: ListFilterParseOptions = {
@@ -278,7 +285,7 @@ export abstract class ListEndpoint<
       fieldSchemas: this.getModelSchema().shape,
     };
 
-    return parseListFilters(query || {}, config);
+    return parseListFilters(query, config);
   }
 
   /**

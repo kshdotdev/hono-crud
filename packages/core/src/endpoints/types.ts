@@ -1,4 +1,4 @@
-import type { ZodObject, ZodRawShape } from 'zod';
+import { type ZodObject, type ZodRawShape, z } from 'zod';
 import { InputValidationException } from '../core/exceptions';
 import type {
   FilterCondition,
@@ -16,7 +16,7 @@ import type {
   defineMeta,
   defineModel,
 } from '../core/types';
-import { isFilterOperator } from '../core/types';
+import { SORT_DIRECTIONS, isFilterOperator } from '../core/types';
 
 // Re-export core types
 export type {
@@ -209,6 +209,61 @@ export function parseFilterValue(value: string): { operator: FilterOperator; val
   return { operator: 'eq', value };
 }
 
+/**
+ * A page-size query param: a coerced integer from 1 up to `max`. The one
+ * definition behind `per_page` (defaulted) and the cursor `limit` (never
+ * defaulted, since a present `limit` is what starts a cursor walk), so both
+ * state and enforce the same ceiling.
+ */
+export function boundedPageSize(max: number) {
+  return z.coerce.number().int().min(1).max(max);
+}
+
+/**
+ * The `page` / `per_page` query params of every offset-paginated endpoint.
+ * Declared as coerced, bounded integers so the OpenAPI document carries the
+ * endpoint's default page size and ceiling, and a generated client can read
+ * them instead of restating them. The same schema validates the request, so
+ * a value outside the documented range is refused with a 400, never clamped.
+ * `parseListFilters` parses paging with this shape too, so an endpoint
+ * mounted without the route validator is held to the same bounds.
+ *
+ * The `per_page` default is capped at `maxPerPage`: Zod fills a default
+ * without checking it against the bounds, and `parseListFilters` then
+ * re-parses it, so an endpoint that lowers only `maxPerPage` below the
+ * inherited `defaultPerPage` would answer every plain request with a 400
+ * (and document a default its own maximum forbids).
+ */
+export function pagingQueryShape(defaultPerPage: number, maxPerPage: number) {
+  return {
+    page: z.coerce.number().int().min(1).default(1),
+    per_page: boundedPageSize(maxPerPage).default(Math.min(defaultPerPage, maxPerPage)),
+  };
+}
+
+/**
+ * The `sort` / `order` query params of an endpoint with `sortFields`. Each
+ * carries the default `parseListFilters` applies when it is absent, so the
+ * OpenAPI document states what an unsorted request is ordered by: `order`
+ * defaults to `defaultSort.order` (else `asc`), and `sort` to
+ * `defaultSort.field` when that field is one of `sortFields` (a default
+ * outside the enum cannot be stated, and the runtime default still applies).
+ */
+export function sortQueryShape(sortFields: string[], defaultSort?: SortSpec) {
+  const sort = z.enum(sortFields as [string, ...string[]]);
+  const sortDefault =
+    defaultSort && sortFields.includes(defaultSort.field) ? defaultSort.field : undefined;
+  return {
+    sort: (sortDefault === undefined ? sort.optional() : sort.default(sortDefault)).meta({
+      description: 'Field to sort by',
+    }),
+    order: z
+      .enum(SORT_DIRECTIONS)
+      .default(defaultSort?.order ?? 'asc')
+      .meta({ description: 'Sort direction (asc or desc)' }),
+  };
+}
+
 // Parse query parameters into list filters
 export function parseListFilters(
   query: Record<string, unknown>,
@@ -245,34 +300,28 @@ export function parseListFilters(
   }
   Object.assign(allowedFilters, filterConfig);
 
+  // Paging goes through the schema the endpoint documents, not a parser of
+  // its own: a registered endpoint hands over already-validated numbers, and
+  // one mounted without the route validator hands over raw strings that get
+  // the same bounds, defaults and 400 instead of a silent clamp.
+  const pagingShape = {
+    ...pagingQueryShape(defaultPerPage, maxPerPage),
+    ...(cursorPaginationEnabled ? { limit: boundedPageSize(maxPerPage).optional() } : {}),
+  };
+  const paging = z.object(pagingShape).safeParse(query);
+  if (!paging.success) throw InputValidationException.fromZodError(paging.error);
+  Object.assign(options, paging.data);
+
   for (const [key, rawValue] of Object.entries(query)) {
     if (rawValue === undefined || rawValue === null) continue;
+    // Own keys only: `in` would also match `constructor`, `valueOf`, ...
+    if (Object.hasOwn(pagingShape, key)) continue;
 
     const value = String(rawValue);
 
     // Handle cursor-based pagination
     if (cursorPaginationEnabled && key === 'cursor') {
       options.cursor = value;
-      continue;
-    }
-    if (cursorPaginationEnabled && key === 'limit') {
-      options.limit = Math.min(
-        maxPerPage,
-        Math.max(1, Number.parseInt(value, 10) || defaultPerPage),
-      );
-      continue;
-    }
-
-    // Handle pagination
-    if (key === 'page') {
-      options.page = Math.max(1, Number.parseInt(value, 10) || 1);
-      continue;
-    }
-    if (key === 'per_page') {
-      options.per_page = Math.min(
-        maxPerPage,
-        Math.max(1, Number.parseInt(value, 10) || defaultPerPage),
-      );
       continue;
     }
 
@@ -374,9 +423,7 @@ export function parseListFilters(
     }
   }
 
-  // Apply defaults
-  if (!options.page) options.page = 1;
-  if (!options.per_page) options.per_page = defaultPerPage;
+  // Only sort needs defaulting here; the paging schema parse already defaulted paging.
   if (!options.order_by && defaultSort?.field) options.order_by = defaultSort.field;
   if (!options.order_by_direction) options.order_by_direction = defaultSort?.order ?? 'asc';
 

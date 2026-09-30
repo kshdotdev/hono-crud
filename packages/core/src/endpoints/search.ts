@@ -12,7 +12,7 @@ import type {
   SearchResultItem,
   SortSpec,
 } from '../core/types';
-import { SEARCH_MODES, SORT_DIRECTIONS } from '../core/types';
+import { SEARCH_MODES } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
 import {
@@ -27,7 +27,9 @@ import {
   type ListFilterParseOptions,
   type ListFilters,
   type ModelObject,
+  pagingQueryShape,
   parseListFilters,
+  sortQueryShape,
 } from './types';
 
 /**
@@ -252,20 +254,12 @@ export abstract class SearchEndpoint<
         description: 'Minimum relevance score threshold (0-1)',
       }),
 
-      // Pagination
-      page: z.string().optional(),
-      per_page: z.string().optional(),
+      ...pagingQueryShape(this.defaultPerPage, this.maxPerPage),
     };
 
     // Sorting
     if (this.sortFields.length > 0) {
-      shape.sort = z
-        .enum(this.sortFields as [string, ...string[]])
-        .optional()
-        .meta({ description: 'Field to sort by' });
-      shape.order = z.enum(SORT_DIRECTIONS).optional().meta({
-        description: 'Sort direction (asc or desc)',
-      });
+      Object.assign(shape, sortQueryShape(this.sortFields, this.defaultSort));
     }
 
     // Filter fields
