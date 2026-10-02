@@ -7,6 +7,7 @@
  */
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import type { AdapterContext, AdapterDescriptor, CtxGetter } from '../contract';
+import { registerAggregateQueryCells } from './aggregate-query';
 import { registerBatchTenantScopingCells } from './batch-tenant-scoping';
 import { registerBulkPatchCells } from './bulk-patch';
 import { registerCursorPaginationCells } from './cursor-pagination';
@@ -66,6 +67,7 @@ export function registerConformanceCells(descriptor: AdapterDescriptor): void {
   registerTransactionalHookCells(descriptor, ctx);
   registerCursorPaginationCells(descriptor, ctx);
   registerBulkPatchCells(descriptor, ctx);
+  registerAggregateQueryCells(descriptor, ctx);
   registerEncryptionCells(descriptor, ctx);
   registerEventCells(descriptor, ctx);
 }

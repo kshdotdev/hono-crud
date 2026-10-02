@@ -423,16 +423,11 @@ export abstract class MemoryAggregateEndpoint<
     const softDeleteConfig = this.getSoftDeleteConfig();
 
     // Apply soft delete filter (default: exclude deleted)
-    if (softDeleteConfig.enabled) {
-      const { query } = await this.getValidatedData();
-      const withDeleted = query?.withDeleted === true || query?.withDeleted === 'true';
-
-      if (!withDeleted) {
-        records = records.filter((record) => {
-          const deletedAt = record[softDeleteConfig.field];
-          return deletedAt === null || deletedAt === undefined;
-        });
-      }
+    if (softDeleteConfig.enabled && !options.withDeleted) {
+      records = records.filter((record) => {
+        const deletedAt = record[softDeleteConfig.field];
+        return deletedAt === null || deletedAt === undefined;
+      });
     }
 
     // Apply filters. All operator handling delegates to `matchesFilter` (the

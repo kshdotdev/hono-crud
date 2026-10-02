@@ -739,13 +739,8 @@ export abstract class DrizzleAggregateEndpoint<
 
     // Apply soft delete filter
     const softDeleteConfig = this.getSoftDeleteConfig();
-    if (softDeleteConfig.enabled) {
-      const { query } = await this.getValidatedData();
-      const withDeleted = query?.withDeleted === true || query?.withDeleted === 'true';
-
-      if (!withDeleted) {
-        pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
-      }
+    if (softDeleteConfig.enabled && !options.withDeleted) {
+      pushSoftDeleteExclusion(conditions, softDeleteConfig, (field) => this.getColumn(field));
     }
 
     // Apply filters

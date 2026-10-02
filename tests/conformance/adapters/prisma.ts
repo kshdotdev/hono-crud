@@ -19,6 +19,7 @@
  * collecting this file never requires a generated client.
  */
 import {
+  PrismaAggregateEndpoint,
   PrismaBatchCreateEndpoint,
   PrismaBatchDeleteEndpoint,
   PrismaBatchRestoreEndpoint,
@@ -229,6 +230,10 @@ async function setup(): Promise<AdapterContext> {
     _meta = baseMeta;
     prisma = crudClient;
     protected override sortFields = ['age'];
+  }
+  class ItemAggregate extends PrismaAggregateEndpoint {
+    _meta = baseMeta;
+    prisma = crudClient;
   }
   class ItemUpsert extends PrismaUpsertEndpoint {
     _meta = baseMeta;
@@ -472,6 +477,7 @@ async function setup(): Promise<AdapterContext> {
     bulkPatch: ItemBulkPatch,
     search: ItemSearch,
     export: ItemExport,
+    aggregate: ItemAggregate,
   });
   registerCrud(app, '/tenant-items', {
     create: TenantCreate,

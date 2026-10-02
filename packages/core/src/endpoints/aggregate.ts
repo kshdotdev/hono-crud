@@ -114,27 +114,32 @@ export abstract class AggregateEndpoint<
    * Returns the query parameter schema for aggregations.
    */
   protected getQuerySchema(): ZodObject<ZodRawShape> {
-    return z
-      .object({
-        // Aggregation operations
-        count: z.union([z.string(), z.array(z.string())]).optional(),
-        sum: z.union([z.string(), z.array(z.string())]).optional(),
-        avg: z.union([z.string(), z.array(z.string())]).optional(),
-        min: z.union([z.string(), z.array(z.string())]).optional(),
-        max: z.union([z.string(), z.array(z.string())]).optional(),
-        countDistinct: z.union([z.string(), z.array(z.string())]).optional(),
-        // Grouping
-        groupBy: z.string().optional(),
-        // Ordering
-        orderBy: z.string().optional(),
-        orderDirection: z.enum(SORT_DIRECTIONS).optional(),
-        // Pagination
-        limit: z.coerce.number().optional(),
-        offset: z.coerce.number().optional(),
-        // Include soft-deleted records
-        withDeleted: z.coerce.boolean().optional(),
-      })
-      .passthrough() as unknown as ZodObject<ZodRawShape>;
+    const shape: Record<string, z.ZodTypeAny> = {
+      // Aggregation operations
+      count: z.union([z.string(), z.array(z.string())]).optional(),
+      sum: z.union([z.string(), z.array(z.string())]).optional(),
+      avg: z.union([z.string(), z.array(z.string())]).optional(),
+      min: z.union([z.string(), z.array(z.string())]).optional(),
+      max: z.union([z.string(), z.array(z.string())]).optional(),
+      countDistinct: z.union([z.string(), z.array(z.string())]).optional(),
+      // Grouping
+      groupBy: z.string().optional(),
+      // Ordering
+      orderBy: z.string().optional(),
+      orderDirection: z.enum(SORT_DIRECTIONS).optional(),
+      // Pagination. Strings, like list's page/per_page: `parseAggregateQuery`
+      // parses them (a coercing schema here hid them from the parser).
+      limit: z.string().optional(),
+      offset: z.string().optional(),
+    };
+
+    // Same gate as list: only advertised when clients may ask for deleted rows.
+    const softDeleteConfig = this.getSoftDeleteConfig();
+    if (softDeleteConfig.enabled && softDeleteConfig.allowQueryDeleted) {
+      shape[softDeleteConfig.queryParam] = z.enum(['true', 'false']).optional();
+    }
+
+    return z.object(shape).passthrough() as unknown as ZodObject<ZodRawShape>;
   }
 
   /**
@@ -179,7 +184,11 @@ export abstract class AggregateEndpoint<
    */
   protected async getAggregateOptions(): Promise<AggregateOptions> {
     const { query } = await this.getValidatedData();
-    return parseAggregateQuery(query || {});
+    const softDeleteConfig = this.getSoftDeleteConfig();
+    return parseAggregateQuery(query || {}, {
+      softDeleteQueryParam: softDeleteConfig.queryParam,
+      allowQueryDeleted: softDeleteConfig.enabled && softDeleteConfig.allowQueryDeleted,
+    });
   }
 
   /**
@@ -326,7 +335,7 @@ export function computeAggregations<T extends Record<string, unknown>>(
   records: T[],
   options: AggregateOptions,
 ): AggregateResult {
-  const { aggregations, groupBy, having, orderBy, orderDirection, limit, offset } = options;
+  const { aggregations, groupBy, having } = options;
 
   // If no groupBy, compute single set of aggregations
   if (!groupBy || groupBy.length === 0) {
@@ -389,39 +398,7 @@ export function computeAggregations<T extends Record<string, unknown>>(
     });
   }
 
-  const totalGroups = groupResults.length;
-
-  // Apply ordering
-  if (orderBy) {
-    const direction = orderDirection === 'desc' ? -1 : 1;
-    groupResults.sort((a, b) => {
-      // Check if ordering by an aggregated value
-      if (orderBy in a.values) {
-        const aVal = a.values[orderBy] ?? 0;
-        const bVal = b.values[orderBy] ?? 0;
-        return (aVal - bVal) * direction;
-      }
-      // Otherwise order by group key
-      if (orderBy in a.key) {
-        const aVal = String(a.key[orderBy] ?? '');
-        const bVal = String(b.key[orderBy] ?? '');
-        return aVal.localeCompare(bVal) * direction;
-      }
-      return 0;
-    });
-  }
-
-  // Apply pagination
-  if (offset !== undefined || limit !== undefined) {
-    const start = offset || 0;
-    const end = limit ? start + limit : undefined;
-    groupResults = groupResults.slice(start, end);
-  }
-
-  return {
-    groups: groupResults,
-    totalGroups,
-  };
+  return orderAndPageGroups(groupResults, options);
 }
 
 // ============================================================================
@@ -529,4 +506,55 @@ function getAggregateAlias(agg: AggregateField): string {
     return agg.operation;
   }
   return `${agg.operation}${agg.field.charAt(0).toUpperCase()}${agg.field.slice(1)}`;
+}
+
+/** One grouped aggregation row: the GROUP BY key and its aggregated values. */
+type AggregateGroup = NonNullable<AggregateResult['groups']>[number];
+
+/**
+ * Order and page grouped aggregation results (`orderBy` / `orderDirection` /
+ * `limit` / `offset`), reporting `totalGroups` before paging. Shared by the
+ * in-memory path and adapters that group natively (prisma `groupBy`), so
+ * `?limit=` means the same thing on every adapter.
+ */
+export function orderAndPageGroups(
+  groups: AggregateGroup[],
+  options: Pick<AggregateOptions, 'orderBy' | 'orderDirection' | 'limit' | 'offset'>,
+): { groups: AggregateGroup[]; totalGroups: number } {
+  const { orderBy, orderDirection, limit, offset } = options;
+  let groupResults = [...groups];
+
+  const totalGroups = groupResults.length;
+
+  // Apply ordering
+  if (orderBy) {
+    const direction = orderDirection === 'desc' ? -1 : 1;
+    groupResults.sort((a, b) => {
+      // Check if ordering by an aggregated value
+      if (orderBy in a.values) {
+        const aVal = a.values[orderBy] ?? 0;
+        const bVal = b.values[orderBy] ?? 0;
+        return (aVal - bVal) * direction;
+      }
+      // Otherwise order by group key
+      if (orderBy in a.key) {
+        const aVal = String(a.key[orderBy] ?? '');
+        const bVal = String(b.key[orderBy] ?? '');
+        return aVal.localeCompare(bVal) * direction;
+      }
+      return 0;
+    });
+  }
+
+  // Apply pagination
+  if (offset !== undefined || limit !== undefined) {
+    const start = offset || 0;
+    const end = limit ? start + limit : undefined;
+    groupResults = groupResults.slice(start, end);
+  }
+
+  return {
+    groups: groupResults,
+    totalGroups,
+  };
 }
