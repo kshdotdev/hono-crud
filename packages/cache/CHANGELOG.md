@@ -1,5 +1,17 @@
 # @hono-crud/cache
 
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies [baf37a9]
+- Updated dependencies [baf37a9]
+- Updated dependencies [baf37a9]
+- Updated dependencies [baf37a9]
+- Updated dependencies [baf37a9]
+- Updated dependencies [baf37a9]
+  - hono-crud@0.14.0
+
 ## 0.1.15
 
 ### Patch Changes

@@ -1,5 +1,0 @@
----
-'hono-crud': minor
----
-
-Record responses are projected onto the model's response fields: the schema's fields, computed fields, relation names, and the managed timestamp / soft-delete / version columns. A stored column the schema leaves out (a bucket key, a password hash) used to reach the client whenever the model had no serializer, or when a serializer spread the row, while the OpenAPI document said it would not. The projection runs after the serializer and before the serialization profile, on every verb that goes through the shared finalize chain (create, read, list, search, update, upsert, clone, restore, batch create/update/delete/restore). `transform` now receives the projected public shape, which is what its `ModelObject` type already said. Migration: a response that relied on an undeclared column must declare it in the schema, or add it as a computed field. Field selection runs after the projection, so `alwaysIncludeFields` / `defaultSelectFields` (or `?fields=`) naming an undeclared column no longer surface it either.
