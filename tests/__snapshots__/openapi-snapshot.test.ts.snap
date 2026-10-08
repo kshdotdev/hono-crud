@@ -5,6 +5,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
   "/": {
     "get": {
       "description": "Paginated list of articles",
+      "operationId": "listArticles",
       "parameters": [
         {
           "in": "query",
@@ -196,6 +197,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
       ],
     },
     "post": {
+      "operationId": "createArticle",
       "requestBody": {
         "content": {
           "application/json": {
@@ -379,6 +381,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
   },
   "/aggregate": {
     "get": {
+      "operationId": "aggregateArticles",
       "parameters": [
         {
           "in": "query",
@@ -661,6 +664,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
   },
   "/export": {
     "get": {
+      "operationId": "exportArticles",
       "parameters": [
         {
           "in": "query",
@@ -864,6 +868,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
   },
   "/import": {
     "post": {
+      "operationId": "importArticles",
       "parameters": [
         {
           "description": "Import mode",
@@ -1169,6 +1174,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
   },
   "/search": {
     "get": {
+      "operationId": "searchArticles",
       "parameters": [
         {
           "description": "Search query",
@@ -1439,6 +1445,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
   },
   "/upsert": {
     "post": {
+      "operationId": "upsertArticle",
       "requestBody": {
         "content": {
           "application/json": {
@@ -1710,6 +1717,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
   },
   "/{id}": {
     "delete": {
+      "operationId": "deleteArticle",
       "parameters": [
         {
           "in": "path",
@@ -1854,6 +1862,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
       ],
     },
     "get": {
+      "operationId": "getArticle",
       "parameters": [
         {
           "in": "path",
@@ -1988,6 +1997,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
       ],
     },
     "patch": {
+      "operationId": "updateArticle",
       "parameters": [
         {
           "in": "path",

@@ -3,7 +3,8 @@ import type { Env, MiddlewareHandler } from 'hono';
 import type { MergePath, Schema } from 'hono/types';
 import { setContextVar } from '../utils/context';
 import { CRUD_ROUTES, type CrudEndpointName } from './crud-routes';
-import type { HonoOpenAPIApp } from './openapi';
+import { type HonoOpenAPIApp, getHandlerForApp } from './openapi';
+import { assertNoBasePathParamClash } from './path-params';
 import { recordCrudResource } from './resource-registry';
 import type { OpenAPIRoute } from './route';
 import type { CrudResourcesSchema, CrudSchema, ToHonoPath } from './rpc-types';
@@ -149,11 +150,6 @@ export interface CrudEndpoints<E extends Env = Env> {
  */
 export type { HonoOpenAPIApp };
 
-type RouteRegistrar<E extends Env> = {
-  (path: string, handler: EndpointClass<E>): HonoOpenAPIApp<E>;
-  (path: string, ...handlers: [...MiddlewareHandler<E>[], EndpointClass<E>]): HonoOpenAPIApp<E>;
-};
-
 /**
  * Registers CRUD endpoints for a resource.
  *
@@ -206,6 +202,11 @@ export function registerCrud<
   const normalizedPath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
   const typedApp = app as HonoOpenAPIApp<E>;
   const { middlewares = [], endpointMiddlewares = {}, responseEnvelope } = options ?? {};
+  assertNoBasePathParamClash(
+    'registerCrud()',
+    normalizedPath,
+    CRUD_ROUTES.map(([name]) => name).filter((name) => endpoints[name]),
+  );
 
   /**
    * Stash the configured `ResponseEnvelope` on the request context so the
@@ -244,26 +245,16 @@ export function registerCrud<
     ];
   };
 
-  // Helper to register route with middleware
-  const registerRoute = (
-    method: 'get' | 'post' | 'patch' | 'delete',
-    path: string,
-    name: CrudEndpointName,
-    endpoint: EndpointClass<E>,
-  ): void => {
-    const mw = getMiddleware(name);
-    // Re-type Hono's broadly-overloaded handler method down to the narrow
-    // CRUD registrar shape we actually invoke. The `fromHono` Proxy guarantees
-    // the runtime contract; the two overload sets don't structurally overlap
-    // (Hono's `HandlerInterface` also accepts sub-apps/handler chains), so this
-    // crosses through `unknown` deliberately — an internal boundary, not a hole.
-    const register = typedApp[method] as unknown as RouteRegistrar<E>;
-    if (mw.length > 0) {
-      register(path, ...mw, endpoint);
-    } else {
-      register(path, endpoint);
-    }
-  };
+  // Register through the `fromHono` handler directly (rather than the proxied
+  // verb) so the route carries its slot and base path for the default
+  // `operationId`.
+  const handler = getHandlerForApp(typedApp);
+  if (!handler) {
+    throw new Error(
+      'registerCrud(): the app was not created by fromHono(), so its endpoint classes cannot be ' +
+        'registered as routes. Wrap it first: `const app = fromHono(new OpenAPIHono<Env>())`.',
+    );
+  }
 
   // Register every provided endpoint slot in canonical order. CRUD_ROUTES
   // encodes the registration-order invariants (collection routes before
@@ -272,7 +263,13 @@ export function registerCrud<
   for (const [name, method, subPath] of CRUD_ROUTES) {
     const endpoint = endpoints[name];
     if (!endpoint) continue;
-    registerRoute(method, `${normalizedPath}${subPath}`, name, endpoint);
+    handler.registerRoute(
+      method,
+      `${normalizedPath}${subPath}`,
+      endpoint as unknown as Parameters<typeof handler.registerRoute>[2],
+      getMiddleware(name) as unknown as MiddlewareHandler[],
+      { operation: name, basePath: normalizedPath },
+    );
   }
 
   // Record this registration on the app so addons (e.g. @hono-crud/mcp) can

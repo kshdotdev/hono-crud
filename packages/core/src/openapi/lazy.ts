@@ -13,9 +13,10 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { type ZodObject, type ZodRawShape, z } from 'zod';
 
 import { resolveInstanceSchemaTags } from '../core/generate-endpoint-class';
-import type { HonoOpenAPIApp, OpenAPIConfig } from '../core/openapi';
+import type { HonoOpenAPIApp, OpenAPIConfig, RegisteredRoute } from '../core/openapi';
 import { getHandlerForApp } from '../core/openapi';
-import type { SchemaResolveContext } from '../core/types';
+import { declareBasePathParams } from '../core/path-params';
+import type { OpenAPIRouteSchema, SchemaResolveContext } from '../core/types';
 
 /**
  * Loose, structurally-typed cache adapter. Any object with `get(key)` and
@@ -47,6 +48,21 @@ const DEFAULT_CONFIG: OpenAPIConfig = {
   openapi: '3.1.0',
   info: { title: 'API', version: '1.0.0' },
 };
+
+/**
+ * Re-apply what `registerRoute` settled for a route to its freshly resolved
+ * per-tenant schema, so the live and per-tenant docs agree: the operationId
+ * (explicit or the `registerCrud` default — tenant-independent, so reused
+ * rather than re-derived) and the declared `registerCrud` base-path params.
+ */
+function withRegistrationDocs(
+  schema: OpenAPIRouteSchema,
+  route: RegisteredRoute,
+): OpenAPIRouteSchema {
+  const { operationId } = route.schema;
+  const named = operationId === undefined ? schema : { ...schema, operationId };
+  return route.crud ? declareBasePathParams(named, route.crud.basePath) : named;
+}
 
 /**
  * Build an OpenAPI document for a specific tenant context.
@@ -109,7 +125,9 @@ export async function buildPerTenantOpenApi(
     // `RouteConfig` shape `createRoute` expects. `OpenAPIRouteSchema` is
     // a structural subset (no required `method`/`path`) — we add those
     // below — but TS can't unify the responses union without the cast.
-    const schema = resolveInstanceSchemaTags(instance) as Parameters<typeof createRoute>[0];
+    const schema = withRegistrationDocs(resolveInstanceSchemaTags(instance), route) as Parameters<
+      typeof createRoute
+    >[0];
 
     const routeConfig = createRoute({
       ...schema,

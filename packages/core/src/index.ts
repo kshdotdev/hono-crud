@@ -25,6 +25,7 @@ export type HonoCrudEnv = AuthEnv & LoggingEnv & StorageEnv & TenantEnv & ApiVer
 export { OpenAPIRoute, isRouteClass } from './core/route';
 export { fromHono, HonoOpenAPIHandler } from './core/openapi';
 export type { OpenAPIConfig, RouterOptions, RegisteredRoute } from './core/openapi';
+export type { CrudRouteHint, OperationIdContext, OperationIdsOption } from './core/operation-id';
 export { buildPerTenantOpenApi, wrapCacheStorageForOpenApi } from './openapi/lazy';
 export type {
   PerTenantOpenApiCache,

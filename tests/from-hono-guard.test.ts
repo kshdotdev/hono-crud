@@ -1,6 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Hono } from 'hono';
-import { OpenAPIRoute, fromHono } from 'hono-crud';
+import { OpenAPIRoute, fromHono, registerCrud } from 'hono-crud';
 import { describe, expect, it } from 'vitest';
 
 class Ping extends OpenAPIRoute {
@@ -45,6 +45,14 @@ describe('fromHono() setup guard', () => {
     const res = await wrapped.request('/ping');
     expect(res.status).toBe(200);
     expect(seen).toEqual(['/ping']);
+  });
+});
+
+describe('registerCrud() setup guard', () => {
+  it('throws on an app not created by fromHono()', () => {
+    expect(() => registerCrud(new OpenAPIHono(), '/x', { list: Ping })).toThrow(
+      /registerCrud\(\): the app was not created by fromHono\(\)/,
+    );
   });
 });
 
