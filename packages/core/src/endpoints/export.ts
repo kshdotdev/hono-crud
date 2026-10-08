@@ -75,6 +75,9 @@ export abstract class ExportEndpoint<
   E extends Env = Env,
   M extends MetaInput = MetaInput,
 > extends ListEndpoint<E, M> {
+  // An export reads every record up to `maxExportRecords`.
+  protected override offsetPaginationEnabled = false;
+
   /** Maximum number of records that can be exported in a single request. */
   protected maxExportRecords = 10000;
 

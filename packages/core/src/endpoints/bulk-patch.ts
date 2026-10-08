@@ -10,7 +10,7 @@ import type {
 } from '../core/types';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
-import type { ListFilterParseOptions, ModelObject } from './types';
+import type { ModelObject } from './types';
 import { getSchemaFields, parseListFilters } from './types';
 
 /**
@@ -148,17 +148,13 @@ export abstract class BulkPatchEndpoint<
     const dryRunParam = ctx.req.query('dryRun');
     const dryRun = dryRunParam === 'true' || dryRunParam === '1';
 
-    // Parse filters from query params
-    const filters = parseListFilters(
-      ctx.req.query() as Record<string, string>,
-      {
-        filterFields: this.filterFields,
-        defaultPerPage: this.maxBulkSize,
-        maxPerPage: this.maxBulkSize,
-        // Coerce query-string filter values to the model's declared field types.
-        fieldSchemas: this.getModelSchema().shape,
-      } as ListFilterParseOptions,
-    );
+    const filters = parseListFilters(ctx.req.query(), {
+      // A bulk patch never pages (adapters read only `filters.filters`).
+      offsetPaginationEnabled: false,
+      filterFields: this.filterFields,
+      // Coerce query-string filter values to the model's declared field types.
+      fieldSchemas: this.getModelSchema().shape,
+    });
 
     // Constrain the matched set to the caller's tenant BEFORE counting or
     // patching — both countMatching and applyPatch receive these filters, so a

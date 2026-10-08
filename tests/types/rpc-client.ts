@@ -155,6 +155,8 @@ const rowWithDate: ListRow = { id: 'a', name: 'n', qty: 1, createdAt: new Date()
 type ListRequest = InferRequestType<typeof client.widgets.$get>;
 const noQuery: ListRequest = {};
 const withQuery: ListRequest = { query: { page: '2', per_page: '5', order: 'desc', name: 'x' } };
+// Paging takes numbers too: hc stringifies them into the URL.
+const numericPaging: ListRequest = { query: { page: 2, per_page: 5, limit: 10 } };
 // @ts-expect-error - order is a closed enum
 const badOrder: ListRequest = { query: { order: 'sideways' } };
 
@@ -323,6 +325,7 @@ export {
   rowWithDate,
   noQuery,
   withQuery,
+  numericPaging,
   badOrder,
   createBody,
   createMissingName,

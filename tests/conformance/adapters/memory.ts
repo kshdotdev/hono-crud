@@ -273,6 +273,11 @@ class CursorItemList extends MemoryListEndpoint {
   protected override cursorField = 'id';
   protected override sortFields = ['email'];
 }
+// Ceiling below the inherited defaultPerPage (20): the default is capped to it.
+class CappedItemList extends MemoryListEndpoint {
+  _meta = baseMeta;
+  protected override maxPerPage = 2;
+}
 
 class RegistryAuthorCreate extends MemoryCreateEndpoint {
   _meta = registryAuthorMeta;
@@ -583,6 +588,7 @@ async function setup(): Promise<AdapterContext> {
     versionRollback: FinalizeVersionRollback,
   });
   registerCrud(app, '/cursor-items', { create: ItemCreate, list: CursorItemList });
+  registerCrud(app, '/capped-items', { create: ItemCreate, list: CappedItemList });
   registerCrud(app, '/hook-items', { create: HookItemCreate });
   registerCrud(app, '/enc-items', {
     create: EncCreate,

@@ -5,10 +5,14 @@
  * (memory crud.ts, drizzle crud.ts, prisma helpers.buildPaginatedResult);
  * this cell pins the canonical 6-field shape from core
  * (PaginatedResult.result_info) so the three implementations cannot drift.
+ *
+ * `page` / `per_page` validate against the bounds the OpenAPI document
+ * states (integer, min 1, `per_page` max `maxPerPage`): a value outside them
+ * is refused with 400 VALIDATION_ERROR, never clamped.
  */
 import { expect, test } from 'vitest';
 import type { AdapterDescriptor, CtxGetter, ResultInfo } from '../contract';
-import { expectList } from '../contract';
+import { expectError, expectList, readJson } from '../contract';
 import { SEED_EMAILS_SORTED, seedFilterRows } from '../model';
 
 export function registerPaginationCells(_descriptor: AdapterDescriptor, ctx: CtxGetter): void {
@@ -63,5 +67,61 @@ export function registerPaginationCells(_descriptor: AdapterDescriptor, ctx: Ctx
       has_next_page: false,
       has_prev_page: true,
     });
+  });
+
+  test('offset pagination: absent page/per_page answer page 1 at the default page size', async () => {
+    const { app } = ctx();
+    await seedFilterRows(app, '/items');
+
+    const list = await expectList(await app.request('/items'));
+    expect(list.result_info).toMatchObject({ page: 1, per_page: 20, total_count: 5 });
+  });
+
+  test('offset pagination: a defaultPerPage above maxPerPage defaults to the ceiling', async () => {
+    const { app } = ctx();
+    await seedFilterRows(app, '/capped-items');
+
+    const list = await expectList(await app.request('/capped-items'));
+    expect(list.result).toHaveLength(2);
+    expect(list.result_info).toMatchObject({ page: 1, per_page: 2, total_count: 5 });
+  });
+
+  test('offset pagination: page/per_page outside the documented bounds are refused, never clamped', async () => {
+    const { app } = ctx();
+
+    for (const query of [
+      'per_page=101',
+      'per_page=0',
+      'per_page=abc',
+      'per_page=2.5',
+      'per_page=',
+      'page=0',
+      'page=abc',
+      'page=',
+    ]) {
+      await expectError(await app.request(`/items?${query}`), 400, 'VALIDATION_ERROR');
+    }
+
+    const ceiling = await expectList(await app.request('/items?per_page=100'));
+    expect(ceiling.result_info.per_page).toBe(100);
+  });
+
+  test('offset pagination: export neither honors nor validates page/per_page', async () => {
+    const { app } = ctx();
+    await seedFilterRows(app, '/items');
+
+    // per_page=1 would cut the export to one row if honored; page=0 would 400 if validated.
+    const response = await app.request('/items/export?per_page=1&page=0');
+    expect(response.status).toBe(200);
+    const body = await readJson<{ result: { count: number } }>(response);
+    expect(body.result.count).toBe(5);
+  });
+
+  test('offset pagination: search refuses page/per_page outside the documented bounds', async () => {
+    const { app } = ctx();
+
+    for (const query of ['per_page=101', 'per_page=0', 'per_page=abc', 'per_page=', 'page=0']) {
+      await expectError(await app.request(`/items/search?q=a&${query}`), 400, 'VALIDATION_ERROR');
+    }
   });
 }

@@ -10,7 +10,6 @@ import type {
   PaginatedResult,
   SortSpec,
 } from '../core/types';
-import { SORT_DIRECTIONS } from '../core/types';
 import { withIncludableRelations } from '../relations/response-schema';
 import { CrudEndpoint } from './base';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
@@ -18,7 +17,10 @@ import {
   type ListFilterParseOptions,
   type ListFilters,
   type ModelObject,
+  boundedPageSize,
+  pagingQueryShape,
   parseListFilters,
+  sortQueryShape,
 } from './types';
 
 /**
@@ -57,6 +59,12 @@ export abstract class ListEndpoint<
   protected defaultSort?: SortSpec;
 
   // Pagination configuration
+  /**
+   * Whether `page` / `per_page` are query params. An endpoint that reads
+   * every matching row (export) turns it off so it neither advertises nor
+   * validates params it would ignore.
+   */
+  protected offsetPaginationEnabled = true;
   protected defaultPerPage = 20;
   protected maxPerPage = 100;
 
@@ -139,19 +147,12 @@ export abstract class ListEndpoint<
    */
   protected getQuerySchema(): ZodObject<ZodRawShape> {
     // Use Record for mutable shape building (ZodRawShape is readonly in Zod v4)
-    const shape: Record<string, z.ZodTypeAny> = {
-      page: z.string().optional(),
-      per_page: z.string().optional(),
-    };
+    const shape: Record<string, z.ZodTypeAny> = this.offsetPaginationEnabled
+      ? pagingQueryShape(this.defaultPerPage, this.maxPerPage)
+      : {};
 
     if (this.sortFields.length > 0) {
-      shape.sort = z
-        .enum(this.sortFields as [string, ...string[]])
-        .optional()
-        .meta({ description: 'Field to sort by' });
-      shape.order = z.enum(SORT_DIRECTIONS).optional().meta({
-        description: 'Sort direction (asc or desc)',
-      });
+      Object.assign(shape, sortQueryShape(this.sortFields, this.defaultSort));
     }
 
     if (this.searchFields.length > 0) {
@@ -191,9 +192,12 @@ export abstract class ListEndpoint<
         description:
           'Opaque cursor for fetching the next page. During a cursor walk, results are ordered by the cursor field ascending and sort/order are ignored.',
       });
-      shape.limit = z.string().optional().meta({
-        description: 'Number of items to return (cursor pagination)',
-      });
+      // Bounded like `per_page`, but never defaulted: a present `limit` is
+      // what starts a cursor walk (`parseListFilters`), so a default would
+      // turn every request into one.
+      shape.limit = boundedPageSize(this.maxPerPage)
+        .optional()
+        .meta({ description: 'Number of items to return (cursor pagination)' });
     }
 
     return z.object(shape) as ZodObject<ZodRawShape>;
@@ -265,6 +269,7 @@ export abstract class ListEndpoint<
       defaultSort: this.defaultSort,
       defaultPerPage: this.defaultPerPage,
       maxPerPage: this.maxPerPage,
+      offsetPaginationEnabled: this.offsetPaginationEnabled,
       cursorPaginationEnabled: this.isCursorPaginationActive(),
       cursorField: this.cursorField,
       softDeleteQueryParam: softDeleteConfig.queryParam,

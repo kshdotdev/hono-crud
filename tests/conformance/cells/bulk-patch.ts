@@ -8,7 +8,8 @@
  * - managed `updatedAt` is strictly bumped on every patched record;
  * - the response reports exact `matched`/`updated` counts with
  *   `dryRun: false`;
- * - `?dryRun=true` reports the count without writing.
+ * - `?dryRun=true` reports the count without writing;
+ * - paging params are ignored, never validated: a bulk patch does not page.
  */
 import { expect, test } from 'vitest';
 import type { AdapterDescriptor, ConformanceRecord, CtxGetter } from '../contract';
@@ -104,5 +105,22 @@ export function registerBulkPatchCells(descriptor: AdapterDescriptor, ctx: CtxGe
       200,
     );
     expect(cooperAfter.age).toBe(28);
+  });
+
+  test('bulk patch: paging params are ignored, never validated', async () => {
+    const { app } = ctx();
+    await seedFilterRows(app, '/items');
+
+    const response = await app.request(
+      '/items/bulk?role=user&dryRun=true&page=0&per_page=abc',
+      jsonInit('PATCH', { age: 77 }),
+    );
+    expect(response.status).toBe(200);
+    expect(await readJson<BulkPatchBody>(response)).toEqual({
+      success: true,
+      matched: 2,
+      updated: 0,
+      dryRun: true,
+    });
   });
 }

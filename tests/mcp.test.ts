@@ -247,6 +247,30 @@ describe('tool generation', () => {
     expect(Object.keys(read?.inputSchema?.properties ?? {})).toContain('id');
   });
 
+  it('advertises list paging as bounded integers and accepts numeric paging args', async () => {
+    const app = buildApp();
+    const server = new McpServer(serverInfo);
+    registerResourceTools(server, app, '/users', endpoints, serverInfo);
+    const client = await connectClient(server);
+
+    const { tools } = await client.listTools();
+    const props = tools.find((t) => t.name === 'users_list')?.inputSchema?.properties ?? {};
+    expect(props.page).toMatchObject({ type: 'integer', minimum: 1, default: 1 });
+    expect(props.per_page).toMatchObject({
+      type: 'integer',
+      minimum: 1,
+      maximum: 100,
+      default: 20,
+    });
+
+    // Dispatch stringifies the numbers into the URL; the endpoint coerces them back.
+    const listed = await client.callTool({
+      name: 'users_list',
+      arguments: { page: 1, per_page: 5 },
+    });
+    expect(JSON.parse(textOf(listed)).result_info).toMatchObject({ page: 1, per_page: 5 });
+  });
+
   it('respects the operations allow-list, disabled tools, and name/description overrides', async () => {
     const app = buildApp();
     const server = new McpServer(serverInfo);

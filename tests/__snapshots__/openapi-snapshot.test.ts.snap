@@ -11,7 +11,9 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           "name": "page",
           "required": false,
           "schema": {
-            "type": "string",
+            "default": 1,
+            "minimum": 1,
+            "type": "integer",
           },
         },
         {
@@ -19,7 +21,10 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           "name": "per_page",
           "required": false,
           "schema": {
-            "type": "string",
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer",
           },
         },
         {
@@ -663,22 +668,6 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
     "get": {
       "parameters": [
         {
-          "in": "query",
-          "name": "page",
-          "required": false,
-          "schema": {
-            "type": "string",
-          },
-        },
-        {
-          "in": "query",
-          "name": "per_page",
-          "required": false,
-          "schema": {
-            "type": "string",
-          },
-        },
-        {
           "description": "Export format",
           "in": "query",
           "name": "format",
@@ -1236,7 +1225,9 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           "name": "page",
           "required": false,
           "schema": {
-            "type": "string",
+            "default": 1,
+            "minimum": 1,
+            "type": "integer",
           },
         },
         {
@@ -1244,7 +1235,10 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           "name": "per_page",
           "required": false,
           "schema": {
-            "type": "string",
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer",
           },
         },
       ],

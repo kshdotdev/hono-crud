@@ -12,6 +12,7 @@ import type {
 import { CrudEndpoint } from './base';
 import { pickFields } from './projection';
 import { errorResponseSchema, mergeRouteSchema } from './responses';
+import { boundedPageSize } from './types';
 
 /**
  * Decrypt the configured encrypted fields inside a version snapshot's `data`
@@ -112,8 +113,8 @@ export abstract class VersionHistoryEndpoint<
    */
   protected getQuerySchema(): ZodObject<ZodRawShape> {
     return z.object({
-      limit: z.coerce.number().min(1).max(this.maxLimit).optional(),
-      offset: z.coerce.number().min(0).optional(),
+      limit: boundedPageSize(this.maxLimit).optional(),
+      offset: z.coerce.number().int().min(0).optional(),
     }) as unknown as ZodObject<ZodRawShape>;
   }
 

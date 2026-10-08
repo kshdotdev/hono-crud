@@ -256,6 +256,12 @@ async function setup(): Promise<AdapterContext> {
     protected override cursorField = 'id';
     protected override sortFields = ['email'];
   }
+  // Ceiling below the inherited defaultPerPage (20): the default is capped to it.
+  class CappedItemList extends PrismaListEndpoint {
+    _meta = baseMeta;
+    prisma = crudClient;
+    protected override maxPerPage = 2;
+  }
 
   class TenantCreate extends PrismaCreateEndpoint {
     _meta = tenantMeta;
@@ -493,6 +499,7 @@ async function setup(): Promise<AdapterContext> {
     update: FinalizeUpdate,
   });
   registerCrud(app, '/cursor-items', { create: ItemCreate, list: CursorItemList });
+  registerCrud(app, '/capped-items', { create: ItemCreate, list: CappedItemList });
   registerCrud(app, '/hook-items', { create: HookItemCreate });
   registerCrud(app, '/enc-items', {
     create: EncCreate,

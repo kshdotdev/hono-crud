@@ -120,7 +120,7 @@ async function demo() {
 | `app.get(path, RouteClass)` | `schema.request`: `params` → `param`, `query`, `headers` → `header`, `cookies` → `cookie`, JSON body → `json`, multipart / URL-encoded body → `form` | every JSON response in `schema.responses`, keyed by status; `Date` fields become strings (`JSONParsed`) |
 | class without a schema | path params only | unknown body, any status |
 | `registerCrud` — `create` | `json: meta.fields` (or a partial of the row) | `201 { success: true, result: Row }`, `400` error |
-| `list` | optional `query` (`page`, `per_page`, `sort`, `order`, `search`, `include`, `fields`, `cursor`, filters) | `200 { success: true, result: Row[], result_info }`, `400` |
+| `list` | optional `query` (`page`, `per_page`, `sort`, `order`, `search`, `include`, `fields`, `cursor`, `limit`, filters; paging takes numbers or numeric strings) | `200 { success: true, result: Row[], result_info }`, `400` |
 | `read` | `param.id`, optional `include`/`fields` | `200 { result: Row }`, `404` |
 | `update` | `param.id`, `json: Partial<create body>` | `200`, `400`, `404` |
 | `delete` | `param.id` | `200 { result: { deleted: true } }`, `404`, `409` |
