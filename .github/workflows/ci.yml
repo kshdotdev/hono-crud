@@ -45,6 +45,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Changesets are patch-only
+        run: |
+          if grep -lE "^'[^']+': (minor|major)$" .changeset/*.md; then
+            echo "Changesets must be patch (see Versioning Doctrine in CLAUDE.md)." >&2
+            exit 1
+          fi
+
       - name: Lint
         run: pnpm lint
 

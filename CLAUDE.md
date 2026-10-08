@@ -112,6 +112,15 @@ Adjudicated differences between sibling packages — never "fix" these for symme
 - Documented exceptions (legacy, rename only with owner sign-off): RouterOptions,
   RegisterCrudOptions, CreateDrizzleCrudOptions, PerTenantOpenApiOptions.
 
+## Versioning Doctrine
+
+Every changeset is `patch`, breaking changes included: core has released only
+patches since 0.13.4. Satellites declare `"hono-crud": "workspace:^"`, which
+changesets reads as `^<current core>`. A `minor` core bump leaves that range,
+and changesets then forces a **major** bump on every satellite (0.1.x → 1.0.0)
+with no config to stop it. CI rejects `minor` / `major` changesets. Moving core
+to 0.14 is an owner decision that must change the satellites' peer ranges first.
+
 ## Export Surface Doctrine
 
 1. **Each feature subpath barrel is the complete canonical surface of its feature.** If a
