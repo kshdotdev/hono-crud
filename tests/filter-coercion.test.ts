@@ -33,6 +33,7 @@ const ItemSchema = z.object({
   title: z.string(),
   active: z.boolean(),
   score: z.number().int().nullable().optional(),
+  status: z.enum(['draft', 'published']).default('draft'),
 });
 
 const itemMeta = defineMeta({
@@ -41,8 +42,11 @@ const itemMeta = defineMeta({
 const Items = createMemoryCrud(itemMeta);
 
 class ItemList extends Items.List {
-  filterFields = ['active'];
-  filterConfig = { score: ['gte', 'lte', 'in'] as const };
+  filterFields = ['active', 'status'];
+  filterConfig = {
+    score: ['gte', 'lte', 'in'] as const,
+    status: ['ne', 'in', 'like'] as const,
+  };
 }
 
 describe('filter coercion (memory adapter)', () => {
@@ -52,7 +56,7 @@ describe('filter coercion (memory adapter)', () => {
   beforeEach(async () => {
     clearStorage();
     for (const item of [
-      { title: 'on-high', active: true, score: 90 },
+      { title: 'on-high', active: true, score: 90, status: 'published' },
       { title: 'on-low', active: true, score: 10 },
       { title: 'off', active: false, score: 50 },
     ]) {
@@ -86,6 +90,26 @@ describe('filter coercion (memory adapter)', () => {
       const body = (await res.json()) as ErrorBody;
       expect(body.error.code).toBe('VALIDATION_ERROR');
       expect(body.error.message).toMatch(/expects a (boolean|number)/);
+    }
+  });
+
+  it('matches enum fields by member and never applies the field default as a filter', async () => {
+    expect(await titles(await app.request('/items'))).toEqual(['off', 'on-high', 'on-low']);
+    expect(await titles(await app.request('/items?status=published'))).toEqual(['on-high']);
+    expect(await titles(await app.request('/items?status[in]=draft,published'))).toHaveLength(3);
+    // Substring operators keep the raw needle: a partial value is not an enum member.
+    expect(await titles(await app.request('/items?status[like]=pub'))).toEqual(['on-high']);
+  });
+
+  it('rejects a value outside the enum with 400 VALIDATION_ERROR instead of an empty page', async () => {
+    for (const query of ['status=publised', 'status[ne]=publised', 'status[in]=draft,publised']) {
+      const res = await app.request(`/items?${query}`);
+      expect(res.status, query).toBe(400);
+      const body = (await res.json()) as ErrorBody;
+      expect(body.error.code).toBe('VALIDATION_ERROR');
+      expect(body.error.message).toBe(
+        "Filter 'status' expects one of draft, published, got 'publised'",
+      );
     }
   });
 });
