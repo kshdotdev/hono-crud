@@ -2,6 +2,7 @@ import type { Env } from 'hono';
 import { stream } from 'hono/streaming';
 import { z } from 'zod';
 import type { InferModelRow, ListFilters, MetaInput, OpenAPIRouteSchema } from '../core/types';
+import { withIncludableRelations } from '../relations/response-schema';
 import { type CsvGenerateOptions, escapeCsvValue, generateCsv } from '../utils/csv';
 import { ListEndpoint } from './list';
 import { projectRecord } from './projection';
@@ -127,7 +128,13 @@ export abstract class ExportEndpoint<
                 schema: z.object({
                   success: z.literal(true),
                   result: z.object({
-                    data: z.array(this.getModelSchema()),
+                    data: z.array(
+                      withIncludableRelations(
+                        this.getModelSchema(),
+                        this._meta,
+                        this.allowedIncludes,
+                      ),
+                    ),
                     count: z.number(),
                     format: z.enum(EXPORT_FORMATS),
                     exportedAt: z.string(),
