@@ -41,6 +41,8 @@ import { getSoftDeleteConfig } from '../core/soft-delete';
 import {
   type AuditAction,
   type FilterCondition,
+  type FilterConfig,
+  type FilterOperator,
   type HookContext,
   type HookMode,
   type InferModelRow,
@@ -66,7 +68,7 @@ import { getContextVar, setContextVar } from '../utils/context';
 import { type VersionManager, createVersionManager } from '../versioning';
 import { getVersioningConfig } from '../versioning/config';
 import { type ResponseProjection, projectRecord } from './projection';
-import { type FieldSelection, applyFieldSelection } from './types';
+import { type FieldSelection, applyFieldSelection, filterEnumValues } from './types';
 
 /**
  * Per-request memoization key for `Model.resolveSchema(ctx)` results.
@@ -821,6 +823,49 @@ export abstract class CrudEndpoint<
     }
 
     return available;
+  }
+
+  /**
+   * Appends the `?field=` / `?field[op]=` filter params to a query-schema
+   * `shape`. Shared by List / Search / Aggregate. Values stay strings on the
+   * wire; an operator taking a single value (`eq`, `ne`, `gt`, `gte`, `lt`,
+   * `lte`) on a string enum field is typed as that enum, so the doc (and any
+   * client generated from it) lists the members and the validator rejects a
+   * typo before the handler runs. Other operators stay strings: `in`/`nin`/
+   * `between` carry comma lists, `like`/`ilike` a partial needle, and `null`
+   * a boolean flag.
+   *
+   * The enum is rebuilt from its members instead of reusing the field schema,
+   * so the field's `.default()` (which zod would apply to an absent param,
+   * silently filtering every request), description, and component id never
+   * reach the param. With `resolveSchema` the params stay strings: the
+   * validator is built from the static `Model.schema` while a per-tenant doc
+   * comes from the resolved one, so neither enum would fit both. The runtime
+   * coercion still rejects a typo against the resolved schema.
+   */
+  protected addFilterParams(
+    shape: Record<string, z.ZodTypeAny>,
+    filterFields: readonly string[],
+    filterConfig?: FilterConfig,
+  ): void {
+    const modelShape: Record<string, unknown> = this.getModelSchema().shape;
+    const param = (field: string, operator: FilterOperator): z.ZodTypeAny => {
+      const members = this._meta.model.resolveSchema
+        ? undefined
+        : filterEnumValues(operator, modelShape[field]);
+      return members ? z.enum(members).optional() : z.string().optional();
+    };
+
+    for (const field of filterFields) {
+      shape[field] = param(field, 'eq');
+    }
+    for (const [field, operators] of Object.entries(filterConfig ?? {})) {
+      for (const operator of operators) {
+        shape[`${field}[${operator}]`] = param(field, operator);
+      }
+      // Bare `?field=value` is equality for every configured field.
+      shape[field] = param(field, 'eq');
+    }
   }
 
   /**

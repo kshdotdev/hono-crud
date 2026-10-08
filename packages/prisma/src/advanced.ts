@@ -8,7 +8,7 @@ import {
   VersionReadEndpoint,
   VersionRollbackEndpoint,
 } from 'hono-crud/internal';
-import { AggregateEndpoint, computeAggregations } from 'hono-crud/internal';
+import { AggregateEndpoint, computeAggregations, orderAndPageGroups } from 'hono-crud/internal';
 import { buildIncludeOptions, buildOffsetPageInfo } from 'hono-crud/internal';
 import { isFilterOperator } from 'hono-crud/internal';
 import { NotFoundException } from 'hono-crud/internal';
@@ -592,13 +592,8 @@ export abstract class PrismaAggregateEndpoint<
 
     // Apply soft delete filter
     const softDeleteConfig = this.getSoftDeleteConfig();
-    if (softDeleteConfig.enabled) {
-      const { query } = await this.getValidatedData();
-      const withDeleted = query?.withDeleted === true || query?.withDeleted === 'true';
-
-      if (!withDeleted) {
-        applySoftDeleteExclusion(where, softDeleteConfig);
-      }
+    if (softDeleteConfig.enabled && !options.withDeleted) {
+      applySoftDeleteExclusion(where, softDeleteConfig);
     }
 
     // Apply filters
@@ -641,9 +636,15 @@ export abstract class PrismaAggregateEndpoint<
     const model = await this.getModel();
     const where = await this.buildAggregateWhere(options);
 
-    // Fall back to in-memory computation if native aggregation is disabled
-    // or if there are HAVING clauses (not supported by Prisma aggregate)
-    if (!this.useNativeAggregation || options.having) {
+    // Fall back to in-memory computation if native aggregation is disabled,
+    // for HAVING clauses (not supported by Prisma aggregate), and for field
+    // counts / countDistinct, which the native mapping reports only as the
+    // row `count` instead of `count<Field>` / `countDistinct<Field>`.
+    const hasFieldCount = options.aggregations.some(
+      (agg) =>
+        agg.operation === 'countDistinct' || (agg.operation === 'count' && agg.field !== '*'),
+    );
+    if (!this.useNativeAggregation || options.having || hasFieldCount) {
       const records = await model.findMany({ where });
       return computeAggregations(records, options);
     }
@@ -856,7 +857,9 @@ export abstract class PrismaAggregateEndpoint<
         count: groups.reduce((sum, g) => sum + ((g.values.count as number) || 0), 0),
       };
 
-      return { values, groups };
+      // Native groupBy returns every group unordered; apply orderBy / limit /
+      // offset exactly as the in-memory path does.
+      return { values, ...orderAndPageGroups(groups, options) };
     } catch (error) {
       // Fall back to in-memory computation if native groupBy fails
       const records = await model.findMany({ where });

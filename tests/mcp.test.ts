@@ -3,6 +3,7 @@ import { dispatch } from '@hono-crud/mcp/dispatch';
 import { registerResourceTools } from '@hono-crud/mcp/tools';
 import {
   MemoryAdapters,
+  MemoryAggregateEndpoint,
   MemoryCreateEndpoint,
   MemoryDeleteEndpoint,
   MemoryListEndpoint,
@@ -245,6 +246,39 @@ describe('tool generation', () => {
 
     const read = tools.find((t) => t.name === 'users_read');
     expect(Object.keys(read?.inputSchema?.properties ?? {})).toContain('id');
+  });
+
+  it('exposes aggregate filters and string paging params on the aggregate tool', async () => {
+    class UserAggregate extends MemoryAggregateEndpoint {
+      _meta = userMeta;
+      filterFields = ['role'];
+    }
+    const withAggregate = { ...endpoints, aggregate: UserAggregate };
+    const app = fromHono(new Hono());
+    registerCrud(app, '/users', withAggregate);
+    const server = new McpServer(serverInfo);
+    registerResourceTools(server, app, '/users', withAggregate, serverInfo);
+    const client = await connectClient(server);
+
+    const { tools } = await client.listTools();
+    const props = tools.find((t) => t.name === 'users_aggregate')?.inputSchema?.properties;
+    expect(props?.role).toMatchObject({ type: 'string', enum: ['admin', 'user'] });
+    expect(props?.limit).toMatchObject({ type: 'string' });
+    expect(props).not.toHaveProperty('email');
+  });
+
+  it('types an enum filter param with its members on the list tool', async () => {
+    const app = buildApp();
+    const server = new McpServer(serverInfo);
+    registerResourceTools(server, app, '/users', endpoints, serverInfo);
+    const client = await connectClient(server);
+
+    const { tools } = await client.listTools();
+    const list = tools.find((t) => t.name === 'users_list');
+    expect(list?.inputSchema?.properties?.role).toMatchObject({
+      type: 'string',
+      enum: ['admin', 'user'],
+    });
   });
 
   it('respects the operations allow-list, disabled tools, and name/description overrides', async () => {

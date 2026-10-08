@@ -27,6 +27,11 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           "name": "status",
           "required": false,
           "schema": {
+            "enum": [
+              "draft",
+              "published",
+              "archived",
+            ],
             "type": "string",
           },
         },
@@ -521,10 +526,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           "name": "limit",
           "required": false,
           "schema": {
-            "type": [
-              "number",
-              "null",
-            ],
+            "type": "string",
           },
         },
         {
@@ -532,21 +534,76 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           "name": "offset",
           "required": false,
           "schema": {
-            "type": [
-              "number",
-              "null",
-            ],
+            "type": "string",
           },
         },
         {
           "in": "query",
-          "name": "withDeleted",
+          "name": "id",
           "required": false,
           "schema": {
-            "type": [
-              "boolean",
-              "null",
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "title",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "slug",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "body",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "status",
+          "required": false,
+          "schema": {
+            "enum": [
+              "draft",
+              "published",
+              "archived",
             ],
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "views",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "authorEmail",
+          "required": false,
+          "schema": {
+            "type": "string",
+          },
+        },
+        {
+          "in": "query",
+          "name": "published",
+          "required": false,
+          "schema": {
+            "type": "string",
           },
         },
       ],

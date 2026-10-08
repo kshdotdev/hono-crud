@@ -158,21 +158,7 @@ export abstract class ListEndpoint<
       shape[this.searchParamName] = z.string().optional();
     }
 
-    // Add filter fields
-    for (const field of this.filterFields) {
-      shape[field] = z.string().optional();
-    }
-
-    // Add operator-based filter fields
-    if (this.filterConfig) {
-      for (const [field, operators] of Object.entries(this.filterConfig)) {
-        for (const op of operators) {
-          shape[`${field}[${op}]`] = z.string().optional();
-        }
-        // Also allow simple equality
-        shape[field] = z.string().optional();
-      }
-    }
+    this.addFilterParams(shape, this.filterFields, this.filterConfig);
 
     // Add soft delete query parameters if enabled
     const softDeleteConfig = this.getSoftDeleteConfig();
