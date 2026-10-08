@@ -672,6 +672,11 @@ export interface AggregateOptions {
   limit?: number;
   /** Offset for pagination */
   offset?: number;
+  /**
+   * Include soft-deleted rows. Parsed from the model's soft-delete query param
+   * and only ever `true` when `softDelete.allowQueryDeleted` permits it.
+   */
+  withDeleted?: boolean;
 }
 
 /**

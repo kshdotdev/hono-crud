@@ -521,10 +521,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           "name": "limit",
           "required": false,
           "schema": {
-            "type": [
-              "number",
-              "null",
-            ],
+            "type": "string",
           },
         },
         {
@@ -532,21 +529,7 @@ exports[`OpenAPI output snapshot > toOpenApiPaths output is stable (byte-for-byt
           "name": "offset",
           "required": false,
           "schema": {
-            "type": [
-              "number",
-              "null",
-            ],
-          },
-        },
-        {
-          "in": "query",
-          "name": "withDeleted",
-          "required": false,
-          "schema": {
-            "type": [
-              "boolean",
-              "null",
-            ],
+            "type": "string",
           },
         },
       ],

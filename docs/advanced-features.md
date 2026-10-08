@@ -553,7 +553,16 @@ registerCrud(app, '/users', {
 **Query** (one query param per operation: `count`, `sum`, `avg`, `min`, `max`, `countDistinct`):
 ```
 GET /users/aggregate?count=id&avg=age&groupBy=role
+GET /users/aggregate?count=*&groupBy=role&orderBy=count&orderDirection=desc&limit=10&offset=10
+GET /users/aggregate?count=*&withDeleted=true
 ```
+
+`limit` and `offset` page grouped results (`totalGroups` reports the count
+before paging); `limit` must be a positive integer and `offset` a
+non-negative one (`400 VALIDATION_ERROR` otherwise), and a `limit`
+above `maxLimit` (default 1000) is `400 AGGREGATION_ERROR`. On a soft-delete
+model, `?withDeleted=true` (the model's `softDelete.queryParam`) includes
+deleted rows, unless the model sets `allowQueryDeleted: false`.
 
 ---
 
